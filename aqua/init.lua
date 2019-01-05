@@ -1,7 +1,9 @@
 local aqua = {}
 
 aqua.assets = require("aqua.assets")
+aqua.game = require("aqua.game")
 aqua.graphics = require("aqua.graphics")
+aqua.io = require("aqua.io")
 aqua.math = require("aqua.math")
 aqua.package = require("aqua.package")
 aqua.screen = require("aqua.screen")
@@ -23,7 +25,6 @@ local callbacks = {
 	"quit"
 }
 
-aqua.io = aqua.util.Observable:new()
 for _, name in pairs(callbacks) do
 	love[name] = function(...)
 		aqua.io:send({

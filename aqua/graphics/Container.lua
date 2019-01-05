@@ -13,6 +13,11 @@ Container.add = function(self, sprite)
 	self.needSort = true
 end
 
+Container.remove = function(self, sprite)
+	self.objects[sprite] = nil
+	self.needSort = true
+end
+
 Container.sort = function(self)
 	if not self.needSort then
 		return
@@ -45,6 +50,18 @@ Container.draw = function(self)
 	local objectList = self.objectList
 	for i = 1, #objectList do
 		objectList[i]:draw()
+	end
+end
+
+Container.load = function(self)
+	for object in pairs(self.objects) do
+		object:load()
+	end
+end
+
+Container.unload = function(self)
+	for object in pairs(self.objects) do
+		object:unload()
 	end
 end
 
