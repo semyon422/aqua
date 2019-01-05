@@ -9,6 +9,6 @@ Observer.new = function(self)
 	return observer
 end
 
-Observer.receiveEvent = function(self, event) end
+Observer.receive = function(self, event) end
 
 return Observer

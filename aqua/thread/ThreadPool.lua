@@ -19,10 +19,12 @@ ThreadPool.update = function(self)
 			self.threads[i]:update()
 		end
 	end
-	local thread = self:getIdleThread()
-	if thread and self.queue[1] then
-		thread:execute(unpack(self.queue[1]))
-		table.remove(self.queue, 1)
+	if self.queue[1] then
+		local thread = self:getIdleThread()
+		if thread then
+			thread:execute(unpack(self.queue[1]))
+			table.remove(self.queue, 1)
+		end
 	end
 end
 

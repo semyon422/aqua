@@ -10,15 +10,15 @@ Observable.new = function(self)
 	return observable
 end
 
-Observable.addObserver = function(self, observer)
+Observable.add = function(self, observer)
 	self.observers[observer] = true
 end
 
-Observable.removeObserver = function(self, observer)
+Observable.remove = function(self, observer)
 	self.observers[observer] = nil
 end
 
-Observable.sendEvent = function(self, event)
+Observable.send = function(self, event)
 	local observers = {}
 	
 	for observer in pairs(self.observers) do
@@ -26,10 +26,10 @@ Observable.sendEvent = function(self, event)
 	end
 	
 	for _, observer in pairs(observers) do
-		observer:receiveEvent(event)
+		observer:receive(event)
 	end
 end
 
-Observable.receiveEvent = Observable.sendEvent
+Observable.receive = Observable.send
 
 return Observable
