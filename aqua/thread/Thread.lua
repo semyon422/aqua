@@ -1,16 +1,9 @@
-local Thread = {}
+local Class = require("aqua.util.Class")
+
+local Thread = Class:new()
 
 Thread.id = 0
 Thread.idle = true
-
-Thread.new = function(self)
-	local thread = {}
-	
-	setmetatable(thread, self)
-	self.__index = self
-	
-	return thread
-end
 
 Thread.create = function(self, codestring)
 	self.thread = love.thread.newThread(codestring)
