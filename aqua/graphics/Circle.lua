@@ -1,4 +1,5 @@
 local Sprite = require("aqua.graphics.Sprite")
+
 local Circle = Sprite:new()
 
 Circle.draw = function(self)

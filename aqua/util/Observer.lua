@@ -1,13 +1,6 @@
-local Observer = {}
+local Class = require("aqua.util.Class")
 
-Observer.new = function(self)
-	local observer = {}
-	
-	setmetatable(observer, self)
-	self.__index = self
-	
-	return observer
-end
+local Observer = Class:new()
 
 Observer.receive = function(self, event) end
 

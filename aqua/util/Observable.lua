@@ -1,13 +1,9 @@
-local Observable = {}
+local Class = require("aqua.util.Class")
 
-Observable.new = function(self)
-	local observable = {}
-	observable.observers = {}
-	
-	setmetatable(observable, self)
-	self.__index = self
-	
-	return observable
+local Observable = Class:new()
+
+Observable.construct = function(self)
+	self.observers = {}
 end
 
 Observable.add = function(self, observer)

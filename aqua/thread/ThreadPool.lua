@@ -1,6 +1,7 @@
 local Thread = require("aqua.thread.Thread")
+local Class = require("aqua.util.Class")
 
-local ThreadPool = {}
+local ThreadPool = Class:new()
 
 ThreadPool.poolSize = 4
 ThreadPool.keepAliveTime = 1

@@ -1,13 +1,6 @@
-local Sprite = {}
+local Class = require("aqua.util.Class")
 
-Sprite.new = function(self, sprite)
-	local sprite = sprite or {}
-	
-	setmetatable(sprite, self)
-	self.__index = self
-	
-	return sprite
-end
+local Sprite = Class:new()
 
 Sprite.draw = function(self) end
 

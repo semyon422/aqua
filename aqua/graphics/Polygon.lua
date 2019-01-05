@@ -1,4 +1,5 @@
 local Sprite = require("aqua.graphics.Sprite")
+
 local Polygon = Sprite:new()
 
 Polygon.draw = function(self)

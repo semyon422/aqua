@@ -1,4 +1,5 @@
 local Sprite = require("aqua.graphics.Sprite")
+
 local PointSet = Sprite:new()
 
 require("love.image")

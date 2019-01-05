@@ -1,18 +1,10 @@
 local map = require("aqua.math").map
+local Class = require("aqua.util.Class")
 
-local CS = {}
+local CS = Class:new()
 
-CS.new = function(self, bx, by, rx, ry, binding, baseOne)
-	local cs = {}
-	
-	cs.bx, cs.by, cs.rx, cs.ry, cs.binding, cs.baseOne = bx, by, rx, ry, binding, baseOne
-	
-	setmetatable(cs, self)
-	self.__index = self
-	
-	cs:update()
-	
-	return cs
+CS.construct = function(self)
+	self:update()
 end
 
 CS.update = function(self)

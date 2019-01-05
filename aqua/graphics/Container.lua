@@ -1,15 +1,11 @@
-local Container = {}
+local Class = require("aqua.util.Class")
 
-Container.new = function(self)
-	local container = {}
-	container.objects = {}
-	container.objectList = {}
-	container.needSort = false
-	
-	setmetatable(container, self)
-	self.__index = self
-	
-	return container
+local Container = Class:new()
+
+Container.construct = function(self)
+	self.objects = {}
+	self.objectList = {}
+	self.needSort = false
 end
 
 Container.add = function(self, sprite)

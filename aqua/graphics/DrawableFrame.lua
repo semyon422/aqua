@@ -1,4 +1,5 @@
 local Sprite = require("aqua.graphics.Sprite")
+
 local DrawableFrame = Sprite:new()
 
 DrawableFrame.updateScale = function(self)

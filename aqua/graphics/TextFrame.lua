@@ -1,4 +1,5 @@
 local Sprite = require("aqua.graphics.Sprite")
+
 local TextFrame = Sprite:new()
 
 TextFrame.getY = function(self, lineCount)

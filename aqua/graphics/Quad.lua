@@ -1,4 +1,5 @@
 local Sprite = require("aqua.graphics.Sprite")
+
 local Quad = Sprite:new()
 
 Quad.draw = function(self)
