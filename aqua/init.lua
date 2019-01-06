@@ -1,5 +1,6 @@
 local aqua = {}
 
+aqua.audio = require("aqua.audio")
 aqua.assets = require("aqua.assets")
 aqua.game = require("aqua.game")
 aqua.graphics = require("aqua.graphics")

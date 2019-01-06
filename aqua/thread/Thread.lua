@@ -31,12 +31,13 @@ Thread.isIdle = function(self)
 	return self.idle
 end
 
-Thread.execute = function(self, codestring, callback)
+Thread.execute = function(self, codestring, args, callback)
 	self.callback = callback
 	self.idle = false
 	self:send({
 		action = "loadstring",
-		codestring = codestring
+		codestring = codestring,
+		args = args
 	})
 end
 

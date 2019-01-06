@@ -1,7 +1,7 @@
 local Thread = require("aqua.thread.Thread")
 local Class = require("aqua.util.Class")
 
-local ThreadPool = Class:new()
+local ThreadPool = {}
 
 ThreadPool.poolSize = 4
 ThreadPool.keepAliveTime = 1
@@ -9,8 +9,8 @@ ThreadPool.keepAliveTime = 1
 ThreadPool.threads = {}
 ThreadPool.queue = {}
 
-ThreadPool.execute = function(self, codestring, callback)
-	self.queue[#self.queue + 1] = {codestring, callback}
+ThreadPool.execute = function(self, codestring, args, callback)
+	self.queue[#self.queue + 1] = {codestring, args, callback}
 	return self:update()
 end
 
@@ -73,7 +73,7 @@ ThreadPool.codestring = [[
 			})
 			return
 		elseif event.action == "loadstring" then
-			local result = {pcall(loadstring(event.codestring))}
+			local result = {pcall(loadstring(event.codestring), unpack(event.args))}
 			outputChannel:push({
 				result = result,
 				done = true
