@@ -464,16 +464,8 @@ BOOL BASS_FXSetPriority(HFX handle, int priority);
 
 local bass = {}
 
-local inited = false
-
-bass.init = function()
-	if not inited then
-		bass.BASS_Init(-1, 44100, 0, nil, nil)
-		inited = true
-	end
-end
-
 local _bass = ffi.load("bass")
+_bass.BASS_Init(-1, 44100, 0, nil, nil)
 
 setmetatable(bass, {
 	__index = _bass

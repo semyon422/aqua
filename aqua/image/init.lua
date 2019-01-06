@@ -5,11 +5,11 @@ local image = {}
 local imageDatas = {}
 local callbacks = {}
 
-image.getImageData = function(path)
+image.get = function(path)
 	return imageDatas[path]
 end
 
-image.loadImageData = function(path, callback)
+image.load = function(path, callback)
 	if imageDatas[path] then
 		return imageDatas[path]
 	end
@@ -19,8 +19,7 @@ image.loadImageData = function(path, callback)
 		
 		ThreadPool:execute(
 			[[
-				local image = require("love.image")
-				return image.newImageData(...)
+				return require("love.image").newImageData(...)
 			]],
 			{path},
 			function(result)
@@ -36,7 +35,7 @@ image.loadImageData = function(path, callback)
 	callbacks[path][#callbacks[path] + 1] = callback
 end
 
-image.unloadImageData = function(path, callback)
+image.unload = function(path, callback)
 	imageDatas[path] = nil
 	return callback()
 end

@@ -17,7 +17,7 @@ AudioManager.update = function(self)
 end
 
 AudioManager.getAudio = function(self, path, manual)
-	local soundData = sound.getSoundData(path)
+	local soundData = sound.get(path)
 	if not soundData then return end
 	
 	local audio = Audio:new()
