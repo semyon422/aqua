@@ -14,7 +14,7 @@ Audio.removed = false
 Audio.manual = false
 
 Audio.play = function(self)
-	self.channel = self.channel or bass.BASS_SampleGetChannel(self.chunk, false)
+	self.channel = self.channel or bass.BASS_SampleGetChannel(self.soundData.sample, false)
 	bass.BASS_ChannelPlay(self.channel, false)
 end
 
