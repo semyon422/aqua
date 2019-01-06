@@ -53,15 +53,9 @@ Container.draw = function(self)
 	end
 end
 
-Container.load = function(self)
+Container.reload = function(self)
 	for object in pairs(self.objects) do
-		object:load()
-	end
-end
-
-Container.unload = function(self)
-	for object in pairs(self.objects) do
-		object:unload()
+		object:reload()
 	end
 end
 

@@ -4,10 +4,10 @@ local Class = require("aqua.util.Class")
 local CS = Class:new()
 
 CS.construct = function(self)
-	self:update()
+	self:reload()
 end
 
-CS.update = function(self)
+CS.reload = function(self)
 	self.screenWidth = love.graphics.getWidth()
 	self.screenHeight = love.graphics.getHeight()
 	

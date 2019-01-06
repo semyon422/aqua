@@ -2,6 +2,14 @@ local Sprite = require("aqua.graphics.Sprite")
 
 local DrawableFrame = Sprite:new()
 
+DrawableFrame.reload = function(self)
+	self:updateScale()
+	self:updateOffsets()
+	
+	self._x = self.cs:X(self.x, true)
+	self._y = self.cs:Y(self.y, true)
+end
+
 DrawableFrame.updateScale = function(self)
 	self.scale = 1
 	local dw = self.drawable:getWidth()
@@ -27,19 +35,17 @@ DrawableFrame.getOffset = function(self, screen, frame, align)
 end
 
 DrawableFrame.updateOffsets = function(self)
-	self.ox = self:getOffset(self.cs:X(self.w), self.drawable:getWidth() * self.scale, self.align.x)
-	self.oy = self:getOffset(self.cs:Y(self.h), self.drawable:getHeight() * self.scale, self.align.y)
+	self._ox = self:getOffset(self.cs:X(self.w), self.drawable:getWidth() * self.scale, self.align.x)
+	self._oy = self:getOffset(self.cs:Y(self.h), self.drawable:getHeight() * self.scale, self.align.y)
 end
 
 DrawableFrame.draw = function(self)
-	self:updateScale()
-	self:updateOffsets()
 	self:switchColor()
 	
 	return love.graphics.draw(
 		self.drawable,
-		self.cs:X(self.x, true) + self.ox,
-		self.cs:Y(self.y, true) + self.oy,
+		self._x + self._ox,
+		self._y + self._oy,
 		self.r,
 		self.scale,
 		self.scale

@@ -13,6 +13,5 @@ graphics.TextFrame = require("aqua.graphics.TextFrame")
 graphics.Quad = require("aqua.graphics.Quad")
 graphics.Polygon = require("aqua.graphics.Polygon")
 graphics.Line = require("aqua.graphics.Line")
-graphics.PointSet = require("aqua.graphics.PointSet")
 
 return graphics

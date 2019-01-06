@@ -12,6 +12,7 @@ aqua.screen = require("aqua.screen")
 aqua.sound = require("aqua.sound")
 aqua.string = require("aqua.string")
 aqua.thread = require("aqua.thread")
+aqua.ui = require("aqua.ui")
 aqua.util = require("aqua.util")
 
 local callbacks = {

@@ -2,19 +2,26 @@ local Sprite = require("aqua.graphics.Sprite")
 
 local Quad = Sprite:new()
 
+Quad.reload = function(self)
+	self._x = self.cs:X(self.x, true)
+	self._y = self.cs:Y(self.y, true)
+	self._ox = self.ox and self.cs:X(self.ox)
+	self._oy = self.oy and self.cs:Y(self.oy)
+end
+
 Quad.draw = function(self)
 	self:switchColor()
 	
 	return love.graphics.draw(
 		self.drawable,
 		self.quad,
-		self.cs:X(self.x, true),
-		self.cs:Y(self.y, true),
+		self._x,
+		self._y,
 		self.r,
 		self.sx,
 		self.sy,
-		self.ox and self.cs:X(self.ox),
-		self.oy and self.cs:X(self.oy)
+		self._ox,
+		self._oy
 	)
 end
 

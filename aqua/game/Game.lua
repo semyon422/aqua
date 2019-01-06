@@ -20,7 +20,7 @@ Game.run = function(self)
 end
 
 Game.load = function(self)
-	self.globalUI:load()
+	self.globalUI:reload()
 end
 
 Game.update = function(self)
