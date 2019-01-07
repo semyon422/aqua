@@ -21,4 +21,8 @@ ScreenManager.draw = function(self)
 	self.currentScreen:draw()
 end
 
+ScreenManager.receive = function(self, event)
+	self.currentScreen:receive()
+end
+
 return ScreenManager

@@ -41,10 +41,14 @@ Button.construct = function(self)
 	self.textFrame:reload()
 end
 
+Button.setText = function(self, text)
+	self.textFrame.text = text
+	self.textFrame:reload()
+end
+
 Button.receive = function(self, event)
 	if event.name == "resize" then
-		self.rectangle:reload()
-		self.textFrame:reload()
+		self:reload()
 	elseif event.name == "mousepressed" then
 		local mx = self.cs:x(event.args[1], true)
 		local my = self.cs:y(event.args[2], true)
@@ -52,6 +56,11 @@ Button.receive = function(self, event)
 			self:interact()
 		end
 	end
+end
+
+Button.reload = function(self)
+	self.rectangle:reload()
+	self.textFrame:reload()
 end
 
 Button.interact = function(self) end
