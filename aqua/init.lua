@@ -2,13 +2,11 @@ local aqua = {}
 
 aqua.audio = require("aqua.audio")
 aqua.assets = require("aqua.assets")
-aqua.game = require("aqua.game")
 aqua.graphics = require("aqua.graphics")
 aqua.image = require("aqua.image")
 aqua.io = require("aqua.io")
 aqua.math = require("aqua.math")
 aqua.package = require("aqua.package")
-aqua.screen = require("aqua.screen")
 aqua.sound = require("aqua.sound")
 aqua.string = require("aqua.string")
 aqua.thread = require("aqua.thread")
