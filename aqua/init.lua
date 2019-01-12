@@ -9,8 +9,10 @@ aqua.math = require("aqua.math")
 aqua.package = require("aqua.package")
 aqua.sound = require("aqua.sound")
 aqua.string = require("aqua.string")
+aqua.table = require("aqua.table")
 aqua.thread = require("aqua.thread")
 aqua.ui = require("aqua.ui")
+aqua.utf8 = require("aqua.utf8")
 aqua.util = require("aqua.util")
 
 local callbacks = {
