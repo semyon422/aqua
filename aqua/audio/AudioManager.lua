@@ -16,6 +16,13 @@ AudioManager.update = function(self)
 	end
 end
 
+AudioManager.stop = function(self)
+	for audio in pairs(self.audios) do
+		audio:stop()
+	end
+	self:update()
+end
+
 AudioManager.getAudio = function(self, path, manual)
 	local soundData = sound.get(path)
 	if not soundData then return end
