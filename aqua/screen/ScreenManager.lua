@@ -22,7 +22,7 @@ ScreenManager.draw = function(self)
 end
 
 ScreenManager.receive = function(self, event)
-	self.currentScreen:receive()
+	self.currentScreen:receive(event)
 end
 
 return ScreenManager

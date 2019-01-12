@@ -12,6 +12,7 @@ Game.construct = function(self)
 	self.observer.receive = function(_, ...) return self:receive(...) end
 	self.globalUI = Container:new()
 	self.screenManager = ScreenManager:new()
+	self.screenManager.game = self
 end
 
 Game.run = function(self)
