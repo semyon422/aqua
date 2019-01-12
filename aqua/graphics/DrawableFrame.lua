@@ -39,6 +39,7 @@ DrawableFrame.updateOffsets = function(self)
 	self._oy = self:getOffset(self.cs:Y(self.h), self.drawable:getHeight() * self.scale, self.align.y)
 end
 
+local draw = love.graphics.draw
 DrawableFrame.draw = function(self)
 	self:switchColor()
 	

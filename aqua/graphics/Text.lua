@@ -15,6 +15,8 @@ Text.reload = function(self)
 	self._x = self.cs:X(self.x, true)
 	self._ox = self.ox and self.cs:X(self.ox)
 	self._oy = self.oy and self.cs:Y(self.oy)
+	
+	self._text = {self.color, self.text}
 end
 
 Text.getY = function(self, lineCount)
@@ -28,12 +30,13 @@ Text.getY = function(self, lineCount)
 	end
 end
 
+local printf = love.graphics.printf
 Text.draw = function(self)
 	self:switchColor()
 	self:switchFont()
 	
-	return love.graphics.printf(
-		{self.color, self.text},
+	return printf(
+		self._text,
 		self._x,
 		self._y,
 		self._limit,

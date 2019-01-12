@@ -13,12 +13,13 @@ Line.reload = function(self)
 	end
 end
 
+local line = love.graphics.line
 Line.draw = function(self)
 	self:switchColor()
 	self:switchLineWidth()
 	self:switchLineStyle()
 	
-	return love.graphics.line(self._points)
+	return line(self._points)
 end
 
 return Line

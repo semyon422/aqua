@@ -9,12 +9,13 @@ Rectangle.reload = function(self)
 	self._h = self.cs:Y(self.h)
 end
 
+local rectangle = love.graphics.rectangle
 Rectangle.draw = function(self)
 	self:switchColor()
 	self:switchLineWidth()
 	self:switchLineStyle()
 	
-	return love.graphics.rectangle(
+	return rectangle(
 		self.mode,
 		self._x,
 		self._y,

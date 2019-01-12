@@ -9,10 +9,11 @@ Quad.reload = function(self)
 	self._oy = self.oy and self.cs:Y(self.oy)
 end
 
+local draw = love.graphics.draw
 Quad.draw = function(self)
 	self:switchColor()
 	
-	return love.graphics.draw(
+	return draw(
 		self.drawable,
 		self.quad,
 		self._x,

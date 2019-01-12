@@ -9,10 +9,11 @@ Drawable.reload = function(self)
 	self._oy = self.oy and self.cs:Y(self.oy)
 end
 
+local draw = love.graphics.draw
 Drawable.draw = function(self)
 	self:switchColor()
 	
-	return love.graphics.draw(
+	return draw(
 		self.drawable,
 		self._x,
 		self._y,

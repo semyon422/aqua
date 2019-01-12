@@ -8,12 +8,13 @@ Circle.reload = function(self)
 	self._r = self.cs:X(self.r)
 end
 
+local circle = love.graphics.circle
 Circle.draw = function(self)
 	self:switchColor()
 	self:switchLineWidth()
 	self:switchLineStyle()
 	
-	return love.graphics.circle(
+	return circle(
 		self.mode,
 		self._x,
 		self._y,

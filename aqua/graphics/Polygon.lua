@@ -13,12 +13,13 @@ Polygon.reload = function(self)
 	end
 end
 
+local polygon = love.graphics.polygon
 Polygon.draw = function(self)
 	self:switchColor()
 	self:switchLineWidth()
 	self:switchLineStyle()
 	
-	return love.graphics.polygon(self.mode, self._vertices)
+	return polygon(self.mode, self._vertices)
 end
 
 return Polygon
