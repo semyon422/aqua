@@ -11,7 +11,7 @@ end
 
 image.load = function(path, callback)
 	if imageDatas[path] then
-		return imageDatas[path]
+		return callback(imageDatas[path])
 	end
 	
 	if not callbacks[path] then
@@ -19,7 +19,9 @@ image.load = function(path, callback)
 		
 		ThreadPool:execute(
 			[[
-				return require("love.image").newImageData(...)
+				if love.filesystem.exists(...) then
+					return require("love.image").newImageData(...)
+				end
 			]],
 			{path},
 			function(result)

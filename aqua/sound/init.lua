@@ -34,7 +34,9 @@ sound.load = function(path, callback)
 		
 		ThreadPool:execute(
 			[[
-				return require("aqua.sound").new(...)
+				if love.filesystem.exists(...) then
+					return require("aqua.sound").new(...)
+				end
 			]],
 			{path},
 			function(result)
