@@ -6,39 +6,9 @@ local Rectangle = require("aqua.graphics.Rectangle")
 
 local Button = Class:new()
 
-Button.rectangleColor = {255, 255, 255, 255}
-Button.textColor = Button.rectangleColor
-Button.mode = "line"
-Button.lineStyle = "smooth"
-Button.lineWidth = 1
-Button.layer = 0
-Button.font = love.graphics.getFont()
-
 Button.construct = function(self)
-	self.rectangle = Rectangle:new({
-		x = self.x,
-		y = self.y,
-		w = self.w,
-		h = self.h,
-		mode = self.mode,
-		color = self.rectangleColor,
-		cs = self.cs
-	})
-	self.rectangle:reload()
-	
-	self.textFrame = TextFrame:new({
-		x = self.x,
-		y = self.y,
-		w = self.w,
-		h = self.h,
-		limit = self.w,
-		align = self.textAlign,
-		text = self.text,
-		font = self.font,
-		color = self.textColor,
-		cs = self.cs
-	})
-	self.textFrame:reload()
+	self.rectangle = Rectangle:new()
+	self.textFrame = TextFrame:new()
 end
 
 Button.setText = function(self, text)
@@ -59,8 +29,32 @@ Button.receive = function(self, event)
 end
 
 Button.reload = function(self)
-	self.rectangle:reload()
-	self.textFrame:reload()
+	local rectangle = self.rectangle
+	local textFrame = self.textFrame
+
+	rectangle.x = self.x
+	rectangle.y = self.y
+	rectangle.w = self.w
+	rectangle.h = self.h
+	rectangle.mode = self.mode
+	rectangle.color = self.rectangleColor
+	rectangle.lineStyle = "smooth"
+	rectangle.lineWidth = 1
+	rectangle.cs = self.cs
+	
+	textFrame.x = self.x
+	textFrame.y = self.y
+	textFrame.w = self.w
+	textFrame.h = self.h
+	textFrame.limit = self.w
+	textFrame.align = self.textAlign
+	textFrame.text = self.text
+	textFrame.font = self.font
+	textFrame.color = self.textColor
+	textFrame.cs = self.cs
+	
+	rectangle:reload()
+	textFrame:reload()
 end
 
 Button.interact = function(self) end
