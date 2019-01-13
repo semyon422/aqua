@@ -1,5 +1,4 @@
 local Class = require("aqua.util.Class")
-local Observer = require("aqua.util.Observer")
 local belong = require("aqua.math").belong
 local TextFrame = require("aqua.graphics.TextFrame")
 local Rectangle = require("aqua.graphics.Rectangle")
