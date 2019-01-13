@@ -14,8 +14,8 @@ DrawableFrame.updateScale = function(self)
 	self.scale = 1
 	local dw = self.drawable:getWidth()
 	local dh = self.drawable:getHeight()
-	local s1 = self.w / self.h <= dw / dh
-	local s2 = self.w / self.h >= dw / dh
+	local s1 = self.cs:X(self.w) / self.cs:Y(self.h) <= dw / dh
+	local s2 = self.cs:X(self.w) / self.cs:Y(self.h) >= dw / dh
 	
 	if self.locate == "out" and s1 or self.locate == "in" and s2 then
 		self.scale = self.cs:Y(self.h) / dh
