@@ -25,7 +25,7 @@ end
 
 Audio.update = function(self)
 	if not self.manual and bass.BASS_ChannelIsActive(self.channel) == 0 then
-		self.AudioManager.audios:remove(audio)
+		self.AudioManager.audios:remove(self)
 	end
 end
 
