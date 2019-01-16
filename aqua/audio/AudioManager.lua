@@ -3,25 +3,25 @@ local bass = require("aqua.audio.bass")
 local Audio = require("aqua.audio.Audio")
 local ThreadPool = require("aqua.thread.ThreadPool")
 local Class = require("aqua.util.Class")
+local Group = require("aqua.util.Group")
 
 local AudioManager = {}
 
 Audio.AudioManager = AudioManager
 
-AudioManager.audios = {}
-AudioManager.streams = {}
+AudioManager.audios = Group:new()
 
 AudioManager.update = function(self)
-	for audio in pairs(self.audios) do
-		audio:update()
-	end
+	self.audios:call(function(audio) return audio:update() end)
 end
 
 AudioManager.stop = function(self)
-	for audio in pairs(self.audios) do
-		audio:stop()
-	end
+	self.audios:call(function(audio) return audio:stop() end)
 	self:update()
+end
+
+AudioManager.rate = function(self, rate)
+	self.audios:call(function(audio) return audio:rate(rate) end)
 end
 
 AudioManager.getAudio = function(self, path, manual)
@@ -32,7 +32,7 @@ AudioManager.getAudio = function(self, path, manual)
 		soundData = soundData,
 		manual = manual
 	})
-	self.audios[audio] = true
+	self.audios:add(audio)
 	
 	return audio
 end

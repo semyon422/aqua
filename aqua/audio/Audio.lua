@@ -4,12 +4,7 @@ local Class = require("aqua.util.Class")
 
 local Audio = Class:new()
 
-local AudioManager
 Audio.construct = function(self)
-	if not AudioManager then
-		AudioManager = self.AudioManager
-	end
-	
 	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, false)
 end
 
@@ -30,7 +25,7 @@ end
 
 Audio.update = function(self)
 	if not self.manual and bass.BASS_ChannelIsActive(self.channel) == 0 then
-		AudioManager.audios[self] = nil
+		self.AudioManager.audios:remove(audio)
 	end
 end
 
