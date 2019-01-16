@@ -9,6 +9,7 @@ local AudioManager = {}
 Audio.AudioManager = AudioManager
 
 AudioManager.audios = {}
+AudioManager.streams = {}
 
 AudioManager.update = function(self)
 	for audio in pairs(self.audios) do
@@ -27,9 +28,10 @@ AudioManager.getAudio = function(self, path, manual)
 	local soundData = sound.get(path)
 	if not soundData then return end
 	
-	local audio = Audio:new()
-	audio.soundData = soundData
-	audio.manual = manual
+	local audio = Audio:new({
+		soundData = soundData,
+		manual = manual
+	})
 	self.audios[audio] = true
 	
 	return audio

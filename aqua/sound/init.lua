@@ -1,6 +1,7 @@
 local ThreadPool = require("aqua.thread.ThreadPool")
-local SoundData = require("aqua.sound.SoundData")
 local bass = require("aqua.audio.bass")
+local file = require("aqua.file")
+local ffi = require("ffi")
 
 local sound = {}
 
@@ -13,15 +14,22 @@ end
 
 local newFile = love.filesystem.newFile
 sound.new = function(path)
-	local file = newFile(path)
-	file:open("r")
-	local sample = bass.BASS_SampleLoad(true, file:read(), 0, file:getSize(), 65535, 0)
-	file:close()
-	return sample
+	local fileData = file.new(path)
+	
+	local sample = bass.BASS_SampleLoad(true, fileData.data, 0, fileData.length, 65535, 0)
+	local info = ffi.new("BASS_SAMPLE")
+	bass.BASS_SampleGetInfo(sample, info)
+	
+	return {
+		sample = sample,
+		info = {
+			freq = info.freq
+		}
+	}
 end
 
-sound.free = function(sample)
-	return bass.BASS_SampleFree(sample)
+sound.free = function(soundData)
+	return bass.BASS_SampleFree(soundData.sample)
 end
 
 sound.load = function(path, callback)
@@ -40,8 +48,7 @@ sound.load = function(path, callback)
 			]],
 			{path},
 			function(result)
-				local soundData = SoundData:new()
-				soundData.sample = result[2]
+				local soundData = result[2]
 				soundDatas[path] = soundData
 				for i = 1, #callbacks[path] do
 					callbacks[path][i](soundData)
@@ -60,7 +67,7 @@ sound.unload = function(path, callback)
 			[[
 				return require("aqua.sound").free(...)
 			]],
-			{soundDatas[path].sample},
+			{soundDatas[path]},
 			function(result)
 				soundDatas[path] = nil
 				return callback()
