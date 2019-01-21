@@ -10,6 +10,7 @@ end
 
 Audio.removed = false
 Audio.manual = false
+Audio.rateValue = 1
 
 Audio.play = function(self)
 	return bass.BASS_ChannelPlay(self.channel, false)
@@ -34,7 +35,10 @@ Audio.free = function(self)
 end
 
 Audio.rate = function(self, rate)
-	return bass.BASS_ChannelSetAttribute(self.channel, 1, self.soundData.info.freq * rate)
+	if self.rateValue ~= rate then
+		self.rateValue = rate
+		return bass.BASS_ChannelSetAttribute(self.channel, 1, self.soundData.info.freq * rate)
+	end
 end
 
 Audio.position = function(self)

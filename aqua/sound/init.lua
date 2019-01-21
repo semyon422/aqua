@@ -13,8 +13,8 @@ sound.get = function(path)
 end
 
 local newFile = love.filesystem.newFile
-sound.new = function(path)
-	local fileData = file.new(path)
+sound.new = function(path, fileData)
+	local fileData = fileData or file.new(path)
 	
 	local sample = bass.BASS_SampleLoad(true, fileData.data, 0, fileData.length, 65535, 0)
 	local info = ffi.new("BASS_SAMPLE")
@@ -30,6 +30,14 @@ end
 
 sound.free = function(soundData)
 	return bass.BASS_SampleFree(soundData.sample)
+end
+
+sound.add = function(path, soundData)
+	soundDatas[path] = soundData
+end
+
+sound.remove = function(path)
+	soundDatas[path] = nil
 end
 
 sound.load = function(path, callback)
@@ -49,7 +57,7 @@ sound.load = function(path, callback)
 			{path},
 			function(result)
 				local soundData = result[2]
-				soundDatas[path] = soundData
+				sound.add(path, soundData)
 				for i = 1, #callbacks[path] do
 					callbacks[path][i](soundData)
 				end
@@ -69,7 +77,7 @@ sound.unload = function(path, callback)
 			]],
 			{soundDatas[path]},
 			function(result)
-				soundDatas[path] = nil
+				sound.remove(path)
 				return callback()
 			end
 		)

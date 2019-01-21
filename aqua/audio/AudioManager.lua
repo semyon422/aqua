@@ -24,6 +24,14 @@ AudioManager.rate = function(self, rate)
 	self.audios:call(function(audio) return audio:rate(rate) end)
 end
 
+AudioManager.play = function(self)
+	self.audios:call(function(audio) return audio:play() end)
+end
+
+AudioManager.pause = function(self)
+	self.audios:call(function(audio) return audio:pause() end)
+end
+
 AudioManager.getAudio = function(self, path, manual)
 	local soundData = sound.get(path)
 	if not soundData then return end
