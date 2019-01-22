@@ -23,7 +23,23 @@ sound.new = function(path, fileData)
 	return {
 		sample = sample,
 		info = {
-			freq = info.freq
+			freq = info.freq,
+			volume = info.volume,
+			pan = info.pan,
+			flags = info.flags,
+			length = info.length,
+			max = info.max,
+			origres = info.origres,
+			chans = info.chans,
+			mingap = info.mingap,
+			mode3d = info.mode3d,
+			mindist = info.mindist,
+			maxdist = info.maxdist,
+			iangle = info.iangle,
+			oangle = info.oangle,
+			outvol = info.outvol,
+			vam = info.vam,
+			priority = info.priority
 		}
 	}
 end
