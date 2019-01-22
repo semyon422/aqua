@@ -42,11 +42,11 @@ Audio.rate = function(self, rate)
 end
 
 Audio.position = function(self)
-	return tonumber(bass.BASS_ChannelGetPosition(self.channel, 0)) / 1e5
+	return bass.BASS_ChannelBytes2Seconds(self.channel, bass.BASS_ChannelGetPosition(self.channel, 0))
 end
 
 Audio.seek = function(self, position)
-	return bass.BASS_ChannelSetPosition(self.channel, bass.BASS_ChannelSeconds2Bytes(self.channel, position));
+	return bass.BASS_ChannelSetPosition(self.channel, bass.BASS_ChannelSeconds2Bytes(self.channel, position), 0)
 end
 
 Audio.length = function(self)
