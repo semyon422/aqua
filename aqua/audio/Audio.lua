@@ -53,4 +53,8 @@ Audio.length = function(self)
 	return bass.BASS_ChannelBytes2Seconds(self.channel, bass.BASS_ChannelGetLength(self.channel))
 end
 
+Audio.volume = function(self, volume)
+	return bass.BASS_ChannelSetAttribute(self.channel, 2, volume)
+end
+
 return Audio
