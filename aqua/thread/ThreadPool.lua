@@ -15,11 +15,22 @@ ThreadPool.execute = function(self, codestring, args, callback)
 end
 
 ThreadPool.update = function(self)
+	local currentTime = love.timer.getTime()
+	
 	for i = 1, self.poolSize do
-		if self.threads[i] then
-			self.threads[i]:update()
+		local thread = self.threads[i]
+		if thread then
+			thread:update()
+			if thread.idle and currentTime - thread.lastTime > self.keepAliveTime then
+				thread.callback = self.threadStopCallback
+				thread:send({
+					action = "stop"
+				})
+				self.threads[i] = nil
+			end
 		end
 	end
+	
 	if self.queue[1] then
 		local thread = self:getIdleThread()
 		if thread then
@@ -28,6 +39,8 @@ ThreadPool.update = function(self)
 		end
 	end
 end
+
+ThreadPool.threadStopCallback = function(thread) end
 
 ThreadPool.getIdleThread = function(self)
 	local thread

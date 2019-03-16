@@ -9,6 +9,10 @@ Thread.create = function(self, codestring)
 	self.thread = love.thread.newThread(codestring)
 	self.inputChannel = love.thread.getChannel("input" .. self.id)
 	self.outputChannel = love.thread.getChannel("output" .. self.id)
+	self.inputChannel:clear()
+	self.outputChannel:clear()
+	
+	self:updateLastTime()
 end
 
 Thread.update = function(self)
@@ -24,7 +28,12 @@ Thread.update = function(self)
 			self.idle = true
 		end
 		event = self:receive()
+		self:updateLastTime()
 	end
+end
+
+Thread.updateLastTime = function(self)
+	self.lastTime = love.timer.getTime()
 end
 
 Thread.isIdle = function(self)
