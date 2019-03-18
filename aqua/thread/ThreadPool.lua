@@ -61,13 +61,14 @@ end
 ThreadPool.createThread = function(self, threadId)
 	local thread = Thread:new()
 	thread.id = threadId
-	thread:create(self.codestring:format(threadId))
+	thread:create(self.codestring:format(("%q"):format(package.path), threadId))
 	thread:start()
 	self.threads[threadId] = thread
 	return thread
 end
 
 ThreadPool.codestring = [[
+	package.path = %s
 	local aqua = require("aqua")
 	
 	local threadId = %d
