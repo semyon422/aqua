@@ -24,6 +24,7 @@ Button.construct = function(self)
 end
 
 Button.setText = function(self, text)
+	self.text = text
 	self.textFrame.text = text
 	self.textFrame:reload()
 end
