@@ -8,7 +8,7 @@ json.read = function(path)
 	local file = io.open(path, "r")
 	local content = file:read("*all")
 	file:close()
-	return decode(file:read("*all"))
+	return decode(content)
 end
 
 json.write = function(path, object)
