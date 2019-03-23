@@ -19,7 +19,7 @@ QuadFrame.draw = function(self)
 	)
 end
 
-QuadFrame.batch = function(self, spriteBatch) print(self.scale)
+QuadFrame.batch = function(self, spriteBatch)
 	return spriteBatch:add(
 		self.quad,
 		self._x + self._ox,
