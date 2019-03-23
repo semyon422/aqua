@@ -26,6 +26,8 @@ Image.draw = function(self)
 end
 
 Image.batch = function(self, spriteBatch)
+	spriteBatch:setColor(self.color)
+	
 	return spriteBatch:add(
 		self._x,
 		self._y,

@@ -20,6 +20,8 @@ QuadFrame.draw = function(self)
 end
 
 QuadFrame.batch = function(self, spriteBatch)
+	spriteBatch:setColor(self.color)
+	
 	return spriteBatch:add(
 		self.quad,
 		self._x + self._ox,

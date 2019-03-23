@@ -60,6 +60,8 @@ ImageFrame.draw = function(self)
 end
 
 ImageFrame.batch = function(self, spriteBatch)
+	spriteBatch:setColor(self.color)
+	
 	return spriteBatch:add(
 		self._x + self._ox,
 		self._y + self._oy,

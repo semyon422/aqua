@@ -27,6 +27,8 @@ Quad.draw = function(self)
 end
 
 Quad.batch = function(self, spriteBatch)
+	spriteBatch:setColor(self.color)
+	
 	return spriteBatch:add(
 		self.quad,
 		self._x,

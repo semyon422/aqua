@@ -10,9 +10,12 @@ Drawable.reload = function(self) end
 
 Drawable.receive = function(self) end
 
+local white = {255, 255, 255, 255}
 Drawable.switchColor = function(self)
 	if self.color then
 		love.graphics.setColor(self.color)
+	else
+		love.graphics.setColor(white)
 	end
 end
 
