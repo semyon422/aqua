@@ -26,4 +26,17 @@ Quad.draw = function(self)
 	)
 end
 
+Quad.batch = function(self, spriteBatch)
+	return spriteBatch:add(
+		self.quad,
+		self._x,
+		self._y,
+		self.r,
+		self.sx,
+		self.sy,
+		self._ox,
+		self._oy
+	)
+end
+
 return Quad

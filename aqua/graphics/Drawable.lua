@@ -25,4 +25,16 @@ Drawable.draw = function(self)
 	)
 end
 
+Drawable.batch = function(self, spriteBatch)
+	return spriteBatch:add(
+		self._x,
+		self._y,
+		self.r,
+		self.sx,
+		self.sy,
+		self._ox,
+		self._oy
+	)
+end
+
 return Drawable

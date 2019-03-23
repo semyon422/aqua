@@ -8,6 +8,8 @@ Sprite.update = function(self) end
 
 Sprite.reload = function(self) end
 
+Sprite.receive = function(self) end
+
 Sprite.switchColor = function(self)
 	if self.color then
 		love.graphics.setColor(self.color)

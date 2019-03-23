@@ -59,4 +59,6 @@ Container.reload = function(self)
 	end
 end
 
+Container.receive = function(self) end
+
 return Container
