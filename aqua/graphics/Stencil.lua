@@ -1,6 +1,6 @@
-local Sprite = require("aqua.graphics.Sprite")
+local Drawable = require("aqua.graphics.Drawable")
 
-local Stencil = Sprite:new()
+local Stencil = Drawable:new()
 
 local setStencilTest = love.graphics.setStencilTest
 Stencil.set = function(self, comparemode, comparevalue)

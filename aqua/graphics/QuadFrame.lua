@@ -1,6 +1,6 @@
-local DrawableFrame = require("aqua.graphics.DrawableFrame")
+local ImageFrame = require("aqua.graphics.ImageFrame")
 
-local QuadFrame = DrawableFrame:new()
+local QuadFrame = ImageFrame:new()
 
 QuadFrame.updateBaseScale = function(self) end
 
@@ -9,7 +9,7 @@ QuadFrame.draw = function(self)
 	self:switchColor()
 	
 	return draw(
-		self.drawable,
+		self.image,
 		self.quad,
 		self._x + self._ox,
 		self._y + self._oy,

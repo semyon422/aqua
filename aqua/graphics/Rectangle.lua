@@ -1,6 +1,6 @@
-local Sprite = require("aqua.graphics.Sprite")
+local Drawable = require("aqua.graphics.Drawable")
 
-local Rectangle = Sprite:new()
+local Rectangle = Drawable:new()
 
 Rectangle.reload = function(self)
 	self._x = self.cs:X(self.x, true)

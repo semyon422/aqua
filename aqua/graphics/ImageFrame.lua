@@ -1,8 +1,8 @@
-local Sprite = require("aqua.graphics.Sprite")
+local Drawable = require("aqua.graphics.Drawable")
 
-local DrawableFrame = Sprite:new()
+local ImageFrame = Drawable:new()
 
-DrawableFrame.reload = function(self)
+ImageFrame.reload = function(self)
 	self:updateBaseScale()
 	self:updateScale()
 	self:updateOffsets()
@@ -11,12 +11,12 @@ DrawableFrame.reload = function(self)
 	self._y = self.cs:Y(self.y, true)
 end
 
-DrawableFrame.updateBaseScale = function(self)
-	self.bw = self.drawable:getWidth()
-	self.bh = self.drawable:getHeight()
+ImageFrame.updateBaseScale = function(self)
+	self.bw = self.image:getWidth()
+	self.bh = self.image:getHeight()
 end
 
-DrawableFrame.updateScale = function(self)
+ImageFrame.updateScale = function(self)
 	self.scale = 1
 	local dw = self.bw
 	local dh = self.bh
@@ -30,7 +30,7 @@ DrawableFrame.updateScale = function(self)
 	end
 end
 
-DrawableFrame.getOffset = function(self, screen, frame, align)
+ImageFrame.getOffset = function(self, screen, frame, align)
 	if align == "center" then
 		return (screen - frame) / 2
 	elseif align == "left" or align == "top" then
@@ -40,17 +40,17 @@ DrawableFrame.getOffset = function(self, screen, frame, align)
 	end
 end
 
-DrawableFrame.updateOffsets = function(self)
+ImageFrame.updateOffsets = function(self)
 	self._ox = self:getOffset(self.cs:X(self.w), self.bw * self.scale, self.align.x)
 	self._oy = self:getOffset(self.cs:Y(self.h), self.bh * self.scale, self.align.y)
 end
 
 local draw = love.graphics.draw
-DrawableFrame.draw = function(self)
+ImageFrame.draw = function(self)
 	self:switchColor()
 	
 	return draw(
-		self.drawable,
+		self.image,
 		self._x + self._ox,
 		self._y + self._oy,
 		self.r,
@@ -59,7 +59,7 @@ DrawableFrame.draw = function(self)
 	)
 end
 
-DrawableFrame.batch = function(self, spriteBatch)
+ImageFrame.batch = function(self, spriteBatch)
 	return spriteBatch:add(
 		self._x + self._ox,
 		self._y + self._oy,
@@ -69,4 +69,4 @@ DrawableFrame.batch = function(self, spriteBatch)
 	)
 end
 
-return DrawableFrame
+return ImageFrame

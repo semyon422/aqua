@@ -1,40 +1,37 @@
-local Sprite = require("aqua.graphics.Sprite")
+local Class = require("aqua.util.Class")
 
-local Drawable = Sprite:new()
+local Drawable = Class:new()
 
-Drawable.reload = function(self)
-	self._x = self.cs:X(self.x, true)
-	self._y = self.cs:Y(self.y, true)
-	self._ox = self.ox and self.cs:X(self.ox)
-	self._oy = self.oy and self.cs:Y(self.oy)
+Drawable.draw = function(self) end
+
+Drawable.update = function(self) end
+
+Drawable.reload = function(self) end
+
+Drawable.receive = function(self) end
+
+Drawable.switchColor = function(self)
+	if self.color then
+		love.graphics.setColor(self.color)
+	end
 end
 
-local draw = love.graphics.draw
-Drawable.draw = function(self)
-	self:switchColor()
-	
-	return draw(
-		self.drawable,
-		self._x,
-		self._y,
-		self.r,
-		self.sx,
-		self.sy,
-		self._ox,
-		self._oy
-	)
+Drawable.switchFont = function(self)
+	if self.font then
+		love.graphics.setFont(self.font)
+	end
 end
 
-Drawable.batch = function(self, spriteBatch)
-	return spriteBatch:add(
-		self._x,
-		self._y,
-		self.r,
-		self.sx,
-		self.sy,
-		self._ox,
-		self._oy
-	)
+Drawable.switchLineStyle = function(self)
+	if self.lineStyle then
+		love.graphics.setLineStyle(self.lineStyle)
+	end
+end
+
+Drawable.switchLineWidth = function(self)
+	if self.lineWidth then
+		love.graphics.setLineWidth(self.lineWidth)
+	end
 end
 
 return Drawable

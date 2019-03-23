@@ -1,6 +1,6 @@
-local Sprite = require("aqua.graphics.Sprite")
+local Drawable = require("aqua.graphics.Drawable")
 
-local Text = Sprite:new()
+local Text = Drawable:new()
 
 Text.reload = function(self)
 	self._scale = self.scale or self.cs.one / self.cs.baseOne

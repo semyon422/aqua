@@ -1,6 +1,6 @@
-local Sprite = require("aqua.graphics.Sprite")
+local Drawable = require("aqua.graphics.Drawable")
 
-local Line = Sprite:new()
+local Line = Drawable:new()
 
 Line.reload = function(self)
 	self._points = {}

@@ -1,6 +1,6 @@
-local Sprite = require("aqua.graphics.Sprite")
+local Drawable = require("aqua.graphics.Drawable")
 
-local Polygon = Sprite:new()
+local Polygon = Drawable:new()
 
 Polygon.reload = function(self)
 	self._vertices = {}

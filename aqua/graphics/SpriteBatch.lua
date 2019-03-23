@@ -1,5 +1,5 @@
 local Container = require("aqua.graphics.Container")
-local Sprite = require("aqua.graphics.Sprite")
+local Drawable = require("aqua.graphics.Drawable")
 
 local SpriteBatch = Container:new()
 
@@ -17,7 +17,7 @@ SpriteBatch.draw = function(self)
 		objectList[i]:batch(spriteBatch)
 	end
 	
-	Sprite.switchColor(self)
+	Drawable.switchColor(self)
 	
 	draw(
 		spriteBatch,

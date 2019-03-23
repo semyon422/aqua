@@ -1,8 +1,8 @@
 local Drawable = require("aqua.graphics.Drawable")
 
-local Quad = Drawable:new()
+local Image = Drawable:new()
 
-Quad.reload = function(self)
+Image.reload = function(self)
 	self._x = self.cs:X(self.x, true)
 	self._y = self.cs:Y(self.y, true)
 	self._ox = self.ox and self.cs:X(self.ox)
@@ -10,12 +10,11 @@ Quad.reload = function(self)
 end
 
 local draw = love.graphics.draw
-Quad.draw = function(self)
+Image.draw = function(self)
 	self:switchColor()
 	
 	return draw(
 		self.image,
-		self.quad,
 		self._x,
 		self._y,
 		self.r,
@@ -26,9 +25,8 @@ Quad.draw = function(self)
 	)
 end
 
-Quad.batch = function(self, spriteBatch)
+Image.batch = function(self, spriteBatch)
 	return spriteBatch:add(
-		self.quad,
 		self._x,
 		self._y,
 		self.r,
@@ -39,4 +37,4 @@ Quad.batch = function(self, spriteBatch)
 	)
 end
 
-return Quad
+return Image
