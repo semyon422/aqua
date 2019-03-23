@@ -59,6 +59,10 @@ Container.reload = function(self)
 	end
 end
 
-Container.receive = function(self) end
+Container.receive = function(self, event)
+	for object in pairs(self.objects) do
+		object:receive(event)
+	end
+end
 
 return Container
