@@ -9,8 +9,8 @@ Audio.construct = function(self)
 end
 
 Audio.removed = false
-Audio.manual = false
 Audio.rateValue = 1
+Audio.offset = 0
 
 Audio.play = function(self)
 	return bass.BASS_ChannelPlay(self.channel, false)
@@ -24,36 +24,35 @@ Audio.stop = function(self)
 	return bass.BASS_ChannelStop(self.channel)
 end
 
+Audio.isPlaying = function(self)
+	return bass.BASS_ChannelIsActive(self.channel) ~= 0
+end
+
 Audio.update = function(self)
-	if not self.manual and bass.BASS_ChannelIsActive(self.channel) == 0 then
-		self.AudioManager.audios:remove(self)
-	end
+	self.position = self:getPosition()
+	self.playing = self:isPlaying()
 end
 
-Audio.free = function(self)
-	self.manual = false
-end
-
-Audio.rate = function(self, rate)
+Audio.setRate = function(self, rate)
 	if self.rateValue ~= rate then
 		self.rateValue = rate
 		return bass.BASS_ChannelSetAttribute(self.channel, 1, self.soundData.info.freq * rate)
 	end
 end
 
-Audio.position = function(self)
+Audio.getPosition = function(self)
 	return bass.BASS_ChannelBytes2Seconds(self.channel, bass.BASS_ChannelGetPosition(self.channel, 0))
 end
 
-Audio.seek = function(self, position)
+Audio.setPosition = function(self, position)
 	return bass.BASS_ChannelSetPosition(self.channel, bass.BASS_ChannelSeconds2Bytes(self.channel, position), 0)
 end
 
-Audio.length = function(self)
+Audio.getLength = function(self)
 	return bass.BASS_ChannelBytes2Seconds(self.channel, bass.BASS_ChannelGetLength(self.channel))
 end
 
-Audio.volume = function(self, volume)
+Audio.setVolume = function(self, volume)
 	return bass.BASS_ChannelSetAttribute(self.channel, 2, volume)
 end
 
