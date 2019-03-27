@@ -79,4 +79,24 @@ Container.pause = function(self)
 	end
 end
 
+Container.getPosition = function(self)
+	local position = 0
+	local length = 0
+	
+	local audioList = self.audioList
+	for i = 1, #audioList do
+		local audio = audioList[i]
+		if audio.playing then
+			position = position + (audio.offset + audio.position) * audio.length
+			length = length + audio.length
+		end
+	end
+	
+	if length == 0 then
+		return nil
+	end
+	
+	return position / length
+end
+
 return Container

@@ -31,6 +31,7 @@ end
 Audio.update = function(self)
 	self.position = self:getPosition()
 	self.playing = self:isPlaying()
+	self.length = self:getLength()
 end
 
 Audio.setRate = function(self, rate)
@@ -49,7 +50,7 @@ Audio.setPosition = function(self, position)
 end
 
 Audio.getLength = function(self)
-	return bass.BASS_ChannelBytes2Seconds(self.channel, bass.BASS_ChannelGetLength(self.channel))
+	return bass.BASS_ChannelBytes2Seconds(self.channel, bass.BASS_ChannelGetLength(self.channel, 0))
 end
 
 Audio.setVolume = function(self, volume)
