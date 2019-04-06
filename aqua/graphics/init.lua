@@ -6,6 +6,8 @@ graphics.CS = require("aqua.graphics.CS")
 
 graphics.Image = require("aqua.graphics.Image")
 graphics.ImageFrame = require("aqua.graphics.ImageFrame")
+graphics.Video = require("aqua.graphics.Video")
+graphics.VideoFrame = require("aqua.graphics.VideoFrame")
 graphics.Rectangle = require("aqua.graphics.Rectangle")
 graphics.Circle = require("aqua.graphics.Circle")
 graphics.Text = require("aqua.graphics.Text")

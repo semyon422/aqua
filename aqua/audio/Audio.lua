@@ -8,7 +8,6 @@ Audio.construct = function(self)
 	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, false)
 end
 
-Audio.removed = false
 Audio.rateValue = 1
 Audio.offset = 0
 

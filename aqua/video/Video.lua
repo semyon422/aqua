@@ -1,0 +1,145 @@
+local ffi = require("ffi")
+local cdef = require("aqua.cdef")
+local Timer = require("aqua.util.Timer")
+local Class = require("aqua.util.Class")
+
+local avcodec = ffi.load("avcodec-58")
+local avformat = ffi.load("avformat-58")
+local avutil = ffi.load("avutil-56")
+local swscale = ffi.load("swscale-5")
+
+avformat.av_register_all()
+avcodec.avcodec_register_all()
+
+local Video = Class:new()
+
+Video.construct = function(self)
+	self.timer = Timer:new()
+	self.videoTime = 0
+end
+
+Video.open = function(self, path)
+	self.formatContext = ffi.new("AVFormatContext*[1]")
+	assert(avformat.avformat_open_input(self.formatContext, path, nil, nil) == 0)
+	
+	ffi.gc(self.formatContext, avformat.avformat_close_input)
+	
+	assert(avformat.avformat_find_stream_info(self.formatContext[0], nil) == 0)
+	
+	self.codec = ffi.new('AVCodec*[1]')
+	self.streamIndex = avformat.av_find_best_stream(
+		self.formatContext[0], avformat.AVMEDIA_TYPE_VIDEO, -1, -1, self.codec, 0
+	)
+	assert(self.streamIndex == 0)
+	self.stream = self.formatContext[0].streams[self.streamIndex]
+	
+	self.codecContext = self.stream.codec
+	assert(avcodec.avcodec_open2(self.codecContext, self.codec[0], nil) == 0)
+	
+	ffi.gc(self.codecContext, avcodec.avcodec_close)
+end
+
+Video.load = function(self, path)
+	self:open(path)
+	
+	local codecContext = self.codecContext
+	
+	self.frame = avutil.av_frame_alloc()
+	self.frameRGB = avutil.av_frame_alloc()
+	assert(self.frame)
+	assert(self.frameRGB)
+	ffi.gc(self.frame, avutil.av_free)
+	ffi.gc(self.frameRGB, avutil.av_free)
+	
+	self.imageData = love.image.newImageData(codecContext.width, codecContext.height)
+	self.image = love.graphics.newImage(self.imageData)
+	
+	avutil.av_image_fill_arrays(
+		self.frameRGB.data,
+		self.frameRGB.linesize,
+		ffi.cast("uint8_t*", self.imageData:getPointer()),
+		"AV_PIX_FMT_RGBA",
+		codecContext.width,
+		codecContext.height,
+		1
+	)
+	
+	self.sws_ctx = swscale.sws_getContext(
+		codecContext.width,
+		codecContext.height,
+		codecContext.pix_fmt,
+		codecContext.width,
+		codecContext.height,
+		"AV_PIX_FMT_RGBA",
+		2,
+		nil,
+		nil,
+		nil
+	)
+	ffi.gc(self.sws_ctx, swscale.sws_freeContext)
+end
+
+Video.unload = function(self) end
+
+Video.play = function(self)
+	self.timer:play()
+end
+
+Video.getTime = function(self)
+	local effortts = avutil.av_frame_get_best_effort_timestamp(self.frame)
+	local timeBase = self.stream.time_base
+	
+	if effortts >= self.formatContext[0].start_time then
+		return tonumber(effortts - self.formatContext[0].start_time)
+			/ timeBase.den * timeBase.num
+	end
+	
+	return 0
+end
+
+local packet = ffi.new("AVPacket[1]")
+local got_frame = ffi.new("int[1]")
+Video.readFrame = function(self)
+	while avformat.av_read_frame(self.formatContext[0], packet) == 0 do
+		got_frame[0] = 0
+		
+		if packet[0].stream_index == self.streamIndex then
+			self.videoTime = self:getTime()
+			
+			avcodec.avcodec_decode_video2(
+				self.codecContext,
+				self.frame,
+				got_frame,
+				packet
+			)
+		end
+		
+		avcodec.av_free_packet(packet)
+		
+		if got_frame[0] ~= 0 then
+			swscale.sws_scale(
+				self.sws_ctx,
+				ffi.cast("const uint8_t * const *", self.frame.data),
+				self.frame.linesize,
+				0,
+				self.codecContext.height,
+				self.frameRGB.data,
+				self.frameRGB.linesize
+			)
+			
+			return true
+		end
+	end
+	
+	return false
+end
+
+Video.update = function(self)
+	self.timer:update()
+	
+	repeat until not (self.timer:getTime() >= self.videoTime and self:readFrame())
+	
+	self.image:refresh()
+end
+
+return Video

@@ -17,5 +17,6 @@ aqua.thread = require("aqua.thread")
 aqua.ui = require("aqua.ui")
 aqua.utf8 = require("aqua.utf8")
 aqua.util = require("aqua.util")
+aqua.video = require("aqua.video")
 
 return aqua
