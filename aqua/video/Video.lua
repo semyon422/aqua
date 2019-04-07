@@ -89,12 +89,16 @@ Video.getTime = function(self)
 	local effortts = avutil.av_frame_get_best_effort_timestamp(self.frame)
 	local timeBase = self.stream.time_base
 	
-	if effortts >= self.formatContext[0].start_time then
-		return tonumber(effortts - self.formatContext[0].start_time)
+	if effortts < 0 then return 0 end
+	if not self.videoStartTime then
+		self.videoStartTime = effortts
+	end
+	if effortts >= self.videoStartTime then
+		return tonumber(effortts - self.videoStartTime)
 			/ timeBase.den * timeBase.num
 	end
 	
-	return 0
+	return self.videoTime
 end
 
 local packet = ffi.new("AVPacket[1]")
@@ -134,8 +138,8 @@ Video.readFrame = function(self)
 	return false
 end
 
-Video.update = function(self)
-	self.timer:update()
+Video.update = function(self, dt)
+	self.timer:update(dt)
 	
 	repeat until not (self.timer:getTime() >= self.videoTime and self:readFrame())
 	
