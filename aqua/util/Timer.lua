@@ -3,6 +3,7 @@ local Class = require("aqua.util.Class")
 local Timer = Class:new()
 
 Timer.rate = 1
+Timer.offset = 0
 Timer.currentTime = 0
 Timer.pauseTime = 0
 Timer.adjustDelta = 0
@@ -61,7 +62,7 @@ Timer.setRate = function(self, rate)
 end
 
 Timer.getTime = function(self)
-	return self.currentTime
+	return self.currentTime + self.offset
 end
 
 Timer.pause = function(self)
