@@ -85,6 +85,14 @@ Video.play = function(self)
 	self.timer:play()
 end
 
+Video.pause = function(self)
+	self.timer:pause()
+end
+
+Video.setRate = function(self, rate)
+	self.timer:setRate(rate)
+end
+
 Video.getTime = function(self)
 	local effortts = avutil.av_frame_get_best_effort_timestamp(self.frame)
 	local timeBase = self.stream.time_base
