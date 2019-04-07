@@ -14,7 +14,7 @@ Timer.update = function(self, dt)
 	local deltaTime = love.timer.getTime() - (self.startTime or 0)
 	self.deltaTime = deltaTime
 	
-	if self.state == "waiting" then
+	if self.state == "waiting" or self.state == "paused" then
 		return
 	elseif self.state == "playing" then
 		self.currentTime = (deltaTime - self.adjustDelta - self.pauseTime - self.rateDelta) * self.rate
