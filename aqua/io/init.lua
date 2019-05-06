@@ -44,7 +44,9 @@ io.callbacks = {
 	"mousereleased",
 	"wheelmoved",
 	"resize",
-	"quit"
+	"quit",
+	"filedropped",
+	"directorydropped",
 }
 
 io.init = function()
