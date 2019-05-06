@@ -28,7 +28,7 @@ Video.open = function(self, path)
 	
 	self.codec = ffi.new('AVCodec*[1]')
 	self.streamIndex = avformat.av_find_best_stream(
-		self.formatContext[0], avformat.AVMEDIA_TYPE_VIDEO, -1, -1, self.codec, 0
+		self.formatContext[0], "AVMEDIA_TYPE_VIDEO", -1, -1, self.codec, 0
 	)
 	assert(self.streamIndex == 0)
 	self.stream = self.formatContext[0].streams[self.streamIndex]
@@ -85,16 +85,28 @@ Video.play = function(self)
 	self.timer:play()
 end
 
+Video.pause = function(self)
+	self.timer:pause()
+end
+
+Video.setRate = function(self, rate)
+	self.timer:setRate(rate)
+end
+
 Video.getTime = function(self)
 	local effortts = avutil.av_frame_get_best_effort_timestamp(self.frame)
 	local timeBase = self.stream.time_base
 	
-	if effortts >= self.formatContext[0].start_time then
-		return tonumber(effortts - self.formatContext[0].start_time)
+	if effortts < 0 then return 0 end
+	if not self.videoStartTime then
+		self.videoStartTime = effortts
+	end
+	if effortts >= self.videoStartTime then
+		return tonumber(effortts - self.videoStartTime)
 			/ timeBase.den * timeBase.num
 	end
 	
-	return 0
+	return self.videoTime
 end
 
 local packet = ffi.new("AVPacket[1]")
@@ -134,8 +146,8 @@ Video.readFrame = function(self)
 	return false
 end
 
-Video.update = function(self)
-	self.timer:update()
+Video.update = function(self, dt)
+	self.timer:update(dt)
 	
 	repeat until not (self.timer:getTime() >= self.videoTime and self:readFrame())
 	

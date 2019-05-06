@@ -3,10 +3,15 @@ local ThreadPool = require("aqua.thread.ThreadPool")
 local image = {}
 
 local imageDatas = {}
+local images = {}
 local callbacks = {}
 
-image.get = function(path)
+image.getImageData = function(path)
 	return imageDatas[path]
+end
+
+image.getImage = function(path)
+	return images[path]
 end
 
 image.load = function(path, callback)
@@ -25,9 +30,12 @@ image.load = function(path, callback)
 			]],
 			{path},
 			function(result)
-				imageDatas[path] = result[2]
+				if result[2] then
+					imageDatas[path] = result[2]
+					images[path] = love.graphics.newImage(result[2])
+				end
 				for i = 1, #callbacks[path] do
-					callbacks[path][i](imageDatas[path])
+					callbacks[path][i](imageDatas[path], images[path])
 				end
 				callbacks[path] = nil
 			end
@@ -39,6 +47,7 @@ end
 
 image.unload = function(path, callback)
 	imageDatas[path] = nil
+	images[path] = nil
 	return callback()
 end
 

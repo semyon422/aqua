@@ -15,7 +15,7 @@ video.new = function(path)
 end
 
 video.free = function(videoData)
-	return videoDatas:unload()
+	return videoData:unload()
 end
 
 video.add = function(path, videoData)

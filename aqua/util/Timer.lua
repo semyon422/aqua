@@ -3,6 +3,7 @@ local Class = require("aqua.util.Class")
 local Timer = Class:new()
 
 Timer.rate = 1
+Timer.offset = 0
 Timer.currentTime = 0
 Timer.pauseTime = 0
 Timer.adjustDelta = 0
@@ -13,7 +14,7 @@ Timer.update = function(self, dt)
 	local deltaTime = love.timer.getTime() - (self.startTime or 0)
 	self.deltaTime = deltaTime
 	
-	if self.state == "waiting" then
+	if self.state == "waiting" or self.state == "paused" then
 		return
 	elseif self.state == "playing" then
 		self.currentTime = (deltaTime - self.adjustDelta - self.pauseTime - self.rateDelta) * self.rate
@@ -61,7 +62,7 @@ Timer.setRate = function(self, rate)
 end
 
 Timer.getTime = function(self)
-	return self.currentTime
+	return self.currentTime + self.offset
 end
 
 Timer.pause = function(self)
