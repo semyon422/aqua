@@ -1,34 +1,32 @@
 local video = {}
 
+video.ffmpeg = require("aqua.video.ffmpeg")
+
 local Video = require("aqua.video.Video")
 
-local videoDatas = {}
+local videos = {}
 
 video.get = function(path)
-	return videoDatas[path]
+	return videos[path]
 end
 
 video.new = function(path)
-	local videoData = Video:new()
-	videoData:load(path)
-	return videoData
+	local video = Video:new()
+	video:load(path)
+	return video
 end
 
-video.free = function(videoData)
-	return videoData:unload()
-end
-
-video.add = function(path, videoData)
-	videoDatas[path] = videoData
+video.add = function(path, video)
+	videos[path] = video
 end
 
 video.remove = function(path)
-	videoDatas[path] = nil
+	videos[path] = nil
 end
 
 video.load = function(path, callback)
-	if videoDatas[path] then
-		return callback(videoDatas[path])
+	if videos[path] then
+		return callback(videos[path])
 	end
 	
 	local videoData = video.new(path)
@@ -37,7 +35,8 @@ video.load = function(path, callback)
 end
 
 video.unload = function(path, callback)
-	video.free(videoDatas[path])
+	video.free(videos[path])
+	videos[path] = nil
 	return callback()
 end
 

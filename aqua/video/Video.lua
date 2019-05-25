@@ -1,15 +1,12 @@
 local ffi = require("ffi")
-local cdef = require("aqua.cdef")
 local Timer = require("aqua.util.Timer")
 local Class = require("aqua.util.Class")
+local ffmpeg = require("aqua.video.ffmpeg")
 
-local avcodec = ffi.load("avcodec-58")
-local avformat = ffi.load("avformat-58")
-local avutil = ffi.load("avutil-56")
-local swscale = ffi.load("swscale-5")
-
-avformat.av_register_all()
-avcodec.avcodec_register_all()
+local avcodec = ffmpeg.avcodec
+local avformat = ffmpeg.avformat
+local avutil = ffmpeg.avutil
+local swscale = ffmpeg.swscale
 
 local Video = Class:new()
 
