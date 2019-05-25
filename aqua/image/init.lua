@@ -30,7 +30,7 @@ image.load = function(path, callback)
 			]],
 			{path},
 			function(result)
-				if result[2] then
+				if result[1] and result[2] then
 					imageDatas[path] = result[2]
 					images[path] = love.graphics.newImage(result[2])
 				end
