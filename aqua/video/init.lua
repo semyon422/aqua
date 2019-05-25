@@ -35,7 +35,6 @@ video.load = function(path, callback)
 end
 
 video.unload = function(path, callback)
-	video.free(videos[path])
 	videos[path] = nil
 	return callback()
 end
