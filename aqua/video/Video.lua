@@ -143,6 +143,12 @@ Video.readFrame = function(self)
 	return false
 end
 
+Video.rewind = function(self)
+	avformat.av_seek_frame(self.formatContext[0], self.streamIndex, 0, 1)
+	
+	self.image:refresh()
+end
+
 Video.update = function(self, dt)
 	self.timer:update(dt)
 	
