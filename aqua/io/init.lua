@@ -2,6 +2,8 @@ local Observable = require("aqua.util.Observable")
 
 local io = Observable:new()
 
+io.fpslimit = 240
+
 io.handle = function()
 	love.event.pump()
 	for name, a, b, c, d, e, f in love.event.poll() do
@@ -18,6 +20,7 @@ io.run = function()
 	love.math.setRandomSeed(os.time())
 	love.timer.step()
 	
+	local time = love.timer.getTime()
 	while true do
 		io.handle()
 		
@@ -30,6 +33,11 @@ io.run = function()
 			love.draw()
 			love.graphics.present()
 		end
+		
+		time = time + 1 / io.fpslimit
+		time = math.max(time, love.timer.getTime())
+		
+		love.timer.sleep(time - love.timer.getTime())
 	end
 end
 
