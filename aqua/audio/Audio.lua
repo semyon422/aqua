@@ -4,10 +4,6 @@ local Class = require("aqua.util.Class")
 
 local Audio = Class:new()
 
-Audio.construct = function(self)
-	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, false)
-end
-
 Audio.rateValue = 1
 Audio.offset = 0
 
