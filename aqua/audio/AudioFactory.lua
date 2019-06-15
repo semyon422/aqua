@@ -2,6 +2,7 @@ local sound = require("aqua.sound")
 local Audio = require("aqua.audio.Audio")
 local Sample = require("aqua.audio.Sample")
 local Stream = require("aqua.audio.Stream")
+local StreamUser = require("aqua.audio.StreamUser")
 
 local AudioFactory = {}
 
@@ -16,6 +17,12 @@ end
 
 AudioFactory.getStream = function(self, path)
 	return Stream:new({
+		path = path
+	})
+end
+
+AudioFactory.getStreamUser = function(self, path)
+	return StreamUser:new({
 		path = path
 	})
 end
