@@ -11,6 +11,9 @@ video.get = function(path)
 end
 
 video.new = function(path)
+	if not love.filesystem.exists(path) then
+		return
+	end
 	local video = Video:new()
 	video:load(path)
 	return video
