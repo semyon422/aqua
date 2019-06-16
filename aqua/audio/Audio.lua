@@ -6,6 +6,7 @@ local Audio = Class:new()
 
 Audio.rateValue = 1
 Audio.offset = 0
+Audio.baseVolume = 1
 
 Audio.play = function(self)
 	return bass.BASS_ChannelPlay(self.channel, false)
@@ -48,8 +49,13 @@ Audio.getLength = function(self)
 	return bass.BASS_ChannelBytes2Seconds(self.channel, bass.BASS_ChannelGetLength(self.channel, 0))
 end
 
+Audio.setBaseVolume = function(self, volume)
+	self.baseVolume = volume
+	return self:setVolume(1)
+end
+
 Audio.setVolume = function(self, volume)
-	return bass.BASS_ChannelSetAttribute(self.channel, 2, volume)
+	return bass.BASS_ChannelSetAttribute(self.channel, 2, volume * self.baseVolume)
 end
 
 return Audio

@@ -2,6 +2,8 @@ local Class = require("aqua.util.Class")
 
 local Container = Class:new()
 
+Container.volume = 1
+
 Container.construct = function(self)
 	self.audios = {}
 	self.audioList = {}
@@ -11,6 +13,7 @@ end
 Container.add = function(self, audio)
 	self.audios[audio] = true
 	self.needSort = true
+	audio:setVolume(self.volume)
 end
 
 Container.remove = function(self, audio)
@@ -62,6 +65,14 @@ Container.setRate = function(self, rate)
 	local audioList = self.audioList
 	for i = 1, #audioList do
 		audioList[i]:setRate(rate)
+	end
+end
+
+Container.setVolume = function(self, volume)
+	self.volume = volume
+	local audioList = self.audioList
+	for i = 1, #audioList do
+		audioList[i]:setVolume(volume)
 	end
 end
 
