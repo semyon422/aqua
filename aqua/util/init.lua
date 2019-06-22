@@ -8,6 +8,7 @@ util.Observer = require("aqua.util.Observer")
 util.Observable = require("aqua.util.Observable")
 util.Group = require("aqua.util.Group")
 util.Profiler = require("aqua.util.Profiler")
+util.TextInput = require("aqua.util.TextInput")
 util.Timer = require("aqua.util.Timer")
 
 return util

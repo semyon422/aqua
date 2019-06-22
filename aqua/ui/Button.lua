@@ -10,10 +10,11 @@ Button.enableStencil = false
 Button.stencilColor = {255, 255, 255, 255}
 
 Button.construct = function(self)
-	self.rectangle = Rectangle:new()
+	self.background = Rectangle:new()
+	self.border = Rectangle:new()
 	self.textFrame = TextFrame:new()
 	self.stencilFrame = Rectangle:new({
-		color = stencilColor
+		color = self.stencilColor
 	})
 	self.stencil = Stencil:new({
 		stencilfunction = function() self.stencilFrame:draw() end,
@@ -41,20 +42,42 @@ Button.receive = function(self, event)
 	end
 end
 
-Button.reload = function(self)
-	local rectangle = self.rectangle
-	local textFrame = self.textFrame
-	local stencilFrame = self.stencilFrame
+Button.reloadBackground = function(self)
+	local background = self.background
+	
+	background.x = self.x
+	background.y = self.y
+	background.w = self.w
+	background.h = self.h
+	background.rx = math.min(self.rx, self.w / 2)
+	background.ry = math.min(self.ry, self.h / 2)
+	background.mode = "fill"
+	background.color = self.backgroundColor
+	background.cs = self.cs
+	
+	background:reload()
+end
 
-	rectangle.x = self.x
-	rectangle.y = self.y
-	rectangle.w = self.w
-	rectangle.h = self.h
-	rectangle.mode = self.mode
-	rectangle.color = self.rectangleColor
-	rectangle.lineStyle = "smooth"
-	rectangle.lineWidth = 1
-	rectangle.cs = self.cs
+Button.reloadBorder = function(self)
+	local border = self.border
+	
+	border.x = self.x
+	border.y = self.y
+	border.w = self.w
+	border.h = self.h
+	border.rx = math.min(self.rx, self.w / 2)
+	border.ry = math.min(self.ry, self.h / 2)
+	border.mode = "line"
+	border.color = self.borderColor
+	border.lineStyle = self.lineStyle
+	border.lineWidth = self.lineWidth
+	border.cs = self.cs
+	
+	border:reload()
+end
+
+Button.reloadTextFrame = function(self)
+	local textFrame = self.textFrame
 	
 	textFrame.x = self.x
 	textFrame.y = self.y
@@ -67,16 +90,29 @@ Button.reload = function(self)
 	textFrame.color = self.textColor
 	textFrame.cs = self.cs
 	
+	textFrame:reload()
+end
+
+Button.reloadStencilFrame = function(self)
+	local stencilFrame = self.stencilFrame
+	
 	stencilFrame.x = self.x
 	stencilFrame.y = self.y
 	stencilFrame.w = self.w
 	stencilFrame.h = self.h
+	stencilFrame.rx = math.min(self.rx, self.w / 2)
+	stencilFrame.ry = math.min(self.ry, self.h / 2)
 	stencilFrame.cs = self.cs
 	stencilFrame.mode = "fill"
 	
-	rectangle:reload()
-	textFrame:reload()
 	stencilFrame:reload()
+end
+
+Button.reload = function(self)
+	self:reloadBackground()
+	self:reloadBorder()
+	self:reloadTextFrame()
+	self:reloadStencilFrame()
 end
 
 Button.interact = function(self) end
@@ -92,11 +128,12 @@ Button.draw = function(self)
 		self.stencil:draw()
 		self.stencil:set("greater", 0)
 	end
-	self.rectangle:draw()
+	self.background:draw()
 	self.textFrame:draw()
 	if self.enableStencil then
 		self.stencil:set()
 	end
+	self.border:draw()
 end
 
 return Button
