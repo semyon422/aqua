@@ -88,6 +88,9 @@ ThreadPool.codestring = [[
 			return
 		elseif event.action == "loadstring" then
 			local result = {pcall(loadstring(event.codestring), unpack(event.args))}
+			if not result[1] then
+				print(unpack(result))
+			end
 			outputChannel:push({
 				result = result,
 				done = true
