@@ -13,6 +13,11 @@ TextInput.split = function(self, text, utf8offset)
 	return text:sub(1, offset - 1), text:sub(offset)
 end
 
+TextInput.reset = function(self)
+	self.text = ""
+	self.offset = 0
+end
+
 TextInput.receive = function(self, event)
 	if event.name == "textinput" then
 		local char = event.args[1]
