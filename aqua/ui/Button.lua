@@ -85,6 +85,7 @@ Button.reloadTextFrame = function(self)
 	textFrame.h = self.h
 	textFrame.limit = self.limit
 	textFrame.align = self.textAlign
+	textFrame.xpadding = self.xpadding
 	textFrame.text = self.text
 	textFrame.font = self.font
 	textFrame.color = self.textColor

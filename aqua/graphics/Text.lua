@@ -5,14 +5,15 @@ local Text = Drawable:new()
 Text.reload = function(self)
 	self._scale = self.scale or self.cs.one / self.cs.baseOne
 	
-	self._limit = self.cs:X(self.limit) / self._scale
+	self._xpadding = self.cs:X(self.xpadding)
+	self._limit = (self.cs:X(self.limit) - 2 * self._xpadding) / self._scale
 	
 	local width, wrappedText = self.font:getWrap(self.text, self._limit)
 	local lineCount = #wrappedText
 	
 	self._y = self:getY(lineCount)
 	
-	self._x = self.cs:X(self.x, true)
+	self._x = self.cs:X(self.x, true) + self._xpadding
 	self._ox = self.ox and self.cs:X(self.ox)
 	self._oy = self.oy and self.cs:Y(self.oy)
 	

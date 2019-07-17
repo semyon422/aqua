@@ -29,6 +29,7 @@ Theme.Button = Button:new({
 	cs = Theme.cs,
 	limit = 1,
 	textAlign = {x = "center", y = "center"},
+	xpadding = 0,
 	text = "",
 	font = love.graphics.getFont(),
 	enableStencil = false
@@ -49,6 +50,7 @@ Theme.TextInputFrame = TextInputFrame:new({
 	cs = Theme.cs,
 	limit = 1,
 	textAlign = {x = "left", y = "center"},
+	xpadding = 0,
 	text = "",
 	font = love.graphics.getFont(),
 	enableStencil = false
