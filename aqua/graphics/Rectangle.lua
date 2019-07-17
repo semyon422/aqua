@@ -7,12 +7,17 @@ Rectangle.reload = function(self)
 	self._y = self.cs:Y(self.y, true)
 	self._w = self.cs:X(self.w)
 	self._h = self.cs:Y(self.h)
-	if self.rx then
+	if self.rx and self.rx > 0 then
 		self._rx = self.cs:X(self.rx)
-		self._ry = self._rx
+		if not self.ry or self.ry == 0 then
+			self._ry = self._rx
+		end
 	end
-	if self.ry then
+	if self.ry and self.ry > 0 then
 		self._ry = self.cs:Y(self.ry)
+		if not self.rx or self.rx == 0 then
+			self._rx = self._ry
+		end
 	end
 end
 
