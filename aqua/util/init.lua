@@ -10,5 +10,6 @@ util.Group = require("aqua.util.Group")
 util.Profiler = require("aqua.util.Profiler")
 util.TextInput = require("aqua.util.TextInput")
 util.Timer = require("aqua.util.Timer")
+util.Log = require("aqua.util.Log")
 
 return util
