@@ -2,18 +2,22 @@ local Class = require("aqua.util.Class")
 
 local Log = Class:new()
 
-Log.log = function(self, name, ...)
-	local message = table.concat({...}, "\t")
+Log.write = function(self, name, ...)
+	local args = {...}
+	for i, v in ipairs(args) do
+		args[i] = tostring(v)
+	end
+	
+	local message = table.concat(args, "\t")
 	
 	local info = debug.getinfo(2, "Sl")
-	local logString = ("[%-8s%s] %s: %s\n"):format(
-		(name or ""):upper(),
+	local logString = ("[%-8s%s]: %s\n"):format(
+		name:upper(),
 		os.date(),
-		info.short_src .. ":" .. info.currentline,
 		message
 	)
 	
-	if log.console then
+	if self.console then
 		print(logString)
 	end
 	
