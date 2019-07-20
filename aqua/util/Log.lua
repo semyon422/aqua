@@ -18,7 +18,7 @@ Log.write = function(self, name, ...)
 	)
 	
 	if self.console then
-		print(logString)
+		io.write(logString)
 	end
 	
 	if self.path then
