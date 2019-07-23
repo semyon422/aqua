@@ -55,6 +55,8 @@ io.callbacks = {
 	"quit",
 	"filedropped",
 	"directorydropped",
+	"focus",
+	"mousefocus",
 }
 
 io.init = function()
