@@ -11,19 +11,23 @@ Log.write = function(self, name, ...)
 	local message = table.concat(args, "\t")
 	
 	local info = debug.getinfo(2, "Sl")
-	local logString = ("[%-8s%s]: %s\n"):format(
+	local logShort = ("[%-8s]: %s\n"):format(
+		name:upper(),
+		message
+	)
+	local logLong = ("[%-8s%s]: %s\n"):format(
 		name:upper(),
 		os.date(),
 		message
 	)
 	
 	if self.console then
-		io.write(logString)
+		io.write(logShort)
 	end
 	
 	if self.path then
 		local file = io.open(self.path, "a")
-		file:write(logString)
+		file:write(logLong)
 		file:close()
 	end
 end
