@@ -3,10 +3,7 @@ local Drawable = require("aqua.graphics.Drawable")
 local Quad = Drawable:new()
 
 Quad.reload = function(self)
-	self._x = self.cs:X(self.x, true)
-	self._y = self.cs:Y(self.y, true)
-	self._ox = self.ox and self.cs:X(self.ox)
-	self._oy = self.oy and self.cs:Y(self.oy)
+	return self:calculate()
 end
 
 local draw = love.graphics.draw
@@ -16,13 +13,11 @@ Quad.draw = function(self)
 	return draw(
 		self.image,
 		self.quad,
-		self._x,
-		self._y,
-		self.r,
+		self._x1,
+		self._y1,
+		self.a,
 		self.sx,
-		self.sy,
-		self._ox,
-		self._oy
+		self.sy
 	)
 end
 
@@ -31,13 +26,11 @@ Quad.batch = function(self, spriteBatch)
 	
 	return spriteBatch:add(
 		self.quad,
-		self._x,
-		self._y,
-		self.r,
+		self._x1,
+		self._y1,
+		self.a,
 		self.sx,
-		self.sy,
-		self._ox,
-		self._oy
+		self.sy
 	)
 end
 

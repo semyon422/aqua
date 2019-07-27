@@ -3,9 +3,7 @@ local Drawable = require("aqua.graphics.Drawable")
 local Circle = Drawable:new()
 
 Circle.reload = function(self)
-	self._x = self.cs:X(self.x, true)
-	self._y = self.cs:Y(self.y, true)
-	self._r = self.cs:X(self.r)
+	return self:calculate()
 end
 
 local circle = love.graphics.circle
@@ -16,8 +14,8 @@ Circle.draw = function(self)
 	
 	return circle(
 		self.mode,
-		self._x,
-		self._y,
+		self._x1,
+		self._y1,
 		self._r
 	)
 end

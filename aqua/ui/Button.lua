@@ -47,6 +47,10 @@ Button.reloadBackground = function(self)
 	
 	background.x = self.x
 	background.y = self.y
+	background.x1 = self.x1
+	background.y1 = self.y1
+	background.x2 = self.x2
+	background.y2 = self.y2
 	background.w = self.w
 	background.h = self.h
 	background.rx = math.min(self.rx, self.w / 2)
@@ -54,6 +58,8 @@ Button.reloadBackground = function(self)
 	background.mode = "fill"
 	background.color = self.backgroundColor
 	background.cs = self.cs
+	background.cs1 = self.cs1
+	background.cs2 = self.cs2
 	
 	background:reload()
 end
@@ -63,6 +69,10 @@ Button.reloadBorder = function(self)
 	
 	border.x = self.x
 	border.y = self.y
+	border.x1 = self.x1
+	border.y1 = self.y1
+	border.x2 = self.x2
+	border.y2 = self.y2
 	border.w = self.w
 	border.h = self.h
 	border.rx = math.min(self.rx, self.w / 2)
@@ -72,6 +82,8 @@ Button.reloadBorder = function(self)
 	border.lineStyle = self.lineStyle
 	border.lineWidth = self.lineWidth
 	border.cs = self.cs
+	border.cs1 = self.cs1
+	border.cs2 = self.cs2
 	
 	border:reload()
 end
@@ -79,17 +91,22 @@ end
 Button.reloadTextFrame = function(self)
 	local textFrame = self.textFrame
 	
-	textFrame.x = self.x
+	textFrame.x = self.x + self.xpadding
 	textFrame.y = self.y
-	textFrame.w = self.w
+	textFrame.x1 = self.x1 and self.x1 + self.xpadding
+	textFrame.y1 = self.y1
+	textFrame.x2 = self.x2 and self.x2 - self.xpadding
+	textFrame.y2 = self.y2
+	textFrame.w = self.w - 2 * self.xpadding
 	textFrame.h = self.h
 	textFrame.limit = self.limit
 	textFrame.align = self.textAlign
-	textFrame.xpadding = self.xpadding
 	textFrame.text = self.text
 	textFrame.font = self.font
 	textFrame.color = self.textColor
 	textFrame.cs = self.cs
+	textFrame.cs1 = self.cs1
+	textFrame.cs2 = self.cs2
 	
 	textFrame:reload()
 end
@@ -99,12 +116,18 @@ Button.reloadStencilFrame = function(self)
 	
 	stencilFrame.x = self.x
 	stencilFrame.y = self.y
+	stencilFrame.x1 = self.x1
+	stencilFrame.y1 = self.y1
+	stencilFrame.x2 = self.x2
+	stencilFrame.y2 = self.y2
 	stencilFrame.w = self.w
 	stencilFrame.h = self.h
 	stencilFrame.rx = math.min(self.rx, self.w / 2)
 	stencilFrame.ry = math.min(self.ry, self.h / 2)
-	stencilFrame.cs = self.cs
 	stencilFrame.mode = "fill"
+	stencilFrame.cs = self.cs
+	stencilFrame.cs1 = self.cs1
+	stencilFrame.cs2 = self.cs2
 	
 	stencilFrame:reload()
 end

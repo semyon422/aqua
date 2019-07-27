@@ -11,8 +11,8 @@ QuadFrame.draw = function(self)
 	return draw(
 		self.image,
 		self.quad,
-		self._x + self._ox,
-		self._y + self._oy,
+		self._x1 + self._ox,
+		self._y1 + self._oy,
 		self.r,
 		self.scale,
 		self.scale
@@ -24,8 +24,8 @@ QuadFrame.batch = function(self, spriteBatch)
 	
 	return spriteBatch:add(
 		self.quad,
-		self._x + self._ox,
-		self._y + self._oy,
+		self._x1 + self._ox,
+		self._y1 + self._oy,
 		self.r,
 		self.scale,
 		self.scale
