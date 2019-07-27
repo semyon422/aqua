@@ -1,8 +1,10 @@
 local graphics = {}
 
+graphics.CS = require("aqua.graphics.CS")
+graphics.CoordinateManager = require("aqua.graphics.CoordinateManager")
+
 graphics.Container = require("aqua.graphics.Container")
 graphics.Drawable = require("aqua.graphics.Drawable")
-graphics.CS = require("aqua.graphics.CS")
 
 graphics.Image = require("aqua.graphics.Image")
 graphics.ImageFrame = require("aqua.graphics.ImageFrame")

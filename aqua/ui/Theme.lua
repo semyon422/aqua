@@ -1,18 +1,11 @@
 local Class = require("aqua.util.Class")
 local Button = require("aqua.ui.Button")
 local TextInputFrame = require("aqua.ui.TextInputFrame")
-local CS = require("aqua.graphics.CS")
+local CoordinateManager = require("aqua.graphics.CoordinateManager")
 
 local Theme = Class:new()
 
-Theme.cs = CS:new({
-	bx = 0,
-	by = 0,
-	rx = 0,
-	ry = 0,
-	binding = "all",
-	baseOne = 720
-})
+Theme.cs = CoordinateManager:getCS(0, 0, 0, 0, "all")
 
 Theme.Button = Button:new({
 	x = 0,

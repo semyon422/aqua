@@ -3,41 +3,27 @@ local Class = require("aqua.util.Class")
 
 local CS = Class:new()
 
-CS.construct = function(self)
-	self:reload()
-end
-
 CS.reload = function(self)
-	self.screenWidth = love.graphics.getWidth()
-	self.screenHeight = love.graphics.getHeight()
-	
-	if self.binding == "h" then
-		self.one = self.screenHeight
-		self.onex = self.one
-		self.oney = self.one
-	elseif self.binding == "h" then
-		self.one = self.screenHeight
-	elseif self.binding == "min" then
-		self.one = math.min(self.screenHeight, self.screenWidth)
-		self.onex = self.one
-		self.oney = self.one
-	elseif self.binding == "max" then
-		self.one = math.max(self.screenHeight, self.screenWidth)
-		self.onex = self.one
-		self.oney = self.one
-	elseif self.binding == "all" then
+	if self.binding == "all" then
 		self.one = math.min(self.screenHeight, self.screenWidth)
 		self.onex = self.screenWidth
 		self.oney = self.screenHeight
-	else
-		self.one = 1
-		self.onex = self.one
-		self.oney = self.one
+		return
 	end
 	
-	if not self.baseOne then
-		self.baseOne = self.one
+	if self.binding == "h" then
+		self.one = self.screenHeight
+	elseif self.binding == "w" then
+		self.one = self.screenWidth
+	elseif self.binding == "min" then
+		self.one = math.min(self.screenHeight, self.screenWidth)
+	elseif self.binding == "max" then
+		self.one = math.max(self.screenHeight, self.screenWidth)
+	else
+		self.one = 1
 	end
+	self.onex = self.one
+	self.oney = self.one
 end
 
 CS.aX = function(self, x)
