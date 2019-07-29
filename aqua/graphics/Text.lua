@@ -5,10 +5,11 @@ local Text = Drawable:new()
 Text.reload = function(self)
 	self:calculate()
 	
-	self._scale = self.scale or self.cs.one / self.cs.baseOne
-	self._limit = self._limit / self._scale
-	
-	local width, wrappedText = self.font:getWrap(self.text, self._limit)
+	local cs = self.cs or self.cs2
+	self._scale = cs.one / cs.baseOne
+	local _limit = self._limit or self._w
+	self._scaledLimit = _limit / self._scale
+	local width, wrappedText = self.font:getWrap(self.text, self._scaledLimit)
 	local lineCount = #wrappedText
 	
 	self._y1 = self:getY(lineCount)
@@ -36,7 +37,7 @@ Text.draw = function(self)
 		self._text,
 		self._x1,
 		self._y1,
-		self._limit,
+		self._scaledLimit,
 		self.align.x,
 		self.r,
 		self._scale,

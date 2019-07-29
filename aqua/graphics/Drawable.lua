@@ -29,12 +29,9 @@ Drawable.calc2CS = function(self)
 	self._y1 = cs1:Y(self.y1, true)
 	self._x2 = cs2:X(self.x2, true)
 	self._y2 = cs2:Y(self.y2, true)
-	if self.w then self._w = self._x2 - self._x1 end
-	if self.h then self._h = self._y2 - self._y1 end
-	if self.r then
-		self._r = math.sqrt((self._x2 - self._x1) ^ 2 + (self._y2 - self._y1) ^ 2)
-	end
-	if self.limit then self._limit = self._x2 - self._x1 end
+	self._w = self._x2 - self._x1
+	self._h = self._y2 - self._y1
+	self._r = math.sqrt((self._x2 - self._x1) ^ 2 + (self._y2 - self._y1) ^ 2)
 end
 
 Drawable.calculate = function(self)
