@@ -9,18 +9,9 @@ file.get = function(path)
 	return fileDatas[path]
 end
 
-local newFile = love.filesystem.newFile
+local newFileData = love.filesystem.newFileData
 file.new = function(path)
-	local file = newFile(path)
-	file:open("r")
-	local data = file:read()
-	local length = file:getSize()
-	file:close()
-	
-	local fileData = {
-		data = file:read(),
-		length = file:getSize()
-	}
+	local fileData = newFileData(path)
 	fileDatas[path] = fileData
 	return fileData
 end
