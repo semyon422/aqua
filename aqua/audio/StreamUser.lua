@@ -3,8 +3,13 @@ local loveffi = require("aqua.loveffi")
 local bass = require("aqua.audio.bass")
 local bass_fx = require("aqua.audio.bass_fx")
 local Stream = require("aqua.audio.Stream")
+local Audio = require("aqua.audio.Audio")
 
-local StreamUser = Stream:new()
+local StreamUser = Audio:new()
+
+StreamUser.free = function(self)
+	return Stream.free(self)
+end
 
 local close = function(userdata)
 	-- local file = loveffi.pointerToObject(userdata, 5, "File")

@@ -49,6 +49,7 @@ Container.update = function(self)
 		local audio = audioList[i]
 		audio:update()
 		if not audio.playing then
+			audio:free()
 			self:remove(audio)
 		end
 	end
@@ -65,6 +66,13 @@ Container.setRate = function(self, rate)
 	local audioList = self.audioList
 	for i = 1, #audioList do
 		audioList[i]:setRate(rate)
+	end
+end
+
+Container.setPitch = function(self, pitch)
+	local audioList = self.audioList
+	for i = 1, #audioList do
+		audioList[i]:setPitch(pitch)
 	end
 end
 

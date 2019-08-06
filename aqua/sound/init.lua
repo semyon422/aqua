@@ -12,15 +12,15 @@ sound.get = function(path)
 	return soundDatas[path]
 end
 
-local newFile = love.filesystem.newFile
 sound.new = function(path, fileData)
 	local fileData = fileData or file.new(path)
 	
-	local sample = bass.BASS_SampleLoad(true, fileData.data, 0, fileData.length, 65535, 0)
+	local sample = bass.BASS_SampleLoad(true, fileData:getString(), 0, fileData:getSize(), 65535, 0)
 	local info = ffi.new("BASS_SAMPLE")
 	bass.BASS_SampleGetInfo(sample, info)
 	
 	return {
+		fileData = fileData,
 		sample = sample,
 		info = {
 			freq = info.freq,

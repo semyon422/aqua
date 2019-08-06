@@ -8,6 +8,8 @@ Audio.rateValue = 1
 Audio.offset = 0
 Audio.baseVolume = 1
 
+Audio.free = function(self) end
+
 Audio.play = function(self)
 	return bass.BASS_ChannelPlay(self.channel, false)
 end
@@ -36,6 +38,8 @@ Audio.setRate = function(self, rate)
 		return bass.BASS_ChannelSetAttribute(self.channel, 1, self.soundData.info.freq * rate)
 	end
 end
+
+Audio.setPitch = function(self, pitch) end
 
 Audio.getPosition = function(self)
 	return bass.BASS_ChannelBytes2Seconds(self.channel, bass.BASS_ChannelGetPosition(self.channel, 0))

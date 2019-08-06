@@ -1,6 +1,7 @@
 local sound = require("aqua.sound")
 local Audio = require("aqua.audio.Audio")
 local Sample = require("aqua.audio.Sample")
+local SampleStream = require("aqua.audio.SampleStream")
 local Stream = require("aqua.audio.Stream")
 local StreamUser = require("aqua.audio.StreamUser")
 
@@ -11,7 +12,8 @@ AudioFactory.getSample = function(self, path)
 	if not soundData then return end
 	
 	return Sample:new({
-		soundData = soundData
+		soundData = soundData,
+		path = path
 	})
 end
 
