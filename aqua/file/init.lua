@@ -10,8 +10,13 @@ file.get = function(path)
 end
 
 local newFileData = love.filesystem.newFileData
-file.new = function(path)
-	local fileData = newFileData(path)
+file.new = function(path, name)
+	local fileData
+	if name then
+		fileData = newFileData(path, name)
+	else
+		fileData = newFileData(path)
+	end
 	fileDatas[path] = fileData
 	return fileData
 end
