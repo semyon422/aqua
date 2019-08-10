@@ -1,13 +1,20 @@
 local Thread = require("aqua.thread.Thread")
+local Observable = require("aqua.util.Observable")
 local Class = require("aqua.util.Class")
 
 local ThreadPool = {}
+
+ThreadPool.observable = Observable:new()
 
 ThreadPool.poolSize = 4
 ThreadPool.keepAliveTime = 1
 
 ThreadPool.threads = {}
 ThreadPool.queue = {}
+
+ThreadPool.send = function(self, event)
+	return self.observable:send(event)
+end
 
 ThreadPool.execute = function(self, codestring, args, callback)
 	self.queue[#self.queue + 1] = {codestring, args, callback}
@@ -60,6 +67,7 @@ end
 
 ThreadPool.createThread = function(self, threadId)
 	local thread = Thread:new()
+	thread.pool = self
 	thread.id = threadId
 	thread:create(self.codestring:format(("%q"):format(package.path), threadId))
 	thread:start()
@@ -87,14 +95,30 @@ ThreadPool.codestring = [[
 			})
 			return
 		elseif event.action == "loadstring" then
-			local result = {pcall(loadstring(event.codestring), unpack(event.args))}
-			if not result[1] then
-				print(unpack(result))
+			local status1, err1 = xpcall(
+				loadstring,
+				debug.traceback,
+				event.codestring
+			)
+			if not status1 then
+				outputChannel:push({
+					result = {status1, err1 .. "\n" .. event.trace},
+					done = true
+				})
+			else
+				local status2, err2 = xpcall(
+					err1,
+					debug.traceback,
+					unpack(event.args)
+				)
+				if not status2 then
+					err2 = err2 .. "\n" .. event.trace
+				end
+				outputChannel:push({
+					result = {status2, err2},
+					done = true
+				})
 			end
-			outputChannel:push({
-				result = result,
-				done = true
-			})
 		end
 	end
 ]]

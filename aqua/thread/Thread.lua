@@ -18,11 +18,22 @@ end
 Thread.update = function(self)
 	local threadError = self.thread:getError()
 	if threadError then
+		self.pool:send({
+			name = "threadError",
+			error = threadError .. "\n" .. self.currentEvent.trace
+		})
 		error(threadError)
 	end
 	
 	local event = self:receive()
 	while event do
+		if event.result and not event.result[1] then
+			self.pool:send({
+				name = "threadError",
+				error = event.result[2]
+			})
+		end
+		
 		self.callback(event.result)
 		if event.done then
 			self.idle = true
@@ -43,11 +54,13 @@ end
 Thread.execute = function(self, codestring, args, callback)
 	self.callback = callback
 	self.idle = false
-	self:send({
+	self.currentEvent = {
 		action = "loadstring",
 		codestring = codestring,
-		args = args
-	})
+		args = args,
+		trace = debug.traceback()
+	}
+	self:send(self.currentEvent)
 end
 
 Thread.start = function(self)
