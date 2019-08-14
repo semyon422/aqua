@@ -36,7 +36,7 @@ end
 
 CS.x = function(self, X, g)
 	if g then
-		return (X - self:aX(self.bx)) / self.onex - self.rx
+		return (X - self:aX(self.bx)) / self.onex + self.rx
 	else
 		return X / self.onex
 	end
@@ -44,7 +44,7 @@ end
 
 CS.y = function(self, Y, g)
 	if g then
-		return (Y - self:aY(self.by)) / self.oney - self.ry
+		return (Y - self:aY(self.by)) / self.oney + self.ry
 	else
 		return Y / self.oney
 	end
