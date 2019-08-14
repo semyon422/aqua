@@ -52,7 +52,7 @@ end
 
 CS.X = function(self, x, g)
 	if g then
-		return self:aX(self.bx) + (x - self.rx) * self.onex
+		return (x - self.rx) * self.onex + self:aX(self.bx)
 	else
 		return x * self.onex
 	end
@@ -60,7 +60,7 @@ end
 
 CS.Y = function(self, y, g)
 	if g then
-		return self:aY(self.by) + (y - self.ry) * self.oney
+		return (y - self.ry) * self.oney + self:aY(self.by)
 	else
 		return y * self.oney
 	end
