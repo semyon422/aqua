@@ -15,17 +15,19 @@ ImageFrame.updateBaseScale = function(self)
 end
 
 ImageFrame.updateScale = function(self)
-	self.scale = 1
+	self._scale = 1
 	local dw = self.bw
 	local dh = self.bh
 	local s1 = self._w / self._h <= dw / dh
 	local s2 = self._w / self._h >= dw / dh
 	
 	if self.locate == "out" and s1 or self.locate == "in" and s2 then
-		self.scale = self._h / dh
+		self._scale = self._h / dh
 	elseif self.locate == "out" and s2 or self.locate == "in" and s1 then
-		self.scale = self._w / dw
+		self._scale = self._w / dw
 	end
+	
+	self._scale = self._scale * (self.scale or 1)
 end
 
 ImageFrame.getOffset = function(self, screen, frame, align)
@@ -39,8 +41,8 @@ ImageFrame.getOffset = function(self, screen, frame, align)
 end
 
 ImageFrame.updateOffsets = function(self)
-	self._ox = self:getOffset(self._w, self.bw * self.scale, self.align.x)
-	self._oy = self:getOffset(self._h, self.bh * self.scale, self.align.y)
+	self._ox = self:getOffset(self._w, self.bw * self._scale, self.align.x)
+	self._oy = self:getOffset(self._h, self.bh * self._scale, self.align.y)
 end
 
 local draw = love.graphics.draw
@@ -52,8 +54,8 @@ ImageFrame.draw = function(self)
 		self._x1 + self._ox,
 		self._y1 + self._oy,
 		self.a,
-		self.scale,
-		self.scale
+		self._scale,
+		self._scale
 	)
 end
 
@@ -64,8 +66,8 @@ ImageFrame.batch = function(self, spriteBatch)
 		self._x1 + self._ox,
 		self._y1 + self._oy,
 		self.a,
-		self.scale,
-		self.scale
+		self._scale,
+		self._scale
 	)
 end
 
