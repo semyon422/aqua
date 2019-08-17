@@ -1,10 +1,10 @@
 local Observable = require("aqua.util.Observable")
 
-local io = Observable:new()
+local aquaevent = Observable:new()
 
-io.fpslimit = 240
+aquaevent.fpslimit = 240
 
-io.handle = function()
+aquaevent.handle = function()
 	love.event.pump()
 	for name, a, b, c, d, e, f in love.event.poll() do
 		if name == "quit" then
@@ -16,13 +16,13 @@ io.handle = function()
 	end
 end
 
-io.run = function()
+aquaevent.run = function()
 	love.math.setRandomSeed(os.time())
 	love.timer.step()
 	
 	local time = love.timer.getTime()
 	while true do
-		io.handle()
+		aquaevent.handle()
 		
 		love.timer.step()
 		love.update(love.timer.getDelta())
@@ -34,14 +34,14 @@ io.run = function()
 			love.graphics.present()
 		end
 		
-		time = time + 1 / io.fpslimit
+		time = time + 1 / aquaevent.fpslimit
 		time = math.max(time, love.timer.getTime())
 		
 		love.timer.sleep(time - love.timer.getTime())
 	end
 end
 
-io.callbacks = {
+aquaevent.callbacks = {
 	"update",
 	"draw",
 	"textinput",
@@ -59,12 +59,12 @@ io.callbacks = {
 	"mousefocus",
 }
 
-io.init = function()
-	love.run = io.run
+aquaevent.init = function()
+	love.run = aquaevent.run
 	
-	for _, name in pairs(io.callbacks) do
+	for _, name in pairs(aquaevent.callbacks) do
 		love[name] = function(...)
-			return io:send({
+			return aquaevent:send({
 				name = name,
 				time = love.timer.getTime(),
 				args = {...}
@@ -73,4 +73,4 @@ io.init = function()
 	end
 end
 
-return io
+return aquaevent
