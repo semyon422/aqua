@@ -5142,16 +5142,4 @@ BOOL BASS_FX_BPM_BeatDecodeGet(DWORD chan, double startSec, double endSec, DWORD
 BOOL BASS_FX_BPM_BeatSetParameters(DWORD handle, float bandwidth, float centerfreq, float beat_rtime);
 BOOL BASS_FX_BPM_BeatGetParameters(DWORD handle, float *bandwidth, float *centerfreq, float *beat_rtime);
 BOOL BASS_FX_BPM_BeatFree(DWORD handle);
-extern __attribute__((dllimport)) int _libiconv_version;
-typedef void* libiconv_t;
-extern __attribute__((dllimport)) libiconv_t libiconv_open (const char* tocode, const char* fromcode);
-extern __attribute__((dllimport)) size_t libiconv (libiconv_t cd, const char* * inbuf, size_t *inbytesleft, char* * outbuf, size_t *outbytesleft);
-extern __attribute__((dllimport)) int libiconv_close (libiconv_t cd);
-extern __attribute__((dllimport)) int libiconvctl (libiconv_t cd, int request, void* argument);
-extern __attribute__((dllimport)) void libiconvlist (int (*do_one) (unsigned int namescount,
-const char * const * names,
-void* data),
-void* data);
-extern __attribute__((dllimport)) void libiconv_set_relocation_prefix (const char *orig_prefix,
-const char *curr_prefix);
 ]])
