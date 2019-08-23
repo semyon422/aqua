@@ -4,8 +4,9 @@ local abs = math.abs
 
 local math = {}
 
-math.round = function(x)
-	return x % 1 < 0.5 and floor(x) or ceil(x)
+math.round = function(x, to)
+	to = to or 1
+	return ((x / to) % 1 < 0.5 and floor(x / to) or ceil(x / to)) * to
 end
 
 math.sign = function(x)
