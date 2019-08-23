@@ -16,7 +16,8 @@ Circle.draw = function(self)
 		self.mode,
 		self._x1,
 		self._y1,
-		self._r
+		self._r,
+		self.segments
 	)
 end
 
