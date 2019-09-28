@@ -3,6 +3,7 @@ local Observable = require("aqua.util.Observable")
 local aquaevent = Observable:new()
 
 aquaevent.fpslimit = 240
+aquaevent.tpslimit = 240
 
 aquaevent.handle = function()
 	love.event.pump()
@@ -21,23 +22,32 @@ aquaevent.run = function()
 	love.timer.step()
 	
 	local time = love.timer.getTime()
+	local eventTime = love.timer.getTime()
 	while true do
-		aquaevent.handle()
-		
-		love.timer.step()
-		love.update(love.timer.getDelta())
-		
-		if love.graphics and love.graphics.isActive() then
-			love.graphics.clear(love.graphics.getBackgroundColor())
-			love.graphics.origin()
-			love.draw()
-			love.graphics.present()
+		local currentTime = love.timer.getTime()
+
+		if currentTime >= eventTime + 1 / aquaevent.tpslimit then
+			aquaevent.handle()
+			-- print("event ", 1 / (currentTime - eventTime))
+			eventTime = math.max(currentTime, eventTime + 1 / aquaevent.tpslimit)
+			
+			love.timer.step()
+			love.update(love.timer.getDelta())
+		else
+			love.timer.sleep(eventTime + 1 / aquaevent.tpslimit - love.timer.getTime())
 		end
-		
-		time = time + 1 / aquaevent.fpslimit
-		time = math.max(time, love.timer.getTime())
-		
-		love.timer.sleep(time - love.timer.getTime())
+
+		if currentTime >= time + 1 / aquaevent.fpslimit then
+			if love.graphics and love.graphics.isActive() then
+				love.graphics.clear(love.graphics.getBackgroundColor())
+				love.graphics.origin()
+				love.draw()
+				love.graphics.present()
+			end
+
+			-- print("draw ", 1 / (currentTime - time))
+			time = time + 1 / aquaevent.fpslimit
+		end
 	end
 end
 
