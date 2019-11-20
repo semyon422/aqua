@@ -17,10 +17,72 @@ aquaevent.handle = function()
 	end
 end
 
+aquaevent.present = function()
+	local width, height, flags = love.window.getMode()
+
+	-- if not flags.vsync then
+	-- 	love.timer.sleep(self.lastFrameStartTime + 1 / aquaevent.fpslimit - currentTime)
+	-- end
+
+	love.graphics.present()
+end
+
 aquaevent.run = function()
 	love.math.setRandomSeed(os.time())
 	love.timer.step()
-	
+
+	local updateDelta = 0
+	local drawDelta = 0
+	local drawStartTime, drawEndTime, presentStartTime, presentEndTime = 0, 0, 0, 0
+	while false do
+		local updateStartTime = love.timer.getTime()
+		aquaevent.lastFrameStartTime = updateStartTime
+
+		local width, height, flags = love.window.getMode()
+		local fpslimit = flags.vsync and flags.refreshrate or aquaevent.fpslimit
+
+		local eventPerFrame = 0
+		local dt = 0.001
+		for i = 1, math.huge do
+			local eventTime = love.timer.getTime()
+
+			aquaevent.handle()
+
+			eventPerFrame = i
+
+			if love.timer.getTime() - updateStartTime > 1 / fpslimit / 2 then
+				break
+			end
+			
+			love.timer.sleep(updateStartTime + i * dt - love.timer.getTime())
+		end
+		updateDelta = love.timer.getTime() - updateStartTime
+		
+		if love.graphics and love.graphics.isActive() then
+			love.timer.step()
+			love.update(love.timer.getDelta())
+
+			love.graphics.clear(love.graphics.getBackgroundColor())
+			love.graphics.origin()
+
+			drawStartTime = love.timer.getTime()
+			love.draw()
+			drawEndTime = love.timer.getTime()
+
+			presentStartTime = love.timer.getTime()
+			print(("%0.6f"):format(presentStartTime - presentEndTime))
+			aquaevent.present()
+			presentEndTime = love.timer.getTime()
+		end
+		drawDelta = drawEndTime - drawStartTime
+
+		-- if presentEndTime - presentStartTime > 0.020 then
+		-- 	print(presentEndTime - presentStartTime)
+		-- end
+		print(("frametime %0.3f"):format(love.timer.getTime() - updateStartTime))
+		print(("%3d\t%0.3f\t%0.3f\t%0.3f"):format(eventPerFrame, updateDelta, drawDelta, presentEndTime - presentStartTime))
+	end
+
 	local time = love.timer.getTime()
 	local eventTime = love.timer.getTime()
 	while true do
@@ -28,7 +90,6 @@ aquaevent.run = function()
 
 		if currentTime >= eventTime + 1 / aquaevent.tpslimit then
 			aquaevent.handle()
-			-- print("event ", 1 / (currentTime - eventTime))
 			eventTime = math.max(currentTime, eventTime + 1 / aquaevent.tpslimit)
 			
 			love.timer.step()
@@ -45,9 +106,9 @@ aquaevent.run = function()
 				love.graphics.present()
 			end
 
-			-- print("draw ", 1 / (currentTime - time))
 			time = time + 1 / aquaevent.fpslimit
 		end
+		-- print(love.timer.getTime() - currentTime)
 	end
 end
 
