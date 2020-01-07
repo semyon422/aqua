@@ -105,13 +105,11 @@ byte.read_uint32_be = function(buffer)
 end
 
 byte.read_int32_le = function(buffer)
-	local number = byte.read_uint32_le(buffer)
-	return number < 0x8000 and number or -0x10000 + number
+	return bit.tobit(byte.read_uint32_le(buffer))
 end
 
 byte.read_int32_be = function(buffer)
-	local number = byte.read_uint32_be(buffer)
-	return number < 0x8000 and number or -0x10000 + number
+	return bit.tobit(byte.read_uint32_be(buffer))
 end
 
 byte.read_float_le = function(buffer)
