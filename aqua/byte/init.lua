@@ -14,11 +14,12 @@ byte.buffer = function(s, offset, length, step)
 	}
 end
 
-byte.slice = function(buffer, offset, length)
+byte.slice = function(buffer, offset, length, step)
 	return {
-		string = buffer.s,
+		string = buffer.string,
 		length = length,
-		pointer = buffer.pointer + offset
+		pointer = buffer.pointer + offset,
+		step = step
 	}
 end
 
