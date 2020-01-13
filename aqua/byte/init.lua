@@ -136,9 +136,51 @@ byte.int32_to_float_be = function(number)
 	return sign * (mantissa * 2 ^ -23) * (2 ^ (exponent - 127))
 end
 
+byte.int8_to_string = function(number)
+	return string.char(bit.band(number, 0x000000ff))
+end
+
+byte.int16_to_string_le = function(number)
+	return string.char(
+		           bit.band(number, 0x000000ff),
+		bit.rshift(bit.band(number, 0x0000ff00), 8)
+	)
+end
+
+byte.int16_to_string_be = function(number)
+	return string.char(
+		bit.rshift(bit.band(number, 0x0000ff00), 8),
+		           bit.band(number, 0x000000ff)
+	)
+end
+
+byte.int32_to_string_le = function(number)
+	return string.char(
+		           bit.band(number, 0x000000ff),
+		bit.rshift(bit.band(number, 0x0000ff00), 8),
+		bit.rshift(bit.band(number, 0x00ff0000), 16),
+		bit.rshift(bit.band(number, 0xff000000), 24)
+	)
+end
+
+byte.int32_to_string_be = function(number)
+	return string.char(
+		bit.rshift(bit.band(number, 0xff000000), 24),
+		bit.rshift(bit.band(number, 0x00ff0000), 16),
+		bit.rshift(bit.band(number, 0x0000ff00), 8),
+		           bit.band(number, 0x000000ff)
+	)
+end
+
 local b = byte.buffer("qwertyuiop")
 assert(b.length == 10)
 assert(byte.tostring(byte.slice(b, 2, 2)) == "er")
+
+assert(byte.int32_to_string_be(0x52494646) == "RIFF")
+assert(byte.int32_to_string_le(0x46464952) == "RIFF")
+
+assert(byte.int16_to_string_be(0x5249) == "RI")
+assert(byte.int16_to_string_le(0x4952) == "RI")
 do
 	local bytes = byte.bytes(b)
 	assert(bytes[1] == 113) -- q
