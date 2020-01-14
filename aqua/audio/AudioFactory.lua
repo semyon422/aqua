@@ -2,8 +2,8 @@ local sound = require("aqua.sound")
 local Audio = require("aqua.audio.Audio")
 local Sample = require("aqua.audio.Sample")
 local SampleStream = require("aqua.audio.SampleStream")
-local Stream = require("aqua.audio.Stream")
-local StreamUser = require("aqua.audio.StreamUser")
+local StreamFile = require("aqua.audio.StreamFile")
+local StreamMemory = require("aqua.audio.StreamMemory")
 
 local AudioFactory = {}
 
@@ -18,13 +18,7 @@ AudioFactory.getSample = function(self, path)
 end
 
 AudioFactory.getStream = function(self, path)
-	return Stream:new({
-		path = path
-	})
-end
-
-AudioFactory.getStreamUser = function(self, path)
-	return StreamUser:new({
+	return StreamMemory:new({
 		path = path
 	})
 end
