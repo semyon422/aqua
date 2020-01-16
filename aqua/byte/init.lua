@@ -45,8 +45,9 @@ byte.bytes = function(buffer)
 	return bytes
 end
 
-byte.read_string = function(buffer, length)
+byte.read_string = function(buffer, length, tostring)
 	local s = ffi.string(buffer.pointer, length)
+	if tostring then s = ffi.string(s) end
 	if buffer.step then byte.step(buffer, length) end
 	return s
 end
