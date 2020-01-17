@@ -5,6 +5,8 @@ local ffi = require("ffi")
 
 local sound = {}
 
+ThreadPool.observable:add(sound)
+
 local soundDatas = {}
 local callbacks = {}
 
@@ -66,23 +68,33 @@ sound.load = function(path, callback)
 		
 		ThreadPool:execute(
 			[[
-				if love.filesystem.exists(...) then
-					return require("aqua.sound").new(...)
+				local path = ...
+				if love.filesystem.exists(path) then
+					local soundData = require("aqua.sound").new(...)
+					thread:push({
+						name = "SoundData",
+						soundData = soundData,
+						path = path
+					})
 				end
 			]],
-			{path},
-			function(result)
-				local soundData = result[2]
-				sound.add(path, soundData)
-				for i = 1, #callbacks[path] do
-					callbacks[path][i](soundData)
-				end
-				callbacks[path] = nil
-			end
+			{path}
 		)
 	end
 	
 	callbacks[path][#callbacks[path] + 1] = callback
+end
+
+sound.receive = function(self, event)
+	if event.name == "SoundData" then
+		local soundData = event.soundData
+		local path = event.path
+		sound.add(path, soundData)
+		for i = 1, #callbacks[path] do
+			callbacks[path][i](soundData)
+		end
+		callbacks[path] = nil
+	end
 end
 
 sound.unload = function(path, callback)

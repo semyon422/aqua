@@ -7,8 +7,14 @@ Thread.idle = true
 
 Thread.create = function(self, codestring)
 	self.thread = love.thread.newThread(codestring)
+
+	self.internalInputChannel = love.thread.getChannel("internalInput" .. self.id)
+	self.internalOutputChannel = love.thread.getChannel("internalOutput" .. self.id)
 	self.inputChannel = love.thread.getChannel("input" .. self.id)
 	self.outputChannel = love.thread.getChannel("output" .. self.id)
+
+	self.internalInputChannel:clear()
+	self.internalOutputChannel:clear()
 	self.inputChannel:clear()
 	self.outputChannel:clear()
 	
@@ -18,27 +24,37 @@ end
 Thread.update = function(self)
 	local threadError = self.thread:getError()
 	if threadError then
+		local errorMessage = threadError .. "\n" .. self.currentEvent.trace
 		self.pool:send({
-			name = "threadError",
-			error = threadError .. "\n" .. self.currentEvent.trace
+			name = "ThreadError",
+			error = errorMessage
 		})
-		error(threadError)
+		print(errorMessage)
 	end
 	
-	local event = self:receive()
+	local event = self.internalOutputChannel:pop()
 	while event do
 		if event.result and not event.result[1] then
+			local errorMessage = event.result[2]
 			self.pool:send({
-				name = "threadError",
-				error = event.result[2]
+				name = "ThreadError",
+				error = errorMessage
 			})
+			print(errorMessage)
 		end
 		
-		self.callback(event.result)
+		self.pool:send(event)
 		if event.done then
 			self.idle = true
 		end
-		event = self:receive()
+		event = self.internalOutputChannel:pop()
+		self:updateLastTime()
+	end
+	
+	local event = self.outputChannel:pop()
+	while event do
+		self.pool:send(event)
+		event = self.outputChannel:pop()
 		self:updateLastTime()
 	end
 end
@@ -51,8 +67,7 @@ Thread.isIdle = function(self)
 	return self.idle
 end
 
-Thread.execute = function(self, codestring, args, callback)
-	self.callback = callback
+Thread.execute = function(self, codestring, args)
 	self.idle = false
 	self.currentEvent = {
 		action = "loadstring",
@@ -60,19 +75,19 @@ Thread.execute = function(self, codestring, args, callback)
 		args = args,
 		trace = debug.traceback()
 	}
-	self:send(self.currentEvent)
+	self.internalInputChannel:push(self.currentEvent)
 end
 
 Thread.start = function(self)
 	return self.thread:start()
 end
 
-Thread.send = function(self, event)
-	return self.inputChannel:push(event)
+Thread.receiveInternal = function(self, event)
+	return self.internalInputChannel:push(event)
 end
 
-Thread.receive = function(self)
-	return self.outputChannel:pop()
+Thread.receive = function(self, event)
+	return self.inputChannel:push(event)
 end
 
 Thread.isRunning = function(self)

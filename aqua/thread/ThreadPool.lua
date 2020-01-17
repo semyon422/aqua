@@ -4,7 +4,9 @@ local Class = require("aqua.util.Class")
 
 local ThreadPool = {}
 
-ThreadPool.observable = Observable:new()
+ThreadPool.inputObservable = Observable:new()
+ThreadPool.outputObservable = Observable:new()
+ThreadPool.observable = ThreadPool.outputObservable
 
 ThreadPool.poolSize = 4
 ThreadPool.keepAliveTime = 1
@@ -13,11 +15,15 @@ ThreadPool.threads = {}
 ThreadPool.queue = {}
 
 ThreadPool.send = function(self, event)
-	return self.observable:send(event)
+	return self.outputObservable:send(event)
 end
 
-ThreadPool.execute = function(self, codestring, args, callback)
-	self.queue[#self.queue + 1] = {codestring, args, callback}
+ThreadPool.receive = function(self, event)
+	return self.inputObservable:send(event)
+end
+
+ThreadPool.execute = function(self, codestring, args)
+	self.queue[#self.queue + 1] = {codestring, args}
 	return self:update()
 end
 
@@ -29,10 +35,10 @@ ThreadPool.update = function(self)
 		if thread then
 			thread:update()
 			if thread.idle and currentTime - thread.lastTime > self.keepAliveTime then
-				thread.callback = self.threadStopCallback
-				thread:send({
+				thread:receiveInternal({
 					action = "stop"
 				})
+				self.inputObservable:remove(thread)
 				self.threads[i] = nil
 			end
 		end
@@ -46,8 +52,6 @@ ThreadPool.update = function(self)
 		end
 	end
 end
-
-ThreadPool.threadStopCallback = function(thread) end
 
 ThreadPool.getIdleThread = function(self)
 	local thread
@@ -67,11 +71,16 @@ end
 
 ThreadPool.createThread = function(self, threadId)
 	local thread = Thread:new()
+
+	self.inputObservable:add(thread)
+
 	thread.pool = self
 	thread.id = threadId
 	thread:create(self.codestring:format(("%q"):format(package.path), threadId))
 	thread:start()
+
 	self.threads[threadId] = thread
+
 	return thread
 end
 
@@ -80,17 +89,30 @@ ThreadPool.codestring = [[
 	local aqua = require("aqua")
 	
 	local threadId = %d
+
+	local internalInputChannel = love.thread.getChannel("internalInput" .. threadId)
+	local internalOutputChannel = love.thread.getChannel("internalOutput" .. threadId)
+
 	local inputChannel = love.thread.getChannel("input" .. threadId)
 	local outputChannel = love.thread.getChannel("output" .. threadId)
+
+	thread = {}
+	thread.pop = function(self)
+		return inputChannel:pop()
+	end
+	thread.push = function(self, event)
+		return outputChannel:push(event)
+	end
 	
 	require("love.timer")
 	startTime = love.timer.getTime()
 	
 	local event
 	while true do
-		event = inputChannel:demand()
+		event = internalInputChannel:demand()
 		if event.action == "stop" then
-			outputChannel:push({
+			internalOutputChannel:push({
+				name = "ThreadInternal",
 				done = true
 			})
 			return
@@ -101,7 +123,8 @@ ThreadPool.codestring = [[
 				event.codestring
 			)
 			if not status1 then
-				outputChannel:push({
+				internalOutputChannel:push({
+					name = "ThreadInternal",
 					result = {status1, err1 .. "\n" .. event.trace},
 					done = true
 				})
@@ -114,7 +137,8 @@ ThreadPool.codestring = [[
 				if not status2 then
 					err2 = err2 .. "\n" .. event.trace
 				end
-				outputChannel:push({
+				internalOutputChannel:push({
+					name = "ThreadInternal",
 					result = {status2, err2},
 					done = true
 				})

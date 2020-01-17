@@ -2,6 +2,8 @@ local ThreadPool = require("aqua.thread.ThreadPool")
 
 local image = {}
 
+ThreadPool.observable:add(image)
+
 local imageDatas = {}
 local images = {}
 local callbacks = {}
@@ -24,25 +26,34 @@ image.load = function(path, callback)
 		
 		ThreadPool:execute(
 			[[
-				if love.filesystem.exists(...) then
-					return require("love.image").newImageData(...)
+				local path = ...
+				if love.filesystem.exists(path) then
+					local imageData = require("love.image").newImageData(...)
+					thread:push({
+						name = "ImageData",
+						imageData = imageData,
+						path = path
+					})
 				end
 			]],
-			{path},
-			function(result)
-				if result[1] and result[2] then
-					imageDatas[path] = result[2]
-					images[path] = love.graphics.newImage(result[2])
-				end
-				for i = 1, #callbacks[path] do
-					callbacks[path][i](imageDatas[path], images[path])
-				end
-				callbacks[path] = nil
-			end
+			{path}
 		)
 	end
 	
 	callbacks[path][#callbacks[path] + 1] = callback
+end
+
+image.receive = function(self, event)
+	if event.name == "ImageData" then
+		local path = event.path
+		local imageData = event.imageData
+		imageDatas[path] = imageData
+		images[path] = love.graphics.newImage(imageData)
+		for i = 1, #callbacks[path] do
+			callbacks[path][i](imageData, images[path])
+		end
+		callbacks[path] = nil
+	end
 end
 
 image.unload = function(path, callback)
