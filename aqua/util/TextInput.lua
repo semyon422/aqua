@@ -18,6 +18,11 @@ TextInput.reset = function(self)
 	self.offset = 0
 end
 
+TextInput.setText = function(self, text)
+	self.text = text
+	self.offset = #text
+end
+
 TextInput.receive = function(self, event)
 	if event.name == "textinput" then
 		local char = event.args[1]
