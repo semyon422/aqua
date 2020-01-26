@@ -68,14 +68,27 @@ sound.load = function(path, callback)
 		
 		ThreadPool:execute(
 			[[
+				local sound = require("aqua.sound")
 				local path = ...
 				if love.filesystem.exists(path) then
-					local soundData = require("aqua.sound").new(...)
-					thread:push({
-						name = "SoundData",
-						soundData = soundData,
-						path = path
-					})
+					local status, err = xpcall(
+						sound.new,
+						debug.traceback,
+						path
+					)
+					if status then
+						thread:push({
+							name = "SoundData",
+							soundData = err,
+							path = path
+						})
+					else
+						thread:push({
+							name = "SoundDataError",
+							err = err,
+							path = path
+						})
+					end
 				end
 			]],
 			{path}
@@ -92,6 +105,13 @@ sound.receive = function(self, event)
 		sound.add(path, soundData)
 		for i = 1, #callbacks[path] do
 			callbacks[path][i](soundData)
+		end
+		callbacks[path] = nil
+	elseif event.name == "SoundDataError" then
+		local path = event.path
+		print(event.err)
+		for i = 1, #callbacks[path] do
+			callbacks[path][i]()
 		end
 		callbacks[path] = nil
 	end

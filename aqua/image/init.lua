@@ -26,14 +26,27 @@ image.load = function(path, callback)
 		
 		ThreadPool:execute(
 			[[
+				local image = require("love.image")
 				local path = ...
 				if love.filesystem.exists(path) then
-					local imageData = require("love.image").newImageData(...)
-					thread:push({
-						name = "ImageData",
-						imageData = imageData,
-						path = path
-					})
+					local status, err = xpcall(
+						image.newImageData,
+						debug.traceback,
+						path
+					)
+					if status then
+						thread:push({
+							name = "ImageData",
+							imageData = err,
+							path = path
+						})
+					else
+						thread:push({
+							name = "ImageDataError",
+							err = err,
+							path = path
+						})
+					end
 				end
 			]],
 			{path}
@@ -51,6 +64,13 @@ image.receive = function(self, event)
 		images[path] = love.graphics.newImage(imageData)
 		for i = 1, #callbacks[path] do
 			callbacks[path][i](imageData, images[path])
+		end
+		callbacks[path] = nil
+	elseif event.name == "ImageDataError" then
+		local path = event.path
+		print(event.err)
+		for i = 1, #callbacks[path] do
+			callbacks[path][i]()
 		end
 		callbacks[path] = nil
 	end
