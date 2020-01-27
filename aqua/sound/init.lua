@@ -119,19 +119,15 @@ end
 
 sound.unload = function(path, callback)
 	if soundDatas[path] then
-		return ThreadPool:execute(
+		ThreadPool:execute(
 			[[
 				return require("aqua.sound").free(...)
 			]],
-			{soundDatas[path]},
-			function(result)
-				sound.remove(path)
-				return callback()
-			end
+			{soundDatas[path]}
 		)
-	else
-		return callback()
+		sound.remove(path)
 	end
+	return callback()
 end
 
 return sound
