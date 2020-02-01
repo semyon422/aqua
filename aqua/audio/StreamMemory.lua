@@ -1,5 +1,5 @@
 local ffi = require("ffi")
-local byte = require("aqua.byte")
+local byte = require("byte")
 local loveffi = require("aqua.loveffi")
 local bass = require("aqua.audio.bass")
 local bass_fx = require("aqua.audio.bass_fx")
