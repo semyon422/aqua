@@ -2,7 +2,6 @@ local aqua = {}
 
 aqua.audio = require("aqua.audio")
 aqua.assets = require("aqua.assets")
-aqua.byte = require("aqua.byte")
 aqua.file = require("aqua.file")
 aqua.filesystem = require("aqua.filesystem")
 aqua.graphics = require("aqua.graphics")
