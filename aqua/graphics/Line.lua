@@ -18,6 +18,7 @@ Line.draw = function(self)
 	self:switchColor()
 	self:switchLineWidth()
 	self:switchLineStyle()
+	self:switchBlendMode()
 	
 	return line(self._points)
 end

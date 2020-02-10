@@ -69,4 +69,14 @@ Drawable.switchLineWidth = function(self)
 	end
 end
 
+Drawable.switchBlendMode = function(self)
+	if self.blendMode and self.blendAlphaMode then
+		love.graphics.setBlendMode(self.blendMode, self.blendAlphaMode)
+	elseif self.blendMode then
+		love.graphics.setBlendMode(self.blendMode)
+	else
+		love.graphics.setBlendMode("alpha")
+	end
+end
+
 return Drawable

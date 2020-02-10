@@ -9,6 +9,7 @@ VideoFrame.draw = function(self)
 	end
 	
 	self:switchColor()
+	self:switchBlendMode()
 	
 	return draw(
 		self.video.image,

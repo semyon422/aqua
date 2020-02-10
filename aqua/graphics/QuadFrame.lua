@@ -7,6 +7,7 @@ QuadFrame.updateBaseScale = function(self) end
 local draw = love.graphics.draw
 QuadFrame.draw = function(self)
 	self:switchColor()
+	self:switchBlendMode()
 	
 	return draw(
 		self.image,

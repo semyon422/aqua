@@ -24,6 +24,7 @@ Rectangle.draw = function(self)
 	self:switchColor()
 	self:switchLineWidth()
 	self:switchLineStyle()
+	self:switchBlendMode()
 	
 	return rectangle(
 		self.mode,

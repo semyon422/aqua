@@ -11,6 +11,7 @@ Circle.draw = function(self)
 	self:switchColor()
 	self:switchLineWidth()
 	self:switchLineStyle()
+	self:switchBlendMode()
 	
 	return circle(
 		self.mode,

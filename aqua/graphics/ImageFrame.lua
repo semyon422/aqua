@@ -48,6 +48,7 @@ end
 local draw = love.graphics.draw
 ImageFrame.draw = function(self)
 	self:switchColor()
+	self:switchBlendMode()
 	
 	return draw(
 		self.image,

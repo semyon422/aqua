@@ -32,6 +32,7 @@ local printf = love.graphics.printf
 Text.draw = function(self)
 	self:switchColor()
 	self:switchFont()
+	self:switchBlendMode()
 	
 	return printf(
 		self._text,

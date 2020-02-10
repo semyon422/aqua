@@ -9,6 +9,7 @@ end
 local draw = love.graphics.draw
 Image.draw = function(self)
 	self:switchColor()
+	self:switchBlendMode()
 	
 	return draw(
 		self.image,

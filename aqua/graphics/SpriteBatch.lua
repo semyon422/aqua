@@ -18,6 +18,7 @@ SpriteBatch.draw = function(self)
 	end
 	
 	Drawable.switchColor(self)
+	Drawable.switchBlendMode(self)
 	
 	draw(
 		spriteBatch,

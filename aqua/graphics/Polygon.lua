@@ -18,6 +18,7 @@ Polygon.draw = function(self)
 	self:switchColor()
 	self:switchLineWidth()
 	self:switchLineStyle()
+	self:switchBlendMode()
 	
 	return polygon(self.mode, self._vertices)
 end
