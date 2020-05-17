@@ -58,7 +58,13 @@ end
 Container.stop = function(self)
 	local audioList = self.audioList
 	for i = 1, #audioList do
-		audioList[i]:stop()
+		local audio = audioList[i]
+		audio:stop()
+		audio:update()
+		if not audio.playing then
+			audio:free()
+			self:remove(audio)
+		end
 	end
 end
 
