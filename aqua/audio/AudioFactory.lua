@@ -4,6 +4,7 @@ local Sample = require("aqua.audio.Sample")
 local SampleStream = require("aqua.audio.SampleStream")
 local StreamFile = require("aqua.audio.StreamFile")
 local StreamMemory = require("aqua.audio.StreamMemory")
+local StreamMemoryReversable = require("aqua.audio.StreamMemoryReversable")
 
 local AudioFactory = {}
 
