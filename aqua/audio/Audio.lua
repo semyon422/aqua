@@ -33,9 +33,13 @@ Audio.update = function(self)
 end
 
 Audio.setRate = function(self, rate)
+	return self:setFreqRate(rate)
+end
+
+Audio.setFreqRate = function(self, rate)
 	if self.rateValue ~= rate then
 		self.rateValue = rate
-		return bass.BASS_ChannelSetAttribute(self.channel, 1, self.soundData.info.freq * rate)
+		return bass.BASS_ChannelSetAttribute(self.channel, 1, self.info.freq * rate)
 	end
 end
 

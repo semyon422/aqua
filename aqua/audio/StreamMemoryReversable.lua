@@ -1,25 +1,20 @@
 local ffi = require("ffi")
-local byte = require("byte")
 local loveffi = require("aqua.loveffi")
 local bass = require("aqua.audio.bass")
 local bass_fx = require("aqua.audio.bass_fx")
 local StreamMemory = require("aqua.audio.StreamMemory")
 local StreamMemoryReversed = require("aqua.audio.StreamMemoryReversed")
-local Audio = require("aqua.audio.Audio")
+local Stream = require("aqua.audio.Stream")
 
-local StreamMemoryReversable = Audio:new()
+local StreamMemoryReversable = Stream:new()
 
 StreamMemoryReversable.construct = function(self)
 	if not self.byteBuffer then
-		local file = love.filesystem.newFile(self.path)
-		file:open("r")
-
-		self.byteBuffer = byte.buffer(file:read(), 0, nil, true)
-		file:close()
+		self:loadData()
 	end
 
-	self.streamDirect = StreamMemory:new({byteBuffer = self.byteBuffer})
-	self.streamReversed = StreamMemoryReversed:new({byteBuffer = self.byteBuffer})
+	self.streamDirect = StreamMemory:new({byteBuffer = self.byteBuffer, info = self.info})
+	self.streamReversed = StreamMemoryReversed:new({byteBuffer = self.byteBuffer, info = self.info})
 end
 
 StreamMemoryReversable.rateValue = 1
@@ -70,7 +65,7 @@ StreamMemoryReversable.setRate = function(self, rate)
 		self.streamReversed:setRate(-rate)
 	elseif self.rateValue > 0 and rate < 0 then
 		self.streamDirect:pause()
-		self.streamReversed:setRate(-rate)
+		self.streamReversed:setFreqRate(-rate)
 		self.streamReversed:setPosition(self.streamDirect:getPosition())
 		self.streamReversed:play()
 	elseif self.rateValue < 0 and rate > 0 then
