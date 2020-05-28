@@ -68,7 +68,9 @@ Timer.setRate = function(self, rate)
 
 	self.rate = rate
 
-	self:adjustTime(0, true)
+	if adjust then
+		self:adjustTime(0, true)
+	end
 end
 
 Timer.getTime = function(self)
