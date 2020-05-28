@@ -27,7 +27,6 @@ Video.open = function(self, path)
 	self.streamIndex = avformat.av_find_best_stream(
 		self.formatContext[0], "AVMEDIA_TYPE_VIDEO", -1, -1, self.codec, 0
 	)
-	assert(self.streamIndex == 0)
 	self.stream = self.formatContext[0].streams[self.streamIndex]
 	
 	self.codecContext = self.stream.codec
