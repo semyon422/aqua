@@ -58,7 +58,17 @@ Timer.setRate = function(self, rate)
 		local deltaTime = love.timer.getTime() - self.startTime - pauseTime
 		self.rateDelta = (self.rateDelta - deltaTime) * self.rate / rate + deltaTime
 	end
+
+	local adjust = false
+	if rate * self.rate < 0 then
+		if self.getAdjustTime then
+			adjust = true
+		end
+	end
+
 	self.rate = rate
+
+	self:adjustTime(0, true)
 end
 
 Timer.getTime = function(self)
