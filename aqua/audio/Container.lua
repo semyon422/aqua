@@ -21,6 +21,10 @@ Container.remove = function(self, audio)
 	self.needSort = true
 end
 
+local sortAudios = function(a, b)
+	return a.position < b.position
+end
+
 Container.sort = function(self)
 	if not self.needSort then
 		return
@@ -32,9 +36,7 @@ Container.sort = function(self)
 		audio:update()
 	end
 	
-	table.sort(audios, function(a, b)
-		return a.position < b.position
-	end)
+	table.sort(audios, sortAudios)
 	
 	self.audioList = audios
 	
