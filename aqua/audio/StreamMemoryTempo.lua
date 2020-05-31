@@ -1,13 +1,10 @@
-local ffi = require("ffi")
-local byte = require("byte")
-local loveffi = require("aqua.loveffi")
 local bass = require("aqua.audio.bass")
 local bass_fx = require("aqua.audio.bass_fx")
 local Stream = require("aqua.audio.Stream")
 
-local StreamMemory = Stream:new()
+local StreamMemoryTempo = Stream:new()
 
-StreamMemory.construct = function(self)
+StreamMemoryTempo.construct = function(self)
 	if not self.byteBuffer then
 		self:loadData()
 	end
@@ -16,4 +13,4 @@ StreamMemory.construct = function(self)
 	self.channel = bass_fx.BASS_FX_TempoCreate(self.channel, 0x10000)
 end
 
-return StreamMemory
+return StreamMemoryTempo

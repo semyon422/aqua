@@ -1,8 +1,9 @@
 local sound = require("aqua.sound")
 local Audio = require("aqua.audio.Audio")
 local Sample = require("aqua.audio.Sample")
-local StreamFile = require("aqua.audio.StreamFile")
-local StreamMemory = require("aqua.audio.StreamMemory")
+local Stream = require("aqua.audio.Stream")
+local StreamTempo = require("aqua.audio.StreamTempo")
+local StreamMemoryTempo = require("aqua.audio.StreamMemoryTempo")
 local StreamMemoryReversable = require("aqua.audio.StreamMemoryReversable")
 
 local AudioFactory = {}
@@ -17,13 +18,29 @@ AudioFactory.getSample = function(self, path)
 	})
 end
 
-AudioFactory.getStreamFile = function(self, path)
-	return StreamFile:new({
+AudioFactory.getStream = function(self, path)
+	return Stream:new({
 		path = path
 	})
 end
 
-AudioFactory.getStreamMemory = function(self, path)
+AudioFactory.getStreamTempo = function(self, path)
+	return StreamTempo:new({
+		path = path
+	})
+end
+
+AudioFactory.getStreamMemoryTempo = function(self, path)
+	local soundData = sound.get(path)
+	if not soundData then return end
+
+	return StreamMemoryTempo:new({
+		soundData = soundData,
+		path = path
+	})
+end
+
+AudioFactory.getStreamMemoryReversable = function(self, path)
 	local soundData = sound.get(path)
 	if not soundData then return end
 

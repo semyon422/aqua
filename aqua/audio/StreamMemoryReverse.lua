@@ -1,13 +1,10 @@
-local ffi = require("ffi")
-local byte = require("byte")
-local loveffi = require("aqua.loveffi")
 local bass = require("aqua.audio.bass")
 local bass_fx = require("aqua.audio.bass_fx")
 local Stream = require("aqua.audio.Stream")
 
-local StreamMemoryReversed = Stream:new()
+local StreamMemoryReverse = Stream:new()
 
-StreamMemoryReversed.construct = function(self)
+StreamMemoryReverse.construct = function(self)
 	if not self.byteBuffer then
 		self:loadData(self.path)
 	end
@@ -16,4 +13,4 @@ StreamMemoryReversed.construct = function(self)
 	self.channel = bass_fx.BASS_FX_ReverseCreate(self.channel, self:getLength(), 0x10000)
 end
 
-return StreamMemoryReversed
+return StreamMemoryReverse

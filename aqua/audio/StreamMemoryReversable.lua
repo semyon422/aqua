@@ -1,9 +1,5 @@
-local ffi = require("ffi")
-local loveffi = require("aqua.loveffi")
-local bass = require("aqua.audio.bass")
-local bass_fx = require("aqua.audio.bass_fx")
-local StreamMemory = require("aqua.audio.StreamMemory")
-local StreamMemoryReversed = require("aqua.audio.StreamMemoryReversed")
+local StreamMemoryTempo = require("aqua.audio.StreamMemoryTempo")
+local StreamMemoryReverse = require("aqua.audio.StreamMemoryReverse")
 local Stream = require("aqua.audio.Stream")
 
 local StreamMemoryReversable = Stream:new()
@@ -13,8 +9,8 @@ StreamMemoryReversable.construct = function(self)
 		self:loadData()
 	end
 
-	self.streamDirect = StreamMemory:new({byteBuffer = self.byteBuffer, info = self.info})
-	self.streamReversed = StreamMemoryReversed:new({byteBuffer = self.byteBuffer, info = self.info})
+	self.streamDirect = StreamMemoryTempo:new({byteBuffer = self.byteBuffer, info = self.info})
+	self.streamReversed = StreamMemoryReverse:new({byteBuffer = self.byteBuffer, info = self.info})
 end
 
 StreamMemoryReversable.rateValue = 1
