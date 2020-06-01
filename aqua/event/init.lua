@@ -19,6 +19,7 @@ end
 
 aquaevent.run = function()
 	love.math.setRandomSeed(os.time())
+	math.randomseed(os.time())
 	love.timer.step()
 	
 	local time = love.timer.getTime()
