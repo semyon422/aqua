@@ -36,10 +36,6 @@ iconv.open = function(self, tocode, fromcode, outbuff_size)
 	local outbuff_size = outbuff_size or max_outbuff_size
 	local outbuff = ffi.new("char[?]", outbuff_size)
 	
-	self.cd = cd
-	self.outbuff_size = outbuff_size
-	self.outbuff = outbuff
-	
 	return setmetatable({
 		cd = cd,
 		outbuff_size = outbuff_size,
