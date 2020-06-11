@@ -50,10 +50,10 @@ Container.update = function(self)
 	for i = 1, #audioList do
 		local audio = audioList[i]
 		audio:update()
-		if not audio.playing then
-			audio:free()
-			self:remove(audio)
-		end
+		-- if not audio.playing then
+		-- 	audio:free()
+		-- 	self:remove(audio)
+		-- end
 	end
 end
 
@@ -63,10 +63,10 @@ Container.stop = function(self)
 		local audio = audioList[i]
 		audio:stop()
 		audio:update()
-		if not audio.playing then
-			audio:free()
-			self:remove(audio)
-		end
+		-- if not audio.playing then
+		-- 	audio:free()
+		-- 	self:remove(audio)
+		-- end
 	end
 end
 
@@ -107,16 +107,16 @@ Container.pause = function(self)
 end
 
 Container.setPosition = function(self, position)
-	self.volume = volume
 	local audioList = self.audioList
 	for i = 1, #audioList do
 		local audio = audioList[i]
-		if audio.playing then
-			local newPosition = position - audio.offset
-			if newPosition >= 0 and newPosition < audio.length then
+		-- if audio.playing then
+			-- local newPosition = position - audio.offset
+			local newPosition = position
+			-- if newPosition >= 0 and newPosition < audio.length then
 				audio:setPosition(newPosition)
-			end
-		end
+			-- end
+		-- end
 	end
 end
 
@@ -124,18 +124,22 @@ Container.getPosition = function(self)
 	local position = 0
 	local length = 0
 	
+	local c = 0
 	local audioList = self.audioList
 	for i = 1, #audioList do
 		local audio = audioList[i]
 		if audio.playing then
-			position = position + (audio.offset + audio.position) * audio.length
+			-- position = position + (audio.offset + audio.position) * audio.length
+			position = position + audio.position * audio.length
 			length = length + audio.length
+			c = c + 1
 		end
 	end
 	
 	if length == 0 then
 		return nil
 	end
+	-- print(c, #audioList, position / length)
 	
 	return position / length
 end

@@ -1,6 +1,7 @@
 local bass = require("aqua.audio.bass")
 local bass_fx = require("aqua.audio.bass_fx")
 local Stream = require("aqua.audio.Stream")
+local bit = require("bit")
 
 local StreamTempo = Stream:new()
 

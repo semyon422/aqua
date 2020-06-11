@@ -2,11 +2,15 @@ local ffi = require("ffi")
 local byte = require("byte")
 local bass = require("aqua.audio.bass")
 local Audio = require("aqua.audio.Audio")
+local Timer = require("aqua.util.Timer")
 
 local Stream = Audio:new()
 
 Stream.construct = function(self)
 	self.channel = bass.BASS_StreamCreateFile(false, self.path, 0, 0, 0)
+	self.timer = Timer:new()
+	self.timer.getAdjustTime = self.getAdjustTime
+	self.timer.audio = self
 
 	self:loadDataChannel()
 end
