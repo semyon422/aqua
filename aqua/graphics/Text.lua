@@ -1,4 +1,5 @@
 local Drawable = require("aqua.graphics.Drawable")
+local Color = require("aqua.graphics.Color")
 
 local Text = Drawable:new()
 
@@ -14,7 +15,7 @@ Text.reload = function(self)
 	
 	self._y1 = self:getY(lineCount)
 	
-	self._text = {self.color, self.text}
+	self._text = {{Color:new():set(self.color, 255):get()}, self.text}
 end
 
 Text.getY = function(self, lineCount)

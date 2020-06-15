@@ -1,4 +1,5 @@
 local Drawable = require("aqua.graphics.Drawable")
+local Color = require("aqua.graphics.Color")
 
 local ImageFrame = Drawable:new()
 
@@ -61,7 +62,7 @@ ImageFrame.draw = function(self)
 end
 
 ImageFrame.batch = function(self, spriteBatch)
-	spriteBatch:setColor(self.color)
+	spriteBatch:setColor({Color:new():set(self.color, 255):get()})
 	
 	return spriteBatch:add(
 		self._x1 + self._ox,

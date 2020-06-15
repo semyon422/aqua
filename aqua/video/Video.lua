@@ -145,7 +145,11 @@ end
 Video.rewind = function(self)
 	avformat.av_seek_frame(self.formatContext[0], self.streamIndex, 0, 1)
 	
-	self.image:refresh()
+	if self.image.refresh then
+		self.image:refresh()
+	else
+		self.image:replacePixels(self.imageData)
+	end
 end
 
 Video.update = function(self, dt)
@@ -153,7 +157,11 @@ Video.update = function(self, dt)
 	
 	repeat until not (self.timer:getTime() >= self.videoTime and self:readFrame())
 	
-	self.image:refresh()
+	if self.image.refresh then
+		self.image:refresh()
+	else
+		self.image:replacePixels(self.imageData)
+	end
 end
 
 return Video

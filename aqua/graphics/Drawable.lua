@@ -1,4 +1,5 @@
 local Class = require("aqua.util.Class")
+local Color = require("aqua.graphics.Color")
 
 local Drawable = Class:new()
 
@@ -45,7 +46,7 @@ end
 local white = {255, 255, 255, 255}
 Drawable.switchColor = function(self)
 	if self.color then
-		love.graphics.setColor(self.color)
+		love.graphics.setColor({Color:new():set(self.color, 255):get()})
 	else
 		love.graphics.setColor(white)
 	end

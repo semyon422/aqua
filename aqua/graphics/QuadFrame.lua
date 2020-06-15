@@ -1,4 +1,5 @@
 local ImageFrame = require("aqua.graphics.ImageFrame")
+local Color = require("aqua.graphics.Color")
 
 local QuadFrame = ImageFrame:new()
 
@@ -21,7 +22,7 @@ QuadFrame.draw = function(self)
 end
 
 QuadFrame.batch = function(self, spriteBatch)
-	spriteBatch:setColor(self.color)
+	spriteBatch:setColor({Color:new():set(self.color, 255):get()})
 	
 	return spriteBatch:add(
 		self.quad,

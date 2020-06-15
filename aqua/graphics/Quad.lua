@@ -1,4 +1,5 @@
 local Drawable = require("aqua.graphics.Drawable")
+local Color = require("aqua.graphics.Color")
 
 local Quad = Drawable:new()
 
@@ -23,7 +24,7 @@ Quad.draw = function(self)
 end
 
 Quad.batch = function(self, spriteBatch)
-	spriteBatch:setColor(self.color)
+	spriteBatch:setColor({Color:new():set(self.color, 255):get()})
 	
 	return spriteBatch:add(
 		self.quad,
