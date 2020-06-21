@@ -34,8 +34,9 @@ Text.draw = function(self)
 	self:switchColor()
 	self:switchFont()
 	self:switchBlendMode()
-	
-	return printf(
+
+	local status, err = pcall(
+		printf,
 		self._text,
 		self._x1,
 		self._y1,
@@ -49,6 +50,23 @@ Text.draw = function(self)
 		self.kx,
 		self.ky
 	)
+
+	if not status then
+		printf(
+			{self._text[1], err},
+			self._x1,
+			self._y1,
+			self._scaledLimit,
+			self.align.x,
+			self.r,
+			self._scale,
+			self._scale,
+			self._ox,
+			self._oy,
+			self.kx,
+			self.ky
+		)
+	end
 end
 
 return Text
