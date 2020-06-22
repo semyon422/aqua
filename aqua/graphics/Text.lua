@@ -10,7 +10,15 @@ Text.reload = function(self)
 	self._scale = cs.one / cs.baseOne
 	local _limit = self._limit or self._w
 	self._scaledLimit = _limit / self._scale
-	local width, wrappedText = self.font:getWrap(self.text, self._scaledLimit)
+
+	local width, wrappedText = 0, ""
+	local status, err1, err2 = pcall(self.font.getWrap, self.font, self.text, self._scaledLimit)
+	if status then
+		width, wrappedText = err1, err2
+	else
+		width, wrappedText = self.font:getWrap(err1, self._scaledLimit)
+	end
+
 	local lineCount = #wrappedText
 	
 	self._y1 = self:getY(lineCount)
