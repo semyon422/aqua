@@ -8,32 +8,33 @@ Timer.currentTime = 0
 Timer.pauseTime = 0
 Timer.adjustDelta = 0
 Timer.rateDelta = 0
+Timer.positionDelta = 0
 Timer.state = "waiting"
 
-Timer.update = function(self, dt)
+Timer.update = function(self)
 	local deltaTime = love.timer.getTime() - (self.startTime or 0)
 	self.deltaTime = deltaTime
 	
 	if self.state == "waiting" or self.state == "paused" then
 		return
 	elseif self.state == "playing" then
-		self.currentTime = (deltaTime - self.adjustDelta - self.pauseTime - self.rateDelta) * self.rate
+		self.currentTime = (deltaTime - self.adjustDelta - self.pauseTime - self.rateDelta) * self.rate + self.positionDelta
 	end
 	
 	if self.getAdjustTime then
-		self:adjustTime(dt)
+		self:adjustTime()
 	end
 end
 
-Timer.adjustTime = function(self, dt, force)
+Timer.adjustTime = function(self, force)
 	local adjustTime = self:getAdjustTime()
 	if adjustTime and self.state ~= "paused" then
-		dt = math.min(dt, 1 / 60)
+		local dt = math.min(love.timer.getDelta(), 1 / 60)
 		local targetAdjustDelta
 			= self.deltaTime
 			- self.rateDelta
 			- self.pauseTime
-			- adjustTime
+			- (adjustTime - self.positionDelta)
 			/ self.rate
 		
 		if force then
@@ -69,12 +70,21 @@ Timer.setRate = function(self, rate)
 	self.rate = rate
 
 	if adjust then
-		self:adjustTime(0, true)
+		self:adjustTime(true)
 	end
 end
 
 Timer.getTime = function(self)
 	return self.currentTime + self.offset
+end
+
+Timer.setPosition = function(self, position)
+	self.positionDelta = self.positionDelta + position - self.currentTime - self.offset
+	self:update()
+end
+
+Timer.setOffset = function(self, offset)
+	self.offset = offset
 end
 
 Timer.pause = function(self)
