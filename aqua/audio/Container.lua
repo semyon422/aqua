@@ -107,7 +107,6 @@ Container.pause = function(self)
 end
 
 Container.setPosition = function(self, position)
-	self.volume = volume
 	local audioList = self.audioList
 	for i = 1, #audioList do
 		local audio = audioList[i]
