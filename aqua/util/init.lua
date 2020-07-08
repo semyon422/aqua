@@ -2,6 +2,7 @@ local util = {}
 
 util.json = require("aqua.util.json")
 util.trycatch = require("aqua.util.trycatch")
+util.safeload = require("aqua.util.safeload")
 
 util.Class = require("aqua.util.Class")
 util.Observer = require("aqua.util.Observer")
