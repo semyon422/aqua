@@ -14,7 +14,10 @@ end
 Stream.loadData = function(self)
 	local soundData = self.soundData
 
-	self.byteBuffer = byte.buffer(soundData.fileData:getString(), 0, nil, true)
+	local byteBuffer = byte.buffer(soundData.fileData:getSize())
+	byteBuffer:fill(soundData.fileData:getString())
+	self.byteBuffer = byteBuffer
+
 	self.info = soundData.info
 end
 
