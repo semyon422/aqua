@@ -50,6 +50,8 @@ aquaevent.callbacks = {
 	"keypressed",
 	"keyreleased",
 	"mousepressed",
+	"joystickpressed",
+	"joystickreleased",
 	"mousemoved",
 	"mousereleased",
 	"wheelmoved",
