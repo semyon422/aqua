@@ -6,6 +6,9 @@ local Audio = require("aqua.audio.Audio")
 local Stream = Audio:new()
 
 Stream.construct = function(self)
+	if not self.path then
+		return
+	end
 	self.channel = bass.BASS_StreamCreateFile(false, self.path, 0, 0, 0)
 
 	self:loadDataChannel()

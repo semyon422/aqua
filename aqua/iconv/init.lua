@@ -1,4 +1,5 @@
 local ffi = require("ffi")
+local safelib = require("aqua.safelib")
 
 ffi.cdef([[
 int _libiconv_version;
@@ -15,8 +16,8 @@ void libiconv_set_relocation_prefix (const char *orig_prefix,
 const char *curr_prefix);
 ]])
 
-local libcharset = ffi.load("libcharset-1")
-local libiconv = ffi.load("libiconv-2")
+local libcharset = assert(safelib.load("libcharset"))
+local libiconv = assert(safelib.load("libiconv"))
 
 local max_outbuff_size = 4096
 local iconv_open_err = ffi.cast("libiconv_t", ffi.new("int", -1))

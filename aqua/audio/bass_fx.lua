@@ -1,9 +1,9 @@
-local ffi = require("ffi")
+local safelib = require("aqua.safelib")
 local cdef = require("aqua.cdef")
 
 local bass_fx = {}
 
-local _bass_fx = ffi.load("bass_fx")
+local _bass_fx = assert(safelib.load("bass_fx", true))
 
 setmetatable(bass_fx, {
 	__index = _bass_fx
@@ -11,6 +11,6 @@ setmetatable(bass_fx, {
 
 local bass = require("aqua.audio.bass")
 
-bass.BASS_PluginLoad("bin64/bass_fx.dll", 0)
+bass.BASS_PluginLoad(safelib.get("bass_fx"), 0)
 
 return bass_fx
