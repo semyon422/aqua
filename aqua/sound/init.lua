@@ -70,7 +70,8 @@ sound.load = function(path, callback)
 			[[
 				local sound = require("aqua.sound")
 				local path = ...
-				if love.filesystem.exists(path) then
+				local info = love.filesystem.getInfo(path)
+				if info then
 					local status, err = xpcall(
 						sound.new,
 						debug.traceback,

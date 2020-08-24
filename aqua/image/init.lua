@@ -28,7 +28,8 @@ image.load = function(path, callback)
 			[[
 				local image = require("love.image")
 				local path = ...
-				if love.filesystem.exists(path) then
+				local info = love.filesystem.getInfo(path)
+				if info then
 					local status, err = xpcall(
 						image.newImageData,
 						debug.traceback,
