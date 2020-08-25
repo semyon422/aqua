@@ -7,22 +7,9 @@ local StreamUserTempo = Stream:new()
 
 StreamUserTempo.construct = function(self)
 	self.file = love.filesystem.newFile(self.path, "r")
-	self.closeProc = function(user)
-		self.file:close()
-	end
-	self.lengthProc = function(user)
-		return self.file:getSize()
-	end
-	self.readProc = function(buffer, length, user)
-		local contents, size = self.file:read(length)
-		ffi.copy(buffer, contents, size)
-		return size
-	end
-	self.seekProc = function(offset, user)
-		return self.file:seek(offset)
-	end
-	local procs = ffi.new("BASS_FILEPROCS", {self.closeProc, self.lengthProc, self.readProc, self.seekProc})
-	self.channel = bass.BASS_StreamCreateFileUser(1, 0x200000, procs, nil)
+	self.idPointer = ffi.new("int32_t[1]")
+	self.idPointer[0] = bass.addFile(self.file)
+	self.channel = bass.BASS_StreamCreateFileUser(1, 0x200000, bass.fileProcs, self.idPointer)
 	self.channel = bass_fx.BASS_FX_TempoCreate(self.channel, 0x10000)
 end
 
@@ -39,6 +26,11 @@ StreamUserTempo.setPitch = function(self, pitch)
 		self.pitchValue = pitch
 		return bass.BASS_ChannelSetAttribute(self.channel, 0x10001, 12 * math.log(pitch) / math.log(2))
 	end
+end
+
+StreamUserTempo.free = function(self)
+	bass.removeFile(self.idPointer[0])
+	Stream.free(self)
 end
 
 return StreamUserTempo
