@@ -21,9 +21,9 @@ Container.remove = function(self, audio)
 	self.needSort = true
 end
 
-local sortAudios = function(a, b)
-	return a.position < b.position
-end
+-- local sortAudios = function(a, b)
+-- 	return a:getPosition() < b:getPosition()
+-- end
 
 Container.sort = function(self)
 	if not self.needSort then
@@ -36,7 +36,7 @@ Container.sort = function(self)
 		audio:update()
 	end
 	
-	table.sort(audios, sortAudios)
+	-- table.sort(audios, sortAudios)
 	
 	self.audioList = audios
 	
@@ -50,7 +50,7 @@ Container.update = function(self)
 	for i = 1, #audioList do
 		local audio = audioList[i]
 		audio:update()
-		if not audio.playing then
+		if not audio:isPlaying() then
 			audio:free()
 			self:remove(audio)
 		end
@@ -63,7 +63,7 @@ Container.stop = function(self)
 		local audio = audioList[i]
 		audio:stop()
 		audio:update()
-		if not audio.playing then
+		if not audio:isPlaying() then
 			audio:free()
 			self:remove(audio)
 		end
@@ -110,9 +110,9 @@ Container.setPosition = function(self, position)
 	local audioList = self.audioList
 	for i = 1, #audioList do
 		local audio = audioList[i]
-		if audio.playing then
+		if audio:isPlaying() then
 			local newPosition = position - audio.offset
-			if newPosition >= 0 and newPosition < audio.length then
+			if newPosition >= 0 and newPosition < audio:getLength() then
 				audio:setPosition(newPosition)
 			end
 		end
@@ -126,9 +126,10 @@ Container.getPosition = function(self)
 	local audioList = self.audioList
 	for i = 1, #audioList do
 		local audio = audioList[i]
-		if audio.playing then
-			position = position + (audio.offset + audio.position) * audio.length
-			length = length + audio.length
+		if audio:isPlaying() then
+			local audioLength = audio:getLength()
+			position = position + (audio.offset + audio:getPosition()) * audioLength
+			length = length + audioLength
 		end
 	end
 	
