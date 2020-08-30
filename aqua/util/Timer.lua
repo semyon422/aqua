@@ -34,6 +34,17 @@ Timer.update = function(self)
 	end
 end
 
+Timer.reset = function(self)
+	self.offset = Timer.offset
+	self.currentTime = Timer.currentTime
+	self.rate = Timer.rate
+	self.pauseTime = Timer.pauseTime
+	self.adjustDelta = Timer.adjustDelta
+	self.rateDelta = Timer.rateDelta
+	self.positionDelta = Timer.positionDelta
+	self.state = Timer.state
+end
+
 Timer.adjustTime = function(self, force)
 	local adjustTime = self:getAdjustTime()
 	if adjustTime and self.state ~= "paused" then
@@ -42,7 +53,7 @@ Timer.adjustTime = function(self, force)
 			= self.deltaTime
 			- self.rateDelta
 			- self.pauseTime
-			- (adjustTime - self.positionDelta)
+			- (adjustTime - self.offset - self.positionDelta)
 			/ self.rate
 		
 		if force then
