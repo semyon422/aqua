@@ -7,45 +7,33 @@ Container.volume = 1
 Container.construct = function(self)
 	self.audios = {}
 	self.audioList = {}
-	self.needSort = false
+	self.needMakeList = false
 end
 
 Container.add = function(self, audio)
 	self.audios[audio] = true
-	self.needSort = true
+	self.needMakeList = true
 	audio:setVolume(self.volume)
 end
 
 Container.remove = function(self, audio)
 	self.audios[audio] = nil
-	self.needSort = true
+	self.needMakeList = true
 end
 
--- local sortAudios = function(a, b)
--- 	return a:getPosition() < b:getPosition()
--- end
-
-Container.sort = function(self)
-	if not self.needSort then
-		return
-	end
-	
+Container.makeList = function(self)
 	local audios = {}
 	for audio in pairs(self.audios) do
 		audios[#audios + 1] = audio
-		audio:update()
 	end
-	
-	-- table.sort(audios, sortAudios)
-	
+
 	self.audioList = audios
-	
-	self.needSort = false
 end
 
 Container.update = function(self)
-	self:sort()
-	
+	if self.needMakeList then
+		self:makeList()
+	end
 	local audioList = self.audioList
 	for i = 1, #audioList do
 		local audio = audioList[i]
@@ -55,9 +43,14 @@ Container.update = function(self)
 			self:remove(audio)
 		end
 	end
+	if self.needMakeList then
+		self:makeList()
+		self.needMakeList = false
+	end
 end
 
 Container.stop = function(self)
+	self:makeList()
 	local audioList = self.audioList
 	for i = 1, #audioList do
 		local audio = audioList[i]
@@ -122,7 +115,7 @@ end
 Container.getPosition = function(self)
 	local position = 0
 	local length = 0
-	
+
 	local audioList = self.audioList
 	for i = 1, #audioList do
 		local audio = audioList[i]
@@ -132,11 +125,11 @@ Container.getPosition = function(self)
 			length = length + audioLength
 		end
 	end
-	
+
 	if length == 0 then
 		return nil
 	end
-	
+
 	return position / length
 end
 
