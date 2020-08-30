@@ -9,7 +9,7 @@ StreamUserTempo.construct = function(self)
 	self.file = love.filesystem.newFile(self.path, "r")
 	self.idPointer = ffi.new("int32_t[1]")
 	self.idPointer[0] = bass.addFile(self.file)
-	self.channel = bass.BASS_StreamCreateFileUser(1, 0x200000, bass.fileProcs, self.idPointer)
+	self.channel = bass.BASS_StreamCreateFileUser(1, 0x220000, bass.fileProcs, self.idPointer)
 	self.channel = bass_fx.BASS_FX_TempoCreate(self.channel, 0x10000)
 end
 
