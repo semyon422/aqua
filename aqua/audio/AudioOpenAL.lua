@@ -9,7 +9,9 @@ AudioOpenAL.construct = function(self)
 	self.source = love.audio.newSource(self.path, "stream")
 end
 
-AudioOpenAL.free = function(self) end
+AudioOpenAL.free = function(self)
+	return self.source and self.source:release()
+end
 
 AudioOpenAL.play = function(self)
 	return self.source and self.source:play()
