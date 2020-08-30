@@ -5,7 +5,6 @@ local aquaevent = Observable:new()
 aquaevent.fpslimit = 240
 aquaevent.tpslimit = 240
 aquaevent.time = 0
-aquaevent.needQuit = false
 
 aquaevent.handle = function()
 	love.event.pump()
@@ -31,9 +30,6 @@ aquaevent.run = function()
 
 		aquaevent.framestarted()
 		aquaevent.handle()
-		if aquaevent.needQuit then
-			return
-		end
 
 		love.update(aquaevent.dt)
 
@@ -96,10 +92,6 @@ aquaevent.framestarted = function()
 		time = aquaevent.time,
 		dt = aquaevent.dt
 	})
-end
-
-aquaevent.quit = function()
-	aquaevent.needQuit = true
 end
 
 return aquaevent
