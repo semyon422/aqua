@@ -11,8 +11,11 @@ video.get = function(path)
 end
 
 video.new = function(path)
+	if not path then
+		return
+	end
 	local info = love.filesystem.getInfo(path)
-	if not path or not info then
+	if not info then
 		return
 	end
 	local video = Video:new()
