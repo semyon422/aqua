@@ -27,9 +27,6 @@ Audio.isPlaying = function(self)
 end
 
 Audio.update = function(self)
-	self.position = self:getPosition()
-	self.playing = self:isPlaying()
-	self.length = self:getLength()
 end
 
 Audio.setRate = function(self, rate)

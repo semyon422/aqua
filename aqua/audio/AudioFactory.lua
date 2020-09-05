@@ -5,15 +5,65 @@ local Stream = require("aqua.audio.Stream")
 local StreamTempo = require("aqua.audio.StreamTempo")
 local StreamMemoryTempo = require("aqua.audio.StreamMemoryTempo")
 local StreamMemoryReversable = require("aqua.audio.StreamMemoryReversable")
+local StreamUser = require("aqua.audio.StreamUser")
+local StreamUserTempo = require("aqua.audio.StreamUserTempo")
+local StreamOpenAL = require("aqua.audio.StreamOpenAL")
+local SampleOpenAL = require("aqua.audio.SampleOpenAL")
 
 local AudioFactory = {}
+
+AudioFactory.getAudio = function(self, path, mode)
+	if mode == "sample" then
+		return AudioFactory:getSample(path)
+	elseif mode == "stream" then
+		return AudioFactory:getStream(path)
+	elseif mode == "streamTempo" then
+		return AudioFactory:getStreamTempo(path)
+	elseif mode == "streamUser" then
+		return AudioFactory:getStreamUser(path)
+	elseif mode == "streamUserTempo" then
+		return AudioFactory:getStreamUserTempo(path)
+	elseif mode == "streamMemoryTempo" then
+		return AudioFactory:getStreamMemoryTempo(path)
+	elseif mode == "streamMemoryReversable" then
+		return AudioFactory:getStreamMemoryReversable(path)
+	elseif mode == "streamOpenAL" then
+		return AudioFactory:getStreamOpenAL(path)
+	elseif mode == "sampleOpenAL" then
+		return AudioFactory:getSampleOpenAL(path)
+	end
+end
+
+AudioFactory.getStreamOpenAL = function(self, path)
+	return StreamOpenAL:new({
+		path = path
+	})
+end
+
+AudioFactory.getSampleOpenAL = function(self, path)
+	return SampleOpenAL:new({
+		path = path
+	})
+end
 
 AudioFactory.getSample = function(self, path)
 	local soundData = sound.get(path)
 	if not soundData then return end
-	
+
 	return Sample:new({
 		soundData = soundData,
+		path = path
+	})
+end
+
+AudioFactory.getStreamUser = function(self, path)
+	return StreamUser:new({
+		path = path
+	})
+end
+
+AudioFactory.getStreamUserTempo = function(self, path)
+	return StreamUserTempo:new({
 		path = path
 	})
 end

@@ -10,7 +10,7 @@ StreamMemoryTempo.construct = function(self)
 		self:loadData()
 	end
 
-	self.channel = bass.BASS_StreamCreateFile(true, self.byteBuffer.pointer, 0, self.byteBuffer.size, 0x200000)
+	self.channel = bass.BASS_StreamCreateFile(true, self.byteBuffer.pointer, 0, self.byteBuffer.size, 0x220000)
 	self.channel = bass_fx.BASS_FX_TempoCreate(self.channel, 0x10000)
 end
 

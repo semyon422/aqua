@@ -11,8 +11,16 @@ Timer.rateDelta = 0
 Timer.positionDelta = 0
 Timer.state = "waiting"
 
+Timer.getAbsoluteTime = function(self)
+	return love.timer.getTime()
+end
+
+Timer.getAbsoluteDelta = function(self)
+	return love.timer.getDelta()
+end
+
 Timer.update = function(self)
-	local deltaTime = love.timer.getTime() - (self.startTime or 0)
+	local deltaTime = self:getAbsoluteTime() - (self.startTime or 0)
 	self.deltaTime = deltaTime
 	
 	if self.state == "waiting" or self.state == "paused" then
@@ -26,15 +34,26 @@ Timer.update = function(self)
 	end
 end
 
+Timer.reset = function(self)
+	self.offset = Timer.offset
+	self.currentTime = Timer.currentTime
+	self.rate = Timer.rate
+	self.pauseTime = Timer.pauseTime
+	self.adjustDelta = Timer.adjustDelta
+	self.rateDelta = Timer.rateDelta
+	self.positionDelta = Timer.positionDelta
+	self.state = Timer.state
+end
+
 Timer.adjustTime = function(self, force)
 	local adjustTime = self:getAdjustTime()
 	if adjustTime and self.state ~= "paused" then
-		local dt = math.min(love.timer.getDelta(), 1 / 60)
+		local dt = math.min(self:getAbsoluteDelta(), 1 / 60)
 		local targetAdjustDelta
 			= self.deltaTime
 			- self.rateDelta
 			- self.pauseTime
-			- (adjustTime - self.positionDelta)
+			- (adjustTime - self.offset - self.positionDelta)
 			/ self.rate
 		
 		if force then
@@ -52,11 +71,11 @@ Timer.setRate = function(self, rate)
 	if self.startTime then
 		local pauseTime
 		if self.state == "paused" then
-			pauseTime = self.pauseTime + love.timer.getTime() - self.pauseStartTime
+			pauseTime = self.pauseTime + self:getAbsoluteTime() - self.pauseStartTime
 		else
 			pauseTime = self.pauseTime
 		end
-		local deltaTime = love.timer.getTime() - self.startTime - pauseTime
+		local deltaTime = self:getAbsoluteTime() - self.startTime - pauseTime
 		self.rateDelta = (self.rateDelta - deltaTime) * self.rate / rate + deltaTime
 	end
 
@@ -89,17 +108,17 @@ end
 
 Timer.pause = function(self)
 	self.state = "paused"
-	self.pauseStartTime = love.timer.getTime()
+	self.pauseStartTime = self:getAbsoluteTime()
 end
 
 Timer.play = function(self)
 	if self.state == "waiting" then
 		self.state = "playing"
-		self.startTime = love.timer.getTime() - self.currentTime
+		self.startTime = self:getAbsoluteTime() - self.currentTime
 	elseif self.state == "paused" then
 		self.state = "playing"
-		self.pauseTime = self.pauseTime + love.timer.getTime() - self.pauseStartTime
-		self.pauseStartTime = love.timer.getTime()
+		self.pauseTime = self.pauseTime + self:getAbsoluteTime() - self.pauseStartTime
+		self.pauseStartTime = self:getAbsoluteTime()
 	end
 end
 

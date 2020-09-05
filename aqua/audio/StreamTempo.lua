@@ -5,7 +5,7 @@ local Stream = require("aqua.audio.Stream")
 local StreamTempo = Stream:new()
 
 StreamTempo.construct = function(self)
-	self.channel = bass.BASS_StreamCreateFile(false, self.path, 0, 0, 0x200000)
+	self.channel = bass.BASS_StreamCreateFile(false, self.path, 0, 0, 0x220000)
 	self.channel = bass_fx.BASS_FX_TempoCreate(self.channel, 0x10000)
 end
 
