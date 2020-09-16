@@ -117,7 +117,7 @@ ThreadPool.codestring = [[
 			})
 			return
 		elseif event.action == "loadstring" then
-			local status1, err1 = xpcall(
+			local status1, err1, err2 = xpcall(
 				loadstring,
 				debug.traceback,
 				event.codestring
@@ -126,6 +126,12 @@ ThreadPool.codestring = [[
 				internalOutputChannel:push({
 					name = "ThreadInternal",
 					result = {status1, err1 .. "\n" .. event.trace},
+					done = true
+				})
+			elseif not err1 then
+				internalOutputChannel:push({
+					name = "ThreadInternal",
+					result = {err1, err2 .. "\n" .. event.trace},
 					done = true
 				})
 			else
