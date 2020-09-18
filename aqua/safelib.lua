@@ -51,21 +51,27 @@ local linux64 = {
 
 local safelib = {}
 
+safelib.root = "./"
+
+safelib.setRoot = function(path)
+	safelib.root = path
+end
+
 safelib.get = function(name)
 	local os = jit.os
 	local arch = jit.arch
 
 	if os == "Windows" then
 		if arch == "x64" then
-			return win64prefix .. win64[name] or name
+			return safelib.root .. win64prefix .. win64[name] or name
 		elseif arch == "x86" then
-			return win64prefix .. win64[name] or name
+			return safelib.root .. win64prefix .. win64[name] or name
 		end
 	elseif os == "Linux" then
 		if arch == "x64" then
-			return linux64prefix .. linux64[name] or name
+			return safelib.root .. linux64prefix .. linux64[name] or name
 		elseif arch == "x86" then
-			return linux64prefix .. linux64[name] or name
+			return safelib.root .. linux64prefix .. linux64[name] or name
 		end
 	end
 
