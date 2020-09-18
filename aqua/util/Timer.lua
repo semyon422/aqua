@@ -11,12 +11,20 @@ Timer.rateDelta = 0
 Timer.positionDelta = 0
 Timer.state = "waiting"
 
+local love = love
+
 Timer.getAbsoluteTime = function(self)
-	return love.timer.getTime()
+	if love then
+		return love.timer.getTime()
+	end
+	return os.time()
 end
 
 Timer.getAbsoluteDelta = function(self)
-	return love.timer.getDelta()
+	if love then
+		return love.timer.getDelta()
+	end
+	return 0
 end
 
 Timer.update = function(self)
