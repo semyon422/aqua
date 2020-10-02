@@ -1,4 +1,5 @@
 local Observable = require("aqua.util.Observable")
+local LuaMidi = require("luamidi")
 
 local aquaevent = Observable:new()
 
@@ -16,6 +17,18 @@ aquaevent.handle = function()
 			end
 		end
 		love.handlers[name](a, b, c, d, e, f)
+	end
+
+	if LuaMidi.getinportcount() > 0 then
+		local a, b, c, d = LuaMidi.getMessage(0)
+		
+		if a ~= nil and a == 144 then
+			if c == 0 then
+				love["midireleased"](b, c, d)
+			else
+				love["midipressed"](b, c, d)
+			end
+		end
 	end
 end
 
@@ -65,6 +78,8 @@ aquaevent.callbacks = {
 	"gamepadreleased",
 	"joystickpressed",
 	"joystickreleased",
+	"midipressed",
+	"midireleased",
 	"mousemoved",
 	"mousereleased",
 	"wheelmoved",
@@ -99,6 +114,7 @@ aquaevent.framestarted = function()
 end
 
 aquaevent.quit = function()
+	LuaMidi.gc()
 	aquaevent.needQuit = true
 end
 
