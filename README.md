@@ -10,3 +10,5 @@ iconv: https://www.gnu.org/software/libiconv/
 libcurl: https://curl.haxx.se/libcurl/c/  
 sqlite: https://www.sqlite.org/index.html  
 zlib: https://zlib.net  
+
+To compile lovemidi install libasound2-dev.
