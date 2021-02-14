@@ -25,30 +25,6 @@ local win64 = {
 	z = "z.dll",
 }
 
-local linux64prefix = "./aqua/linux64/"
-
-local linux64 = {
-	bass = "libbass.so",
-	bass_fx = "libbass_fx.so",
-	libcrypto = "libcrypto.so",
-	libcurl = "libcurl.so",
-	libssl = "libssl.so",
-	discordrpc = "libdiscord-rpc.so",
-	avcodec = "libavcodec.so",
-	avdevice = "libavdevice.so",
-	avfilter = "libavfilter.so",
-	avformat = "libavformat.so",
-	avutil = "libavutil.so",
-	postproc = "libpostproc.so",
-	swresample = "libswresample.so",
-	swscale = "libswscale.so",
-	libcharset = "libcharset.so",
-	libiconv = "libiconv.so",
-	love = "liblove.so",
-	sqlite3 = "libsqlite3.so",
-	z = "libz.so",
-}
-
 local safelib = {}
 
 safelib.root = "./"
@@ -68,11 +44,7 @@ safelib.get = function(name)
 			return safelib.root .. win64prefix .. win64[name] or name
 		end
 	elseif os == "Linux" then
-		if arch == "x64" then
-			return safelib.root .. linux64prefix .. linux64[name] or name
-		elseif arch == "x86" then
-			return safelib.root .. linux64prefix .. linux64[name] or name
-		end
+		return name
 	end
 
 	error(os .. " " .. arch .. " is not supported")
