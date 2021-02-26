@@ -88,6 +88,7 @@ ThreadPool.codestring = [[
 	package.path = %s
 	package.cpath = %s
 	local aqua = require("aqua")
+	require("preloaders.preloadall")
 	
 	local threadId = %d
 
