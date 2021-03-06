@@ -36,24 +36,24 @@ Node.on = function(self, action, callback)
 	table.insert(callbacks[action], callback)
 end
 
-Node.call = function(self, action, event)
+Node.call = function(self, action, ...)
 	local callbacks = self.callbacks
 	if callbacks[action] then
 		for _, callback in ipairs(callbacks[action]) do
-			callback(self, event)
+			callback(self, ...)
 		end
 	end
 	if self.pass then
 		for _, node in ipairs(self.next) do
-			node:call(action, event)
+			node:call(action, ...)
 		end
 	end
 end
 
-Node.callnext = function(self, action, event)
-	self:call(action, event)
+Node.callnext = function(self, action, ...)
+	self:call(action, ...)
 	for _, node in ipairs(self.next) do
-		node:callnext(action, event)
+		node:callnext(action, ...)
 	end
 end
 
