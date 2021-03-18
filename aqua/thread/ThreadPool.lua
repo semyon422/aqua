@@ -76,7 +76,7 @@ ThreadPool.createThread = function(self, threadId)
 
 	thread.pool = self
 	thread.id = threadId
-	thread:create(self.codestring:format(("%q"):format(package.path), ("%q"):format(package.cpath), threadId))
+	thread:create(self.codestring:format(threadId))
 	thread:start()
 
 	self.threads[threadId] = thread
@@ -85,8 +85,6 @@ ThreadPool.createThread = function(self, threadId)
 end
 
 ThreadPool.codestring = [[
-	package.path = %s
-	package.cpath = %s
 	local aqua = require("aqua")
 	require("preloaders.preloadall")
 	
