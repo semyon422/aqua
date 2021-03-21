@@ -14,13 +14,29 @@ sound.get = function(path)
 	return soundDatas[path]
 end
 
+local sample_gain = 0
+sound.set_gain = function(gain)
+	sample_gain = gain
+end
+
 sound.new = function(path, fileData)
 	local fileData = fileData or file.new(path)
-	
+
 	local sample = bass.BASS_SampleLoad(true, fileData:getString(), 0, fileData:getSize(), 65535, 0)
 	local info = ffi.new("BASS_SAMPLE")
 	bass.BASS_SampleGetInfo(sample, info)
-	
+
+	if sample_gain > 0 then
+		local buffer = ffi.new("int16_t[?]", math.ceil(info.length / 2))
+		bass.BASS_SampleGetData(sample, buffer)
+
+		local amp = math.exp(sample_gain / 20 * math.log(10))
+		for i = 0, info.length / 2 - 1 do
+			buffer[i] = math.min(math.max(buffer[i] * amp, -32768), 32767)
+		end
+		bass.BASS_SampleSetData(sample, buffer)
+	end
+
 	return {
 		fileData = fileData,
 		sample = sample,
@@ -62,14 +78,15 @@ sound.load = function(path, callback)
 	if soundDatas[path] then
 		return callback(soundDatas[path])
 	end
-	
+
 	if not callbacks[path] then
 		callbacks[path] = {}
-		
+
 		ThreadPool:execute(
 			[[
+				local path, sample_gain = ...
 				local sound = require("aqua.sound")
-				local path = ...
+				sound.set_gain(sample_gain)
 				local info = love.filesystem.getInfo(path)
 				if info then
 					local status, err = xpcall(
@@ -92,10 +109,10 @@ sound.load = function(path, callback)
 					end
 				end
 			]],
-			{path}
+			{path, sample_gain}
 		)
 	end
-	
+
 	callbacks[path][#callbacks[path] + 1] = callback
 end
 
