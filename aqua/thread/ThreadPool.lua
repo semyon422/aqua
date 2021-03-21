@@ -100,9 +100,11 @@ ThreadPool.codestring = [[
 	package.path = pp
 	package.cpath = cpp
 
-	local aqua = require("aqua")
+	local aqua, err = pcall(require, "aqua")
+	if not aqua then
+		print("Require error")
+	end
 	require("preloaders.preloadall")
-
 
 	local internalInputChannel = love.thread.getChannel("internalInput" .. threadId)
 	local internalOutputChannel = love.thread.getChannel("internalOutput" .. threadId)
