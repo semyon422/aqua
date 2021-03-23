@@ -76,11 +76,7 @@ ThreadPool.createThread = function(self, threadId)
 
 	thread.pool = self
 	thread.id = threadId
-	local rp = love.filesystem.getRequirePath()
-	local crp = love.filesystem.getCRequirePath()
-	local pp = package.path
-	local cpp = package.cpath
-	thread:create(self.codestring:format(threadId, rp, crp, pp, cpp))
+	thread:create(self.codestring:format(threadId))
 	thread:start()
 
 	self.threads[threadId] = thread
@@ -90,21 +86,6 @@ end
 
 ThreadPool.codestring = [[
 	local threadId = %d
-	local rp = %q
-	local crp = %q
-	local pp = %q
-	local cpp = %q
-
-	love.filesystem.setRequirePath(rp)
-	love.filesystem.setCRequirePath(crp)
-	package.path = pp
-	package.cpath = cpp
-
-	local aqua, err = pcall(require, "aqua")
-	if not aqua then
-		print("Require error")
-	end
-	require("preloaders.preloadall")
 
 	local internalInputChannel = love.thread.getChannel("internalInput" .. threadId)
 	local internalOutputChannel = love.thread.getChannel("internalOutput" .. threadId)
@@ -119,6 +100,8 @@ ThreadPool.codestring = [[
 	thread.push = function(self, event)
 		return outputChannel:push(event)
 	end
+
+	require("preloaders.preloadall")
 	
 	require("love.timer")
 	startTime = love.timer.getTime()
