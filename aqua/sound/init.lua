@@ -14,9 +14,9 @@ sound.get = function(path)
 	return soundDatas[path]
 end
 
-local sample_gain = 0
+sound.sample_gain = 0
 sound.set_gain = function(gain)
-	sample_gain = gain
+	sound.sample_gain = gain
 end
 
 sound.new = function(path, fileData)
@@ -26,11 +26,11 @@ sound.new = function(path, fileData)
 	local info = ffi.new("BASS_SAMPLE")
 	bass.BASS_SampleGetInfo(sample, info)
 
-	if sample_gain > 0 then
+	if sound.sample_gain > 0 then
 		local buffer = ffi.new("int16_t[?]", math.ceil(info.length / 2))
 		bass.BASS_SampleGetData(sample, buffer)
 
-		local amp = math.exp(sample_gain / 20 * math.log(10))
+		local amp = math.exp(sound.sample_gain / 20 * math.log(10))
 		for i = 0, info.length / 2 - 1 do
 			buffer[i] = math.min(math.max(buffer[i] * amp, -32768), 32767)
 		end
@@ -109,7 +109,7 @@ sound.load = function(path, callback)
 					end
 				end
 			]],
-			{path, sample_gain}
+			{path, sound.sample_gain}
 		)
 	end
 
