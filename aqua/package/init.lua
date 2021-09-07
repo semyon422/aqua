@@ -8,13 +8,10 @@ package.reset = function()
 	love.filesystem.setCRequirePath(cRequirePath)
 end
 
+local ext = jit.os == "Windows" and "dll" or "so"
 package.add = function(path)
-	local requirePath = love.filesystem.getRequirePath()
-    love.filesystem.setRequirePath(requirePath .. (";path/?.lua;path/?/init.lua"):gsub("path", path))
-
-	local cRequirePath = love.filesystem.getCRequirePath()
-    love.filesystem.setCRequirePath(cRequirePath .. (";path/?.dll"):gsub("path", path))
-    love.filesystem.setCRequirePath(cRequirePath .. (";path/?.so"):gsub("path", path))
+    love.filesystem.setRequirePath(love.filesystem.getRequirePath() .. (";path/?.lua;path/?/init.lua"):gsub("path", path))
+    love.filesystem.setCRequirePath(love.filesystem.getCRequirePath() .. (";path/?." .. ext):gsub("path", path))
 end
 
 return package
