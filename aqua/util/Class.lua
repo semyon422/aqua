@@ -1,16 +1,21 @@
 local Class = {}
 
 Class.new = function(self, object, ...)
-	local object = object or {}
-	
+	object = object or {}
+
+	local construct = object.construct
+	object.construct = nil
+
 	setmetatable(object, self)
 	self.__index = self
-	
-	if object.construct then
+
+	if construct ~= false and object.construct and object.construct ~= Class.construct then
 		object:construct(...)
 	end
-	
+
 	return object
 end
+
+Class.construct = function() end
 
 return Class
