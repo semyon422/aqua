@@ -21,7 +21,7 @@ aquaevent.handle = function()
 
 	if LuaMidi.getinportcount() > 0 then
 		local a, b, c, d = LuaMidi.getMessage(0)
-		
+
 		if a ~= nil and a == 144 then
 			if c == 0 then
 				love["midireleased"](b, c, d)
@@ -40,12 +40,12 @@ aquaevent.run = function()
 	local time = love.timer.getTime()
 	aquaevent.time = time
 	aquaevent.dt = 0
-	while true do
 
+	return function()
 		aquaevent.framestarted()
 		aquaevent.handle()
 		if aquaevent.needQuit then
-			return
+			return 0
 		end
 
 		love.update(aquaevent.dt)
