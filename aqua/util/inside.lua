@@ -24,10 +24,8 @@ local function inside(t, key)
 			end
 			value = value[subkey]
 		end
-	else
-		return
+		return value
 	end
-	return value
 end
 
 return inside
