@@ -1,4 +1,4 @@
-local baseline_print = function(text, x, baseline, limit, scale, ax)
+return function(text, x, baseline, limit, scale, ax)
 	local font = love.graphics.getFont()
 
 	local y = baseline - font:getBaseline() * scale
@@ -27,5 +27,3 @@ local baseline_print = function(text, x, baseline, limit, scale, ax)
 		)
 	end
 end
-
-return baseline_print

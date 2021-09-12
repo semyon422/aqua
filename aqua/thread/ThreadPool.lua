@@ -29,7 +29,7 @@ end
 
 ThreadPool.update = function(self)
 	local currentTime = love.timer.getTime()
-	
+
 	for i = 1, self.poolSize do
 		local thread = self.threads[i]
 		if thread then
@@ -43,7 +43,7 @@ ThreadPool.update = function(self)
 			end
 		end
 	end
-	
+
 	if self.queue[1] then
 		local thread = self:getIdleThread()
 		if thread then
@@ -61,7 +61,7 @@ ThreadPool.getIdleThread = function(self)
 			return thread
 		end
 	end
-	
+
 	for i = 1, self.poolSize do
 		if not self.threads[i] then
 			return self:createThread(i)
@@ -102,10 +102,10 @@ ThreadPool.codestring = [[
 	end
 
 	require("preloaders.preloadall")
-	
+
 	require("love.timer")
 	startTime = love.timer.getTime()
-	
+
 	local event
 	while true do
 		event = internalInputChannel:demand()

@@ -30,13 +30,13 @@ end
 Timer.update = function(self)
 	local deltaTime = self:getAbsoluteTime() - (self.startTime or 0)
 	self.deltaTime = deltaTime
-	
+
 	if self.state == "waiting" or self.state == "paused" then
 		return
 	elseif self.state == "playing" then
 		self.currentTime = (deltaTime - self.adjustDelta - self.pauseTime - self.rateDelta) * self.rate + self.positionDelta
 	end
-	
+
 	if self.getAdjustTime then
 		self:adjustTime()
 	end
@@ -63,7 +63,7 @@ Timer.adjustTime = function(self, force)
 			- self.pauseTime
 			- (adjustTime - self.offset - self.positionDelta)
 			/ self.rate
-		
+
 		if force then
 			self.adjustDelta = targetAdjustDelta
 		else

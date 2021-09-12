@@ -13,13 +13,13 @@ end
 string.split = function(s, divider, plain)
 	local position = 0
 	local output = {}
-	
+
 	for endchar, startchar in function() return s:find(divider, position, plain) end do
 		output[#output + 1] = s:sub(position, endchar - 1)
 		position = startchar + 1
 	end
 	output[#output + 1] = s:sub(position)
-	
+
 	return output
 end
 

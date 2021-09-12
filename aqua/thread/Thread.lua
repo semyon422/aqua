@@ -17,7 +17,7 @@ Thread.create = function(self, codestring)
 	self.internalOutputChannel:clear()
 	self.inputChannel:clear()
 	self.outputChannel:clear()
-	
+
 	self:updateLastTime()
 end
 
@@ -31,7 +31,7 @@ Thread.update = function(self)
 		})
 		print(errorMessage)
 	end
-	
+
 	local event = self.internalOutputChannel:pop()
 	while event do
 		if event.result and not event.result[1] then
@@ -42,7 +42,7 @@ Thread.update = function(self)
 			})
 			print(errorMessage)
 		end
-		
+
 		self.pool:send(event)
 		if event.done then
 			self.idle = true
@@ -50,7 +50,7 @@ Thread.update = function(self)
 		event = self.internalOutputChannel:pop()
 		self:updateLastTime()
 	end
-	
+
 	local event = self.outputChannel:pop()
 	while event do
 		self.pool:send(event)

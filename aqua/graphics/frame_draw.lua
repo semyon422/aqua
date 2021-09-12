@@ -1,4 +1,4 @@
-local frame_draw = function(drawable, x, y, w, h, locate)
+return function(drawable, x, y, w, h, locate)
     local dw = drawable:getWidth()
     local dh = drawable:getHeight()
 
@@ -21,5 +21,3 @@ local frame_draw = function(drawable, x, y, w, h, locate)
 		scale
 	)
 end
-
-return frame_draw

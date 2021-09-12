@@ -6,7 +6,7 @@ _table.leftequal = function(object1, object2)
 			return
 		end
 	end
-	
+
 	return true
 end
 
@@ -16,11 +16,11 @@ end
 
 _table.clone = function(object)
 	local newObject = {}
-	
+
 	for key, value in pairs(object) do
 		newObject[key] = value
 	end
-	
+
 	return newObject
 end
 

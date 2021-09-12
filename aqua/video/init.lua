@@ -35,7 +35,7 @@ video.load = function(path, callback)
 	if videos[path] then
 		return callback(videos[path])
 	end
-	
+
 	local videoData = video.new(path)
 	video.add(path, videoData)
 	callback(videoData)

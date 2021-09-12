@@ -27,7 +27,7 @@ end
 Stream.loadDataChannel = function(self)
 	local info = ffi.new("BASS_CHANNELINFO")
 	bass.BASS_ChannelGetInfo(self.channel, info)
-	
+
 	self.info = {
 		freq = info.freq,
 		chans = info.chans,

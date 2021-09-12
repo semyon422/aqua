@@ -1,4 +1,4 @@
-local frame_print = function(text, x, y, w, h, scale, ax, ay)
+return function(text, x, y, w, h, scale, ax, ay)
 	local font = love.graphics.getFont()
 
 	local scaledLimit = w / scale
@@ -43,5 +43,3 @@ local frame_print = function(text, x, y, w, h, scale, ax, ay)
 		)
 	end
 end
-
-return frame_print

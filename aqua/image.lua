@@ -20,10 +20,10 @@ image.load = function(path, callback)
 	if imageDatas[path] then
 		return callback(imageDatas[path])
 	end
-	
+
 	if not callbacks[path] then
 		callbacks[path] = {}
-		
+
 		ThreadPool:execute(
 			[[
 				local image = require("love.image")
@@ -53,7 +53,7 @@ image.load = function(path, callback)
 			{path}
 		)
 	end
-	
+
 	callbacks[path][#callbacks[path] + 1] = callback
 end
 

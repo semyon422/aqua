@@ -7,9 +7,9 @@ Log.write = function(self, name, ...)
 	for i, v in ipairs(args) do
 		args[i] = tostring(v)
 	end
-	
+
 	local message = table.concat(args, "\t")
-	
+
 	local info = debug.getinfo(2, "Sl")
 	local logShort = ("[%-8s]: %s\n"):format(
 		name:upper(),
@@ -20,11 +20,11 @@ Log.write = function(self, name, ...)
 		os.date(),
 		message
 	)
-	
+
 	if self.console then
 		io.write(logShort)
 	end
-	
+
 	if self.path then
 		local file = io.open(self.path, "a")
 		file:write(logLong)
