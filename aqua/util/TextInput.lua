@@ -20,13 +20,13 @@ end
 
 TextInput.setText = function(self, text)
 	self.text = text
-	self.offset = #text
+	self.offset = utf8.len(self.text)
 end
 
 TextInput.receive = function(self, event)
 	if event.name == "textinput" then
 		local char = event.args[1]
-		
+
 		local left, right = self:split(self.text, self.offset)
 		self.text = left .. char .. right
 		self.offset = self.offset + utf8.len(char)
@@ -51,14 +51,14 @@ end
 TextInput.removeChar = function(self, direction)
 	local _
 	local left, right = self:split(self.text, self.offset)
-	
+
 	if direction == -1 then
 		left, _ = self:split(left, utf8.len(left) - 1)
 		self.offset = math.max(0, self.offset - 1)
 	else
 		_, right = self:split(right, 1)
 	end
-	
+
 	self.text = left .. right
 end
 
