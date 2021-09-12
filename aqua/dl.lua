@@ -40,7 +40,3 @@ dl.get = function(name)
 end
 
 return dl
-
---[[
-
-]]

@@ -5,8 +5,6 @@ local Stream = require("aqua.audio.Stream")
 local StreamTempo = require("aqua.audio.StreamTempo")
 local StreamMemoryTempo = require("aqua.audio.StreamMemoryTempo")
 local StreamMemoryReversable = require("aqua.audio.StreamMemoryReversable")
-local StreamUser = require("aqua.audio.StreamUser")
-local StreamUserTempo = require("aqua.audio.StreamUserTempo")
 local StreamOpenAL = require("aqua.audio.StreamOpenAL")
 local SampleOpenAL = require("aqua.audio.SampleOpenAL")
 
@@ -19,10 +17,6 @@ AudioFactory.getAudio = function(self, path, mode)
 		return AudioFactory:getStream(path)
 	elseif mode == "streamTempo" then
 		return AudioFactory:getStreamTempo(path)
-	elseif mode == "streamUser" then
-		return AudioFactory:getStreamUser(path)
-	elseif mode == "streamUserTempo" then
-		return AudioFactory:getStreamUserTempo(path)
 	elseif mode == "streamMemoryTempo" then
 		return AudioFactory:getStreamMemoryTempo(path)
 	elseif mode == "streamMemoryReversable" then
@@ -52,18 +46,6 @@ AudioFactory.getSample = function(self, path)
 
 	return Sample:new({
 		soundData = soundData,
-		path = path
-	})
-end
-
-AudioFactory.getStreamUser = function(self, path)
-	return StreamUser:new({
-		path = path
-	})
-end
-
-AudioFactory.getStreamUserTempo = function(self, path)
-	return StreamUserTempo:new({
 		path = path
 	})
 end

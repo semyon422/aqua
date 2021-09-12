@@ -1,6 +1,10 @@
 local dl = require("aqua.dl")
-local cdef = require("aqua.cdef")
 local ffi = require("ffi")
+
+ffi.cdef([[
+HSTREAM BASS_FX_TempoCreate(DWORD chan, DWORD flags);
+HSTREAM BASS_FX_ReverseCreate(DWORD chan, float dec_block, DWORD flags);
+]])
 
 local bass_fx = {}
 

@@ -1,5 +1,4 @@
 local bass = require("aqua.audio.bass")
-local bass_fx = require("aqua.audio.bass_fx")
 local Class = require("aqua.util.Class")
 
 local Audio = Class:new()
