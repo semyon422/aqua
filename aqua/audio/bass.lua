@@ -1,10 +1,10 @@
-local safelib = require("aqua.safelib")
+local dl = require("aqua.dl")
 local cdef = require("aqua.cdef")
 local ffi = require("ffi")
 
 local bass = {}
 
-local _bass = assert(safelib.load("bass", true))
+local _bass = ffi.load(dl.get("bass"), true)
 
 _bass.BASS_Init(-1, 44100, 0, nil, nil)
 

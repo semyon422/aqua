@@ -1,7 +1,4 @@
-local ffi = require("ffi")
 local jit = require("jit")
-
-local win64prefix = "./"
 
 local win64 = {
 	bass = "bass.dll",
@@ -25,38 +22,25 @@ local win64 = {
 	z = "z.dll",
 }
 
-local safelib = {}
+local dl = {} -- dynamic linking helper
 
-safelib.root = "./"
-
-safelib.setRoot = function(path)
-	safelib.root = path
-end
-
-safelib.get = function(name)
+dl.get = function(name)
 	local os = jit.os
 	local arch = jit.arch
 
 	if os == "Windows" then
 		if arch == "x64" then
-			return safelib.root .. win64prefix .. win64[name] or name
+			return win64[name] or name
 		elseif arch == "x86" then
-			return safelib.root .. win64prefix .. win64[name] or name
+			return win64[name] or name
 		end
-	elseif os == "Linux" then
-		return name
 	end
 
-	error(os .. " " .. arch .. " is not supported")
+	return name
 end
 
-safelib.load = function(name, global)
-	local status, lib = pcall(function() return ffi.load(safelib.get(name), global) end)
-	if status and lib then
-		return lib
-	else
-		return false, lib
-	end
-end
+return dl
 
-return safelib
+--[[
+
+]]
