@@ -1,5 +1,5 @@
 local function inside(t, key)
-	local value = t
+	local subvalue = t
 	if type(key) == "table" then
 		for _, subkey in ipairs(key) do
 			if type(subkey) == "table" then
@@ -19,12 +19,12 @@ local function inside(t, key)
 		return
 	elseif type(key) == "string" then
 		for subkey in key:gmatch("[^.]+") do
-			if type(value) ~= "table" then
+			if type(subvalue) ~= "table" then
 				return
 			end
-			value = value[subkey]
+			subvalue = subvalue[subkey]
 		end
-		return value
+		return subvalue
 	end
 end
 
