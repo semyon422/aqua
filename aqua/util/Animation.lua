@@ -7,9 +7,9 @@ function Animation:update(dt)
 	self.time = self.time + dt
 
 	local c = math.floor(self.time * self.rate)
-	local frames = (range[2] - range[1] + 1)
+	local frames = math.abs(range[2] - range[1]) + 1
 	if c >= 0 and c < self.cycles * frames then
-		self.frame = range[1] + c % frames
+		self.frame = c % frames * (range[2] - range[1]) / (frames - 1) + range[1]
 	else
 		self.frame = nil
 	end
