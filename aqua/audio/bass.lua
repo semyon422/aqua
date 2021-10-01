@@ -55,6 +55,7 @@ QWORD BASS_ChannelGetPosition(DWORD handle, DWORD mode);
 BOOL BASS_ChannelGetInfo(DWORD handle, BASS_CHANNELINFO *info);
 QWORD BASS_ChannelGetLength(DWORD handle, DWORD mode);
 HSAMPLE BASS_SampleLoad(BOOL mem, const void *file, QWORD offset, DWORD length, DWORD max, DWORD flags);
+BOOL BASS_SampleFree(HSAMPLE handle);
 BOOL BASS_ChannelSetAttribute(DWORD handle, DWORD attrib, float value);
 HSTREAM BASS_StreamCreateFile(BOOL mem, const void *file, QWORD offset, QWORD length, DWORD flags);
 BOOL BASS_StreamFree(HSTREAM handle);
