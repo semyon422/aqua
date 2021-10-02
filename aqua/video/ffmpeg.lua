@@ -1681,6 +1681,8 @@ void av_register_all(void);
 __attribute__((deprecated))
 void avcodec_register_all(void);
 
+void av_free(void *ptr);
+
 ]]
 
 ffi.cdef(header)
