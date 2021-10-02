@@ -6,6 +6,7 @@ local aquaevent = Observable:new()
 aquaevent.fpslimit = 240
 aquaevent.tpslimit = 240
 aquaevent.time = 0
+aquaevent.startTime = 0
 aquaevent.needQuit = false
 
 aquaevent.handle = function()
@@ -39,6 +40,7 @@ aquaevent.run = function()
 
 	local time = love.timer.getTime()
 	aquaevent.time = time
+	aquaevent.startTime = time
 	aquaevent.dt = 0
 
 	return function()
