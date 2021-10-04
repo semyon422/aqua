@@ -8,6 +8,7 @@ aquaevent.tpslimit = 240
 aquaevent.time = 0
 aquaevent.startTime = 0
 aquaevent.needQuit = false
+aquaevent.stats = {}
 
 aquaevent.handle = function()
 	love.event.pump()
@@ -56,6 +57,7 @@ aquaevent.run = function()
 			love.graphics.origin()
 			love.graphics.clear(love.graphics.getBackgroundColor())
 			love.draw()
+			love.graphics.getStats(aquaevent.stats)
 			love.graphics.present() -- all new events are readed when present() is called
 		end
 		aquaevent.dt = love.timer.step() -- so we use this moment of time to separate new and old events
