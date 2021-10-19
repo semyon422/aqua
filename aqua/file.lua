@@ -36,7 +36,7 @@ file.load = function(path, callback)
 		callbacks[path] = {}
 
 		ThreadPool:execute(
-			[[
+			function(...)
 				local path = ...
 				if love.filesystem.exists(path) then
 					local fileData = require("aqua.file").new(path)
@@ -46,7 +46,7 @@ file.load = function(path, callback)
 						path = path
 					})
 				end
-			]],
+			end,
 			{path}
 		)
 	end

@@ -25,7 +25,7 @@ image.load = function(path, callback)
 		callbacks[path] = {}
 
 		ThreadPool:execute(
-			[[
+			function(...)
 				local image = require("love.image")
 				local path = ...
 				local info = love.filesystem.getInfo(path)
@@ -49,7 +49,7 @@ image.load = function(path, callback)
 						})
 					end
 				end
-			]],
+			end,
 			{path}
 		)
 	end

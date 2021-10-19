@@ -67,7 +67,9 @@ Thread.isIdle = function(self)
 	return self.idle
 end
 
-Thread.execute = function(self, codestring, args)
+Thread.execute = function(self, task)
+	local codestring = string.dump(task[1])
+	local args = task[2]
 	self.idle = false
 	self.currentEvent = {
 		action = "loadstring",

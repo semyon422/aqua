@@ -83,7 +83,7 @@ sound.load = function(path, callback)
 		callbacks[path] = {}
 
 		ThreadPool:execute(
-			[[
+			function(...)
 				local path, sample_gain = ...
 				local sound = require("aqua.sound")
 				sound.set_gain(sample_gain)
@@ -108,7 +108,7 @@ sound.load = function(path, callback)
 						})
 					end
 				end
-			]],
+			end,
 			{path, sound.sample_gain}
 		)
 	end
@@ -138,9 +138,9 @@ end
 sound.unload = function(path, callback)
 	if soundDatas[path] then
 		ThreadPool:execute(
-			[[
+			function(...)
 				return require("aqua.sound").free(...)
-			]],
+			end,
 			{soundDatas[path]}
 		)
 		sound.remove(path)
