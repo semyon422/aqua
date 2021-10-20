@@ -2,8 +2,6 @@ local ThreadPool = require("aqua.thread.ThreadPool")
 
 local file = {}
 
-ThreadPool.observable:add(file)
-
 local fileDatas = {}
 local callbacks = {}
 
@@ -35,35 +33,36 @@ file.load = function(path, callback)
 	if not callbacks[path] then
 		callbacks[path] = {}
 
-		ThreadPool:execute(
-			function(...)
-				local path = ...
-				if love.filesystem.exists(path) then
-					local fileData = require("aqua.file").new(path)
-					thread:push({
-						name = "FileData",
+		ThreadPool:execute({
+			f = function(params)
+				local path = params.params
+				local info = love.filesystem.getInfo(path)
+				if info then
+					local fileData = love.filesystem.newFileData(path)
+					return {
 						fileData = fileData,
 						path = path
-					})
+					}
 				end
 			end,
-			{path}
-		)
+			params = {
+				path = path
+			},
+			result = file.receive
+		})
 	end
 
 	callbacks[path][#callbacks[path] + 1] = callback
 end
 
-file.receive = function(self, event)
-	if event.name == "FileData" then
-		local fileData = event.fileData
-		local path = event.path
-		fileDatas[path] = fileData
-		for i = 1, #callbacks[path] do
-			callbacks[path][i](fileData)
-		end
-		callbacks[path] = nil
+file.receive = function(event)
+	local fileData = event.fileData
+	local path = event.path
+	fileDatas[path] = fileData
+	for i = 1, #callbacks[path] do
+		callbacks[path][i](fileData)
 	end
+	callbacks[path] = nil
 end
 
 file.unload = function(path, callback)

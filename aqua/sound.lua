@@ -82,9 +82,9 @@ sound.load = function(path, callback)
 	if not callbacks[path] then
 		callbacks[path] = {}
 
-		ThreadPool:execute(
-			function(...)
-				local path, sample_gain = ...
+		ThreadPool:execute({
+			f = function(params)
+				local path, sample_gain = params.path, params.sample_gain
 				local sound = require("aqua.sound")
 				sound.set_gain(sample_gain)
 				local info = love.filesystem.getInfo(path)
@@ -94,30 +94,26 @@ sound.load = function(path, callback)
 						debug.traceback,
 						path
 					)
-					if status then
-						thread:push({
-							name = "SoundData",
-							soundData = err,
-							path = path
-						})
-					else
-						thread:push({
-							name = "SoundDataError",
-							err = err,
-							path = path
-						})
-					end
+					return {
+						status = status,
+						soundData = err,
+						path = path
+					}
 				end
 			end,
-			{path, sound.sample_gain}
-		)
+			params = {
+				path = path,
+				sample_gain = sound.sample_gain
+			},
+			result = sound.receive
+		})
 	end
 
 	callbacks[path][#callbacks[path] + 1] = callback
 end
 
-sound.receive = function(self, event)
-	if event.name == "SoundData" then
+sound.receive = function(event)
+	if event.status then
 		local soundData = event.soundData
 		local path = event.path
 		sound.add(path, soundData)
@@ -125,9 +121,9 @@ sound.receive = function(self, event)
 			callbacks[path][i](soundData)
 		end
 		callbacks[path] = nil
-	elseif event.name == "SoundDataError" then
+	else
 		local path = event.path
-		print(event.err)
+		print(event.soundData)
 		for i = 1, #callbacks[path] do
 			callbacks[path][i]()
 		end
@@ -137,12 +133,14 @@ end
 
 sound.unload = function(path, callback)
 	if soundDatas[path] then
-		ThreadPool:execute(
-			function(...)
-				return require("aqua.sound").free(...)
+		ThreadPool:execute({
+			f = function(params)
+				return require("aqua.sound").free(params.path)
 			end,
-			{soundDatas[path]}
-		)
+			params = {
+				path = soundDatas[path]
+			},
+		})
 		sound.remove(path)
 	end
 	return callback()

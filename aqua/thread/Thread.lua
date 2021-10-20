@@ -24,76 +24,61 @@ end
 Thread.update = function(self)
 	local threadError = self.thread:getError()
 	if threadError then
-		local errorMessage = threadError .. "\n" .. self.currentEvent.trace
-		self.pool:send({
-			name = "ThreadError",
-			error = errorMessage
-		})
-		print(errorMessage)
+		error(threadError .. "\n" .. self.event.trace)
 	end
 
-	local event = self.internalOutputChannel:pop()
-	while event do
-		if event.result and not event.result[1] then
-			local errorMessage = event.result[2]
-			self.pool:send({
-				name = "ThreadError",
-				error = errorMessage
-			})
-			print(errorMessage)
-		end
+	local task = self.task
 
-		self.pool:send(event)
-		if event.done then
-			self.idle = true
+	local event = self.internalOutputChannel:pop()
+	if event then
+		if type(event) == "table" then
+			if event[1] and task.result then
+				task.result(event[2])
+			elseif not event[1] and task.error then
+				task.error(event[2])
+			end
 		end
-		event = self.internalOutputChannel:pop()
-		self:updateLastTime()
+		self.idle = true
 	end
 
 	local event = self.outputChannel:pop()
 	while event do
-		self.pool:send(event)
+		if task.receive then
+			task.receive(event)
+		end
 		event = self.outputChannel:pop()
-		self:updateLastTime()
 	end
+	self:updateLastTime()
 end
 
 Thread.updateLastTime = function(self)
 	self.lastTime = love.timer.getTime()
 end
 
-Thread.isIdle = function(self)
-	return self.idle
-end
-
 Thread.execute = function(self, task)
-	local codestring = string.dump(task[1])
-	local args = task[2]
 	self.idle = false
-	self.currentEvent = {
-		action = "loadstring",
-		codestring = codestring,
-		args = args,
-		trace = debug.traceback()
+	self.task = task
+	self.event = {
+		name = "loadstring",
+		trace = debug.traceback(),
+		codestring = string.dump(task.f),
+		params = task.params,
 	}
-	self.internalInputChannel:push(self.currentEvent)
+	self.internalInputChannel:push(self.event)
 end
 
 Thread.start = function(self)
 	return self.thread:start()
 end
 
-Thread.receiveInternal = function(self, event)
-	return self.internalInputChannel:push(event)
+Thread.stop = function(self)
+	return self.internalInputChannel:push({
+		name = "stop"
+	})
 end
 
 Thread.receive = function(self, event)
 	return self.inputChannel:push(event)
-end
-
-Thread.isRunning = function(self)
-	return self.thread:isRunning()
 end
 
 return Thread
