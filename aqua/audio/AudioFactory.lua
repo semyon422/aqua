@@ -11,6 +11,9 @@ local SampleOpenAL = require("aqua.audio.SampleOpenAL")
 local AudioFactory = {}
 
 AudioFactory.getAudio = function(self, path, mode)
+	if not path then
+		return
+	end
 	if mode == "sample" then
 		return AudioFactory:getSample(path)
 	elseif mode == "stream" then
