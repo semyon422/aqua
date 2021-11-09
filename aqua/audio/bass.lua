@@ -50,6 +50,8 @@ DWORD priority;
 
 BOOL BASS_Init(int device, DWORD freq, DWORD flags, void *win, void *dsguid);
 BOOL BASS_SampleGetInfo(HSAMPLE handle, BASS_SAMPLE *info);
+BOOL BASS_SampleGetData(HSAMPLE handle, void *buffer);
+BOOL BASS_SampleSetData(HSAMPLE handle, const void *buffer);
 QWORD BASS_ChannelSeconds2Bytes(DWORD handle, double pos);
 QWORD BASS_ChannelGetPosition(DWORD handle, DWORD mode);
 BOOL BASS_ChannelGetInfo(DWORD handle, BASS_CHANNELINFO *info);

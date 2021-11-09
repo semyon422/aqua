@@ -10,7 +10,10 @@ AudioOpenAL.construct = function(self)
 end
 
 AudioOpenAL.free = function(self)
-	return self.source and self.source:release()
+	if self.source then
+		self.source:release()
+		self.source = nil
+	end
 end
 
 AudioOpenAL.play = function(self)

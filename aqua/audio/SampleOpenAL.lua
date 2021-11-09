@@ -7,7 +7,7 @@ SampleOpenAL.construct = function(self)
 	if not self.path and not info then
 		return
 	end
-	local status, source = pcall(love.audio.newSource, self.path, "sample")
+	local status, source = pcall(love.audio.newSource, self.path, "static")
 	if not status then
 		return
 	end
