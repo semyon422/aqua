@@ -1,5 +1,5 @@
 local ffi = require('ffi')
-local liblove = ffi.load('love')
+local liblove = ffi.os == 'Windows' and ffi.load('love') or ffi.C
 
 ffi.cdef [[
 int PHYSFS_mount(const char *newDir, const char *mountPoint, int appendToPath);
