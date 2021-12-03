@@ -1,4 +1,5 @@
 local Observable = require("aqua.util.Observable")
+local asynckey = require("aqua.asynckey")
 local LuaMidi = require("luamidi")
 
 local aquaevent = Observable:new()
@@ -9,16 +10,33 @@ aquaevent.time = 0
 aquaevent.startTime = 0
 aquaevent.needQuit = false
 aquaevent.stats = {}
+aquaevent.asynckey = false
 
 aquaevent.handle = function()
 	love.event.pump()
+
+	if aquaevent.asynckey then
+		local aquaeventTime = aquaevent.time
+		for event in asynckey.events do
+			aquaevent.time = event.time
+			if event.state then
+				love.keypressed(event.key, event.key)
+			else
+				love.keyreleased(event.key, event.key)
+			end
+		end
+		aquaevent.time = aquaeventTime
+	end
+
 	for name, a, b, c, d, e, f in love.event.poll() do
 		if name == "quit" then
 			if not love.quit or not love.quit() then
 				return a
 			end
 		end
-		love.handlers[name](a, b, c, d, e, f)
+		if not aquaevent.asynckey or name ~= "keypressed" and name ~= "keyreleased" then
+			love.handlers[name](a, b, c, d, e, f)
+		end
 	end
 
 	if LuaMidi.getinportcount() > 0 then
@@ -45,6 +63,10 @@ aquaevent.run = function()
 	aquaevent.dt = 0
 
 	return function()
+		if aquaevent.asynckey and not asynckey.started then
+			asynckey.start()
+		end
+
 		aquaevent.framestarted()
 		aquaevent.handle()
 		if aquaevent.needQuit then
