@@ -15,7 +15,8 @@ aquaevent.asynckey = false
 aquaevent.handle = function()
 	love.event.pump()
 
-	if aquaevent.asynckey then
+	local asynckeyWorking = aquaevent.asynckey and asynckey.supported and asynckey.started
+	if asynckeyWorking then
 		local aquaeventTime = aquaevent.time
 		for event in asynckey.events do
 			aquaevent.time = event.time
@@ -34,7 +35,7 @@ aquaevent.handle = function()
 				return a
 			end
 		end
-		if not aquaevent.asynckey or name ~= "keypressed" and name ~= "keyreleased" then
+		if not asynckeyWorking or name ~= "keypressed" and name ~= "keyreleased" then
 			love.handlers[name](a, b, c, d, e, f)
 		end
 	end
@@ -63,7 +64,7 @@ aquaevent.run = function()
 	aquaevent.dt = 0
 
 	return function()
-		if aquaevent.asynckey and not asynckey.started then
+		if aquaevent.asynckey and asynckey.supported and not asynckey.started then
 			asynckey.start()
 		end
 

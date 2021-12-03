@@ -1,6 +1,7 @@
 local asynckey = {}
 
 asynckey.delay = 0.001
+asynckey.supported = love.system.getOS() == "Windows"
 
 local thread
 asynckey.events = function() end
@@ -8,7 +9,7 @@ function asynckey.start()
 	assert(not asynckey.started, "Already started")
 	asynckey.started = true
 
-	if love.system.getOS() ~= "Windows" then
+	if not asynckey.supported then
 		return
 	end
 
