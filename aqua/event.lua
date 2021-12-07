@@ -1,4 +1,6 @@
 local Observable = require("aqua.util.Observable")
+local RingBuffer = require("aqua.util.RingBuffer")
+local linreg = require("aqua.util.linreg")
 local asynckey = require("aqua.asynckey")
 local LuaMidi = require("luamidi")
 
@@ -12,6 +14,22 @@ aquaevent.needQuit = false
 aquaevent.stats = {}
 aquaevent.asynckey = false
 aquaevent.dwmflush = false
+aquaevent.predictDrawTime = false
+
+aquaevent.frameRingBuffer = RingBuffer:new({size = 10})
+local frb = aquaevent.frameRingBuffer
+local frameBuffer = {}
+local frameNumbers = {}
+for i = 1, frb.size do
+	frameNumbers[i] = i
+end
+local function predictPresentTime()
+	for i = 1, frb.size do
+		frameBuffer[i] = frb:read()
+	end
+	local a, b = linreg(frameNumbers, frameBuffer)
+	return a + b * (frb.size + 1)
+end
 
 aquaevent.handle = function()
 	love.event.pump()
@@ -93,10 +111,17 @@ aquaevent.run = function()
 			if dwmapi and aquaevent.dwmflush then
 				dwmapi.DwmFlush()
 			end
+			if aquaevent.predictDrawTime then
+				frb:write(love.timer.getTime())
+			end
 		end
 		aquaevent.dt = love.timer.step() -- so we use this moment of time to separate new and old events
 		aquaevent.time = love.timer.getTime() - aquaevent.dt / 2 -- and use the mathematical expectation as the moment of their appearance in the frame period
-
+		if aquaevent.predictDrawTime then
+			aquaevent.predictedPresentTime = predictPresentTime()
+		else
+			aquaevent.predictedPresentTime = aquaevent.time
+		end
 
 		time = time + 1 / aquaevent.fpslimit
 		time = math.max(time, love.timer.getTime())
