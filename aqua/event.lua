@@ -11,6 +11,7 @@ aquaevent.startTime = 0
 aquaevent.needQuit = false
 aquaevent.stats = {}
 aquaevent.asynckey = false
+aquaevent.dwmflush = false
 
 aquaevent.handle = function()
 	love.event.pump()
@@ -53,6 +54,13 @@ aquaevent.handle = function()
 	end
 end
 
+local dwmapi
+if love.system.getOS() == "Windows" then
+	local ffi = require("ffi")
+	dwmapi = ffi.load("dwmapi")
+	ffi.cdef("void DwmFlush();")
+end
+
 aquaevent.run = function()
 	love.math.setRandomSeed(os.time())
 	math.randomseed(os.time())
@@ -82,6 +90,9 @@ aquaevent.run = function()
 			love.draw()
 			love.graphics.getStats(aquaevent.stats)
 			love.graphics.present() -- all new events are readed when present() is called
+			if dwmapi and aquaevent.dwmflush then
+				dwmapi.DwmFlush()
+			end
 		end
 		aquaevent.dt = love.timer.step() -- so we use this moment of time to separate new and old events
 		aquaevent.time = love.timer.getTime() - aquaevent.dt / 2 -- and use the mathematical expectation as the moment of their appearance in the frame period
