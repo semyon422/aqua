@@ -1,7 +1,7 @@
 local asynckey = {}
 
 asynckey.delay = 0.001
-asynckey.supported = love.system.getOS() == "Windows"
+asynckey.supported = love and love.system.getOS() == "Windows"
 
 local thread
 asynckey.events = function() end
