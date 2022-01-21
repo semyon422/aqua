@@ -58,10 +58,14 @@ end
 Thread.execute = function(self, task)
 	self.idle = false
 	self.task = task
+	local f = task.f
+	if type(f) == "function" then
+		f = string.dump(f)
+	end
 	self.event = {
 		name = "loadstring",
 		trace = debug.traceback(),
-		codestring = string.dump(task.f),
+		codestring = f,
 		params = task.params,
 	}
 	self.internalInputChannel:push(self.event)
