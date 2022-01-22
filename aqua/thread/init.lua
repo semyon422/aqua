@@ -4,12 +4,13 @@ thread.Thread = require("aqua.thread.Thread")
 thread.ThreadPool = require("aqua.thread.ThreadPool")
 
 local runThread = function(f, params, callback)
-    return thread.ThreadPool:execute({
-        f = f,
-        params = params,
-        result = callback,
-        error = error,
-    })
+	return thread.ThreadPool:execute({
+		f = f,
+		params = params,
+		result = callback,
+		error = error,
+		trace = debug.traceback(),
+	})
 end
 
 local run = function(f, params, callback)
@@ -30,12 +31,15 @@ thread.run = runThread
 
 thread.async = function(f)
 	return function(params, callback)
-        return run(f, params, callback)
-    end
+		return run(f, params, callback)
+	end
 end
 
 thread.call = function(f)
-	return coroutine.wrap(f)()
+	if not coroutine.running() then
+		return coroutine.wrap(f)()
+	end
+	return f()
 end
 
 return thread

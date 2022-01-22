@@ -35,7 +35,7 @@ Thread.update = function(self)
 			if event[1] and task.result then
 				task.result(event[2])
 			elseif not event[1] and task.error then
-				task.error(event[2])
+				task.error(tostring(event[2]) .. "\n" .. (self.event.trace or ""))
 			end
 		end
 		self.idle = true
