@@ -27,19 +27,25 @@ local run = function(f, params, callback)
 	return response
 end
 
+local call = function(f, ...)
+	if not coroutine.running() then
+		return coroutine.wrap(f)(...)
+	end
+	return f(...)
+end
+
 thread.run = runThread
 
 thread.async = function(f)
-	return function(params, callback)
-		return run(f, params, callback)
+	return function(...)
+		return run(f, ...)
 	end
 end
 
-thread.call = function(f)
-	if not coroutine.running() then
-		return coroutine.wrap(f)()
+thread.coro = function(f)
+	return function(...)
+		return call(f, ...)
 	end
-	return f()
 end
 
 return thread
