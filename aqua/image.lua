@@ -23,9 +23,8 @@ image.load = function(path, callback)
 		callbacks[path] = {}
 
 		ThreadPool:execute({
-			f = function(params)
+			f = function(path)
 				local image = require("love.image")
-				local path = params.path
 				local info = love.filesystem.getInfo(path)
 				if info then
 					local status, err = xpcall(
@@ -40,9 +39,7 @@ image.load = function(path, callback)
 					}
 				end
 			end,
-			params = {
-				path = path
-			},
+			params = {path},
 			result = image.receive
 		})
 	end

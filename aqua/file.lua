@@ -34,8 +34,7 @@ file.load = function(path, callback)
 		callbacks[path] = {}
 
 		ThreadPool:execute({
-			f = function(params)
-				local path = params.params
+			f = function(path)
 				local info = love.filesystem.getInfo(path)
 				if info then
 					local fileData = love.filesystem.newFileData(path)
@@ -45,9 +44,7 @@ file.load = function(path, callback)
 					}
 				end
 			end,
-			params = {
-				path = path
-			},
+			params = {path},
 			result = file.receive
 		})
 	end

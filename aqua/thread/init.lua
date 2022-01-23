@@ -18,13 +18,13 @@ local run = function(f, params, callback)
 	if not c or callback then
 		return runThread(f, params, callback)
 	end
-	local response
-	runThread(f, params, function(res)
-		response = res
+	local q, w, e, r, t, y, u, i
+	runThread(f, params, function(...)
+		q, w, e, r, t, y, u, i = ...
 		coroutine.resume(c)
 	end)
 	coroutine.yield()
-	return response
+	return q, w, e, r, t, y, u, i
 end
 
 local call = function(f, ...)

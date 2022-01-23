@@ -110,12 +110,13 @@ ThreadPool.codestring = [[
 			internalOutputChannel:push(true)
 			return
 		elseif event.name == "loadstring" then
-			local status, err = xpcall(
+			local p = event.params
+			local status, q, w, e, r, t, y, u, i = xpcall(
 				loadstring(event.codestring),
 				debug.traceback,
-				event.params
+				p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]
 			)
-			internalOutputChannel:push({status, err})
+			internalOutputChannel:push({status, q, w, e, r, t, y, u, i})
 		end
 	end
 ]]

@@ -33,7 +33,8 @@ Thread.update = function(self)
 	if event then
 		if type(event) == "table" then
 			if event[1] and task.result then
-				task.result(event[2])
+				local p = event
+				task.result(p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9])
 			elseif not event[1] and task.error then
 				task.error(tostring(event[2]) .. "\n" .. (self.event.trace or ""))
 			end
