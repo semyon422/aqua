@@ -13,13 +13,13 @@ local runThread = function(f, params, callback)
 	})
 end
 
-local run = function(f, params, callback)
+local run = function(f, ...)
 	local c = coroutine.running()
-	if not c or callback then
-		return runThread(f, params, callback)
+	if not c then
+		return runThread(f, {...})
 	end
 	local q, w, e, r, t, y, u, i
-	runThread(f, params, function(...)
+	runThread(f, {...}, function(...)
 		q, w, e, r, t, y, u, i = ...
 		coroutine.resume(c)
 	end)
