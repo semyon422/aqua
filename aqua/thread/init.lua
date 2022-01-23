@@ -16,7 +16,7 @@ end
 local run = function(f, ...)
 	local c = coroutine.running()
 	if not c then
-		return runThread(f, {...})
+		error("attempt to yield from outside a coroutine")
 	end
 	local q, w, e, r, t, y, u, i
 	runThread(f, {...}, function(...)
