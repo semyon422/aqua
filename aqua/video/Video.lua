@@ -15,28 +15,26 @@ Video.construct = function(self)
 	self.videoTime = 0
 end
 
-Video.open = function(self, path)
+Video.load = function(self, path)
 	self.formatContext = ffi.new("AVFormatContext*[1]")
+	self.formatContext[0] = avformat.avformat_alloc_context()
 	assert(avformat.avformat_open_input(self.formatContext, path, nil, nil) == 0)
 
 	ffi.gc(self.formatContext, avformat.avformat_close_input)
 
 	assert(avformat.avformat_find_stream_info(self.formatContext[0], nil) == 0)
 
-	self.codec = ffi.new('AVCodec*[1]')
+	self.codec = ffi.new('const AVCodec*[1]')
 	self.streamIndex = avformat.av_find_best_stream(
 		self.formatContext[0], "AVMEDIA_TYPE_VIDEO", -1, -1, self.codec, 0
 	)
 	self.stream = self.formatContext[0].streams[self.streamIndex]
 
-	self.codecContext = self.stream.codec
+	self.codecContext = avcodec.avcodec_alloc_context3(self.codec[0])
+	avcodec.avcodec_parameters_to_context(self.codecContext, self.stream.codecpar)
 	assert(avcodec.avcodec_open2(self.codecContext, self.codec[0], nil) == 0)
 
 	ffi.gc(self.codecContext, avcodec.avcodec_close)
-end
-
-Video.load = function(self, path)
-	self:open(path)
 
 	local codecContext = self.codecContext
 
@@ -90,7 +88,7 @@ Video.setRate = function(self, rate)
 end
 
 Video.getTime = function(self)
-	local effortts = avutil.av_frame_get_best_effort_timestamp(self.frame)
+	local effortts = self.frame.best_effort_timestamp
 	local timeBase = self.stream.time_base
 
 	if effortts < 0 then return 0 end
@@ -106,37 +104,35 @@ Video.getTime = function(self)
 end
 
 local packet = ffi.new("AVPacket[1]")
-local got_frame = ffi.new("int[1]")
 Video.readFrame = function(self)
 	while avformat.av_read_frame(self.formatContext[0], packet) == 0 do
-		got_frame[0] = 0
-
 		if packet[0].stream_index == self.streamIndex then
 			self.videoTime = self:getTime()
 
-			avcodec.avcodec_decode_video2(
+			avcodec.avcodec_send_packet(
 				self.codecContext,
-				self.frame,
-				got_frame,
 				packet
 			)
-		end
-
-		avcodec.av_free_packet(packet)
-
-		if got_frame[0] ~= 0 then
-			swscale.sws_scale(
-				self.sws_ctx,
-				ffi.cast("const uint8_t * const *", self.frame.data),
-				self.frame.linesize,
-				0,
-				self.codecContext.height,
-				self.frameRGB.data,
-				self.frameRGB.linesize
+			local ret = avcodec.avcodec_receive_frame(
+				self.codecContext,
+				self.frame
 			)
+			avcodec.av_packet_unref(packet)
+			if ret >= 0 then
+				swscale.sws_scale(
+					self.sws_ctx,
+					ffi.cast("const uint8_t * const *", self.frame.data),
+					self.frame.linesize,
+					0,
+					self.codecContext.height,
+					self.frameRGB.data,
+					self.frameRGB.linesize
+				)
 
-			return true
+				return true
+			end
 		end
+		avcodec.av_packet_unref(packet)
 	end
 
 	return false
