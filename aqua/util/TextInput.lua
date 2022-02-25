@@ -25,13 +25,13 @@ end
 
 TextInput.receive = function(self, event)
 	if event.name == "textinput" then
-		local char = event.args[1]
+		local char = event[1]
 
 		local left, right = self:split(self.text, self.offset)
 		self.text = left .. char .. right
 		self.offset = self.offset + utf8.len(char)
 	elseif event.name == "keypressed" then
-		local key = event.args[1]
+		local key = event[1]
 		if key == "backspace" then
 			self:removeChar(-1)
 		elseif key == "delete" then

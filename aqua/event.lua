@@ -89,11 +89,11 @@ aquaevent.run = function()
 	aquaevent.startTime = time
 	aquaevent.dt = 0
 
-	return function()
-		if aquaevent.asynckey and asynckey.supported and not asynckey.started then
-			asynckey.start()
-		end
+	if aquaevent.asynckey and asynckey.supported and not asynckey.started then
+		asynckey.start()
+	end
 
+	return function()
 		aquaevent.framestarted()
 		aquaevent.handle()
 		if aquaevent.needQuit then
@@ -157,23 +157,22 @@ aquaevent.callbacks = {
 aquaevent.init = function()
 	love.run = aquaevent.run
 
+	local e = {}
 	for _, name in pairs(aquaevent.callbacks) do
 		love[name] = function(...)
-			return aquaevent:send({
-				name = name,
-				time = aquaevent.time,
-				args = {...}
-			})
+			e[1], e[2], e[3], e[4], e[5], e[6] = ...
+			e.name = name
+			e.time = aquaevent.time
+			return aquaevent:send(e)
 		end
 	end
 end
 
+local framestarted = {name = "framestarted"}
 aquaevent.framestarted = function()
-	return aquaevent:send({
-		name = "framestarted",
-		time = aquaevent.time,
-		dt = aquaevent.dt
-	})
+	framestarted.time = aquaevent.time
+	framestarted.dt = aquaevent.dt
+	return aquaevent:send(framestarted)
 end
 
 aquaevent.quit = function()
