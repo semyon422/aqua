@@ -11,7 +11,7 @@ end
 Timer.reset = function(self)
 	self.startTime = self:getAbsoluteTime()
 	self.pauseStartTime = self.startTime
-	self.state = "paused"
+	self.isPlaying = false
 	self.currentTime = 0
 	self.deltaTime = 0
 	self.rate = 1
@@ -39,7 +39,7 @@ end
 Timer.update = function(self)
 	self.deltaTime = self:getAbsoluteTime() - self.startTime
 
-	if self.state == "paused" then
+	if not self.isPlaying then
 		return
 	end
 	self.currentTime = (self.deltaTime - self.adjustDelta - self.pauseTime - self.rateDelta) * self.rate + self.positionDelta
@@ -51,7 +51,7 @@ end
 
 Timer.adjustTime = function(self, force)
 	local adjustTime = self:getAdjustTime()
-	if not adjustTime or self.state == "paused" then
+	if not adjustTime or not self.isPlaying then
 		return
 	end
 
@@ -74,7 +74,7 @@ end
 Timer.setRate = function(self, rate)
 	local pauseTime = self.pauseTime
 	local time = self:getAbsoluteTime()
-	if self.state == "paused" then
+	if not self.isPlaying then
 		pauseTime = pauseTime + time - self.pauseStartTime
 	end
 	local deltaTime = time - self.startTime - pauseTime
@@ -105,18 +105,23 @@ Timer.setPosition = function(self, position)
 end
 
 Timer.pause = function(self)
-	self.state = "paused"
+	if not self.isPlaying then
+		return
+	end
+
+	self.isPlaying = false
 	self.pauseStartTime = self:getAbsoluteTime()
 end
 
 Timer.play = function(self)
-	if self.state ~= "paused" then
+	if self.isPlaying then
 		return
 	end
 
-	self.state = "playing"
-	self.pauseTime = self.pauseTime + self:getAbsoluteTime() - self.pauseStartTime
-	self.pauseStartTime = self:getAbsoluteTime()
+	local time = self:getAbsoluteTime()
+	self.isPlaying = true
+	self.pauseTime = self.pauseTime + time - self.pauseStartTime
+	self.pauseStartTime = time
 end
 
 return Timer
