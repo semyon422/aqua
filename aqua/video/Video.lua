@@ -13,6 +13,12 @@ local Video = Class:new()
 Video.construct = function(self)
 	self.timer = Timer:new()
 	self.videoTime = 0
+	self.isExternalTimer = false
+end
+
+Video.setTimer = function(self, timer)
+	self.timer = timer
+	self.isExternalTimer = true
 end
 
 Video.load = function(self, path)
@@ -76,14 +82,23 @@ end
 Video.unload = function(self) end
 
 Video.play = function(self)
+	if self.isExternalTimer then
+		return
+	end
 	self.timer:play()
 end
 
 Video.pause = function(self)
+	if self.isExternalTimer then
+		return
+	end
 	self.timer:pause()
 end
 
 Video.setRate = function(self, rate)
+	if self.isExternalTimer then
+		return
+	end
 	self.timer:setRate(rate)
 end
 
@@ -149,7 +164,9 @@ Video.rewind = function(self)
 end
 
 Video.update = function(self, dt)
-	self.timer:update(dt)
+	if not self.isExternalTimer then
+		self.timer:update(dt)
+	end
 
 	repeat until not (self.timer:getTime() >= self.videoTime and self:readFrame())
 
