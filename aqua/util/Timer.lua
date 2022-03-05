@@ -2,16 +2,25 @@ local Class = require("aqua.util.Class")
 
 local Timer = Class:new()
 
-Timer.rate = 1
-Timer.offset = 0
-Timer.currentTime = 0
-Timer.pauseTime = 0
-Timer.adjustDelta = 0
-Timer.rateDelta = 0
-Timer.positionDelta = 0
-Timer.state = "waiting"
-
 local love = love
+
+Timer.construct = function(self)
+	self:reset()
+end
+
+Timer.reset = function(self)
+	self.startTime = self:getAbsoluteTime()
+	self.pauseStartTime = self.startTime
+	self.state = "paused"
+	self.currentTime = 0
+	self.deltaTime = 0
+	self.rate = 1
+	self.currentTime = 0
+	self.pauseTime = 0
+	self.adjustDelta = 0
+	self.rateDelta = 0
+	self.positionDelta = 0
+end
 
 Timer.getAbsoluteTime = function(self)
 	if love then
@@ -28,64 +37,48 @@ Timer.getAbsoluteDelta = function(self)
 end
 
 Timer.update = function(self)
-	local deltaTime = self:getAbsoluteTime() - (self.startTime or 0)
-	self.deltaTime = deltaTime
+	self.deltaTime = self:getAbsoluteTime() - self.startTime
 
-	if self.state == "waiting" or self.state == "paused" then
+	if self.state == "paused" then
 		return
-	elseif self.state == "playing" then
-		self.currentTime = (deltaTime - self.adjustDelta - self.pauseTime - self.rateDelta) * self.rate + self.positionDelta
 	end
+	self.currentTime = (self.deltaTime - self.adjustDelta - self.pauseTime - self.rateDelta) * self.rate + self.positionDelta
 
 	if self.getAdjustTime then
 		self:adjustTime()
 	end
 end
 
-Timer.reset = function(self)
-	self.offset = Timer.offset
-	self.currentTime = Timer.currentTime
-	self.rate = Timer.rate
-	self.pauseTime = Timer.pauseTime
-	self.adjustDelta = Timer.adjustDelta
-	self.rateDelta = Timer.rateDelta
-	self.positionDelta = Timer.positionDelta
-	self.state = Timer.state
-end
-
 Timer.adjustTime = function(self, force)
 	local adjustTime = self:getAdjustTime()
-	if adjustTime and self.state ~= "paused" then
-		local dt = math.min(self:getAbsoluteDelta(), 1 / 60)
-		local targetAdjustDelta
-			= self.deltaTime
-			- self.rateDelta
-			- self.pauseTime
-			- (adjustTime - self.offset - self.positionDelta)
-			/ self.rate
-
-		if force then
-			self.adjustDelta = targetAdjustDelta
-		else
-			self.adjustDelta
-				= self.adjustDelta
-				+ (targetAdjustDelta - self.adjustDelta)
-				* dt
-		end
+	if not adjustTime or self.state == "paused" then
+		return
 	end
+
+	local dt = math.min(self:getAbsoluteDelta(), 1 / 60)
+	local targetAdjustDelta
+		= self.deltaTime
+		- self.rateDelta
+		- self.pauseTime
+		- (adjustTime - self.positionDelta)
+		/ self.rate
+
+	if force then
+		self.adjustDelta = targetAdjustDelta
+		return
+	end
+
+	self.adjustDelta = self.adjustDelta + (targetAdjustDelta - self.adjustDelta) * dt
 end
 
 Timer.setRate = function(self, rate)
-	if self.startTime then
-		local pauseTime
-		if self.state == "paused" then
-			pauseTime = self.pauseTime + self:getAbsoluteTime() - self.pauseStartTime
-		else
-			pauseTime = self.pauseTime
-		end
-		local deltaTime = self:getAbsoluteTime() - self.startTime - pauseTime
-		self.rateDelta = (self.rateDelta - deltaTime) * self.rate / rate + deltaTime
+	local pauseTime = self.pauseTime
+	local time = self:getAbsoluteTime()
+	if self.state == "paused" then
+		pauseTime = pauseTime + time - self.pauseStartTime
 	end
+	local deltaTime = time - self.startTime - pauseTime
+	self.rateDelta = (self.rateDelta - deltaTime) * self.rate / rate + deltaTime
 
 	local adjust = false
 	if rate * self.rate < 0 then
@@ -102,16 +95,13 @@ Timer.setRate = function(self, rate)
 end
 
 Timer.getTime = function(self)
-	return self.currentTime + self.offset
+	return self.currentTime
 end
 
 Timer.setPosition = function(self, position)
-	self.positionDelta = self.positionDelta + position - self.currentTime - self.offset
-	self:update()
-end
-
-Timer.setOffset = function(self, offset)
-	self.offset = offset
+	self.currentTime = self.currentTime - self.positionDelta
+	self.positionDelta = position
+	self.currentTime = self.currentTime + self.positionDelta
 end
 
 Timer.pause = function(self)
@@ -120,14 +110,13 @@ Timer.pause = function(self)
 end
 
 Timer.play = function(self)
-	if self.state == "waiting" then
-		self.state = "playing"
-		self.startTime = self:getAbsoluteTime() - self.currentTime
-	elseif self.state == "paused" then
-		self.state = "playing"
-		self.pauseTime = self.pauseTime + self:getAbsoluteTime() - self.pauseStartTime
-		self.pauseStartTime = self:getAbsoluteTime()
+	if self.state ~= "paused" then
+		return
 	end
+
+	self.state = "playing"
+	self.pauseTime = self.pauseTime + self:getAbsoluteTime() - self.pauseStartTime
+	self.pauseStartTime = self:getAbsoluteTime()
 end
 
 return Timer
