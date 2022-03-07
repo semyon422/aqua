@@ -49,7 +49,7 @@ aquaevent.run = function()
 		aquaevent:send(framestarted)
 
 		local asynckeyWorking = aquaevent.asynckey and asynckey.supported and asynckey.started
-		if asynckeyWorking then
+		if asynckeyWorking and love.window.hasFocus() then
 			for event in asynckey.events do
 				aquaevent.time = event.time
 				if event.state then
