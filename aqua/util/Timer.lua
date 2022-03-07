@@ -98,6 +98,10 @@ Timer.getTime = function(self)
 	return self.currentTime
 end
 
+Timer.transformTime = function(self, eventTime)
+	return eventTime - self:getAbsoluteTime() + self:getTime()
+end
+
 Timer.setPosition = function(self, position)
 	self.currentTime = self.currentTime - self.positionDelta
 	self.positionDelta = position
