@@ -14,22 +14,6 @@ aquaevent.needQuit = false
 aquaevent.stats = {}
 aquaevent.asynckey = false
 aquaevent.dwmflush = false
-aquaevent.predictDrawTime = false
-
-aquaevent.frameRingBuffer = RingBuffer:new({size = 10})
-local frb = aquaevent.frameRingBuffer
-local frameBuffer = {}
-local frameNumbers = {}
-for i = 1, frb.size do
-	frameNumbers[i] = i
-end
-local function predictPresentTime()
-	for i = 1, frb.size do
-		frameBuffer[i] = frb:read()
-	end
-	local a, b = linreg(frameNumbers, frameBuffer)
-	return a + b * (frb.size + 1)
-end
 
 local dwmapi
 if love.system.getOS() == "Windows" then
@@ -114,14 +98,6 @@ aquaevent.run = function()
 				dwmapi.DwmFlush()
 			end
 			frameEndTime = love.timer.getTime()
-			if aquaevent.predictDrawTime then
-				frb:write(frameEndTime)
-			end
-		end
-
-		aquaevent.predictedPresentTime = frameEndTime
-		if aquaevent.predictDrawTime then
-			aquaevent.predictedPresentTime = predictPresentTime()
 		end
 
 		fpsLimitTime = math.max(fpsLimitTime + 1 / aquaevent.fpslimit, frameEndTime)
