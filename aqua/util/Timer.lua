@@ -103,9 +103,9 @@ Timer.transformTime = function(self, eventTime)
 end
 
 Timer.setPosition = function(self, position)
-	self.currentTime = self.currentTime - self.positionDelta
-	self.positionDelta = position
-	self.currentTime = self.currentTime + self.positionDelta
+	local currentTime = self.currentTime - self.positionDelta
+	self.positionDelta = position - currentTime
+	self.currentTime = currentTime + self.positionDelta
 end
 
 Timer.pause = function(self)
