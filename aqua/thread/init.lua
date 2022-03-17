@@ -21,7 +21,7 @@ local run = function(f, ...)
 	local q, w, e, r, t, y, u, i
 	runThread(f, {...}, function(...)
 		q, w, e, r, t, y, u, i = ...
-		coroutine.resume(c)
+		assert(coroutine.resume(c))
 	end)
 	coroutine.yield()
 	return q, w, e, r, t, y, u, i
