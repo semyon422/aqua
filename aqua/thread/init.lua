@@ -1,7 +1,13 @@
 local thread = {}
 
-thread.Thread = require("aqua.thread.Thread")
-thread.ThreadPool = require("aqua.thread.ThreadPool")
+local Thread = require("aqua.thread.Thread")
+local ThreadPool = require("aqua.thread.ThreadPool")
+thread.Thread = Thread
+thread.ThreadPool = ThreadPool
+
+thread.update = function()
+	return ThreadPool:update()
+end
 
 local runThread = function(f, params, callback)
 	return thread.ThreadPool:execute({
