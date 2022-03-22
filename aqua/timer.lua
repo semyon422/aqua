@@ -1,6 +1,7 @@
 local timer = {}
 
 local timers = {}
+local waiters = {}
 
 timer.update = function()
 	local time = love.timer.getTime()
@@ -8,6 +9,12 @@ timer.update = function()
 		if endTime <= time then
 			timers[c] = nil
 			assert(coroutine.resume(c, time))
+		end
+	end
+	for c, func in pairs(waiters) do
+		if func() then
+			waiters[c] = nil
+			assert(coroutine.resume(c))
 		end
 	end
 end
@@ -18,6 +25,15 @@ timer.sleep = function(duration)
 		error("attempt to yield from outside a coroutine")
 	end
 	timers[c] = love.timer.getTime() + duration
+	return coroutine.yield()
+end
+
+timer.wait = function(func)
+	local c = coroutine.running()
+	if not c then
+		error("attempt to yield from outside a coroutine")
+	end
+	waiters[c] = func
 	return coroutine.yield()
 end
 
