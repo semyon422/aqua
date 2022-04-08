@@ -49,7 +49,9 @@ Thread.update = function(self)
 		end
 		event = self.outputChannel:pop()
 	end
-	self:updateLastTime()
+	if not self.idle then
+		self:updateLastTime()
+	end
 end
 
 Thread.updateLastTime = function(self)
