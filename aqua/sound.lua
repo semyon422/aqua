@@ -62,8 +62,8 @@ sound.new = function(path, fileData)
 	}
 end
 
-sound.free = function(soundData)
-	return bass.BASS_SampleFree(soundData.sample)
+sound.free = function(sample)
+	return bass.BASS_SampleFree(sample)
 end
 
 sound.add = function(path, soundData)
@@ -130,10 +130,10 @@ end
 sound.unload = function(path, callback)
 	if soundDatas[path] then
 		ThreadPool:execute({
-			f = function(path)
-				return require("aqua.sound").free(path)
+			f = function(sample)
+				return require("aqua.sound").free(sample)
 			end,
-			params = {soundDatas[path]},
+			params = {soundDatas[path].sample},
 		})
 		sound.remove(path)
 	end
