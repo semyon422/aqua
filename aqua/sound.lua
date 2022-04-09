@@ -1,10 +1,8 @@
-local ThreadPool = require("aqua.thread.ThreadPool")
+local aquathread = require("aqua.thread")
 local bass = require("aqua.audio.bass")
 local ffi = require("ffi")
 
 local sound = {}
-
-ThreadPool.observable:add(sound)
 
 local soundDatas = {}
 local callbacks = {}
@@ -64,8 +62,9 @@ sound.new = function(path, fileData)
 	}
 end
 
-sound.free = function(sample)
-	return bass.BASS_SampleFree(sample)
+sound.free = function(soundData)
+	bass.BASS_SampleFree(soundData.sample)
+	soundData.fileData:release()
 end
 
 sound.add = function(path, soundData)
@@ -84,59 +83,36 @@ sound.load = function(path, callback)
 	if not callbacks[path] then
 		callbacks[path] = {}
 
-		ThreadPool:execute({
-			f = function(path, sample_gain)
-				local sound = require("aqua.sound")
-				sound.set_gain(sample_gain)
-				local info = love.filesystem.getInfo(path)
-				if info then
-					local status, err = xpcall(
-						sound.new,
-						debug.traceback,
-						path
-					)
-					return {
-						status = status,
-						soundData = err,
-						path = path
-					}
-				end
-			end,
-			params = {path, sound.sample_gain},
-			result = sound.receive
-		})
+		aquathread.run(function(path, sample_gain)
+			local sound = require("aqua.sound")
+			sound.set_gain(sample_gain)
+			local info = love.filesystem.getInfo(path)
+			if not info then
+				return
+			end
+			local status, err = xpcall(
+				sound.new,
+				debug.traceback,
+				path
+			)
+			if status then
+				return err
+			end
+		end, {path, sound.sample_gain}, function(soundData)
+			sound.add(path, soundData)
+			for _, cb in ipairs(callbacks[path]) do
+				cb(soundData)
+			end
+			callbacks[path] = nil
+		end)
 	end
 
-	callbacks[path][#callbacks[path] + 1] = callback
-end
-
-sound.receive = function(event)
-	if event.status then
-		local soundData = event.soundData
-		local path = event.path
-		sound.add(path, soundData)
-		for i = 1, #callbacks[path] do
-			callbacks[path][i](soundData)
-		end
-		callbacks[path] = nil
-	else
-		local path = event.path
-		print(event.soundData)
-		for i = 1, #callbacks[path] do
-			callbacks[path][i]()
-		end
-		callbacks[path] = nil
-	end
+	table.insert(callbacks[path], callback)
 end
 
 sound.unload = function(path, callback)
 	if soundDatas[path] then
-		ThreadPool:execute({
-			f = function(sample)
-				return require("aqua.sound").free(sample)
-			end,
-			params = {soundDatas[path].sample},
-		})
+		sound.free(soundDatas[path])
 		sound.remove(path)
 	end
 	return callback()
