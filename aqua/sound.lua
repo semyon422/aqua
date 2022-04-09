@@ -1,6 +1,5 @@
 local ThreadPool = require("aqua.thread.ThreadPool")
 local bass = require("aqua.audio.bass")
-local file = require("aqua.file")
 local ffi = require("ffi")
 
 local sound = {}
@@ -20,7 +19,7 @@ sound.set_gain = function(gain)
 end
 
 sound.new = function(path, fileData)
-	local fileData = fileData or file.new(path)
+	fileData = fileData or love.filesystem.newFileData(path)
 
 	local sample = bass.BASS_SampleLoad(true, fileData:getString(), 0, fileData:getSize(), 65535, 0)
 	local info = ffi.new("BASS_SAMPLE")
