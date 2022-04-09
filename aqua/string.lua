@@ -1,34 +1,18 @@
-local _string = string
-
-local string = {}
-
-setmetatable(_string, {
-	__index = string
-})
-
 string.trim = function(s)
 	return s:match("^%s*(.-)%s*$")
 end
 
 string.split = function(s, divider, plain)
-	local position = 0
-	local output = {}
-
-	for endchar, startchar in function() return s:find(divider, position, plain) end do
-		output[#output + 1] = s:sub(position, endchar - 1)
-		position = startchar + 1
-	end
-	output[#output + 1] = s:sub(position)
-
-	return output
-end
-
-string.mirror = function(s)
 	local out = {}
-	for i = 1, #s do
-		out[#s + 1 - i] = s:sub(i, i)
+
+	local pos = 0
+	for a, b in function() return s:find(divider, pos, plain) end do
+		out[#out + 1] = s:sub(pos, a - 1)
+		pos = b + 1
 	end
-	return table.concat(out)
+	out[#out + 1] = s:sub(pos)
+
+	return out
 end
 
 return string
