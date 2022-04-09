@@ -1,21 +1,21 @@
 local ffi = require('ffi')
 local liblove = ffi.os == 'Windows' and ffi.load('love') or ffi.C
 
-ffi.cdef [[
+ffi.cdef([[
 int PHYSFS_mount(const char *newDir, const char *mountPoint, int appendToPath);
-int PHYSFS_removeFromSearchPath(const char *oldDir);
+int PHYSFS_unmount(const char *oldDir);
 int PHYSFS_setWriteDir(const char *newDir);
 const char *PHYSFS_getLastError(void);
 
-typedef unsigned char         PHYSFS_uint8;
+typedef unsigned char PHYSFS_uint8;
 typedef struct PHYSFS_Version
 {
-PHYSFS_uint8 major;
-PHYSFS_uint8 minor;
-PHYSFS_uint8 patch;
+	PHYSFS_uint8 major;
+	PHYSFS_uint8 minor;
+	PHYSFS_uint8 patch;
 } PHYSFS_Version;
 void PHYSFS_getLinkedVersion(PHYSFS_Version *ver);
-]]
+]])
 
 local filesystem = {}
 
@@ -46,7 +46,7 @@ filesystem.mount = function(newDir, mountPoint, appendToPath)
 end
 
 filesystem.unmount = function(oldDir)
-	local out = liblove.PHYSFS_removeFromSearchPath(oldDir)
+	local out = liblove.PHYSFS_unmount(oldDir)
 	if out == 0 then
 		return filesystem.lastError(oldDir)
 	end
