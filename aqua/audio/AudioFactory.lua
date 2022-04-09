@@ -49,7 +49,8 @@ AudioFactory.getSample = function(self, path)
 
 	return Sample:new({
 		soundData = soundData,
-		path = path
+		path = path,
+		info = soundData.info,
 	})
 end
 
@@ -71,7 +72,8 @@ AudioFactory.getStreamMemoryTempo = function(self, path)
 
 	return StreamMemoryTempo:new({
 		soundData = soundData,
-		path = path
+		path = path,
+		info = soundData.info,
 	})
 end
 
@@ -81,7 +83,8 @@ AudioFactory.getStreamMemoryReversable = function(self, path)
 
 	return StreamMemoryReversable:new({
 		soundData = soundData,
-		path = path
+		path = path,
+		info = soundData.info,
 	})
 end
 

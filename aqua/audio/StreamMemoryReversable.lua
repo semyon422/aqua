@@ -5,12 +5,8 @@ local Stream = require("aqua.audio.Stream")
 local StreamMemoryReversable = Stream:new()
 
 StreamMemoryReversable.construct = function(self)
-	if not self.byteBuffer then
-		self:loadData()
-	end
-
-	self.streamDirect = StreamMemoryTempo:new({byteBuffer = self.byteBuffer, info = self.info})
-	self.streamReversed = StreamMemoryReverse:new({byteBuffer = self.byteBuffer, info = self.info})
+	self.streamDirect = StreamMemoryTempo:new({soundData = self.soundData, info = self.info})
+	self.streamReversed = StreamMemoryReverse:new({soundData = self.soundData, info = self.info})
 end
 
 StreamMemoryReversable.rateValue = 1

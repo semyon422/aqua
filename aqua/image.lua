@@ -6,10 +6,6 @@ local imageDatas = {}
 local images = {}
 local callbacks = {}
 
-image.getImageData = function(path)
-	return imageDatas[path]
-end
-
 image.getImage = function(path)
 	return images[path]
 end

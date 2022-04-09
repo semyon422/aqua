@@ -21,7 +21,10 @@ end
 sound.new = function(path, fileData)
 	fileData = fileData or love.filesystem.newFileData(path)
 
-	local sample = bass.BASS_SampleLoad(true, fileData:getString(), 0, fileData:getSize(), 65535, 0)
+	local sample = bass.BASS_SampleLoad(true, fileData:getFFIPointer(), 0, fileData:getSize(), 65535, 0)
+	if sample == 0 then
+		return error("Error loading sample")
+	end
 	local info = ffi.new("BASS_SAMPLE")
 	bass.BASS_SampleGetInfo(sample, info)
 
@@ -56,7 +59,7 @@ sound.new = function(path, fileData)
 			oangle = info.oangle,
 			outvol = info.outvol,
 			vam = info.vam,
-			priority = info.priority
+			priority = info.priority,
 		}
 	}
 end

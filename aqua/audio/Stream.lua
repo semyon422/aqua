@@ -1,5 +1,4 @@
 local ffi = require("ffi")
-local byte = require("byte")
 local bass = require("aqua.audio.bass")
 local Audio = require("aqua.audio.Audio")
 
@@ -12,16 +11,6 @@ Stream.construct = function(self)
 	self.channel = bass.BASS_StreamCreateFile(false, self.path, 0, 0, 0)
 
 	self:loadDataChannel()
-end
-
-Stream.loadData = function(self)
-	local soundData = self.soundData
-
-	local byteBuffer = byte.buffer(soundData.fileData:getSize())
-	byteBuffer:fill(soundData.fileData:getString())
-	self.byteBuffer = byteBuffer
-
-	self.info = soundData.info
 end
 
 Stream.loadDataChannel = function(self)
