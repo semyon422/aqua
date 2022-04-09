@@ -71,14 +71,8 @@ BOOL BASS_ChannelSetPosition(DWORD handle, QWORD pos, DWORD mode);
 HPLUGIN BASS_PluginLoad(const char *file, DWORD flags);
 ]])
 
-local bass = {}
+local bass = ffi.load(dl.get("bass"), true)
 
-local _bass = ffi.load(dl.get("bass"), true)
+bass.BASS_Init(-1, 44100, 0, nil, nil)
 
-_bass.BASS_Init(-1, 44100, 0, nil, nil)
-
-setmetatable(bass, {
-	__index = _bass
-})
-
-return bass
+return setmetatable({}, {__index = bass})
