@@ -1,5 +1,6 @@
 local Observable = require("aqua.util.Observable")
 local aquathread = require("aqua.thread")
+local aquatimer = require("aqua.timer")
 local asynckey = require("aqua.asynckey")
 local LuaMidi = require("luamidi")
 
@@ -85,6 +86,7 @@ aquaevent.run = function()
 		aquaevent.time = aquaeventTime
 
 		aquathread.update()
+		aquatimer.update()
 		love.update(aquaevent.dt)
 
 		local frameEndTime
