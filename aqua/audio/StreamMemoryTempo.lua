@@ -12,8 +12,8 @@ StreamMemoryTempo.construct = function(self)
 end
 
 StreamMemoryTempo.free = function(self)
-	bass.BASS_StreamFree(self.channel)
-	bass.BASS_StreamFree(self.channelDecode)
+	bass.BASS_ChannelFree(self.channel)
+	bass.BASS_ChannelFree(self.channelDecode)
 end
 
 StreamMemoryTempo.setRate = StreamTempo.setRate

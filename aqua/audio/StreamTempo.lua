@@ -10,8 +10,8 @@ StreamTempo.construct = function(self)
 end
 
 StreamTempo.free = function(self)
-	bass.BASS_StreamFree(self.channel)
-	bass.BASS_StreamFree(self.channelDecode)
+	bass.BASS_ChannelFree(self.channel)
+	bass.BASS_ChannelFree(self.channelDecode)
 end
 
 StreamTempo.setRate = function(self, rate)

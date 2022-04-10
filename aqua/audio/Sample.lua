@@ -8,4 +8,8 @@ Sample.construct = function(self)
 	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, false)
 end
 
+Sample.free = function(self)
+	bass.BASS_ChannelFree(self.channel)
+end
+
 return Sample

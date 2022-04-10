@@ -30,7 +30,7 @@ Stream.loadDataChannel = function(self)
 end
 
 Stream.free = function(self)
-	bass.BASS_StreamFree(self.channel)
+	bass.BASS_ChannelFree(self.channel)
 end
 
 return Stream
