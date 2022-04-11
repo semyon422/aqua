@@ -69,6 +69,7 @@ DWORD BASS_ChannelIsActive(DWORD handle);
 double BASS_ChannelBytes2Seconds(DWORD handle, QWORD pos);
 BOOL BASS_ChannelSetPosition(DWORD handle, QWORD pos, DWORD mode);
 HPLUGIN BASS_PluginLoad(const char *file, DWORD flags);
+DWORD BASS_SampleGetChannels(HSAMPLE handle, HCHANNEL *channels);
 ]])
 
 local bass = ffi.load(dl.get("bass"), true)

@@ -63,6 +63,7 @@ sound.new = function(path, fileData)
 end
 
 sound.free = function(soundData)
+	assert(bass.BASS_SampleGetChannels(soundData.sample, nil) == 0, "Sample is still used")
 	bass.BASS_SampleFree(soundData.sample)
 	soundData.fileData:release()
 end
