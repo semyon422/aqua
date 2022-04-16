@@ -2,7 +2,7 @@ local Observable = require("aqua.util.Observable")
 local aquathread = require("aqua.thread")
 local aquatimer = require("aqua.timer")
 local asynckey = require("aqua.asynckey")
-local imgui = require("cimgui.init")
+local imgui = require("cimgui")
 local LuaMidi = require("luamidi")
 
 local aquaevent = Observable:new()
