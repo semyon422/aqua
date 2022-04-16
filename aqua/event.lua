@@ -2,6 +2,7 @@ local Observable = require("aqua.util.Observable")
 local aquathread = require("aqua.thread")
 local aquatimer = require("aqua.timer")
 local asynckey = require("aqua.asynckey")
+local imgui = require("cimgui.init")
 local LuaMidi = require("luamidi")
 
 local aquaevent = Observable:new()
@@ -14,6 +15,7 @@ aquaevent.needQuit = false
 aquaevent.stats = {}
 aquaevent.asynckey = false
 aquaevent.dwmflush = false
+aquaevent.imguiShowDemoWindow = false
 
 local dwmapi
 if love.system.getOS() == "Windows" then
@@ -32,6 +34,8 @@ aquaevent.run = function()
 	aquaevent.time = fpsLimitTime
 	aquaevent.startTime = fpsLimitTime
 	aquaevent.dt = 0
+
+	imgui.love.Init()
 
 	return function()
 		if aquaevent.asynckey and asynckey.start then
@@ -92,12 +96,21 @@ aquaevent.run = function()
 		aquathread.update()
 		aquatimer.update()
 		love.update(aquaevent.dt)
+		imgui.love.Update(aquaevent.dt)
+		imgui.NewFrame()
 
 		local frameEndTime
 		if love.graphics and love.graphics.isActive() then
 			love.graphics.origin()
 			love.graphics.clear(love.graphics.getBackgroundColor())
 			love.draw()
+			love.graphics.origin()
+			love.graphics.setColor(1, 1, 1, 1)
+			if aquaevent.imguiShowDemoWindow then
+				imgui.ShowDemoWindow()
+			end
+			imgui.Render()
+			imgui.love.RenderDrawLists()
 			love.graphics.getStats(aquaevent.stats)
 			love.graphics.present() -- all new events are read when present is called
 			if dwmapi and aquaevent.dwmflush then
@@ -140,12 +153,16 @@ local clampEventTime = function(time)
 	return math.min(math.max(time, aquaevent.time - aquaevent.dt), aquaevent.time)
 end
 
+local imguicb = require("aqua.imguicb")
+
 aquaevent.init = function()
 	love.run = aquaevent.run
 
 	local e = {}
 	for _, name in pairs(aquaevent.callbacks) do
 		love[name] = function(...)
+			local icb = imguicb[name]
+			if icb and icb(...) then return end
 			e[1], e[2], e[3], e[4], e[5], e[6] = ...
 			e.name = name
 			e.time = clampEventTime(aquaevent.time)
