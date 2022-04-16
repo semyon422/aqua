@@ -5,7 +5,7 @@ local Sample = Audio:new()
 
 Sample.construct = function(self)
 	self.info = self.soundData.info
-	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, 2)  -- BASS_SAMCHAN_STREAM
+	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, false)
 end
 
 Sample.free = function(self)
