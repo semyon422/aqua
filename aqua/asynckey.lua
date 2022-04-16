@@ -1,19 +1,22 @@
 local asynckey = {}
-
 asynckey.delay = 0.001
-asynckey.supported = love and love.system.getOS() == "Windows"
 
-local thread
-asynckey.events = function() end
-function asynckey.start()
-	assert(not asynckey.started, "Already started")
-	asynckey.started = true
+if not love or love.system.getOS() ~= "Windows" then
+	return asynckey
+end
 
-	if not asynckey.supported then
-		return
+local keymap
+local function transform(event)
+	local key = keymap[event.key]
+	if key then
+		event.key = key
 	end
+	return event
+end
 
-	thread = love.thread.newThread(asynckey.threadCode:gsub("<delay>", asynckey.delay))
+local threadCode, thread
+function asynckey.start()
+	local thread = love.thread.newThread(threadCode:gsub("<delay>", asynckey.delay))
 	thread:start()
 
 	local channel = love.thread.getChannel("AsyncInputChannel")
@@ -21,23 +24,21 @@ function asynckey.start()
 		while true do
 			local event = channel:pop()
 			while event do
-				coroutine.yield(asynckey.transform(event))
+				coroutine.yield(transform(event))
 				event = channel:pop()
 			end
 			coroutine.yield()
 		end
 	end)
-end
 
-function asynckey.transform(event)
-	local key = asynckey.keymap[event.key]
-	if key then
-		event.key = key
+	function asynckey.clear()
+		channel:clear()
 	end
-	return event
+
+	asynckey.start = nil
 end
 
-asynckey.threadCode = [[
+threadCode = [[
 	local ffi = require("ffi")
 	local bit = require("bit")
 
@@ -72,7 +73,7 @@ asynckey.threadCode = [[
 	end
 ]]
 
-asynckey.keymap = {
+keymap = {
 	[0x08] = "backspace",
 	[0x09] = "tab",
 	[0x0C] = "kp5",

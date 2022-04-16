@@ -33,11 +33,11 @@ aquaevent.run = function()
 	aquaevent.startTime = fpsLimitTime
 	aquaevent.dt = 0
 
-	if aquaevent.asynckey and asynckey.supported and not asynckey.started then
-		asynckey.start()
-	end
-
 	return function()
+		if aquaevent.asynckey and asynckey.start then
+			asynckey.start()
+		end
+
 		aquaevent.dt = love.timer.step()
 		aquaevent.time = love.timer.getTime()
 		local aquaeventTime = aquaevent.time
@@ -48,15 +48,19 @@ aquaevent.run = function()
 		framestarted.dt = aquaevent.dt
 		aquaevent:send(framestarted)
 
-		local asynckeyWorking = aquaevent.asynckey and asynckey.supported and asynckey.started
-		if asynckeyWorking and love.window.hasFocus() then
-			for event in asynckey.events do
-				aquaevent.time = event.time
-				if event.state then
-					love.keypressed(event.key, event.key)
-				else
-					love.keyreleased(event.key, event.key)
+		local asynckeyWorking = aquaevent.asynckey and asynckey.events
+		if asynckeyWorking then
+			if love.window.hasFocus() then
+				for event in asynckey.events do
+					aquaevent.time = event.time
+					if event.state then
+						love.keypressed(event.key, event.key)
+					else
+						love.keyreleased(event.key, event.key)
+					end
 				end
+			else
+				asynckey.clear()
 			end
 		end
 
