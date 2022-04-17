@@ -37,6 +37,8 @@ aquaevent.run = function()
 
 	imgui.love.Init()
 
+	require("aqua.imgui.config")
+
 	return function()
 		if aquaevent.asynckey and asynckey.start then
 			asynckey.start()
@@ -153,7 +155,7 @@ local clampEventTime = function(time)
 	return math.min(math.max(time, aquaevent.time - aquaevent.dt), aquaevent.time)
 end
 
-local imguicb = require("aqua.imguicb")
+local callbacks = require("aqua.imgui.callbacks")
 
 aquaevent.init = function()
 	love.run = aquaevent.run
@@ -161,7 +163,7 @@ aquaevent.init = function()
 	local e = {}
 	for _, name in pairs(aquaevent.callbacks) do
 		love[name] = function(...)
-			local icb = imguicb[name]
+			local icb = callbacks[name]
 			if icb and icb(...) then return end
 			e[1], e[2], e[3], e[4], e[5], e[6] = ...
 			e.name = name
