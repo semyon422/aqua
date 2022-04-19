@@ -1,5 +1,7 @@
+local transform
+
+local args = {}
 return function(t)
-	local args = {}
 	for i = 1, 9 do
 		local value = t[i]
 		if type(value) == "table" then
@@ -14,5 +16,6 @@ return function(t)
 		end
 	end
 
-	return love.math.newTransform(unpack(args))
+	transform = transform or love.math.newTransform()
+	return transform:setTransformation(unpack(args))
 end
