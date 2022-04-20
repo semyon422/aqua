@@ -1,8 +1,5 @@
 local sound = require("aqua.sound")
-local Audio = require("aqua.audio.Audio")
 local Sample = require("aqua.audio.Sample")
-local Stream = require("aqua.audio.Stream")
-local StreamTempo = require("aqua.audio.StreamTempo")
 local StreamMemoryTempo = require("aqua.audio.StreamMemoryTempo")
 local StreamMemoryReversable = require("aqua.audio.StreamMemoryReversable")
 local StreamOpenAL = require("aqua.audio.StreamOpenAL")
@@ -16,10 +13,6 @@ AudioFactory.getAudio = function(self, path, mode)
 	end
 	if mode == "sample" then
 		return AudioFactory:getSample(path)
-	elseif mode == "stream" then
-		return AudioFactory:getStream(path)
-	elseif mode == "streamTempo" then
-		return AudioFactory:getStreamTempo(path)
 	elseif mode == "streamMemoryTempo" then
 		return AudioFactory:getStreamMemoryTempo(path)
 	elseif mode == "streamMemoryReversable" then
@@ -32,15 +25,11 @@ AudioFactory.getAudio = function(self, path, mode)
 end
 
 AudioFactory.getStreamOpenAL = function(self, path)
-	return StreamOpenAL:new({
-		path = path
-	})
+	return StreamOpenAL:new({path = path})
 end
 
 AudioFactory.getSampleOpenAL = function(self, path)
-	return SampleOpenAL:new({
-		path = path
-	})
+	return SampleOpenAL:new({path = path})
 end
 
 AudioFactory.getSample = function(self, path)
@@ -49,20 +38,7 @@ AudioFactory.getSample = function(self, path)
 
 	return Sample:new({
 		soundData = soundData,
-		path = path,
 		info = soundData.info,
-	})
-end
-
-AudioFactory.getStream = function(self, path)
-	return Stream:new({
-		path = path
-	})
-end
-
-AudioFactory.getStreamTempo = function(self, path)
-	return StreamTempo:new({
-		path = path
 	})
 end
 
@@ -72,7 +48,6 @@ AudioFactory.getStreamMemoryTempo = function(self, path)
 
 	return StreamMemoryTempo:new({
 		soundData = soundData,
-		path = path,
 		info = soundData.info,
 	})
 end
@@ -83,7 +58,6 @@ AudioFactory.getStreamMemoryReversable = function(self, path)
 
 	return StreamMemoryReversable:new({
 		soundData = soundData,
-		path = path,
 		info = soundData.info,
 	})
 end

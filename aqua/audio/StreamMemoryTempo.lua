@@ -1,7 +1,6 @@
 local bass = require("aqua.audio.bass")
 local bass_fx = require("aqua.audio.bass_fx")
 local Stream = require("aqua.audio.Stream")
-local StreamTempo = require("aqua.audio.StreamTempo")
 
 local StreamMemoryTempo = Stream:new()
 
@@ -16,8 +15,19 @@ StreamMemoryTempo.free = function(self)
 	bass.BASS_ChannelFree(self.channelDecode)
 end
 
-StreamMemoryTempo.setRate = StreamTempo.setRate
+StreamMemoryTempo.setRate = function(self, rate)
+	if self.rateValue ~= rate then
+		self.rateValue = rate
+		return bass.BASS_ChannelSetAttribute(self.channel, 0x10000, (rate - 1) * 100)
+	end
+end
 
-StreamMemoryTempo.setPitch = StreamTempo.setPitch
+StreamMemoryTempo.setPitch = function(self, pitch)
+	-- semitone 1 : 2^(1/12)
+	if self.pitchValue ~= pitch then
+		self.pitchValue = pitch
+		return bass.BASS_ChannelSetAttribute(self.channel, 0x10001, 12 * math.log(pitch) / math.log(2))
+	end
+end
 
 return StreamMemoryTempo
