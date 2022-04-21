@@ -17,6 +17,12 @@ aquaevent.asynckey = false
 aquaevent.dwmflush = false
 aquaevent.imguiShowDemoWindow = false
 
+local midikeys = {}
+for i = 1, 88 do
+	midikeys[i] = false
+end
+aquaevent.midikeys = midikeys
+
 local dwmapi
 if love.system.getOS() == "Windows" then
 	local ffi = require("ffi")
@@ -83,13 +89,16 @@ aquaevent.run = function()
 		end
 
 		if LuaMidi.getinportcount() > 0 then
+			-- command, note, velocity, delta-time-to-last-event
 			local a, b, c, d = LuaMidi.getMessage(0)
 
 			if a ~= nil and a == 144 then
 				if c == 0 then
-					love["midireleased"](b, c, d)
+					midikeys[b] = false
+					love.midireleased(b, c, d)
 				else
-					love["midipressed"](b, c, d)
+					midikeys[b] = true
+					love.midipressed(b, c, d)
 				end
 			end
 		end
