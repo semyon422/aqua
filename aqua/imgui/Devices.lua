@@ -1,5 +1,5 @@
 local Devices = {
-	"unknown",
+	[0] = "unknown",
 	"keyboard",
 	"gamepad",
 	"midi",
