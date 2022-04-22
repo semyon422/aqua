@@ -28,6 +28,7 @@ return function(label, keyPtr, devicePtr)
 				else
 					devicePtr[0] = Devices.unknown
 				end
+				break
 			end
 		end
 		if not valueChanged then
