@@ -107,6 +107,10 @@ Container.setPosition = function(self, position)
 			local newPosition = position - audio.offset
 			if newPosition >= 0 and newPosition < audio:getLength() then
 				audio:setPosition(newPosition)
+			else
+				audio:stop()
+				audio:free()
+				self:remove(audio)
 			end
 		end
 	end
