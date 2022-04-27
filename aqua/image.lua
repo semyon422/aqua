@@ -1,4 +1,4 @@
-local ThreadPool = require("aqua.thread.ThreadPool")
+local aquathread = require("aqua.thread")
 
 local image = {}
 
@@ -18,53 +18,40 @@ image.load = function(path, callback)
 	if not callbacks[path] then
 		callbacks[path] = {}
 
-		ThreadPool:execute({
-			f = function(path)
-				local image = require("love.image")
-				local info = love.filesystem.getInfo(path)
-				if info then
-					local status, err = xpcall(
-						image.newImageData,
-						debug.traceback,
-						path
-					)
-					return {
-						status = status,
-						imageData = err,
-						path = path,
-					}
-				end
-			end,
-			params = {path},
-			result = image.receive
-		})
+		aquathread.run(function(path)
+			require("love.image")
+			local info = love.filesystem.getInfo(path)
+			if not info then
+				return
+			end
+			local status, err = pcall(love.image.newImageData, path)
+			if status then
+				return err
+			end
+		end, {path}, function(imageData)
+			imageDatas[path] = imageData
+			if imageData then
+				images[path] = love.graphics.newImage(imageData)
+			end
+			for _, cb in ipairs(callbacks[path]) do
+				cb(imageData, images[path])
+			end
+			callbacks[path] = nil
+		end)
 	end
 
-	callbacks[path][#callbacks[path] + 1] = callback
+	table.insert(callbacks[path], callback)
 end
 
-image.receive = function(event)
-	local path = event.path
-	if event.status then
-		local imageData = event.imageData
-		imageDatas[path] = imageData
-		images[path] = love.graphics.newImage(imageData)
-		for i = 1, #callbacks[path] do
-			callbacks[path][i](imageData, images[path])
-		end
-	else
-		print(event.imageData)
-		for i = 1, #callbacks[path] do
-			callbacks[path][i]()
-		end
+image.unload = function(path)
+	if imageDatas[path] then
+		imageDatas[path]:release()
+		imageDatas[path] = nil
 	end
-	callbacks[path] = nil
-end
-
-image.unload = function(path, callback)
-	imageDatas[path] = nil
-	images[path] = nil
-	return callback()
+	if images[path] then
+		images[path]:release()
+		images[path] = nil
+	end
 end
 
 return image

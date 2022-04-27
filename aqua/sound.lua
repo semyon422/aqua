@@ -91,11 +91,7 @@ sound.load = function(path, callback)
 			if not info then
 				return
 			end
-			local status, err = xpcall(
-				sound.new,
-				debug.traceback,
-				path
-			)
+			local status, err = pcall(sound.new, path)
 			if status then
 				return err
 			end
@@ -111,12 +107,11 @@ sound.load = function(path, callback)
 	table.insert(callbacks[path], callback)
 end
 
-sound.unload = function(path, callback)
+sound.unload = function(path)
 	if soundDatas[path] then
 		sound.free(soundDatas[path])
 		sound.remove(path)
 	end
-	return callback()
 end
 
 return sound

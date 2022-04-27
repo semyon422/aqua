@@ -23,27 +23,18 @@ video.new = function(path)
 	return video
 end
 
-video.add = function(path, video)
-	videos[path] = video
-end
-
-video.remove = function(path)
-	videos[path] = nil
-end
-
 video.load = function(path, callback)
 	if videos[path] then
 		return callback(videos[path])
 	end
 
 	local videoData = video.new(path)
-	video.add(path, videoData)
+	videos[path] = video
 	callback(videoData)
 end
 
-video.unload = function(path, callback)
+video.unload = function(path)
 	videos[path] = nil
-	return callback()
 end
 
 return video
