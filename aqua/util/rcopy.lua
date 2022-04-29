@@ -1,5 +1,4 @@
 local function rcopy(from, to)
-	print(("Copying: %s -> %s"):format(from, to))
 	if to ~= "" and not love.filesystem.getInfo(to, "directory") then
 		love.filesystem.createDirectory(to)
 	end
@@ -11,7 +10,6 @@ local function rcopy(from, to)
 		if love.filesystem.getInfo(fileFrom, "directory") then
 			rcopy(fileFrom, fileTo)
 		else
-			print(("Copying: %s -> %s"):format(fileFrom, fileTo))
 			love.filesystem.write(fileTo, (love.filesystem.read(fileFrom)))
 		end
 	end
