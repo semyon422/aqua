@@ -1,11 +1,16 @@
+local ffi = require("ffi")
 local imgui = require("cimgui")
 local aquaevent = require("aqua.event")
-local Devices = require("aqua.imgui.Devices")
 
-local keymap = imgui.love.keymap
-local gamepad_map = imgui.love.gamepad_map
+local midistate = aquaevent.midistate
+local keystate = aquaevent.keystate
+local gamepadstate = aquaevent.gamepadstate
 
-local midikeys = aquaevent.midikeys
+local allstates = {
+	midi = midistate,
+	keyboard = keystate,
+	gamepad = gamepadstate
+}
 
 local activeId = nil
 return function(label, keyPtr, devicePtr)
@@ -14,49 +19,34 @@ return function(label, keyPtr, devicePtr)
 
 	local isActive = id == activeId
 	if isActive then
-		local key = keyPtr[0]
+		local key
+		local device
 
-		for i = imgui.C.ImGuiKey_NamedKey_BEGIN, imgui.C.ImGuiKey_NamedKey_END - 1 do
-			if imgui.IsKeyPressed(i) then
-				key = i
-				valueChanged = true
-				activeId = nil
-				if keymap[i] then
-					devicePtr[0] = Devices.keyboard
-				elseif gamepad_map[i] then
-					devicePtr[0] = Devices.gamepad
-				else
-					devicePtr[0] = Devices.unknown
+		for d, states in pairs(allstates) do
+			for k, v in pairs(states) do
+				if v then
+					key = k
+					device = d
+					valueChanged = true
+					activeId = nil
+					break
 				end
+			end
+			if valueChanged then
 				break
 			end
 		end
-		if not valueChanged then
-			for i = 1, 88 do
-				if midikeys[i] then
-					key = i
-					valueChanged = true
-					activeId = nil
-					devicePtr[0] = Devices.midi
-				end
-			end
-		end
 
-		keyPtr[0] = key
-		if keymap[key] == "escape" then
-			keyPtr[0] = 0
+		if not key or key == "escape" then
+			valueChanged = false
+		else
+			keyPtr[0] = key
+			devicePtr[0] = device
 		end
 	end
 
-	local device = Devices[devicePtr[0]]
-	local keyName = "unknown"
-	if device == "keyboard" then
-		keyName = keymap[keyPtr[0]]
-	elseif device == "gamepad" then
-		keyName = gamepad_map[keyPtr[0]]
-	elseif device == "midi" then
-		keyName = tostring(keyPtr[0])
-	end
+	local device = ffi.string(devicePtr[0])
+	local keyName = ffi.string(keyPtr[0])
 	if imgui.BeginListBox(label, {0, imgui.GetFrameHeight()}) then
 		if imgui.Selectable_Bool(("%s (%s)"):format(keyName, device), isActive) then
 			activeId = id

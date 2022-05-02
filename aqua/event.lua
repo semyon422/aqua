@@ -17,11 +17,14 @@ aquaevent.asynckey = false
 aquaevent.dwmflush = false
 aquaevent.imguiShowDemoWindow = false
 
-local midikeys = {}
+local midistate = {}
 for i = 1, 88 do
-	midikeys[i] = false
+	midistate[i] = false
 end
-aquaevent.midikeys = midikeys
+aquaevent.midistate = midistate
+
+aquaevent.keystate = {}
+aquaevent.gamepadstate = {}
 
 local dwmapi
 if love.system.getOS() == "Windows" then
@@ -67,8 +70,10 @@ aquaevent.run = function()
 					aquaevent.time = event.time
 					if event.state then
 						love.keypressed(event.key, event.key)
+						aquaevent.keystate[event.key] = true
 					else
 						love.keyreleased(event.key, event.key)
+						aquaevent.keystate[event.key] = false
 					end
 				end
 			else
@@ -84,6 +89,15 @@ aquaevent.run = function()
 				end
 			end
 			if not asynckeyWorking or name ~= "keypressed" and name ~= "keyreleased" then
+				if name == "keypressed" then
+					aquaevent.keystate[b] = true
+				elseif name == "keyreleased" then
+					aquaevent.keystate[b] = false
+				elseif name == "gamepadpressed" then
+					aquaevent.gamepadstate[b] = true
+				elseif name == "gamepadreleased" then
+					aquaevent.gamepadstate[b] = false
+				end
 				love.handlers[name](a, b, c, d, e, f)
 			end
 		end
@@ -95,10 +109,10 @@ aquaevent.run = function()
 			if a ~= nil then
 				if a == 144 then
 					love.midipressed(b, c, d)
-					midikeys[b] = true
+					midistate[b] = true
 				elseif a == 128 then
 					love.midireleased(b, c, d)
-					midikeys[b] = false
+					midistate[b] = false
 				end
 			end
 		end
