@@ -14,7 +14,7 @@ function Keymap:get(keyPtr, devicePtr)
 	elseif device == "gamepad" then
 		key = gamepad_map[keyPtr[0]]
 	elseif device == "midi" then
-		key = tostring(keyPtr[0])
+		key = keyPtr[0]
 	end
 	return key, device
 end
