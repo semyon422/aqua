@@ -40,7 +40,7 @@ return function(label, keyPtr, devicePtr)
 		if not key or key == "escape" then
 			valueChanged = false
 		else
-			keyPtr[0] = key
+			keyPtr[0] = tostring(key)
 			devicePtr[0] = device
 		end
 	end
