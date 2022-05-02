@@ -102,9 +102,9 @@ aquaevent.run = function()
 			end
 		end
 
-		if LuaMidi.getinportcount() > 0 then
+		for i = 0, LuaMidi.getinportcount() do
 			-- command, note, velocity, delta-time-to-last-event
-			local a, b, c, d = LuaMidi.getMessage(0)
+			local a, b, c, d = LuaMidi.getMessage(i - 1)
 
 			if a ~= nil then
 				if a == 144 then
