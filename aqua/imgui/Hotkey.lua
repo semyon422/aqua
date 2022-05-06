@@ -19,20 +19,15 @@ return function(label, keyPtr, devicePtr)
 
 	local isActive = id == activeId
 	if isActive then
-		local key
-		local device
+		local key, device
 
 		for d, states in pairs(allstates) do
-			for k, v in pairs(states) do
-				if v then
-					key = k
-					device = d
-					valueChanged = true
-					activeId = nil
-					break
-				end
-			end
-			if valueChanged then
+			local k = next(states)
+			if k then
+				key, device = k, d
+				states[k] = nil
+				valueChanged = true
+				activeId = nil
 				break
 			end
 		end

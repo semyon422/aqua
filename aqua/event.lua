@@ -17,12 +17,7 @@ aquaevent.asynckey = false
 aquaevent.dwmflush = false
 aquaevent.imguiShowDemoWindow = false
 
-local midistate = {}
-for i = 1, 88 do
-	midistate[i] = false
-end
-aquaevent.midistate = midistate
-
+aquaevent.midistate = {}
 aquaevent.keystate = {}
 aquaevent.gamepadstate = {}
 
@@ -73,7 +68,7 @@ aquaevent.run = function()
 						aquaevent.keystate[event.key] = true
 					else
 						love.keyreleased(event.key, event.key)
-						aquaevent.keystate[event.key] = false
+						aquaevent.keystate[event.key] = nil
 					end
 				end
 			else
@@ -92,11 +87,11 @@ aquaevent.run = function()
 				if name == "keypressed" then
 					aquaevent.keystate[b] = true
 				elseif name == "keyreleased" then
-					aquaevent.keystate[b] = false
+					aquaevent.keystate[b] = nil
 				elseif name == "gamepadpressed" then
 					aquaevent.gamepadstate[b] = true
 				elseif name == "gamepadreleased" then
-					aquaevent.gamepadstate[b] = false
+					aquaevent.gamepadstate[b] = nil
 				end
 				love.handlers[name](a, b, c, d, e, f)
 			end
@@ -108,10 +103,10 @@ aquaevent.run = function()
 			while a do
 				if a == 144 then
 					love.midipressed(b, c, d)
-					midistate[b] = true
+					aquaevent.midistate[b] = true
 				elseif a == 128 then
 					love.midireleased(b, c, d)
-					midistate[b] = false
+					aquaevent.midistate[b] = nil
 				end
 				a, b, c, d = LuaMidi.getMessage(i - 1)
 			end
