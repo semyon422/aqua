@@ -70,10 +70,19 @@ double BASS_ChannelBytes2Seconds(DWORD handle, QWORD pos);
 BOOL BASS_ChannelSetPosition(DWORD handle, QWORD pos, DWORD mode);
 HPLUGIN BASS_PluginLoad(const char *file, DWORD flags);
 DWORD BASS_SampleGetChannels(HSAMPLE handle, HCHANNEL *channels);
+int BASS_ErrorGetCode();
 ]])
 
 local bass = ffi.load(dl.get("bass"), true)
+local _bass = newproxy(true)
 
-bass.BASS_Init(-1, 44100, 0, nil, nil)
+local mt = getmetatable(_bass)
+mt.__index = bass
 
-return setmetatable({}, {__index = bass})
+if bass.BASS_Init(-1, 44100, 0, nil, nil) ~= 0 then
+	mt.__gc = function()
+		assert(bass.BASS_Free() ~= 0, "BASS_Free failed")
+	end
+end
+
+return _bass
