@@ -5,8 +5,7 @@ local Stream = require("aqua.audio.Stream")
 local StreamMemoryTempo = Stream:new()
 
 StreamMemoryTempo.construct = function(self)
-	local fileData = self.soundData.fileData
-	self.channelDecode = bass.BASS_StreamCreateFile(true, fileData:getFFIPointer(), 0, fileData:getSize(), 0x220000)
+	self.channelDecode = bass.BASS_SampleGetChannel(self.soundData.sample, 0x200002)
 	self.channel = bass_fx.BASS_FX_TempoCreate(self.channelDecode, 0x10000)
 end
 
