@@ -11,7 +11,6 @@ aquaevent.fpslimit = 240
 aquaevent.tpslimit = 240
 aquaevent.time = 0
 aquaevent.startTime = 0
-aquaevent.needQuit = false
 aquaevent.stats = {}
 aquaevent.asynckey = false
 aquaevent.dwmflush = false
@@ -80,6 +79,7 @@ aquaevent.run = function()
 		for name, a, b, c, d, e, f in love.event.poll() do
 			if name == "quit" then
 				if not love.quit or not love.quit() then
+					aquaevent.quit()
 					return a or 0
 				end
 			end
@@ -193,7 +193,6 @@ end
 
 aquaevent.quit = function()
 	LuaMidi.gc()
-	return false
 end
 
 return aquaevent
