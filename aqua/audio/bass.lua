@@ -96,7 +96,8 @@ if bass.BASS_Init(-1, 44100, 0, nil, nil) ~= 0 then
 	end
 
 	for _, file in ipairs(plugins) do
-		assert(bass.BASS_PluginLoad(file, 0) ~= 0, ("BASS_PluginLoad(%q) failed"):format(file))
+		bass.BASS_PluginLoad(file, 0)
+		-- assert(bass.BASS_PluginLoad(file, 0) ~= 0, ("BASS_PluginLoad(%q) failed"):format(file))
 	end
 end
 
