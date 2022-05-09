@@ -79,9 +79,24 @@ local _bass = newproxy(true)
 local mt = getmetatable(_bass)
 mt.__index = bass
 
+local Plugins = {
+	Windows = {"bassopus.dll"},
+	Linux = {"libbassopus.so"},
+}
+
 if bass.BASS_Init(-1, 44100, 0, nil, nil) ~= 0 then
 	mt.__gc = function()
 		assert(bass.BASS_Free() ~= 0, "BASS_Free failed")
+		assert(bass.BASS_PluginFree(0) ~= 0, "BASS_PluginFree failed")
+	end
+
+	local plugins = Plugins[jit.os]
+	if not plugins then
+		return
+	end
+
+	for _, file in ipairs(plugins) do
+		assert(bass.BASS_PluginLoad(file, 0) ~= 0, ("BASS_PluginLoad(%q) failed"):format(file))
 	end
 end
 
