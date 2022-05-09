@@ -1,8 +1,12 @@
 local imgui = require("cimgui")
+local config = require("aqua.imgui.config")
+local transform = require("aqua.graphics.transform")
 
 local imguicb = {}
 
 imguicb.mousemoved = function(x, y)
+	local tf = transform(config.transform)
+	x, y = tf:inverseTransformPoint(x, y)
 	imgui.love.MouseMoved(x, y)
 	return imgui.love.GetWantCaptureMouse()
 end
@@ -18,6 +22,8 @@ imguicb.mousereleased = function(_, _, button)
 end
 
 imguicb.wheelmoved = function(x, y)
+	local tf = transform(config.transform)
+	x, y = tf:inverseTransformPoint(x, y)
     imgui.love.WheelMoved(x, y)
     return imgui.love.GetWantCaptureMouse()
 end

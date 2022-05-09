@@ -2,6 +2,7 @@ local Observable = require("aqua.util.Observable")
 local aquathread = require("aqua.thread")
 local aquatimer = require("aqua.timer")
 local asynckey = require("aqua.asynckey")
+local transform = require("aqua.graphics.transform")
 local imgui = require("cimgui")
 local LuaMidi = require("luamidi")
 
@@ -40,7 +41,8 @@ aquaevent.run = function()
 
 	imgui.love.Init()
 
-	require("aqua.imgui.config")
+	local imguiConfig = require("aqua.imgui.config")
+	imguiConfig.init()
 
 	return function()
 		if aquaevent.asynckey and asynckey.start then
@@ -116,7 +118,7 @@ aquaevent.run = function()
 		aquathread.update()
 		aquatimer.update()
 		love.update(aquaevent.dt)
-		imgui.love.Update(aquaevent.dt)
+		imgui.love.Update(aquaevent.dt, imguiConfig.width, imguiConfig.height)
 		imgui.NewFrame()
 
 		local frameEndTime
@@ -130,7 +132,9 @@ aquaevent.run = function()
 				imgui.ShowDemoWindow()
 			end
 			imgui.Render()
+			love.graphics.replaceTransform(transform(imguiConfig.transform))
 			imgui.love.RenderDrawLists()
+			love.graphics.origin()
 			love.graphics.getStats(aquaevent.stats)
 			love.graphics.present() -- all new events are read when present is called
 			if dwmapi and aquaevent.dwmflush then
