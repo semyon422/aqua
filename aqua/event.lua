@@ -118,7 +118,9 @@ aquaevent.run = function()
 		aquathread.update()
 		aquatimer.update()
 		love.update(aquaevent.dt)
-		imgui.love.Update(aquaevent.dt, imguiConfig.width, imguiConfig.height)
+
+		local width, height = love.graphics.getDimensions()
+		imgui.love.Update(aquaevent.dt, width / height * imguiConfig.height, imguiConfig.height)
 		imgui.NewFrame()
 
 		local frameEndTime

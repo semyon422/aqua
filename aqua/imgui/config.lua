@@ -22,8 +22,7 @@ function config.init()
 	local Style = imgui.GetStyle()
 	Style.WindowRounding = 8
 	Style.FrameRounding = 4
-	Style.FramePadding.x = 7
-	Style.FramePadding.y = 7
+	Style.FramePadding = {7, 7}
 	Style.GrabRounding = 4
 
 	local Colors = Style.Colors
@@ -33,8 +32,13 @@ function config.init()
 	imio.ConfigFlags = bit.bor(imio.ConfigFlags, imgui.ImGuiConfigFlags_NavEnableKeyboard)
 end
 
-config.transform = {{1 / 2, -16 / 9 / 2}, 0, 0, {0, 1 / 1080}, {0, 1 / 1080}, 0, 0, 0, 0}
+config.transform = {0, 0, 0, {0, 1 / 1080}, {0, 1 / 1080}, 0, 0, 0, 0}
 config.width = 1920
 config.height = 1080
+
+function config.align(align, x)
+	local w, h = love.graphics.getDimensions()
+	return (w * config.height / h - config.width) * align + x
+end
 
 return config
