@@ -29,7 +29,7 @@ function config.init()
 	Colors[imgui.ImGuiCol_TitleBgActive]          = {0.21, 0.21, 0.21, 1.00}
 	Colors[imgui.ImGuiCol_Border]                 = {0.27, 0.27, 0.27, 1.00}
 
-	imio.ConfigFlags = bit.bor(imio.ConfigFlags, imgui.ImGuiConfigFlags_NavEnableKeyboard)
+	-- imio.ConfigFlags = bit.bor(imio.ConfigFlags, imgui.ImGuiConfigFlags_NavEnableKeyboard)
 end
 
 config.transform = {0, 0, 0, {0, 1 / 1080}, {0, 1 / 1080}, 0, 0, 0, 0}
