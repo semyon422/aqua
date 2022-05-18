@@ -12,7 +12,7 @@ function config.init()
 
 	imio.FontGlobalScale = 1
 
-	local font_size = 20 * math.sqrt(1920 / 1080)
+	local font_size = 30
 	local content, size = love.filesystem.read("resources/fonts/NotoSansCJK-Regular.ttc")
 	local newfont = imio.Fonts:AddFontFromMemoryTTF(ffi.cast("void*", content), size, font_size, config)
 	imio.FontDefault = newfont
