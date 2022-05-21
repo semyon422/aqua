@@ -21,9 +21,13 @@ function config.init()
 
 	local Style = imgui.GetStyle()
 	Style.WindowRounding = 8
-	Style.FrameRounding = 4
+	Style.FrameRounding = 6
 	Style.FramePadding = {7, 7}
-	Style.GrabRounding = 4
+	Style.ItemSpacing = {8, 5}
+	Style.ItemInnerSpacing = {5, 4}
+	Style.GrabRounding = 6
+	Style.TabRounding = 6
+	Style.GrabMinSize = 12
 
 	local Colors = Style.Colors
 	Colors[imgui.ImGuiCol_TitleBgActive]          = {0.21, 0.21, 0.21, 1.00}
