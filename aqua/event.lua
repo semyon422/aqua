@@ -11,6 +11,7 @@ local aquaevent = Observable:new()
 aquaevent.fpslimit = 240
 aquaevent.tpslimit = 240
 aquaevent.time = 0
+aquaevent.eventTime = 0
 aquaevent.startTime = 0
 aquaevent.stats = {}
 aquaevent.asynckey = false
@@ -51,7 +52,6 @@ aquaevent.run = function()
 
 		aquaevent.dt = love.timer.step()
 		aquaevent.time = love.timer.getTime()
-		local aquaeventTime = aquaevent.time
 
 		love.event.pump()
 
@@ -63,7 +63,7 @@ aquaevent.run = function()
 		if asynckeyWorking then
 			if love.window.hasFocus() then
 				for event in asynckey.events do
-					aquaevent.time = event.time
+					aquaevent.eventTime = event.time
 					if event.state then
 						love.keypressed(event.key, event.key)
 						aquaevent.keystate[event.key] = true
@@ -77,7 +77,7 @@ aquaevent.run = function()
 			end
 		end
 
-		aquaevent.time = aquaevent.time - aquaevent.dt / 2
+		aquaevent.eventTime = aquaevent.time - aquaevent.dt / 2
 		for name, a, b, c, d, e, f in love.event.poll() do
 			if name == "quit" then
 				if not love.quit or not love.quit() then
@@ -113,7 +113,6 @@ aquaevent.run = function()
 				a, b, c, d = LuaMidi.getMessage(i - 1)
 			end
 		end
-		aquaevent.time = aquaeventTime
 
 		aquathread.update()
 		aquatimer.update()
@@ -191,7 +190,7 @@ aquaevent.init = function()
 			if icb and icb(...) then return end
 			e[1], e[2], e[3], e[4], e[5], e[6] = ...
 			e.name = name
-			e.time = clampEventTime(aquaevent.time)
+			e.time = clampEventTime(aquaevent.eventTime)
 			return aquaevent:send(e)
 		end
 	end
