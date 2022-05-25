@@ -37,7 +37,7 @@ end
 
 local peer_mt = {
 	__index = function(t, name)
-		return function(...)
+		return rawget(t, name) or function(...)
 			return run(t.peer, name, ...)
 		end
 	end,
