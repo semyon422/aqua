@@ -11,6 +11,9 @@ end
 local tasks = {}
 local event_id = 0
 
+local timeout = 10
+local task_timeouts = {}
+
 local run = function(peer, name, ...)
 	local c = coroutine.running()
 	if not c then
@@ -18,18 +21,22 @@ local run = function(peer, name, ...)
 	end
 
 	event_id = event_id + 1
+	local id = event_id
+
 	local q, w, e, r, t, y, u, i = ...
 	peer:send(MessagePack.pack({
-		id = event_id,
+		id = id,
 		name = name,
 		q, w, e, r, t, y, u, i
 	}))
 
-	tasks[event_id] = function(...)
-		tasks[event_id] = nil
+	tasks[id] = function(...)
+		tasks[id] = nil
+		task_timeouts[id] = nil
 		q, w, e, r, t, y, u, i = ...
 		assert(coroutine.resume(c))
 	end
+	task_timeouts[id] = os.time() + timeout
 	coroutine.yield()
 
 	return q, w, e, r, t, y, u, i
@@ -43,7 +50,10 @@ local peer_mt = {
 	end,
 }
 remote.peer = function(peer)
-	return setmetatable({peer = peer}, peer_mt)
+	return setmetatable({
+		peer = peer,
+		id = tostring(peer),
+	}, peer_mt)
 end
 
 local handle = remote.wrap(function(peer, e)
@@ -57,6 +67,15 @@ local handle = remote.wrap(function(peer, e)
 		a, s, d, f, g, h, j, k
 	}))
 end)
+
+function remote.update()
+	local time = os.time()
+	for id, t in pairs(task_timeouts) do
+		if t <= time then
+			tasks[id](nil, "timeout")
+		end
+	end
+end
 
 function remote.receive(event)
 	local e = MessagePack.unpack(event.data)
