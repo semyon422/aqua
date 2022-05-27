@@ -43,11 +43,15 @@ local run = function(peer, name, ...)
 
 	send(peer, id, name, ...)
 
+	local trace = debug.traceback(c)
 	timeouts[id] = os.time() + timeout
 	tasks[id] = function(...)
 		tasks[id] = nil
 		timeouts[id] = nil
-		assert(coroutine.resume(c, ...))
+		local status, err = coroutine.resume(c, ...)
+		if not status then
+			error(err .. "\n" .. trace)
+		end
 	end
 
 	return coroutine.yield()
@@ -59,11 +63,14 @@ local peer_mt = {
 			return run(t.peer, name, ...)
 		end
 	end,
+	__eq = function(a, b)
+		return rawget(a, "id") == rawget(b, "id")
+	end,
 }
 remote.peer = function(peer)
 	return setmetatable({
 		peer = peer,
-		id = tostring(peer),
+		id = tonumber(tostring(peer):match("^.+:(%d+)$")),
 	}, peer_mt)
 end
 
