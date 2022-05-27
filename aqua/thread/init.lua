@@ -24,13 +24,10 @@ local run = function(f, ...)
 	if not c then
 		error("attempt to yield from outside a coroutine")
 	end
-	local q, w, e, r, t, y, u, i
 	runThread(f, {...}, function(...)
-		q, w, e, r, t, y, u, i = ...
-		assert(coroutine.resume(c))
+		assert(coroutine.resume(c, ...))
 	end)
-	coroutine.yield()
-	return q, w, e, r, t, y, u, i
+	return coroutine.yield()
 end
 
 local call = function(f, ...)
