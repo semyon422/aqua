@@ -12,9 +12,27 @@ local tasks = {}
 local event_id = 0
 
 local timeout = 10
-local task_timeouts = {}
+local timeouts = {}
+
+local function _unpack(t, i, j)
+	if not t then return end
+	if i == j then return t[i] end
+	return t[i], _unpack(t, i + 1, j)
+end
+
+local send = function(peer, id, name, ...)
+	return peer:send(MessagePack.pack({
+		id = id,
+		name = name,
+		...
+	}))
+end
 
 local run = function(peer, name, ...)
+	if name:sub(1, 1) == "_" then
+		return send(peer, nil, name:sub(2), ...)
+	end
+
 	local c = coroutine.running()
 	if not c then
 		error("attempt to yield from outside a coroutine")
@@ -23,23 +41,16 @@ local run = function(peer, name, ...)
 	event_id = event_id + 1
 	local id = event_id
 
-	local q, w, e, r, t, y, u, i = ...
-	peer:send(MessagePack.pack({
-		id = id,
-		name = name,
-		q, w, e, r, t, y, u, i
-	}))
+	send(peer, id, name, ...)
 
+	timeouts[id] = os.time() + timeout
 	tasks[id] = function(...)
 		tasks[id] = nil
-		task_timeouts[id] = nil
-		q, w, e, r, t, y, u, i = ...
-		assert(coroutine.resume(c))
+		timeouts[id] = nil
+		assert(coroutine.resume(c, ...))
 	end
-	task_timeouts[id] = os.time() + timeout
-	coroutine.yield()
 
-	return q, w, e, r, t, y, u, i
+	return coroutine.yield()
 end
 
 local peer_mt = {
@@ -56,21 +67,15 @@ remote.peer = function(peer)
 	}, peer_mt)
 end
 
+local no_handler = function(...) end
 local handle = remote.wrap(function(peer, e)
-	local handler = remote.handlers[e.name]
-	local a, s, d, f, g, h, j, k
-	if handler then
-		a, s, d, f, g, h, j, k = handler(remote.peer(peer), e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8])
-	end
-	peer:send(MessagePack.pack({
-		id = e.id,
-		a, s, d, f, g, h, j, k
-	}))
+	local handler = remote.handlers[e.name] or no_handler
+	return send(peer, e.id, nil, handler(remote.peer(peer), _unpack(e, 1, 8)))
 end)
 
 function remote.update()
 	local time = os.time()
-	for id, t in pairs(task_timeouts) do
+	for id, t in pairs(timeouts) do
 		if t <= time then
 			tasks[id](nil, "timeout")
 		end
@@ -84,9 +89,8 @@ function remote.receive(event)
 		return handle(event.peer, e)
 	end
 
-	local task = tasks[e.id]
-	if task then
-		task(e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8])
+	if e.id and tasks[e.id] then
+		return tasks[e.id](_unpack(e, 1, 8))
 	end
 end
 
