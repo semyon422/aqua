@@ -1,6 +1,12 @@
-local MessagePack = require("MessagePack")
-
 local remote = {}
+
+function remote.encode(data)
+	error("mot implemented")
+end
+
+function remote.decode(data)
+	error("mot implemented")
+end
 
 function remote.wrap(f)
 	return function(...)
@@ -11,7 +17,7 @@ end
 local tasks = {}
 local event_id = 0
 
-local timeout = 10
+remote.timeout = 10
 local timeouts = {}
 
 local function _unpack(t, i, j)
@@ -20,15 +26,15 @@ local function _unpack(t, i, j)
 	return t[i], _unpack(t, i + 1, j)
 end
 
-local send = function(peer, id, name, ...)
-	return peer:send(MessagePack.pack({
+local function send(peer, id, name, ...)
+	return peer:send(remote.encode({
 		id = id,
 		name = name,
 		...
 	}))
 end
 
-local run = function(peer, name, ...)
+local function run(peer, name, ...)
 	if name:sub(1, 1) == "_" then
 		return send(peer, nil, name:sub(2), ...)
 	end
@@ -44,7 +50,7 @@ local run = function(peer, name, ...)
 	send(peer, id, name, ...)
 
 	local trace = debug.traceback(c)
-	timeouts[id] = os.time() + timeout
+	timeouts[id] = os.time() + remote.timeout
 	tasks[id] = function(...)
 		tasks[id] = nil
 		timeouts[id] = nil
@@ -67,16 +73,16 @@ local peer_mt = {
 		return rawget(a, "id") == rawget(b, "id")
 	end,
 }
-remote.peer = function(peer)
+function remote.peer(peer)
 	return setmetatable({
 		peer = peer,
 		id = tonumber(tostring(peer):match("^.+:(%d+)$")),
 	}, peer_mt)
 end
 
-local no_handler = function(...) end
-local handle = remote.wrap(function(peer, e)
-	local handler = remote.handlers[e.name] or no_handler
+local function no_handler(...) end
+local handle = remote.wrap(function(peer, e, handlers)
+	local handler = handlers[e.name] or no_handler
 	return send(peer, e.id, nil, handler(remote.peer(peer), _unpack(e, 1, 8)))
 end)
 
@@ -89,18 +95,16 @@ function remote.update()
 	end
 end
 
-function remote.receive(event)
-	local e = MessagePack.unpack(event.data)
+function remote.receive(event, handlers)
+	local e = remote.decode(event.data)
 
 	if e.name then
-		return handle(event.peer, e)
+		return handle(event.peer, e, handlers)
 	end
 
 	if e.id and tasks[e.id] then
 		return tasks[e.id](_unpack(e, 1, 8))
 	end
 end
-
-remote.handlers = {}
 
 return remote
