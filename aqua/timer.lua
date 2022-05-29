@@ -56,22 +56,30 @@ timer.debounce = function(object, key, duration, func, ...)
 	end)
 	object[key] = c
 	assert(coroutine.resume(c))
+	return function()
+		timers[c] = nil
+		object[key] = nil
+	end
 end
 
 timer.every = function(interval, func, ...)
 	assert(type(func) == "function", "func function must be a function")
 	assert(type(interval) == "number", "interval must be a number")
+	local stop = false
 	coroutine.wrap(function(...)
 		local ptime = love.timer.getTime()
 		local time = ptime
 		while true do
 			ptime = math.max(ptime + interval, time)
 			time = timer.sleep(ptime - time)
-			if func(...) then
+			if stop or func(...) then
 				return
 			end
 		end
 	end)(...)
+	return function()
+		stop = true
+	end
 end
 
 return timer
