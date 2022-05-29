@@ -80,10 +80,16 @@ function remote.peer(peer)
 	}, peer_mt)
 end
 
-local function no_handler(...) end
+local function _handle(peer, e, handlers)
+	local handler = handlers[e.name]
+	return handler and handler(remote.peer(peer), _unpack(e, 1, 8))
+end
+
 local handle = remote.wrap(function(peer, e, handlers)
-	local handler = handlers[e.name] or no_handler
-	return send(peer, e.id, nil, handler(remote.peer(peer), _unpack(e, 1, 8)))
+	if not e.id then
+		return _handle(peer, e, handlers)
+	end
+	return send(peer, e.id, nil, _handle(peer, e, handlers))
 end)
 
 function remote.update()
