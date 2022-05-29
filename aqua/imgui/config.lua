@@ -23,7 +23,7 @@ function config.init()
 	Style.WindowRounding = 8
 	Style.FrameRounding = 6
 	Style.FramePadding = {7, 7}
-	Style.ItemSpacing = {8, 5}
+	Style.ItemSpacing = {5, 5}
 	Style.ItemInnerSpacing = {5, 4}
 	Style.GrabRounding = 6
 	Style.TabRounding = 6
