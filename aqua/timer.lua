@@ -55,7 +55,7 @@ timer.debounce = function(object, key, duration, func, ...)
 		object[key] = nil
 	end)
 	object[key] = c
-	coroutine.resume(c)
+	assert(coroutine.resume(c))
 end
 
 timer.every = function(interval, func, ...)
