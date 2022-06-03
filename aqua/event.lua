@@ -103,10 +103,10 @@ aquaevent.run = function()
 			-- command, note, velocity, delta-time-to-last-event
 			local a, b, c, d = LuaMidi.getMessage(i - 1)
 			while a do
-				if a == 144 then
+				if a == 144 and c ~= 0 then
 					love.midipressed(b, c, d)
 					aquaevent.midistate[b] = true
-				elseif a == 128 then
+				elseif a == 128 or c == 0 then
 					love.midireleased(b, c, d)
 					aquaevent.midistate[b] = nil
 				end
