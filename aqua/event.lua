@@ -31,9 +31,7 @@ end
 
 local hasMidi
 local function getinportcount()
-	if hasMidi then
-		return LuaMidi.getinportcount()
-	end
+	return hasMidi and LuaMidi.getinportcount() or 0
 end
 
 local framestarted = {name = "framestarted"}
