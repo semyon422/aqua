@@ -29,6 +29,13 @@ if love.system.getOS() == "Windows" then
 	ffi.cdef("void DwmFlush();")
 end
 
+local hasMidi
+local function getinportcount()
+	if hasMidi then
+		return LuaMidi.getinportcount()
+	end
+end
+
 local framestarted = {name = "framestarted"}
 aquaevent.run = function()
 	love.math.setRandomSeed(os.time())
@@ -44,6 +51,8 @@ aquaevent.run = function()
 
 	local imguiConfig = require("aqua.imgui.config")
 	imguiConfig.init()
+
+	hasMidi = LuaMidi.getinportcount() > 0
 
 	return function()
 		if aquaevent.asynckey and asynckey.start then
@@ -99,9 +108,9 @@ aquaevent.run = function()
 			end
 		end
 
-		for i = 0, LuaMidi.getinportcount() do
+		for i = 0, getinportcount() - 1 do
 			-- command, note, velocity, delta-time-to-last-event
-			local a, b, c, d = LuaMidi.getMessage(i - 1)
+			local a, b, c, d = LuaMidi.getMessage(i)
 			while a do
 				if a == 144 and c ~= 0 then
 					love.midipressed(b, c, d)
@@ -110,7 +119,7 @@ aquaevent.run = function()
 					love.midireleased(b, c, d)
 					aquaevent.midistate[b] = nil
 				end
-				a, b, c, d = LuaMidi.getMessage(i - 1)
+				a, b, c, d = LuaMidi.getMessage(i)
 			end
 		end
 
