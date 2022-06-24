@@ -13,29 +13,25 @@ local imguicb = {}
 imguicb.mousemoved = function(x, y)
 	x, y = getPos(x, y)
 	imgui.love.MouseMoved(x, y)
-	local captured = just.mousemoved(x, y)
-	return imgui.love.GetWantCaptureMouse() or captured
+	return imgui.love.GetWantCaptureMouse() or just.mousemoved(x, y)
 end
 
 imguicb.mousepressed = function(x, y, button)
 	x, y = getPos(x, y)
 	imgui.love.MousePressed(button)
-	local captured = just.mousepressed(x, y, button)
-	return imgui.love.GetWantCaptureMouse() or captured
+	return imgui.love.GetWantCaptureMouse() or just.mousepressed(x, y, button)
 end
 
 imguicb.mousereleased = function(x, y, button)
 	x, y = getPos(x, y)
 	imgui.love.MouseReleased(button)
-	local captured = just.mousereleased(x, y, button)
-	return imgui.love.GetWantCaptureMouse() or captured
+	return imgui.love.GetWantCaptureMouse() or just.mousereleased(x, y, button)
 end
 
 imguicb.wheelmoved = function(x, y)
 	x, y = getPos(x, y)
 	imgui.love.WheelMoved(x, y)
-	local captured = just.wheelmoved(x, y)
-	return imgui.love.GetWantCaptureMouse() or captured
+	return imgui.love.GetWantCaptureMouse() or just.wheelmoved(x, y)
 end
 
 imguicb.keypressed = function(_, key)
