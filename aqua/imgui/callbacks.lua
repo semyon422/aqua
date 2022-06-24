@@ -29,7 +29,6 @@ imguicb.mousereleased = function(x, y, button)
 end
 
 imguicb.wheelmoved = function(x, y)
-	x, y = getPos(x, y)
 	imgui.love.WheelMoved(x, y)
 	return imgui.love.GetWantCaptureMouse() or just.wheelmoved(x, y)
 end
