@@ -16,7 +16,10 @@ BassSource.play = function(self)
 end
 
 BassSource.pause = function(self)
-	bass_assert(bass.BASS_ChannelPause(self.channel) == 1)
+	-- bass_assert(bass.BASS_ChannelPause(self.channel) == 1)
+	-- A sample channel can be ended after last BASS_ChannelIsActive.
+	-- Don't assert here.
+	bass.BASS_ChannelPause(self.channel)
 end
 
 BassSource.stop = function(self)
