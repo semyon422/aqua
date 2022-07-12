@@ -2,56 +2,37 @@ local aquathread = require("aqua.thread")
 
 local image = {}
 
-local imageDatas = {}
-local images = {}
-local callbacks = {}
+local ImageData = {}
 
-image.getImage = function(path)
-	return images[path]
+ImageData.release = function(self)
+	self.imageData:release()
+	self.image:release()
 end
 
-image.load = function(path, callback)
-	if imageDatas[path] then
-		return callback(imageDatas[path])
+image.newImageData = function(s)
+	require("love.image")
+	local imageData = setmetatable({}, {__index = ImageData})
+	imageData.imageData = love.image.newImageData(s)
+
+	if love.graphics then
+		imageData.image = love.graphics.newImage(imageData.imageData)
 	end
 
-	if not callbacks[path] then
-		callbacks[path] = {}
-
-		aquathread.run(function(path)
-			require("love.image")
-			local info = love.filesystem.getInfo(path)
-			if not info then
-				return
-			end
-			local status, err = pcall(love.image.newImageData, path)
-			if status then
-				return err
-			end
-		end, {path}, function(imageData)
-			imageDatas[path] = imageData
-			if imageData then
-				images[path] = love.graphics.newImage(imageData)
-			end
-			for _, cb in ipairs(callbacks[path]) do
-				cb(imageData, images[path])
-			end
-			callbacks[path] = nil
-		end)
-	end
-
-	table.insert(callbacks[path], callback)
+	return imageData
 end
 
-image.unload = function(path)
-	if imageDatas[path] then
-		imageDatas[path]:release()
-		imageDatas[path] = nil
+local newImageDataAsync = aquathread.async(function(s, sample_gain)
+	local image = require("aqua.image")
+	return image.newImageData(s, sample_gain)
+end)
+
+image.newImageDataAsync = function(s, sample_gain)
+	local imageData = newImageDataAsync(s, sample_gain)
+	setmetatable(imageData, {__index = ImageData})
+	if not imageData.image then
+		imageData.image = love.graphics.newImage(imageData.imageData)
 	end
-	if images[path] then
-		images[path]:release()
-		images[path] = nil
-	end
+	return imageData
 end
 
 return image

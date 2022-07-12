@@ -10,7 +10,7 @@ StreamMemoryReverse.construct = function(self)
 	self.channel = bass_fx.BASS_FX_ReverseCreate(self.channelDecode, 1, 0x10000)
 end
 
-StreamMemoryReverse.free = function(self)
+StreamMemoryReverse.release = function(self)
 	bass.BASS_ChannelFree(self.channel)
 	bass.BASS_ChannelFree(self.channelDecode)
 end

@@ -1,23 +1,21 @@
 local bass = require("aqua.audio.bass")
 local bass_fx = require("aqua.audio.bass_fx")
-local Stream = require("aqua.audio.Stream")
+local bass_assert = require("aqua.audio.bass_assert")
+local BassSource = require("aqua.audio.BassSource")
 
-local StreamMemoryTempo = Stream:new()
+local StreamMemoryTempo = BassSource:new()
 
 StreamMemoryTempo.construct = function(self)
-	self.channelDecode = bass.BASS_SampleGetChannel(self.soundData.sample, 0x200002)
-	self.channel = bass_fx.BASS_FX_TempoCreate(self.channelDecode, 0x10000)
-end
-
-StreamMemoryTempo.free = function(self)
-	bass.BASS_ChannelFree(self.channel)
-	bass.BASS_ChannelFree(self.channelDecode)
+	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, 0x200002)
+	bass_assert(self.channel ~= 0)
+	self.channel = bass_fx.BASS_FX_TempoCreate(self.channel, 0x10000)
+	bass_assert(self.channel ~= 0)
 end
 
 StreamMemoryTempo.setRate = function(self, rate)
 	if self.rateValue ~= rate then
 		self.rateValue = rate
-		return bass.BASS_ChannelSetAttribute(self.channel, 0x10000, (rate - 1) * 100)
+		bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 0x10000, (rate - 1) * 100) == 1)
 	end
 end
 
@@ -25,7 +23,7 @@ StreamMemoryTempo.setPitch = function(self, pitch)
 	-- semitone 1 : 2^(1/12)
 	if self.pitchValue ~= pitch then
 		self.pitchValue = pitch
-		return bass.BASS_ChannelSetAttribute(self.channel, 0x10001, 12 * math.log(pitch) / math.log(2))
+		bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 0x10001, 12 * math.log(pitch) / math.log(2)) == 1)
 	end
 end
 

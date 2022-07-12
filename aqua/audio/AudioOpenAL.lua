@@ -1,6 +1,6 @@
-local Audio = require("aqua.audio.Audio")
+local Source = require("aqua.audio.Source")
 
-local AudioOpenAL = Audio:new()
+local AudioOpenAL = Source:new()
 
 AudioOpenAL.construct = function(self)
 	if not self.path then
@@ -9,7 +9,7 @@ AudioOpenAL.construct = function(self)
 	self.source = love.audio.newSource(self.path, "stream")
 end
 
-AudioOpenAL.free = function(self)
+AudioOpenAL.release = function(self)
 	if self.source then
 		self.source:release()
 		self.source = nil
@@ -32,9 +32,6 @@ AudioOpenAL.isPlaying = function(self)
 	return self.source and self.source:isPlaying()
 end
 
-AudioOpenAL.update = function(self)
-end
-
 AudioOpenAL.setRate = function(self, rate)
 	return self:setFreqRate(rate)
 end
@@ -45,8 +42,6 @@ AudioOpenAL.setFreqRate = function(self, rate)
 		return self.source and self.source:setPitch(rate)
 	end
 end
-
-AudioOpenAL.setPitch = function(self, pitch) end
 
 AudioOpenAL.getPosition = function(self)
 	return self.source and self.source:tell()

@@ -13,9 +13,9 @@ StreamMemoryReversable.rateValue = 1
 StreamMemoryReversable.offset = 0
 StreamMemoryReversable.baseVolume = 1
 
-StreamMemoryReversable.free = function(self)
-	self.streamDirect:free()
-	self.streamReversed:free()
+StreamMemoryReversable.release = function(self)
+	self.streamDirect:release()
+	self.streamReversed:release()
 end
 
 StreamMemoryReversable.play = function(self)

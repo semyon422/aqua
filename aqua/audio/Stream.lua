@@ -1,14 +1,16 @@
 local ffi = require("ffi")
 local bass = require("aqua.audio.bass")
-local Audio = require("aqua.audio.Audio")
+local bass_assert = require("aqua.audio.bass_assert")
+local BassSource = require("aqua.audio.BassSource")
 
-local Stream = Audio:new()
+local Stream = BassSource:new()
 
 Stream.construct = function(self)
 	if not self.path then
 		return
 	end
 	self.channel = bass.BASS_StreamCreateFile(false, self.path, 0, 0, 0)
+	bass_assert(self.channel ~= 0)
 
 	self:loadDataChannel()
 end
@@ -27,10 +29,6 @@ Stream.loadDataChannel = function(self)
 		sample = info.sample,
 		filename = info.filename
 	}
-end
-
-Stream.free = function(self)
-	bass.BASS_ChannelFree(self.channel)
 end
 
 return Stream
