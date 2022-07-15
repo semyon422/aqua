@@ -11,8 +11,13 @@ end
 
 image.newImageData = function(s)
 	require("love.image")
+	local status, err = pcall(love.image.newImageData, s)
+	if not status then
+		return
+	end
+
 	local imageData = setmetatable({}, {__index = ImageData})
-	imageData.imageData = love.image.newImageData(s)
+	imageData.imageData = err
 
 	if love.graphics then
 		imageData.image = love.graphics.newImage(imageData.imageData)
@@ -28,11 +33,11 @@ end)
 
 image.newImageDataAsync = function(s, sample_gain)
 	local imageData = newImageDataAsync(s, sample_gain)
-	setmetatable(imageData, {__index = ImageData})
+	if not imageData then return end
 	if not imageData.image then
 		imageData.image = love.graphics.newImage(imageData.imageData)
 	end
-	return imageData
+	return setmetatable(imageData, {__index = ImageData})
 end
 
 return image

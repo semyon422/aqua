@@ -9,48 +9,27 @@ sound.sample_gain = 0
 local SoundData = {}
 sound.SoundData = SoundData
 
+local info_fields = {
+	"freq",
+	"volume",
+	"pan",
+	"flags",
+	"length",
+	"max",
+	"origres",
+	"chans",
+	"mingap",
+	"mode3d",
+	"mindist",
+	"maxdist",
+	"iangle",
+	"oangle",
+	"outvol",
+	"vam",
+	"priority",
+}
+
 local info = ffi.new("BASS_SAMPLE")
-SoundData.load = function(self)
-	local fileData = self.fileData
-
-	local sample = bass.BASS_SampleLoad(true, fileData:getFFIPointer(), 0, fileData:getSize(), 65535, 0)
-	bass_assert(sample ~= 0)
-	self.sample = sample
-	self.fileData:release()
-	self.fileData = nil
-
-	bass_assert(bass.BASS_SampleGetInfo(sample, info) == 1)
-	self.info = {
-		freq = info.freq,
-		volume = info.volume,
-		pan = info.pan,
-		flags = info.flags,
-		length = info.length,
-		max = info.max,
-		origres = info.origres,
-		chans = info.chans,
-		mingap = info.mingap,
-		mode3d = info.mode3d,
-		mindist = info.mindist,
-		maxdist = info.maxdist,
-		iangle = info.iangle,
-		oangle = info.oangle,
-		outvol = info.outvol,
-		vam = info.vam,
-		priority = info.priority,
-	}
-
-	if self.sample_gain > 0 then
-		local buffer = ffi.new("int16_t[?]", math.ceil(info.length / 2))
-		bass_assert(bass.BASS_SampleGetData(sample, buffer) == 1)
-
-		local amp = math.exp(self.sample_gain / 20 * math.log(10))
-		for i = 0, info.length / 2 - 1 do
-			buffer[i] = math.min(math.max(buffer[i] * amp, -32768), 32767)
-		end
-		bass_assert(bass.BASS_SampleSetData(sample, buffer) == 1)
-	end
-end
 
 SoundData.release = function(self)
 	assert(bass.BASS_SampleGetChannels(self.sample, nil) == 0, "Sample is still used")
@@ -63,13 +42,36 @@ sound.newSoundData = function(s)
 		fileData = love.filesystem.newFileData(s)
 	end
 
-	local soundData = setmetatable({
-		fileData = fileData,
-		sample_gain = sound.sample_gain,
-	}, {__index = SoundData})
-	soundData:load()
+	local sample = bass.BASS_SampleLoad(true, fileData:getFFIPointer(), 0, fileData:getSize(), 65535, 0)
+	fileData:release()
 
-	return soundData
+	-- bass_assert(sample ~= 0)
+	if sample == 0 then
+		return
+	end
+
+	local soundData = {}
+	soundData.sample = sample
+
+	bass_assert(bass.BASS_SampleGetInfo(sample, info) == 1)
+	local info_table = {}
+	for _, field in ipairs(info_fields) do
+		info_table[field] = info[field]
+	end
+	soundData.info = info_table
+
+	if sound.sample_gain > 0 then
+		local buffer = ffi.new("int16_t[?]", math.ceil(info.length / 2))
+		bass_assert(bass.BASS_SampleGetData(sample, buffer) == 1)
+
+		local amp = math.exp(sound.sample_gain / 20 * math.log(10))
+		for i = 0, info.length / 2 - 1 do
+			buffer[i] = math.min(math.max(buffer[i] * amp, -32768), 32767)
+		end
+		bass_assert(bass.BASS_SampleSetData(sample, buffer) == 1)
+	end
+
+	return setmetatable(soundData, {__index = SoundData})
 end
 
 local newSoundDataAsync = aquathread.async(function(s, sample_gain)
@@ -80,6 +82,7 @@ end)
 
 sound.newSoundDataAsync = function(s)
 	local soundData = newSoundDataAsync(s, sound.sample_gain)
+	if not soundData then return end
 	return setmetatable(soundData, {__index = SoundData})
 end
 
