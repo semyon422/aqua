@@ -18,6 +18,11 @@ aquaevent.stats = {}
 aquaevent.asynckey = false
 aquaevent.dwmflush = false
 aquaevent.imguiShowDemoWindow = false
+aquaevent.timings = {
+	event = 0,
+	update = 0,
+	draw = 0,
+}
 
 aquaevent.midistate = {}
 aquaevent.keystate = {}
@@ -60,6 +65,8 @@ aquaevent.run = function()
 
 		aquaevent.dt = love.timer.step()
 		aquaevent.time = love.timer.getTime()
+
+		local timingsEvent = aquaevent.time
 
 		love.event.pump()
 
@@ -122,6 +129,9 @@ aquaevent.run = function()
 			end
 		end
 
+		local timingsUpdate = love.timer.getTime()
+		aquaevent.timings.event = timingsUpdate - timingsEvent
+
 		aquathread.update()
 		aquatimer.update()
 		love.update(aquaevent.dt)
@@ -129,6 +139,9 @@ aquaevent.run = function()
 		local width, height = love.graphics.getDimensions()
 		imgui.love.Update(aquaevent.dt, width / height * imguiConfig.height, imguiConfig.height)
 		imgui.NewFrame()
+
+		local timingsDraw = love.timer.getTime()
+		aquaevent.timings.update = timingsDraw - timingsUpdate
 
 		local frameEndTime
 		if love.graphics and love.graphics.isActive() then
@@ -152,6 +165,9 @@ aquaevent.run = function()
 			end
 			frameEndTime = love.timer.getTime()
 		end
+
+		local timingsSleep = love.timer.getTime()
+		aquaevent.timings.draw = timingsSleep - timingsDraw
 
 		fpsLimitTime = math.max(fpsLimitTime + 1 / aquaevent.fpslimit, frameEndTime)
 		love.timer.sleep(fpsLimitTime - frameEndTime)
