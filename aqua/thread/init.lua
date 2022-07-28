@@ -9,14 +9,26 @@ thread.update = function()
 	return ThreadPool:update()
 end
 
+local pushedTask
+thread.pushTask = function(task)
+	pushedTask = task
+end
+
 local runThread = function(f, params, callback)
-	return thread.ThreadPool:execute({
+	local task = {
 		f = f,
 		params = params,
 		result = callback,
 		error = error,
 		trace = debug.traceback(),
-	})
+	}
+	if pushedTask then
+		for k, v in pairs(pushedTask) do
+			task[k] = v
+		end
+		pushedTask = nil
+	end
+	return thread.ThreadPool:execute(task)
 end
 
 local run = function(f, ...)
@@ -31,10 +43,8 @@ local run = function(f, ...)
 end
 
 local call = function(f, ...)
-	if not coroutine.running() then
-		return coroutine.wrap(f)(...)
-	end
-	return f(...)
+	assert(not coroutine.running(), "attempt to call a function from a coroutine")
+	return coroutine.wrap(f)(...)
 end
 
 thread.run = runThread
