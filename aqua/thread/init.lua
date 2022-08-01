@@ -43,7 +43,7 @@ local run = function(f, ...)
 end
 
 local call = function(f, ...)
-	assert(not coroutine.running(), "attempt to call a function from a coroutine")
+	-- assert(not coroutine.running(), "attempt to call a function from a coroutine")
 	return coroutine.wrap(f)(...)
 end
 
