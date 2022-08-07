@@ -13,39 +13,39 @@ local imguicb = {}
 imguicb.mousemoved = function(x, y)
 	x, y = getPos(x, y)
 	imgui.love.MouseMoved(x, y)
-	return imgui.love.GetWantCaptureMouse() or just.mousemoved(x, y)
+	return imgui.love.GetWantCaptureMouse() or just.callbacks.mousemoved(x, y)
 end
 
 imguicb.mousepressed = function(x, y, button)
 	x, y = getPos(x, y)
 	imgui.love.MousePressed(button)
-	return imgui.love.GetWantCaptureMouse() or just.mousepressed(x, y, button)
+	return imgui.love.GetWantCaptureMouse() or just.callbacks.mousepressed(x, y, button)
 end
 
 imguicb.mousereleased = function(x, y, button)
 	x, y = getPos(x, y)
 	imgui.love.MouseReleased(button)
-	return imgui.love.GetWantCaptureMouse() or just.mousereleased(x, y, button)
+	return imgui.love.GetWantCaptureMouse() or just.callbacks.mousereleased(x, y, button)
 end
 
 imguicb.wheelmoved = function(x, y)
 	imgui.love.WheelMoved(x, y)
-	return imgui.love.GetWantCaptureMouse() or just.wheelmoved(x, y)
+	return imgui.love.GetWantCaptureMouse() or just.callbacks.wheelmoved(x, y)
 end
 
-imguicb.keypressed = function(_, key)
-	imgui.love.KeyPressed(key)
-	return imgui.love.GetWantCaptureKeyboard()
+imguicb.keypressed = function(key, scancode, isrepeat)
+	imgui.love.KeyPressed(scancode)
+	return imgui.love.GetWantCaptureKeyboard() or just.callbacks.keypressed(key, scancode, isrepeat)
 end
 
-imguicb.keyreleased = function(_, key)
-	imgui.love.KeyReleased(key)
-	return imgui.love.GetWantCaptureKeyboard()
+imguicb.keyreleased = function(key, scancode, isrepeat)
+	imgui.love.KeyReleased(scancode)
+	return imgui.love.GetWantCaptureKeyboard() or just.callbacks.keyreleased(key, scancode, isrepeat)
 end
 
-imguicb.textinput = function(t)
-	imgui.love.TextInput(t)
-	return imgui.love.GetWantCaptureKeyboard()
+imguicb.textinput = function(text)
+	imgui.love.TextInput(text)
+	return imgui.love.GetWantCaptureKeyboard() or just.callbacks.textinput(text)
 end
 
 imguicb.quit = function()
