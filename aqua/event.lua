@@ -27,6 +27,7 @@ aquaevent.timings = {
 aquaevent.midistate = {}
 aquaevent.keystate = {}
 aquaevent.gamepadstate = {}
+aquaevent.joystickstate = {}
 
 local dwmapi
 if love.system.getOS() == "Windows" then
@@ -109,6 +110,10 @@ aquaevent.run = function()
 					aquaevent.gamepadstate[b] = true
 				elseif name == "gamepadreleased" then
 					aquaevent.gamepadstate[b] = nil
+				elseif name == "joystickpressed" then
+					aquaevent.joystickstate[b] = true
+				elseif name == "joystickreleased" then
+					aquaevent.joystickstate[b] = nil
 				end
 				love.handlers[name](a, b, c, d, e, f)
 			end
