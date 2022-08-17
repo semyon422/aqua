@@ -5,6 +5,14 @@ local ThreadPool = require("aqua.thread.ThreadPool")
 thread.Thread = Thread
 thread.ThreadPool = ThreadPool
 
+thread.unload = function()
+	return ThreadPool:unload()
+end
+
+thread.waitAsync = function()
+	return ThreadPool:waitAsync()
+end
+
 thread.update = function()
 	return ThreadPool:update()
 end
@@ -44,7 +52,10 @@ end
 
 local call = function(f, ...)
 	-- assert(not coroutine.running(), "attempt to call a function from a coroutine")
-	return coroutine.wrap(f)(...)
+	-- return coroutine.wrap(f)(...)
+	return coroutine.wrap(function(...)
+		assert(xpcall(f, debug.traceback, ...))
+	end)(...)
 end
 
 thread.run = runThread

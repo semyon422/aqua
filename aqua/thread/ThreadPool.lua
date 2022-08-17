@@ -1,6 +1,5 @@
 local Thread = require("aqua.thread.Thread")
 local Observable = require("aqua.util.Observable")
-local Class = require("aqua.util.Class")
 
 local ThreadPool = {}
 
@@ -12,7 +11,9 @@ ThreadPool.poolSize = 4
 ThreadPool.keepAliveTime = 1
 
 ThreadPool.threads = {}
+ThreadPool.runningThreads = {}
 ThreadPool.queue = {}
+ThreadPool.loaded = true
 
 ThreadPool.send = function(self, event)
 	return self.outputObservable:send(event)
@@ -23,31 +24,67 @@ ThreadPool.receive = function(self, event)
 end
 
 ThreadPool.execute = function(self, task)
+	if not self.loaded then
+		return
+	end
 	self.queue[#self.queue + 1] = task
 	return self:update()
+end
+
+ThreadPool.isRunning = function(self)
+	return next(self.runningThreads) ~= nil
+end
+
+ThreadPool.waitAsync = function(self)
+	assert(not self.loaded, "attempt to waitAsync when ThreadPool is loaded")
+	assert(not self.waiting, "attempt to waitAsync while waitingAsync")
+	if not self:isRunning() then
+		return
+	end
+	self.waiting = coroutine.running()
+	coroutine.yield()
+end
+
+ThreadPool.unload = function(self)
+	self.queue = {}
+	for _, thread in pairs(self.threads) do
+		thread:stop()
+	end
+	self.loaded = false
 end
 
 ThreadPool.update = function(self)
 	local currentTime = love.timer.getTime()
 
-	for i = 1, self.poolSize do
-		local thread = self.threads[i]
-		if thread then
-			thread:update()
-			if thread.idle and currentTime - thread.lastTime > self.keepAliveTime then
-				thread:stop()
-				self.inputObservable:remove(thread)
-				self.threads[i] = nil
-			end
+	for i, thread in pairs(self.threads) do
+		thread:update()
+		if thread.idle and currentTime - thread.lastTime > self.keepAliveTime then
+			thread:stop()
+			self.inputObservable:remove(thread)
+			self.threads[i] = nil
+		end
+	end
+	for i, thread in pairs(self.runningThreads) do
+		if not thread:isRunning() then
+			self.runningThreads[i] = nil
 		end
 	end
 
-	if self.queue[1] then
-		local thread = self:getIdleThread()
-		if thread then
-			thread:execute(self.queue[1])
-			table.remove(self.queue, 1)
-		end
+	local waiting = self.waiting
+	if waiting then
+		self.waiting = nil
+		return coroutine.resume(waiting)
+	end
+
+	local task = self.queue[1]
+	if not task then
+		return
+	end
+
+	local thread = self:getIdleThread()
+	if thread then
+		thread:execute(task)
+		table.remove(self.queue, 1)
 	end
 end
 
@@ -67,17 +104,17 @@ ThreadPool.getIdleThread = function(self)
 	end
 end
 
-ThreadPool.createThread = function(self, threadId)
+ThreadPool.createThread = function(self, id)
 	local thread = Thread:new()
 
 	self.inputObservable:add(thread)
 
 	thread.pool = self
-	thread.id = threadId
-	thread:create(self.codestring:format(threadId))
-	thread:start()
+	thread.id = id
+	thread:create(self.codestring:format(id))
 
-	self.threads[threadId] = thread
+	self.threads[id] = thread
+	self.runningThreads[id] = thread
 
 	return thread
 end

@@ -12,6 +12,7 @@ local aquaevent = Observable:new()
 aquaevent.fpslimit = 240
 aquaevent.tpslimit = 240
 aquaevent.time = 0
+aquaevent.dt = 0
 aquaevent.eventTime = 0
 aquaevent.startTime = 0
 aquaevent.stats = {}
@@ -211,8 +212,6 @@ end
 local callbacks = require("aqua.imgui.callbacks")
 
 aquaevent.init = function()
-	love.run = aquaevent.run
-
 	local e = {}
 	for _, name in pairs(aquaevent.callbacks) do
 		love[name] = function(...)

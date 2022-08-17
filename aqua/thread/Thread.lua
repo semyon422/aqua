@@ -19,6 +19,8 @@ Thread.create = function(self, codestring)
 	self.outputChannel:clear()
 
 	self:updateLastTime()
+
+	self.thread:start()
 end
 
 Thread.update = function(self)
@@ -32,11 +34,15 @@ Thread.update = function(self)
 	local event = self.internalOutputChannel:pop()
 	if event then
 		if type(event) == "table" then
+			local trace = self.event.trace or ""
 			if event[1] and task.result then
 				local p = event
-				task.result(p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9])
+				local success, err = xpcall(task.result, debug.traceback, p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9])
+				if not success then
+					error(err .. "\n" .. trace)
+				end
 			elseif not event[1] and task.error then
-				task.error(tostring(event[2]) .. "\n" .. (self.event.trace or ""))
+				task.error(tostring(event[2]) .. "\n" .. trace)
 			end
 		end
 		self.idle = true
@@ -74,8 +80,8 @@ Thread.execute = function(self, task)
 	self.internalInputChannel:push(self.event)
 end
 
-Thread.start = function(self)
-	return self.thread:start()
+Thread.isRunning = function(self)
+	return self.thread:isRunning()
 end
 
 Thread.stop = function(self)
