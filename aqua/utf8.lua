@@ -1,39 +1,22 @@
-local utf8 = {}
+local ffi = require("ffi")
+local utf8 = require("utf8")
 
-local check = function(s, i, patterns)
-	for n = 1, #patterns do
-		if i == string.find(s, patterns[n], i) then
-			return true
-		end
-	end
+local _utf8 = {}
+
+_utf8.validate = function(s, c)
+    local size = #s
+    local buffer = ffi.new("char[?]", size, s)
+    local ptr = ffi.cast("char*", buffer)
+
+    local len, pos = utf8.len(s)
+    while not len do
+        ptr[pos - 1] = c:byte()
+        ptr = ptr + pos
+        s = s:sub(pos + 1)
+        len, pos = utf8.len(s)
+    end
+
+    return ffi.string(buffer, size)
 end
 
-utf8.validate = function(s)
-	local i = 1
-	while i <= #s do
-		if check(s, i, {"[%z\1-\127]"}) then
-			i = i + 1
-		elseif check(s, i, {"[\194-\223][\123-\191]"}) then
-			i = i + 2
-		elseif check(s, i, {
-				"\224[\160-\191][\128-\191]",
-				"[\225-\236][\128-\191][\128-\191]",
-				"\237[\128-\159][\128-\191]",
-				"[\238-\239][\128-\191][\128-\191]"
-			}) then
-			i = i + 3
-		elseif check(s, i, {
-				"\240[\144-\191][\128-\191][\128-\191]",
-				"[\241-\243][\128-\191][\128-\191][\128-\191]",
-				"\244[\128-\143][\128-\191][\128-\191]"
-			}) then
-			i = i + 4
-		else
-			return "Invalid UTF-8 string"
-		end
-	end
-
-	return s
-end
-
-return utf8
+return _utf8
