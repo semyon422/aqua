@@ -6,8 +6,9 @@ local _utf8 = {}
 _utf8.validate = function(s, c)
 	c = c or "?"
 	local size = #s
-	local buffer = ffi.new("char[?]", size, s)
+	local buffer = ffi.new("char[?]", size)
 	local ptr = ffi.cast("char*", buffer)
+	ffi.copy(buffer, s, size)
 
 	local len, pos = utf8.len(s)
 	while not len do
