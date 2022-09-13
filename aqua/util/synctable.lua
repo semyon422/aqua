@@ -18,60 +18,64 @@ end
 
 local function getPath(t)
 	local path = {}
-	while t.__name do
+	while t.__parent do
 		table.insert(path, 1, t.__name)
 		t = t.__parent
 	end
 	return path
 end
 
+local mt
+mt = {
+	__newindex = function(s, k, v)
+		local _t = s.__t
+
+		local path = getPath(s)
+		if getmetatable(v) == mt then
+			_t[k] = v.__t
+			s.__cb(path, k, getPath(v), true)
+			return
+		elseif type(v) == "table" then
+			local _v = {}
+			_t[k] = _v
+			s.__cb(path, k, _v)
+			local _s = s[k]
+			for _k, _v in pairs(v) do
+				_s[_k] = _v
+			end
+			return
+		end
+
+		assertValueType(v)
+		_t[k] = v
+		s.__cb(path, k, v)
+	end,
+	__index = function(s, k)
+		local _t = s.__t
+		local v = _t[k]
+		local _v = rawget(s, v)
+		if type(v) ~= "table" then
+			return v
+		elseif _v then
+			return _v
+		end
+		_v = setmetatable({
+			__t = v,
+			__name = k,
+			__parent = s,
+			__cb = s.__cb,
+		}, mt)
+		rawset(s, v, _v)
+		return _v
+	end,
+}
+
 function synctable.new(t, callback)
 	validate(t)
-	local mt
-	mt = {
-		__newindex = function(s, k, v)
-			local _t = s.__t
-
-			local path = getPath(s)
-			if getmetatable(v) == mt then
-				_t[k] = v.__t
-				callback(path, k, getPath(v), true)
-				return
-			elseif type(v) == "table" then
-				local _v = {}
-				_t[k] = _v
-				callback(path, k, _v)
-				local _s = s[k]
-				for _k, _v in pairs(v) do
-					_s[_k] = _v
-				end
-				return
-			end
-
-			assertValueType(v)
-			_t[k] = v
-			callback(path, k, v)
-		end,
-		__index = function(s, k)
-			local _t = s.__t
-			local v = _t[k]
-			local _v = rawget(s, v)
-			if type(v) == "table" then
-				if not _v then
-					_v = setmetatable({
-						__t = v,
-						__name = k,
-						__parent = s,
-					}, mt)
-					rawset(s, v, _v)
-				end
-				return _v
-			else
-				return v
-			end
-		end,
-	}
-	local res = setmetatable({__t = t}, mt)
+	local res = setmetatable({
+		__t = t,
+		__cb = callback,
+	}, mt)
 	for k, v in pairs(t) do
 		res[k] = v
 	end
