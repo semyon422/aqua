@@ -36,9 +36,12 @@ mt = {
 			s.__cb(path, k, getPath(v), true)
 			return
 		elseif type(v) == "table" then
-			local _v = {}
-			_t[k] = _v
-			s.__cb(path, k, _v)
+			local _v = _t[k]
+			if _v ~= v then
+				_v = {}
+				_t[k] = _v
+			end
+			s.__cb(path, k, {})
 			local _s = s[k]
 			for _k, _v in pairs(v) do
 				_s[_k] = _v
@@ -97,6 +100,38 @@ function synctable.set(object, path, k, v, isPath)
 	end
 
 	t[k] = v
+end
+
+local function formatKey(key)
+	local f = type(key) == "string" and ".%s" or "[%s]"
+	return f:format(key)
+end
+
+local function formatPath(path)
+	local p = {}
+	for _, key in ipairs(path) do
+		table.insert(p, formatKey(key))
+	end
+	return table.concat(p)
+end
+
+local function formatValue(prefix, value, isPath)
+	if isPath then
+		return prefix .. formatPath(value)
+	end
+	if type(value) == "table" then
+		return "{}"
+	elseif type(value) == "string" then
+		return ("%q"):format(value)
+	end
+	return value
+end
+
+function synctable.format(prefix, path, k, v, isPath)
+	return ("%s = %s"):format(
+		prefix .. formatPath(path) .. formatKey(k),
+		formatValue(prefix, v, isPath)
+	)
 end
 
 return synctable
