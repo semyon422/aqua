@@ -1,11 +1,7 @@
 local Thread = require("aqua.thread.Thread")
-local Observable = require("aqua.util.Observable")
+local synctable = require("aqua.util.synctable")
 
 local ThreadPool = {}
-
-ThreadPool.inputObservable = Observable:new()
-ThreadPool.outputObservable = Observable:new()
-ThreadPool.observable = ThreadPool.outputObservable
 
 ThreadPool.poolSize = 4
 ThreadPool.keepAliveTime = 1
@@ -15,13 +11,15 @@ ThreadPool.runningThreads = {}
 ThreadPool.queue = {}
 ThreadPool.loaded = true
 
-ThreadPool.send = function(self, event)
-	return self.outputObservable:send(event)
-end
-
-ThreadPool.receive = function(self, event)
-	return self.inputObservable:send(event)
-end
+local _synctable = {}
+ThreadPool.synctable = synctable.new(_synctable, function(...)
+	-- print("send", synctable.format("main", ...))
+	for _, thread in pairs(ThreadPool.threads) do
+		if thread ~= ThreadPool.ignoreSyncThread then
+			thread:receive({...})
+		end
+	end
+end)
 
 ThreadPool.execute = function(self, task)
 	if not self.loaded then
@@ -60,7 +58,6 @@ ThreadPool.update = function(self)
 		thread:update()
 		if thread.idle and currentTime - thread.lastTime > self.keepAliveTime then
 			thread:stop()
-			self.inputObservable:remove(thread)
 			self.threads[i] = nil
 		end
 	end
@@ -107,55 +104,23 @@ end
 ThreadPool.createThread = function(self, id)
 	local thread = Thread:new()
 
-	self.inputObservable:add(thread)
-
 	thread.pool = self
 	thread.id = id
-	thread:create(self.codestring:format(id))
+
+	if not self.codestring then
+		local path = assert(package.searchpath("aqua.thread.threadcode", love.filesystem.getRequirePath()))
+		self.codestring = love.filesystem.read(path)
+	end
+	thread:create(self.codestring:gsub('"<threadId>"', id))
+
+	synctable.new(_synctable, function(...)
+		thread:receive({...})
+	end)
 
 	self.threads[id] = thread
 	self.runningThreads[id] = thread
 
 	return thread
 end
-
-ThreadPool.codestring = [[
-	local threadId = %d
-
-	local internalInputChannel = love.thread.getChannel("internalInput" .. threadId)
-	local internalOutputChannel = love.thread.getChannel("internalOutput" .. threadId)
-	local inputChannel = love.thread.getChannel("input" .. threadId)
-	local outputChannel = love.thread.getChannel("output" .. threadId)
-
-	thread = {}
-	thread.pop = function(self)
-		return inputChannel:pop()
-	end
-	thread.push = function(self, event)
-		return outputChannel:push(event)
-	end
-
-	require("preloaders.preloadall")
-
-	require("love.timer")
-	startTime = love.timer.getTime()
-
-	local event
-	while true do
-		event = internalInputChannel:demand()
-		if event.name == "stop" then
-			internalOutputChannel:push(true)
-			return
-		elseif event.name == "loadstring" then
-			local p = event.params
-			local status, q, w, e, r, t, y, u, i = xpcall(
-				loadstring(event.codestring),
-				debug.traceback,
-				p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]
-			)
-			internalOutputChannel:push({status, q, w, e, r, t, y, u, i})
-		end
-	end
-]]
 
 return ThreadPool

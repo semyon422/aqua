@@ -1,4 +1,5 @@
 local Class = require("aqua.util.Class")
+local synctable = require("aqua.util.synctable")
 
 local Thread = Class:new()
 
@@ -48,13 +49,15 @@ Thread.update = function(self)
 		self.idle = true
 	end
 
-	local event = self.outputChannel:pop()
+	local pool = self.pool
+	pool.ignoreSyncThread = self
+	event = self.outputChannel:pop()
 	while event do
-		if task.receive then
-			task.receive(event)
-		end
+		-- print("receive", synctable.format("main", unpack(event)))
+		synctable.set(pool.synctable, unpack(event))
 		event = self.outputChannel:pop()
 	end
+	pool.ignoreSyncThread = nil
 	if not self.idle then
 		self:updateLastTime()
 	end

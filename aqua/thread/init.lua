@@ -5,6 +5,8 @@ local ThreadPool = require("aqua.thread.ThreadPool")
 thread.Thread = Thread
 thread.ThreadPool = ThreadPool
 
+thread.shared = ThreadPool.synctable
+
 thread.unload = function()
 	return ThreadPool:unload()
 end
