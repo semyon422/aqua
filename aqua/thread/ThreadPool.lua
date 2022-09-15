@@ -108,9 +108,8 @@ ThreadPool.createThread = function(self, id)
 	thread.id = id
 
 	if not self.codestring then
-		local path = assert(package.searchpath("aqua.thread.threadcode", love.filesystem.getRequirePath()))
-		path = path:gsub("\\", "/")
-		self.codestring = assert(love.filesystem.read(path))
+		local path = "aqua/aqua/thread/threadcode.lua"
+		self.codestring = love.filesystem.read(path)
 	end
 	thread:create(self.codestring:gsub('"<threadId>"', id))
 
