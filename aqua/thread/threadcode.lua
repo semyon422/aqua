@@ -1,3 +1,5 @@
+package.path = love.filesystem.getRequirePath()
+package.cpath = love.filesystem.getCRequirePath()
 
 local threadId = "<threadId>"
 
