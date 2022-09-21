@@ -2,7 +2,7 @@ local synctable = {}
 
 local function assertValueType(v)
 	local t = type(v)
-	assert(t == "string" or t == "number" or t == "table" or t == "boolean")
+	assert(t == "string" or t == "number" or t == "table" or t == "boolean" or t == "nil")
 end
 
 local function validate(t)
