@@ -26,13 +26,13 @@ image.newImageData = function(s)
 	return imageData
 end
 
-local newImageDataAsync = aquathread.async(function(s, sample_gain)
+local newImageDataAsync = aquathread.async(function(s)
 	local image = require("aqua.image")
-	return image.newImageData(s, sample_gain)
+	return image.newImageData(s)
 end)
 
-image.newImageDataAsync = function(s, sample_gain)
-	local imageData = newImageDataAsync(s, sample_gain)
+image.newImageDataAsync = function(s)
+	local imageData = newImageDataAsync(s)
 	if not imageData then return end
 	if not imageData.image then
 		imageData.image = love.graphics.newImage(imageData.imageData)
