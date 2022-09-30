@@ -2,8 +2,6 @@ local Observable = require("aqua.util.Observable")
 local aquathread = require("aqua.thread")
 local aquatimer = require("aqua.timer")
 local asynckey = require("aqua.asynckey")
-local transform = require("aqua.graphics.transform")
-local imgui = require("cimgui")
 local just = require("just")
 local LuaMidi = require("luamidi")
 
@@ -18,7 +16,6 @@ aquaevent.startTime = 0
 aquaevent.stats = {}
 aquaevent.asynckey = false
 aquaevent.dwmflush = false
-aquaevent.imguiShowDemoWindow = false
 aquaevent.timings = {
 	event = 0,
 	update = 0,
@@ -52,11 +49,6 @@ aquaevent.run = function()
 	aquaevent.time = fpsLimitTime
 	aquaevent.startTime = fpsLimitTime
 	aquaevent.dt = 0
-
-	imgui.love.Init()
-
-	local imguiConfig = require("aqua.imgui.config")
-	imguiConfig.init()
 
 	hasMidi = LuaMidi.getinportcount() > 0
 
@@ -142,10 +134,6 @@ aquaevent.run = function()
 		aquatimer.update()
 		love.update(aquaevent.dt)
 
-		local width, height = love.graphics.getDimensions()
-		imgui.love.Update(aquaevent.dt, width / height * imguiConfig.height, imguiConfig.height)
-		imgui.NewFrame()
-
 		local timingsDraw = love.timer.getTime()
 		aquaevent.timings.update = timingsDraw - timingsUpdate
 
@@ -155,14 +143,6 @@ aquaevent.run = function()
 			love.graphics.clear(love.graphics.getBackgroundColor())
 			love.draw()
 			just._end()
-			love.graphics.origin()
-			love.graphics.setColor(1, 1, 1, 1)
-			if aquaevent.imguiShowDemoWindow then
-				imgui.ShowDemoWindow()
-			end
-			imgui.Render()
-			love.graphics.replaceTransform(transform(imguiConfig.transform))
-			imgui.love.RenderDrawLists()
 			love.graphics.origin()
 			love.graphics.getStats(aquaevent.stats)
 			love.graphics.present() -- all new events are read when present is called
@@ -209,13 +189,11 @@ local clampEventTime = function(time)
 	return math.min(math.max(time, aquaevent.time - aquaevent.dt), aquaevent.time)
 end
 
-local callbacks = require("aqua.imgui.callbacks")
-
 aquaevent.init = function()
 	local e = {}
 	for _, name in pairs(aquaevent.callbacks) do
 		love[name] = function(...)
-			local icb = callbacks[name]
+			local icb = just.callbacks[name]
 			if icb and icb(...) then return end
 			e[1], e[2], e[3], e[4], e[5], e[6] = ...
 			e.name = name
