@@ -102,7 +102,10 @@ function remote.update()
 end
 
 function remote.receive(event, handlers)
-	local e = remote.decode(event.data)
+	local ok, e = pcall(remote.decode, event.data)
+	if not ok or type(e) ~= "table" then
+		return
+	end
 
 	if e.name then
 		return handle(event.peer, e, handlers)
