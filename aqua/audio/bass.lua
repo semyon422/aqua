@@ -1,4 +1,3 @@
-local dl = require("aqua.dl")
 local ffi = require("ffi")
 
 ffi.cdef([[
@@ -73,7 +72,7 @@ DWORD BASS_SampleGetChannels(HSAMPLE handle, HCHANNEL *channels);
 int BASS_ErrorGetCode();
 ]])
 
-local bass = ffi.load(dl.get("bass"), true)
+local bass = ffi.load("bass", true)
 local _bass = newproxy(true)
 
 local mt = getmetatable(_bass)
