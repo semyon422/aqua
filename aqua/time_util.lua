@@ -1,7 +1,7 @@
-local util = {}
+local time_util = {}
 
 -- https://leafo.net/lapis/reference/utilities.html
-local date_diff = function(later, sooner)
+function time_util.date_diff(later, sooner)
 	if later < sooner then
 		sooner, later = later, sooner
 	end
@@ -55,8 +55,9 @@ local date_diff = function(later, sooner)
 	end
 	return times
 end
-local time_ago = function(time)
-	return date_diff(os.time(), time)
+
+function time_util.time_ago(time)
+	return time_util.date_diff(os.time(), time)
 end
 
 local singular = {
@@ -66,14 +67,14 @@ local singular = {
 	minutes = "minute",
 	seconds = "second"
 }
-local time_ago_in_words = function(time, parts, suffix)
+function time_util.time_ago_in_words(time, parts, suffix)
 	if parts == nil then
 		parts = 1
 	end
 	if suffix == nil then
 		suffix = "ago"
 	end
-	local ago = type(time) == "table" and time or time_ago(time)
+	local ago = type(time) == "table" and time or time_util.time_ago(time)
 	local out = ""
 	local i = 1
 	while parts > 0 do
@@ -97,8 +98,18 @@ local time_ago_in_words = function(time, parts, suffix)
 	end
 end
 
-util.date_diff = date_diff
-util.time_ago = time_ago
-util.time_ago_in_words = time_ago_in_words
+function time_util.format(time)
+	local hours = math.floor(time / 3600)
+	local minutes = math.floor(time % 3600 / 60)
+	local seconds = math.floor(time % 60)
 
-return util
+	if time >= 3600 then
+		return ("%02d:%02d:%02d"):format(hours, minutes, seconds)
+	elseif time >= 60 then
+		return ("%02d:%02d"):format(minutes, seconds)
+	elseif time >= 0 then
+		return ("%02d"):format(seconds)
+	end
+end
+
+return time_util
