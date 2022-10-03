@@ -1,9 +1,9 @@
-local timer = {}
+local delay = {}
 
 local timers = {}
 local waiters = {}
 
-timer.update = function()
+delay.update = function()
 	local time = love.timer.getTime()
 	for c, endTime in pairs(timers) do
 		if endTime <= time then
@@ -19,7 +19,7 @@ timer.update = function()
 	end
 end
 
-timer.sleep = function(duration)
+delay.sleep = function(duration)
 	local c = coroutine.running()
 	if not c then
 		error("attempt to yield from outside a coroutine")
@@ -28,7 +28,7 @@ timer.sleep = function(duration)
 	return coroutine.yield()
 end
 
-timer.wait = function(func)
+delay.wait = function(func)
 	local c = coroutine.running()
 	if not c then
 		error("attempt to yield from outside a coroutine")
@@ -37,7 +37,7 @@ timer.wait = function(func)
 	return coroutine.yield()
 end
 
-timer.debounce = function(object, key, duration, func, ...)
+delay.debounce = function(object, key, duration, func, ...)
 	local time = love.timer.getTime()
 	local c = object[key]
 	if c then
@@ -50,7 +50,7 @@ timer.debounce = function(object, key, duration, func, ...)
 
 	local q, w, e, r, t, y, u, i = ...
 	c = coroutine.create(function()
-		timer.sleep(duration)
+		delay.sleep(duration)
 		func(q, w, e, r, t, y, u, i)
 		object[key] = nil
 	end)
@@ -62,7 +62,7 @@ timer.debounce = function(object, key, duration, func, ...)
 	end
 end
 
-timer.every = function(interval, func, ...)
+delay.every = function(interval, func, ...)
 	assert(type(func) == "function", "func function must be a function")
 	assert(type(interval) == "number", "interval must be a number")
 	local stop = false
@@ -71,7 +71,7 @@ timer.every = function(interval, func, ...)
 		local time = ptime
 		while true do
 			ptime = math.max(ptime + interval, time)
-			time = timer.sleep(ptime - time)
+			time = delay.sleep(ptime - time)
 			if stop or func(...) then
 				return
 			end
@@ -82,4 +82,4 @@ timer.every = function(interval, func, ...)
 	end
 end
 
-return timer
+return delay
