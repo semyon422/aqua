@@ -6,6 +6,7 @@ local BassSource = require("aqua.audio.BassSource")
 local StreamMemoryTempo = BassSource:new()
 
 StreamMemoryTempo.construct = function(self)
+	self.info = self.soundData.info
 	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, 0x200002)
 	bass_assert(self.channel ~= 0)
 	self.channel = bass_fx.BASS_FX_TempoCreate(self.channel, 0x10000)
