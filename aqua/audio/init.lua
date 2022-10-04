@@ -1,4 +1,3 @@
-local aquathread = require("aqua.thread")
 local bass = require("aqua.audio.bass")
 local bass_assert = require("aqua.audio.bass_assert")
 local bass_amplify = require("aqua.audio.bass_amplify")
@@ -7,7 +6,6 @@ local Sample = require("aqua.audio.Sample")
 local StreamMemoryTempo = require("aqua.audio.StreamMemoryTempo")
 
 local audio = {}
-audio.sample_gain = 0
 
 local SoundData = {}
 audio.SoundData = SoundData
@@ -39,14 +37,10 @@ SoundData.release = function(self)
 	bass_assert(bass.BASS_SampleFree(self.sample) == 1)
 end
 
-audio.newSoundData = function(s)
-	local fileData = s
-	if type(s) == "string" then
-		fileData = love.filesystem.newFileData(s)
-	end
-
-	local sample = bass.BASS_SampleLoad(true, fileData:getFFIPointer(), 0, fileData:getSize(), 65535, 0)
-	fileData:release()
+audio.newSoundData = function(pointer, size, sample_gain)
+	assert(pointer)
+	assert(size)
+	local sample = bass.BASS_SampleLoad(true, pointer, 0, size, 65535, 0)
 
 	-- bass_assert(sample ~= 0)
 	if sample == 0 then
@@ -63,22 +57,10 @@ audio.newSoundData = function(s)
 	end
 	soundData.info = info_table
 
-	if audio.sample_gain > 0 then
-		bass_amplify(sample, audio.sample_gain)
+	if sample_gain and sample_gain > 0 then
+		bass_amplify(sample, sample_gain)
 	end
 
-	return setmetatable(soundData, {__index = SoundData})
-end
-
-local newSoundDataAsync = aquathread.async(function(s, sample_gain)
-	local audio = require("aqua.audio")
-	audio.sample_gain = sample_gain
-	return audio.newSoundData(s)
-end)
-
-audio.newSoundDataAsync = function(s)
-	local soundData = newSoundDataAsync(s, audio.sample_gain)
-	if not soundData then return end
 	return setmetatable(soundData, {__index = SoundData})
 end
 
