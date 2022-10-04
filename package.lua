@@ -1,24 +1,27 @@
-local requirePath = love.filesystem.getRequirePath()
-local cRequirePath = love.filesystem.getCRequirePath()
-local requirePathLua = package.path
-local cRequirePathLua = package.cpath
+local requirePath = "./?.lua;./?/init.lua"
+local cRequirePath = "./?.so"
 
 local _package = package
 local package = {}
 
+local lfs = love.filesystem
+
 package.reset = function()
-	love.filesystem.setRequirePath(requirePath)
-	love.filesystem.setCRequirePath(cRequirePath)
-	package.path = requirePathLua
-	package.cpath = cRequirePathLua
+	lfs.setRequirePath(requirePath)
+	lfs.setCRequirePath(cRequirePath)
+	package.path = requirePath
+	package.cpath = cRequirePath
+end
+
+package.add = function(path)
+	lfs.setRequirePath(lfs.getRequirePath() .. (";path/?.lua;path/?/init.lua"):gsub("path", path))
+	_package.path = lfs.getRequirePath()
 end
 
 local ext = jit.os == "Windows" and "dll" or "so"
-package.add = function(path)
-	love.filesystem.setRequirePath(love.filesystem.getRequirePath() .. (";path/?.lua;path/?/init.lua"):gsub("path", path))
-	love.filesystem.setCRequirePath(love.filesystem.getCRequirePath() .. (";path/?." .. ext):gsub("path", path))
-	_package.path = _package.path .. (";path/?.lua;path/?/init.lua"):gsub("path", path)
-	_package.cpath = _package.cpath .. (";path/?." .. ext):gsub("path", path)
+package.addc = function(path)
+	lfs.setCRequirePath(lfs.getCRequirePath() .. (";path/?." .. ext):gsub("path", path))
+	_package.cpath = lfs.getCRequirePath()
 end
 
 return package
