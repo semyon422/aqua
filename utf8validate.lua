@@ -1,9 +1,7 @@
 local ffi = require("ffi")
 local utf8 = require("utf8")
 
-local _utf8 = {}
-
-_utf8.validate = function(s, c)
+return function(s, c)
 	c = c or "?"
 	local size = #s
 	local buffer = ffi.new("char[?]", size)
@@ -20,5 +18,3 @@ _utf8.validate = function(s, c)
 
 	return ffi.string(buffer, size)
 end
-
-return _utf8

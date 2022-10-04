@@ -1,5 +1,5 @@
-local Thread = require("aqua.thread.Thread")
-local synctable = require("aqua.util.synctable")
+local Thread = require("thread.Thread")
+local synctable = require("synctable")
 
 local ThreadPool = {}
 
@@ -108,7 +108,7 @@ ThreadPool.createThread = function(self, id)
 	thread.id = id
 
 	if not self.codestring then
-		local path = "aqua/aqua/thread/threadcode.lua"
+		local path = "aqua/thread/threadcode.lua"
 		self.codestring = love.filesystem.read(path)
 	end
 	thread:create(self.codestring:gsub('"<threadId>"', id))

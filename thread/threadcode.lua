@@ -8,7 +8,7 @@ local internalOutputChannel = love.thread.getChannel("internalOutput" .. threadI
 local inputChannel = love.thread.getChannel("input" .. threadId)
 local outputChannel = love.thread.getChannel("output" .. threadId)
 
-local synctable = require("aqua.util.synctable")
+local synctable = require("synctable")
 
 _G.thread = {}
 

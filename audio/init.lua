@@ -1,9 +1,9 @@
-local bass = require("aqua.audio.bass")
-local bass_assert = require("aqua.audio.bass_assert")
-local bass_amplify = require("aqua.audio.bass_amplify")
+local bass = require("audio.bass")
+local bass_assert = require("audio.bass_assert")
+local bass_amplify = require("audio.bass_amplify")
 local ffi = require("ffi")
-local Sample = require("aqua.audio.Sample")
-local StreamMemoryTempo = require("aqua.audio.StreamMemoryTempo")
+local Sample = require("audio.Sample")
+local StreamMemoryTempo = require("audio.StreamMemoryTempo")
 
 local audio = {}
 

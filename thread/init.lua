@@ -1,7 +1,7 @@
 local thread = {}
 
-local Thread = require("aqua.thread.Thread")
-local ThreadPool = require("aqua.thread.ThreadPool")
+local Thread = require("thread.Thread")
+local ThreadPool = require("thread.ThreadPool")
 thread.Thread = Thread
 thread.ThreadPool = ThreadPool
 

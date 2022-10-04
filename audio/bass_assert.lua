@@ -1,4 +1,4 @@
-local bass = require("aqua.audio.bass")
+local bass = require("audio.bass")
 
 local errors = {
 	[0] = "BASS_OK",

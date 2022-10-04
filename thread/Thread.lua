@@ -1,5 +1,5 @@
-local Class = require("aqua.util.Class")
-local synctable = require("aqua.util.synctable")
+local Class = require("Class")
+local synctable = require("synctable")
 
 local Thread = Class:new()
 

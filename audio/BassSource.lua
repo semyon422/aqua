@@ -1,6 +1,6 @@
-local bass = require("aqua.audio.bass")
-local bass_assert = require("aqua.audio.bass_assert")
-local Source = require("aqua.audio.Source")
+local bass = require("audio.bass")
+local bass_assert = require("audio.bass_assert")
+local Source = require("audio.Source")
 
 local BassSource = Source:new()
 
