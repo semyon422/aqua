@@ -10,7 +10,11 @@ local outputChannel = love.thread.getChannel("output" .. threadId)
 
 local synctable = require("synctable")
 
-_G.thread = {}
+local thread = {}
+package.loaded.thread = thread
+
+function thread.coro() return function() error("Not allowed") end end
+thread.async = thread.coro
 
 local shared = {}
 thread.shared = synctable.new(shared, function(...)
