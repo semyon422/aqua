@@ -1,3 +1,5 @@
+assert(arg, "Allowed only in the main thread")
+
 local thread = {}
 
 local Thread = require("thread.Thread")
