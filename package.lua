@@ -1,4 +1,4 @@
-local requirePath = "./?.lua;./?/init.lua"
+local requirePath = "?.lua;?/init.lua"
 local cRequirePath = "./?.so"
 
 local _package = package
