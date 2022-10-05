@@ -1,18 +1,13 @@
 local Class = {}
 
-Class.new = function(self, object, ...)
-	object = object or {}
-
-	local construct = object.construct
-	object.construct = nil
-
-	setmetatable(object, self)
+Class.extend = function(self, object)
 	self.__index = self
+	return setmetatable(object or {}, self)
+end
 
-	if construct ~= false and object.construct and object.construct ~= Class.construct then
-		object:construct(...)
-	end
-
+Class.new = function(self, object)
+	object = self:extend(object)
+	object:construct()
 	return object
 end
 
