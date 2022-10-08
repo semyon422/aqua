@@ -413,16 +413,17 @@ function just.textinput(text, index)
 	text = tostring(text)
 	index = index or utf8.len(text) + 1
 
+	local left, right = text_split(text, index)
 	if not just.keyboard_over() then
-		return false, text, index, text_split(text, index)
+		return false, text, index, left, right
 	end
 
 	local bt, bi = text, index
 
 	local _text = keyboard.text
 	if _text ~= "" then
-		local left, right = text_split(text, index)
-		text = left .. _text .. right
+		local _left, _right = text_split(text, index)
+		text = _left .. _text .. _right
 		index = index + utf8.len(_text)
 	end
 
@@ -444,7 +445,7 @@ function just.textinput(text, index)
 	local changed = text ~= bt and "text" or index ~= bi and "index"
 	index = math.min(math.max(index, 1), utf8.len(text) + 1)
 
-	return changed, text, index, text_split(text, index)
+	return changed, text, index, left, right
 end
 
 return just
