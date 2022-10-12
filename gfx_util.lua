@@ -126,6 +126,32 @@ function gfx_util.getCanvas(key)
 	return canvases[key]
 end
 
+local colorShader1
+function gfx_util.setInverseColorScale()
+	colorShader1 = colorShader1 or love.graphics.newShader([[
+		vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
+			vec4 pixel = Texel(texture, texture_coords);
+			return color * (pixel - 1) + 1;
+		}
+	]])
+	love.graphics.setShader(colorShader1)
+end
+
+local colorShader2
+function gfx_util.setPixelColor(r, g, b, a)
+	if type(r) == "number" then
+		r = {r, g, b, a}
+	end
+	colorShader2 = colorShader2 or love.graphics.newShader([[
+		extern vec4 pixel;
+		vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
+			return pixel;
+		}
+	]])
+	love.graphics.setShader(colorShader2)
+	colorShader2:send("pixel", r)
+end
+
 function gfx_util.layout(offset, size, _w)
 	local w = {}
 	local x = {}
