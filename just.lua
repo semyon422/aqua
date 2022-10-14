@@ -4,53 +4,59 @@ local just = {}
 
 just.callbacks = {}
 
-local mouse = {
-	down = {},
-	pressed = {},
-	released = {},
-	scroll_delta = 0,
-	captured = false,
-}
+local mouse, keyboard
+local focused_id, catched_id, over_id
+local hover_ids, next_hover_ids
+local keyboard_stack, next_keyboard_stack
+local containers, container_overs
+local zindexes, last_zindex
+local line_c, line_h, line_w
+local is_row, is_sameline
+local line_stack
 
-local keyboard = {
-	down = {},
-	pressed = {},
-	released = {},
-	text = "",
-}
+function just.reset()
+	mouse = {
+		down = {},
+		pressed = {},
+		released = {},
+		scroll_delta = 0,
+		captured = false,
+	}
 
-just.entered_id = nil
-just.exited_id = nil
+	keyboard = {
+		down = {},
+		pressed = {},
+		released = {},
+		text = "",
+	}
 
-local focused_id = nil
-just.focused_id = nil
+	just.entered_id = nil
+	just.exited_id = nil
 
-local catched_id = nil
-just.catched_id = nil
+	focused_id = nil
+	just.focused_id = nil
 
-just.height = 0
+	catched_id = nil
+	just.catched_id = nil
 
-local over_id
+	just.height = 0
 
-local hover_ids = {}
-local next_hover_ids = {}
+	over_id = nil
 
-local keyboard_stack = {}
-local next_keyboard_stack = {}
+	hover_ids, next_hover_ids = {}, {}
+	keyboard_stack, next_keyboard_stack = {}, {}
 
-local containers = {}
-local container_overs = {}
-local zindexes = {}
-local last_zindex = 0
+	containers, container_overs = {}, {}
+	zindexes = {}
+	last_zindex = 0
 
-local line_c = 0
-local line_h = 0
-local line_w = 0
+	line_c, line_h, line_w = 0, 0, 0
 
-local is_row = false
-local is_sameline = false
+	is_row, is_sameline = false, false
 
-local line_stack = {}
+	line_stack = {}
+	just.clip("reset")
+end
 
 function just.push(...)
 	love.graphics.push(...)
@@ -159,10 +165,14 @@ function just.text(text, limit, right)
 	return limit or w, h
 end
 
-local push_stencil, pop_stencil, stencilfunction
+local push_stencil, pop_stencil, reset_stencil, stencilfunction
 do
 	local stack = {}
 	local sf, q, w, e, r, t, y, u, i
+	function reset_stencil()
+		stack = {}
+		sf, q, w, e, r, t, y, u, i = nil
+	end
 	function push_stencil(_sf, ...)
 		if sf then
 			table.insert(stack, {sf, q, w, e, r, t, y, u, i})
@@ -183,6 +193,9 @@ do
 	end
 end
 function just.clip(sf, ...)
+	if sf == "reset" then
+		return reset_stencil()
+	end
 	if not sf then
 		just.pop()
 		love.graphics.stencil(stencilfunction, "decrement", 1, true)
@@ -447,5 +460,7 @@ function just.textinput(text, index)
 
 	return changed, text, index, left, right
 end
+
+just.reset()
 
 return just
