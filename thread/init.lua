@@ -9,6 +9,10 @@ thread.ThreadPool = ThreadPool
 
 thread.shared = ThreadPool.synctable
 
+thread.coroutines = {}
+thread.total = 0
+thread.current = 0
+
 thread.unload = function()
 	return ThreadPool:unload()
 end
@@ -18,6 +22,12 @@ thread.waitAsync = function()
 end
 
 thread.update = function()
+	for c in pairs(thread.coroutines) do
+		if coroutine.status(c) == "dead" then
+			thread.current = thread.current - 1
+			thread.coroutines[c] = nil
+		end
+	end
 	return ThreadPool:update()
 end
 
@@ -57,9 +67,14 @@ end
 local call = function(f, ...)
 	-- assert(not coroutine.running(), "attempt to call a function from a coroutine")
 	-- return coroutine.wrap(f)(...)
-	return coroutine.wrap(function(...)
+	thread.total = thread.total + 1
+	thread.current = thread.current + 1
+	local c = coroutine.create(function(...)
 		assert(xpcall(f, debug.traceback, ...))
-	end)(...)
+	end)
+	coroutine.resume(c, ...)
+	thread.coroutines[c] = true
+	return c
 end
 
 thread.run = runThread
