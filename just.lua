@@ -159,8 +159,8 @@ function just.text(text, limit, right)
 	assert(not right or _limit ~= math.huge)
 	local font = love.graphics.getFont()
 	love.graphics.printf(text, 0, 0, _limit, right and "right" or "left")
-	local w, wrapped = font:getWrap(text, _limit)
-	local h = font:getHeight() * font:getLineHeight() * #wrapped
+	local w = font:getWidth(text)
+	local h = font:getHeight() * font:getLineHeight() * #select(2, font:getWrap(text, _limit))
 	just.next(limit or w, h)
 	return limit or w, h
 end
