@@ -72,7 +72,7 @@ local call = function(f, ...)
 	local c = coroutine.create(function(...)
 		assert(xpcall(f, debug.traceback, ...))
 	end)
-	coroutine.resume(c, ...)
+	assert(coroutine.resume(c, ...))
 	thread.coroutines[c] = true
 	return c
 end
