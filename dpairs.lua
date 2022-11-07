@@ -19,6 +19,6 @@ return function(t)
 	local i = 0
 	return function()
 		i = i + 1
-		return t[_t[i]]
+		return _t[i], t[_t[i]]
 	end
 end
