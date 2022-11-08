@@ -3,7 +3,7 @@ local Class = require("Class")
 local RingBuffer = Class:new()
 
 RingBuffer.construct = function(self)
-	self.size = self.size or 1
+	self.size = math.max(self.size or 1, 1)
 	self.index = 1
 	for i = 1, self.size do
 		self[i] = 0
