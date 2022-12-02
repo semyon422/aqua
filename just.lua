@@ -129,8 +129,7 @@ function just.next(w, h)
 end
 
 function just.sameline()
-	assert(not is_row, "just.sameline() can not be called in a row mode")
-	assert(not is_sameline, "just.sameline() called twice")
+	if is_sameline or is_row then return end
 	is_sameline = true
 	line_c = line_w
 	love.graphics.translate(line_c, -line_h)
