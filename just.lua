@@ -50,9 +50,7 @@ function just.reset()
 	zindexes = {}
 	last_zindex = 0
 
-	line_c, line_h, line_w = 0, 0, 0
-
-	is_row, is_sameline = false, false
+	just.origin()
 
 	line_stack = {}
 	just.clip("reset")
@@ -79,6 +77,12 @@ function just.pop()
 	is_row = state.is_row
 	is_sameline = state.is_sameline
 	just.height = state.height
+end
+
+function just.origin()
+	line_c, line_h, line_w = 0, 0, 0
+	is_row = false
+	is_sameline = false
 end
 
 function just.focus(id)
