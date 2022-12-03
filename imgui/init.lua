@@ -84,26 +84,12 @@ function imgui.checkbox(id, v, label)
 	return v
 end
 
-function imgui.combo(id, v, values, format, label)
-	local fv = v
-	if type(format) == "function" then
-		fv = format(v)
-	elseif type(format) == "string" then
-		fv = format:format(v)
-	end
-	if imgui.Spoiler(id, _w, _h, fv) then
-		for i, _v in ipairs(values) do
-			local dv = format and format(_v) or _v
-			if imgui.TextOnlyButton(id .. i, dv, _w - _h * (1 - theme.size), _h * theme.size) then
-				v = _v
-				just.focus()
-			end
-		end
-		imgui.Spoiler()
-	end
+function imgui.combo(id, v, values, to_string, label)
+	local fv = to_string and to_string(v) or v
+	local i = imgui.SpoilerList(id, _w, _h, values, fv, to_string)
 	just.sameline()
 	imgui.label(id .. "label", label)
-	return v
+	return i and values[i] or v
 end
 
 local scrolls = {}

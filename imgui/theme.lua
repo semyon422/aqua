@@ -19,9 +19,10 @@ end
 theme.size = 0.75
 theme.padding = 0.4
 
-function theme._rectangle(w, h)
-	local r = h * theme.size / 2
-	local x = h * (1 - theme.size) / 2
+function theme._rectangle(w, h, _h)
+	_h = _h or h
+	local r = _h * theme.size / 2
+	local x = _h * (1 - theme.size) / 2
 	return x, x, w - x * 2, h - x * 2, r
 end
 
