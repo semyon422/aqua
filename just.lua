@@ -328,18 +328,22 @@ function just.wheel_over(id, over)
 	return just.mouse_over(id, over, "wheel") and d ~= 0 and d
 end
 
+local max_layer = 0
 function just.keyboard_over()
 	local layer = #containers
 	if layer == 0 then
 		return true
 	end
 
+	max_layer = math.max(max_layer, layer)
+
 	local id = containers[layer]
 	if next_keyboard_stack[layer] ~= id then
 		next_keyboard_stack[layer] = id
-		for i = layer + 1, #next_keyboard_stack do
+		for i = layer + 1, max_layer do
 			next_keyboard_stack[i] = nil
 		end
+		max_layer = layer
 	end
 
 	return keyboard_stack[layer] == id
