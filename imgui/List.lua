@@ -5,25 +5,26 @@ local Container = require("imgui.Container")
 local stack = {}
 
 return function(id, w, h, _h, scrollY)
-	if not id then
-		w, h, _h = unpack(table.remove(stack))
+	if id then
+		just.push()
+		table.insert(stack, {w, h, _h})
 
-		scrollY = Container()
-		just.pop()
+		local x, y, _w, __h, r = theme._rectangle(w, h, _h)
+		love.graphics.translate(x, y)
 
-		love.graphics.setColor(1, 1, 1, 1)
-		love.graphics.rectangle("line", theme._rectangle(w, h, _h))
-
-		just.next(w, h)
-
-		return scrollY
+		Container(id, _w, __h, _h, scrollY)
+		return
 	end
 
-	table.insert(stack, {w, h, _h})
+	w, h, _h = unpack(table.remove(stack))
 
-	just.push()
+	scrollY = Container()
+	just.pop()
 
-	local x, y, _w, __h, r = theme._rectangle(w, h, _h)
-	love.graphics.translate(x, y)
-	Container(id, _w, __h, _h, scrollY)
+	love.graphics.setColor(1, 1, 1, 1)
+	love.graphics.rectangle("line", theme._rectangle(w, h, _h))
+
+	just.next(w, h)
+
+	return scrollY
 end
