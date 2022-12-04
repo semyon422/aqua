@@ -18,6 +18,7 @@ end
 
 theme.size = 0.75
 theme.padding = 0.4
+theme.indent = 0.1
 
 function theme._rectangle(w, h, _h)
 	_h = _h or h

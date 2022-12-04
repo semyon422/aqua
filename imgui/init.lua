@@ -17,11 +17,11 @@ function imgui.separator()
 end
 
 function imgui.indent(size)
-	just.indent(size or 8)
+	just.indent(size or _h * theme.indent)
 end
 
 function imgui.unindent(size)
-	just.indent(-(size or 8))
+	just.indent(-(size or _h * theme.indent))
 end
 
 function imgui.label(id, label)
