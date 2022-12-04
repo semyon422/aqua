@@ -4,15 +4,27 @@ local just = {}
 
 just.callbacks = {}
 
-local mouse, keyboard
+local mouse, keyinput
 local focused_id, catched_id, over_id
 local hover_ids, next_hover_ids
-local keyboard_stack, next_keyboard_stack
+local key_stack, next_key_stack
 local containers, container_overs
 local zindexes, last_zindex
 local line_c, line_h, line_w
 local is_row, is_sameline
 local line_stack
+local textinput
+
+local devices = {"key", "gamepad", "joystick", "midi"}
+local device_arg_index = {2, 2, 2, 1}
+
+local function new_keyinput()
+	return {
+		down = {},
+		pressed = {},
+		released = {},
+	}
+end
 
 function just.reset()
 	mouse = {
@@ -23,12 +35,12 @@ function just.reset()
 		captured = false,
 	}
 
-	keyboard = {
-		down = {},
-		pressed = {},
-		released = {},
-		text = "",
-	}
+	keyinput = {}
+	for _, device in ipairs(devices) do
+		keyinput[device] = new_keyinput()
+	end
+
+	textinput = ""
 
 	just.entered_id = nil
 	just.exited_id = nil
@@ -44,7 +56,7 @@ function just.reset()
 	over_id = nil
 
 	hover_ids, next_hover_ids = {}, {}
-	keyboard_stack, next_keyboard_stack = {}, {}
+	key_stack, next_key_stack = {}, {}
 
 	containers, container_overs = {}, {}
 	zindexes = {}
@@ -225,10 +237,12 @@ function just._end()
 	end
 	just.focused_id = focused_id
 
+	for _, device in ipairs(devices) do
+		clear_table(keyinput[device].pressed)
+		clear_table(keyinput[device].released)
+	end
 	clear_table(mouse.pressed)
 	clear_table(mouse.released)
-	clear_table(keyboard.pressed)
-	clear_table(keyboard.released)
 	clear_table(zindexes)
 
 	local any_mouse_over = next_hover_ids.mouse or next_hover_ids.wheel
@@ -241,13 +255,13 @@ function just._end()
 	mouse.scroll_delta = 0
 	mouse.captured = any_mouse_over or just.active_id
 
-	keyboard.text = ""
+	textinput = ""
 
 	clear_table(hover_ids)
 	hover_ids, next_hover_ids = next_hover_ids, hover_ids
 
-	clear_table(keyboard_stack)
-	keyboard_stack, next_keyboard_stack = next_keyboard_stack, keyboard_stack
+	clear_table(key_stack)
+	key_stack, next_key_stack = next_key_stack, key_stack
 
 	local new_over_id = hover_ids.mouse
 	if over_id ~= new_over_id then
@@ -278,18 +292,23 @@ function just.callbacks.wheelmoved(_, y)
 	return mouse.captured
 end
 
-function just.callbacks.keypressed(_, scancode, _)
-	keyboard.down[scancode] = true
-	keyboard.pressed[scancode] = true
-end
-
-function just.callbacks.keyreleased(_, scancode, _)
-	keyboard.down[scancode] = nil
-	keyboard.released[scancode] = true
+for i, device in ipairs(devices) do
+	just.callbacks[device .. "pressed"] = function(...)
+		local input = keyinput[device]
+		local key = select(device_arg_index[i], ...)
+		input.down[key] = true
+		input.pressed[key] = true
+	end
+	just.callbacks[device .. "released"] = function(...)
+		local input = keyinput[device]
+		local key = select(device_arg_index[i], ...)
+		input.down[key] = nil
+		input.released[key] = true
+	end
 end
 
 function just.callbacks.textinput(text)
-	keyboard.text = keyboard.text .. text
+	textinput = textinput .. text
 end
 
 function just.is_container_over(depth)
@@ -338,15 +357,15 @@ function just.keyboard_over()
 	max_layer = math.max(max_layer, layer)
 
 	local id = containers[layer]
-	if next_keyboard_stack[layer] ~= id then
-		next_keyboard_stack[layer] = id
+	if next_key_stack[layer] ~= id then
+		next_key_stack[layer] = id
 		for i = layer + 1, max_layer do
-			next_keyboard_stack[i] = nil
+			next_key_stack[i] = nil
 		end
 		max_layer = layer
 	end
 
-	return keyboard_stack[layer] == id
+	return key_stack[layer] == id
 end
 
 function just.button(id, over, button)
@@ -394,20 +413,31 @@ function just.container(id, over)
 	table.insert(container_overs, over)
 end
 
-function just.keypressed(scancode, unset)
-	local res = just.keyboard_over() and keyboard.pressed[scancode]
-	if res and unset then
-		keyboard.pressed[scancode] = nil
+function just.next_input(device, state)
+	for i, _device in ipairs(devices) do
+		if _device == device then
+			return next(keyinput[device][state])
+		end
 	end
-	return res
 end
 
-function just.keyreleased(scancode, unset)
-	local res = just.keyboard_over() and keyboard.released[scancode]
-	if res and unset then
-		keyboard.released[scancode] = nil
+for i, device in ipairs(devices) do
+	just[device .. "pressed"] = function(key, unset)
+		local input = keyinput[device]
+		local res = just.keyboard_over() and input.pressed[key]
+		if res and unset then
+			input.pressed[key] = nil
+		end
+		return res
 	end
-	return res
+	just[device .. "released"] = function(key, unset)
+		local input = keyinput[device]
+		local res = just.keyboard_over() and input.released[key]
+		if res and unset then
+			input.released[key] = nil
+		end
+		return res
+	end
 end
 
 local function text_split(text, index)
@@ -440,14 +470,14 @@ function just.textinput(text, index)
 
 	local bt, bi = text, index
 
-	local _text = keyboard.text
+	local _text = textinput
 	if _text ~= "" then
 		local _left, _right = text_split(text, index)
 		text = _left .. _text .. _right
 		index = index + utf8.len(_text)
 	end
 
-	local pressed = keyboard.pressed
+	local pressed = keyinput.key.pressed
 	if pressed.left then
 		index = index - 1
 	elseif pressed.right then

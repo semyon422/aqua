@@ -1,30 +1,15 @@
-local loop = require("loop")
 local just = require("just")
 local gfx_util = require("gfx_util")
 local theme = require("imgui.theme")
-
-local midistate = loop.midistate
-local keystate = loop.keystate
-local gamepadstate = loop.gamepadstate
-local joystickstate = loop.joystickstate
-
-local allstates = {
-	midi = midistate,
-	keyboard = keystate,
-	gamepad = gamepadstate,
-	joystick = joystickstate,
-}
 
 return function(id, device, key, w, h)
 	local _key = key
 	local changed = false
 
 	if just.focused_id == id then
-		local states = allstates[device]
-		local k = next(states)
+		local k = just.next_input(device == "keyboard" and "key" or device, "pressed")
 		if k then
 			key = k
-			states[k] = nil
 			changed = true
 			just.focus()
 		end
