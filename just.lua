@@ -348,7 +348,7 @@ function just.wheel_over(id, over)
 end
 
 local max_layer = 0
-function just.keyboard_over()
+function just.key_over()
 	local layer = #containers
 	if layer == 0 then
 		return true
@@ -424,7 +424,7 @@ end
 for i, device in ipairs(devices) do
 	just[device .. "pressed"] = function(key, unset)
 		local input = keyinput[device]
-		local res = just.keyboard_over() and input.pressed[key]
+		local res = just.key_over() and input.pressed[key]
 		if res and unset then
 			input.pressed[key] = nil
 		end
@@ -432,7 +432,7 @@ for i, device in ipairs(devices) do
 	end
 	just[device .. "released"] = function(key, unset)
 		local input = keyinput[device]
-		local res = just.keyboard_over() and input.released[key]
+		local res = just.key_over() and input.released[key]
 		if res and unset then
 			input.released[key] = nil
 		end
@@ -464,7 +464,7 @@ function just.textinput(text, index)
 	index = index or utf8.len(text) + 1
 
 	local left, right = text_split(text, index)
-	if not just.keyboard_over() then
+	if not just.key_over() then
 		return false, text, index, left, right
 	end
 
