@@ -95,7 +95,7 @@ end
 local scrolls = {}
 function imgui.list(id, v, values, height, format, label)
 	scrolls[id] = scrolls[id] or 0
-	imgui.List(id, _w, height, _h, scrolls[id])
+	imgui.List(id, _w, height, _h / 3, _h, scrolls[id])
 	for i, _v in ipairs(values) do
 		local dv = format and format(_v) or _v
 		if imgui.TextOnlyButton(id .. i, dv, _w - _h * (1 - theme.size), _h * theme.size) then

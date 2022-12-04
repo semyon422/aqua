@@ -55,11 +55,12 @@ function love.draw()
 	hotkeyValue = imgui.hotkey("htk1", hotkeyValue, "hotkey")
 	textValue = imgui.input("txt1", textValue, "text input")
 
+	local scroll_w, scroll_step = 11, 32
 	do
 		just.text("Container")
 		local cw, ch = 200, 200
 		just.push()
-		imgui.Container("cont1", cw, ch, 32, scrollY)
+		imgui.Container("cont1", cw, ch, scroll_w, scroll_step, scrollY)
 
 		for i = 1, 20 do
 			imgui.button("cont1-" .. i, "button " .. i)
@@ -86,7 +87,7 @@ function love.draw()
 		love.graphics.rectangle("fill", 0, 0, cw, ch)
 		love.graphics.setColor(1, 1, 1, 1)
 
-		imgui.Container("cont2", cw, ch, 32, scrollY2)
+		imgui.Container("cont2", cw, ch, scroll_w, scroll_step, scrollY2)
 
 		just.text("drag to move")
 		just.button("cont2", true)
@@ -108,19 +109,19 @@ function love.draw()
 		local pressed = just.keypressed("q")
 		imgui.checkbox("rcb1", pressed, kp_text .. tostring(pressed))
 
-		imgui.List("c list1", 400, 100, 32, 0)
+		imgui.List("c list1", 400, 40, scroll_w, scroll_step, 0)
 			pressed = just.keypressed("q")
 			imgui.checkbox("rcb2", pressed, kp_text .. tostring(pressed))
 		imgui.List()
 
-		imgui.List("c list2", 400, 180, 32, 0)
+		imgui.List("c list2", 400, 180, scroll_w, scroll_step, 0)
 			pressed = just.keypressed("q")
 			imgui.checkbox("rcb3", pressed, kp_text .. tostring(pressed))
-			imgui.List("c list3", 300, 40, 32, 0)
+			imgui.List("c list3", 300, 40, scroll_w, scroll_step, 0)
 				pressed = just.keypressed("q")
 				imgui.checkbox("rcb33", pressed, kp_text .. tostring(pressed))
 			imgui.List()
-			imgui.List("c list4", 300, 40, 32, 0)
+			imgui.List("c list4", 300, 40, scroll_w, scroll_step, 0)
 				pressed = just.keypressed("q")
 				imgui.checkbox("rcb4", pressed, kp_text .. tostring(pressed))
 			imgui.List()

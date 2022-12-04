@@ -4,15 +4,15 @@ local Container = require("imgui.Container")
 
 local stack = {}
 
-return function(id, w, h, _h, scrollY)
+return function(id, w, h, _w, _h, scrollY)
 	if id then
 		just.push()
 		table.insert(stack, {w, h, _h})
 
-		local x, y, _w, __h, r = theme._rectangle(w, h, _h)
+		local x, y, __w, __h, r = theme._rectangle(w, h, _h)
 		love.graphics.translate(x, y)
 
-		Container(id, _w, __h, _h, scrollY)
+		Container(id, __w, __h, _w, _h, scrollY)
 		return
 	end
 
