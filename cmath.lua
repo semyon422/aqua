@@ -20,27 +20,27 @@ function cplex.log(z, k) return z == 0 and 0 / 0 or complex(math.log(#z), z:arg(
 function cplex.pow(z, n, k) return z == 0 and n ~= 0 and 0 or (n * z:log(k)):exp() end
 function cplex.copy(z) return complex(z[0], z[1]) end
 function cplex.abs2(z) return z[0] ^ 2 + z[1] ^ 2 end
-function cplex.abs(z) return math.sqrt(cplex.abs2(z)) end
+function cplex.abs(z) return math.sqrt(z:abs2()) end
 function cplex.arg(z) return math.atan2(z[1], z[0]) end
 function cplex.polar(z) return #z, z:arg() end
 function cplex.sqrt(z, k) return z:pow(0.5, k) end
 function cplex.conj(z) return complex(z[0], -z[1]) end
 function cplex.sin(z) return ((1i * z):exp() - (-1i * z):exp()) / 2i end
 function cplex.cos(z) return ((1i * z):exp() + (-1i * z):exp()) / 2 end
-function cplex.tan(z) return cplex.sin(z) / cplex.cos(z) end
-function cplex.cot(z) return cplex.cos(z) / cplex.sin(z) end
+function cplex.tan(z) return z:sin() / z:cos() end
+function cplex.cot(z) return z:cos() / z:sin() end
 function cplex.asin(z, k1, k2) return -1i * (1i * z + (1 - z:pow(2)):pow(0.5, k2)):log(k1) end
 function cplex.acos(z, k1, k2) return -1i * (z + 1i * (1 - z:pow(2)):pow(0.5, k2)):log(k1) end
 function cplex.atan(z, k) return -1i / 2 * ((1i - z) / (1i + z)):log(k) end
 function cplex.acot(z, k) return 1i / 2 * ((z - 1i) / (z + 1i)):log(k) end
 function cplex.sinh(z) return (z:exp() - (-z):exp()) / 2 end
 function cplex.cosh(z) return (z:exp() + (-z):exp()) / 2 end
-function cplex.tanh(z) return cplex.sinh(z) / cplex.cosh(z) end
-function cplex.coth(z) return cplex.cosh(z) / cplex.sinh(z) end
-function cplex.asinh(z, k1, k2) return 1i * cplex.asin(-1i * z, k1, k2) end
-function cplex.acosh(z, k1, k2) return 1i * cplex.acos(z, k1, k2) end
-function cplex.atanh(z, k) return 1i * cplex.atan(-1i * z, k) end
-function cplex.acoth(z, k) return 1i * cplex.acot(1i * z, k) end
+function cplex.tanh(z) return z:sinh() / z:cosh() end
+function cplex.coth(z) return z:cosh() / z:sinh() end
+function cplex.asinh(z, k1, k2) return 1i * (-1i * z):asin(k1, k2) end
+function cplex.acosh(z, k1, k2) return 1i * z:acos(k1, k2) end
+function cplex.atanh(z, k) return 1i * (-1i * z):atan(k) end
+function cplex.acoth(z, k) return 1i * (1i * z):acot(k) end
 
 local mt = {}
 
