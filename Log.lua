@@ -7,28 +7,13 @@ Log.write = function(self, name, ...)
 	for i, v in ipairs(args) do
 		args[i] = tostring(v)
 	end
-
 	local message = table.concat(args, "\t")
 
-	local info = debug.getinfo(2, "Sl")
-	local logShort = ("[%-8s]: %s\n"):format(
-		name:upper(),
-		message
-	)
-	local logLong = ("[%-8s%s]: %s\n"):format(
-		name:upper(),
-		os.date(),
-		message
-	)
-
 	if self.console then
-		io.write(logShort)
+		io.write(("[%-8s]: %s\n"):format(name:upper(), message))
 	end
-
 	if self.path then
-		local file = io.open(self.path, "a")
-		file:write(logLong)
-		file:close()
+		love.filesystem.append(self.path, ("[%-8s%s]: %s\n"):format(name:upper(), os.date(), message))
 	end
 end
 
