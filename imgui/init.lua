@@ -111,7 +111,8 @@ end
 function imgui.intButtons(id, v, s, label)
 	just.row(true)
 	local bw = _w / (s + 2)
-	local button = imgui.TextButton(nil, v, bw, _h)
+	local button = v and imgui.TextButton(nil, v, bw, _h)
+	v = v or 0
 	for i = 0, s do
 		local d = 10 ^ i
 		button = imgui.TextButton(id .. d, "±" .. d, bw, _h)
