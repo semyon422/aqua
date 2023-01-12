@@ -29,6 +29,13 @@ function gfx_util.drawFrame(drawable, x, y, w, h, locate)
 end
 
 function gfx_util.printFrame(text, x, y, w, h, ax, ay)
+	if w < 0 then
+		x, w = w, -w
+	end
+	if h < 0 then
+		y, h = h, -h
+	end
+
 	local font = love.graphics.getFont()
 	local _, wrappedText = font:getWrap(text, w)
 	local height = font:getHeight() * font:getLineHeight() * #wrappedText
