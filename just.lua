@@ -400,7 +400,7 @@ function just.slider(id, over, pos, value)
 		new_value = pos
 	end
 
-	return value ~= new_value and new_value, active, hovered
+	return math.abs(new_value - value) > 1e-6 and new_value, active, hovered
 end
 
 function just.container(id, over)
