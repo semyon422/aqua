@@ -98,18 +98,26 @@ function time_util.time_ago_in_words(time, parts, suffix)
 	end
 end
 
-function time_util.format(time)
+function time_util.format(time, decimals)
+	local sign = time >= 0 and "" or "-"
+	time = math.abs(time)
+
 	local hours = math.floor(time / 3600)
 	local minutes = math.floor(time % 3600 / 60)
 	local seconds = math.floor(time % 60)
 
+	local s
 	if time >= 3600 then
-		return ("%02d:%02d:%02d"):format(hours, minutes, seconds)
-	elseif time >= 60 then
-		return ("%02d:%02d"):format(minutes, seconds)
-	elseif time >= 0 then
-		return ("%02d"):format(seconds)
+		s = ("%d:%02d:%02d"):format(hours, minutes, seconds)
+	else
+		s = ("%02d:%02d"):format(minutes, seconds)
 	end
+
+	if decimals then
+		s = s .. ("%0." .. decimals .. "f"):format(time % 1):sub(2)
+	end
+
+	return sign .. s
 end
 
 return time_util
