@@ -200,4 +200,18 @@ function gfx_util.layout(offset, size, _w)
 	return x, w
 end
 
+function gfx_util.limitImageData(imageData)
+	local size = love.graphics.getSystemLimits().texturesize
+	local w, h = imageData:getDimensions()
+	if w <= size and h <= size then
+		return imageData
+	end
+
+	local _w, _h = math.min(w, size), math.min(h, size)
+	local _imageData = love.image.newImageData(_w, _h)
+	_imageData:paste(imageData, 0, 0, 0, 0, _w, _h)
+
+	return _imageData
+end
+
 return gfx_util
