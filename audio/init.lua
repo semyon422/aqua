@@ -37,12 +37,7 @@ SoundData.release = function(self)
 	bass_assert(bass.BASS_SampleFree(self.sample) == 1)
 end
 
-audio.newSoundData = function(pointer, size, sample_gain)
-	assert(pointer)
-	assert(size)
-	local sample = bass.BASS_SampleLoad(true, pointer, 0, size, 65535, 0)
-
-	-- bass_assert(sample ~= 0)
+audio.sampleToSoundData = function(sample)
 	if sample == 0 then
 		return
 	end
@@ -57,11 +52,24 @@ audio.newSoundData = function(pointer, size, sample_gain)
 	end
 	soundData.info = info_table
 
+	return setmetatable(soundData, {__index = SoundData})
+end
+
+audio.newSoundData = function(pointer, size, sample_gain)
+	assert(pointer)
+	assert(size)
+	local sample = bass.BASS_SampleLoad(true, pointer, 0, size, 65535, 0)
+
+	-- bass_assert(sample ~= 0)
+	if sample == 0 then
+		return
+	end
+
 	if sample_gain and sample_gain > 0 then
 		bass_amplify(sample, sample_gain)
 	end
 
-	return setmetatable(soundData, {__index = SoundData})
+	return audio.sampleToSoundData(sample)
 end
 
 audio.newAudio = function(self, soundData, mode)

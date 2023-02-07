@@ -48,6 +48,7 @@ DWORD priority;
 } BASS_SAMPLE;
 
 BOOL BASS_Init(int device, DWORD freq, DWORD flags, void *win, void *dsguid);
+HSAMPLE BASS_SampleCreate(DWORD length, DWORD freq, DWORD chans, DWORD max, DWORD flags);
 BOOL BASS_SampleGetInfo(HSAMPLE handle, BASS_SAMPLE *info);
 BOOL BASS_SampleGetData(HSAMPLE handle, void *buffer);
 BOOL BASS_SampleSetData(HSAMPLE handle, const void *buffer);
