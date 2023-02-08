@@ -102,7 +102,7 @@ function just.focus(id)
 end
 
 function just.catch(id)
-	local catched = catched_id == just.catched_id
+	local catched = rawequal(catched_id, just.catched_id)
 	catched_id = id
 	return catched
 end
@@ -328,7 +328,7 @@ function just.mouse_over(id, over, group, new_zindex)
 		zindexes[id] = last_zindex
 	end
 
-	if catched_id == id then
+	if rawequal(catched_id, id) then
 		just.catched_id = id
 	end
 
@@ -339,7 +339,7 @@ function just.mouse_over(id, over, group, new_zindex)
 		next_hover_ids[group] = id
 	end
 
-	return container_over and id == hover_ids[group]
+	return container_over and rawequal(id, hover_ids[group])
 end
 
 function just.wheel_over(id, over)
@@ -365,7 +365,7 @@ function just.key_over()
 		max_layer = layer
 	end
 
-	return key_stack[layer] == id
+	return rawequal(key_stack[layer], id)
 end
 
 function just.button(id, over, button)
@@ -376,7 +376,7 @@ function just.button(id, over, button)
 		just.active_id = id
 	end
 
-	local same_id = just.active_id == id
+	local same_id = rawequal(just.active_id, id)
 
 	local down = mouse.down[button]
 	local active = over and same_id and down
@@ -396,7 +396,7 @@ function just.slider(id, over, pos, value)
 	local _, active, hovered = just.button(id, over)
 
 	local new_value = value
-	if just.active_id == id then
+	if rawequal(just.active_id, id) then
 		new_value = pos
 	end
 
