@@ -440,6 +440,13 @@ for i, device in ipairs(devices) do
 	end
 end
 
+function just.mousepressed(key)
+	return mouse.pressed[key]
+end
+function just.mousereleased(key)
+	return mouse.released[key]
+end
+
 local function text_split(text, index)
 	local _index = utf8.offset(text, index) or 1
 	return text:sub(1, _index - 1), text:sub(_index)
