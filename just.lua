@@ -107,16 +107,16 @@ function just.catch(id)
 	return catched
 end
 
-function just.is_over(w, h)
+function just.is_over(w, h, x, y)
 	local mx, my = love.graphics.inverseTransformPoint(love.mouse.getPosition())
-	local x, y = 0, 0
+	x, y = x or 0, y or 0
 	if w < 0 then
-		x, w = w, x
+		x, w = x + w, -w
 	end
 	if h < 0 then
-		y, h = h, y
+		y, h = y + h, -h
 	end
-	return x <= mx and mx <= w and y <= my and my <= h
+	return x <= mx and mx < x + w and y <= my and my < y + h
 end
 
 function just.row(state)
