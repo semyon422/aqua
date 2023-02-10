@@ -93,7 +93,14 @@ end
 
 local transform
 local args = {}
-function gfx_util.transform(t)
+function gfx_util.transform(...)
+	transform = transform or love.math.newTransform()
+
+	local t = ...
+	if type(t) ~= "table" then
+		return transform:setTransformation(...)
+	end
+
 	for i = 1, 9 do
 		local value = t[i]
 		if type(value) == "table" then
@@ -108,7 +115,6 @@ function gfx_util.transform(t)
 		end
 	end
 
-	transform = transform or love.math.newTransform()
 	return transform:setTransformation(unpack(args))
 end
 
