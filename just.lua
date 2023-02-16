@@ -1,4 +1,5 @@
 local utf8 = require("utf8")
+local math_util = require("math_util")
 
 local just = {}
 
@@ -14,6 +15,7 @@ local line_c, line_h, line_w
 local is_row, is_sameline
 local line_stack
 local textinput
+local selection
 
 local devices = {"key", "gamepad", "joystick", "midi"}
 local device_arg_index = {2, 2, 2, 1}
@@ -117,6 +119,36 @@ function just.is_over(w, h, x, y)
 		y, h = y + h, -h
 	end
 	return x <= mx and mx < x + w and y <= my and my < y + h
+end
+
+function just.select(a_x, a_y, b_x, b_y)
+	if not a_x then
+		selection = nil
+		return
+	end
+	a_x, a_y = a_x or 0, a_y or 0
+	selection = selection or {}
+	local s = selection
+	s[1], s[2] = love.graphics.transformPoint(a_x, a_y)
+	s[3], s[4] = love.graphics.transformPoint(b_x, a_y)
+	s[5], s[6] = love.graphics.transformPoint(b_x, b_y)
+	s[7], s[8] = love.graphics.transformPoint(a_x, b_y)
+	math_util.lmap(s, math.floor)
+end
+
+local selectable = {}
+function just.is_selected(w, h, x, y)
+	if not selection then
+		return false
+	end
+	x, y = x or 0, y or 0
+	local c = selectable
+	c[1], c[2] = love.graphics.transformPoint(x, y)
+	c[3], c[4] = love.graphics.transformPoint(x + w, y)
+	c[5], c[6] = love.graphics.transformPoint(x + w, y + h)
+	c[7], c[8] = love.graphics.transformPoint(x, y + h)
+	math_util.lmap(c, math.floor)
+	return math_util.intersect2(selection, c)
 end
 
 function just.row(state)
