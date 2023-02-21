@@ -30,7 +30,7 @@ local function det(a, b, c, d)
 	return a * d - b * c
 end
 
-local function intersect_1(a, b, c, d)
+function math_util.intersect1(a, b, c, d)
 	if a > b then a, b = b, a end
 	if c > d then c, d = d, c end
 	return math.max(a, c) <= math.min(b, d)
@@ -51,8 +51,8 @@ function math_util.intersect(a_x, a_y, b_x, b_y, c_x, c_y, d_x, d_y)
 	end
 
 	return det(A1, C1, A2, C2) == 0 and det(B1, C1, B2, C2) == 0
-		and intersect_1(a_x, b_x, c_x, d_x)
-		and intersect_1(a_y, b_y, c_y, d_y)
+		and math_util.intersect1(a_x, b_x, c_x, d_x)
+		and math_util.intersect1(a_y, b_y, c_y, d_y)
 end
 
 function math_util.intersect2(s, c)
