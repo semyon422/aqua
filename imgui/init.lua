@@ -141,4 +141,8 @@ function imgui.input(id, text, label)
 	return text
 end
 
+function imgui.tabs(id, item, items)
+	return imgui.TabBar(id, item, items, w, _h)
+end
+
 return imgui
