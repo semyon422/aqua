@@ -47,6 +47,23 @@ DWORD vam;
 DWORD priority;
 } BASS_SAMPLE;
 
+typedef struct {
+DWORD flags;
+DWORD hwsize;
+DWORD hwfree;
+DWORD freesam;
+DWORD free3d;
+DWORD minrate;
+DWORD maxrate;
+BOOL eax;
+DWORD minbuf;
+DWORD dsver;
+DWORD latency;
+DWORD initflags;
+DWORD speakers;
+DWORD freq;
+} BASS_INFO;
+
 BOOL BASS_Init(int device, DWORD freq, DWORD flags, void *win, void *dsguid);
 HSAMPLE BASS_SampleCreate(DWORD length, DWORD freq, DWORD chans, DWORD max, DWORD flags);
 BOOL BASS_SampleGetInfo(HSAMPLE handle, BASS_SAMPLE *info);
@@ -71,20 +88,32 @@ BOOL BASS_ChannelSetPosition(DWORD handle, QWORD pos, DWORD mode);
 HPLUGIN BASS_PluginLoad(const char *file, DWORD flags);
 DWORD BASS_SampleGetChannels(HSAMPLE handle, HCHANNEL *channels);
 int BASS_ErrorGetCode();
+BOOL BASS_GetInfo(BASS_INFO *info);
+BOOL BASS_SetConfig(DWORD option, DWORD value);
+DWORD BASS_GetDevice();
 ]])
+
+local bass_config = require("audio.bass_config")
 
 local bass = ffi.load("bass", true)
 local _bass = newproxy(true)
+local __bass = {}
 
 local mt = getmetatable(_bass)
 mt.__index = bass
+
+setmetatable(__bass, {__index = _bass})
 
 local Plugins = {
 	Windows = {"bassopus.dll"},
 	Linux = {"libbassopus.so"},
 }
 
-if bass.BASS_Init(-1, 44100, 0, nil, nil) ~= 0 then
+function __bass.init()
+	if bass.BASS_Init(-1, 44100, 0, nil, nil) == 0 then
+		return
+	end
+
 	mt.__gc = function()
 		assert(bass.BASS_Free() ~= 0, "BASS_Free failed")
 		assert(bass.BASS_PluginFree(0) ~= 0, "BASS_PluginFree failed")
@@ -101,4 +130,24 @@ if bass.BASS_Init(-1, 44100, 0, nil, nil) ~= 0 then
 	end
 end
 
-return _bass
+function __bass.reinit()
+	local device = bass.BASS_GetDevice()
+	local bass_assert = require("audio.bass_assert")
+	bass_assert(bass.BASS_Init(device, 44100, 128, nil, nil) ~= 0)
+end
+
+local info = ffi.new("BASS_INFO[1]")
+function __bass.getInfo()
+	bass.BASS_GetInfo(info)
+	return info[0]
+end
+
+function __bass.setDevicePeriod(period)
+	bass.BASS_SetConfig(bass_config.BASS_CONFIG_DEV_PERIOD, period)
+end
+
+function __bass.setDeviceBuffer(buffer)
+	bass.BASS_SetConfig(bass_config.BASS_CONFIG_DEV_BUFFER, buffer)
+end
+
+return __bass
