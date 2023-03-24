@@ -83,13 +83,17 @@ end
 
 Container.getPosition = function(self)
 	local position = 0
+	local minPos, maxPos = math.huge, -math.huge
 	local length = 0
 
 	for source in pairs(self.sources) do
 		local pos = source:getPosition()
 		if source:isPlaying() then
 			local _length = source:getLength()
-			position = position + (source.offset + pos) * _length
+			local _pos = source.offset + pos
+			minPos = math.min(minPos, _pos)
+			maxPos = math.max(maxPos, _pos)
+			position = position + _pos * _length
 			length = length + _length
 		end
 	end
@@ -98,7 +102,7 @@ Container.getPosition = function(self)
 		return nil
 	end
 
-	return position / length
+	return position / length, minPos, maxPos
 end
 
 return Container
