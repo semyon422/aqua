@@ -2,6 +2,7 @@ local just = require("just")
 local theme = require("imgui.theme")
 local autoload = require("autoload")
 local math_util = require("math_util")
+local gfx_util = require("gfx_util")
 
 local imgui = autoload("imgui")
 
@@ -36,6 +37,32 @@ end
 function imgui.text(text)
 	imgui.indent()
 	just.text(text)
+end
+
+function imgui.url(id, text, url, isLabel)
+	local font = love.graphics.getFont()
+	local width = font:getWidth(text)
+	local height = _h
+	if not isLabel then
+		height = font:getHeight() * font:getLineHeight()
+	end
+
+	local changed, active, hovered = just.button(id, just.is_over(width, height))
+	just.push("all")
+	love.graphics.setColor(0, 0.5, 1)
+	if hovered then
+		love.graphics.setColor(0, 0.7, 1)
+	end
+	if active then
+		love.graphics.setColor(0, 0.8, 1)
+	end
+	gfx_util.printFrame(text, 0, 0, width, height, "left", "center")
+	just.pop()
+
+	if changed then
+		love.system.openURL(url)
+	end
+	just.next(width, height)
 end
 
 function imgui.button(id, text)
