@@ -28,11 +28,15 @@ return function(id, text, index, w, h)
 
 	love.graphics.setColor(1, 1, 1, 1)
 
+	local clipw = w - h * theme.padding * 2
+	just.clip(love.graphics.rectangle, "fill", 0, 0, clipw + 2, lh)
+
 	local changed, left, right
 	if just.focused_id == id then
 		if just.keypressed("escape") then
 			just.focus()
 		end
+		love.graphics.translate(math.min(clipw - font:getWidth(text), 0), 0)
 		changed, text, index, left, right = just.textinput(text, index)
 		just.text(left)
 		local offset = just.text(right)
@@ -48,6 +52,7 @@ return function(id, text, index, w, h)
 		just.text(placeholder)
 	end
 
+	just.clip()
 	just.pop()
 	just.next(w, h)
 
