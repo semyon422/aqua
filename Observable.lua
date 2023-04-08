@@ -2,27 +2,33 @@ local Class = require("Class")
 
 local Observable = Class:new()
 
-Observable.construct = function(self)
-	self.observers = {}
+function Observable:add(observer)
+	for i, o in ipairs(self) do
+		if o == observer then
+			return
+		end
+	end
+	table.insert(self, observer)
 end
 
-Observable.add = function(self, observer)
-	self.observers[observer] = true
+function Observable:remove(observer)
+	for i, o in ipairs(self) do
+		if o == observer then
+			return table.remove(self, i)
+		end
+	end
 end
 
-Observable.remove = function(self, observer)
-	self.observers[observer] = nil
-end
+function Observable:send(event)
+	self.temp = self.temp or {}
+	local observers = self.temp
 
-Observable.send = function(self, event)
-	local observers = {}
-
-	for observer in pairs(self.observers) do
-		table.insert(observers, observer)
+	for i, o in ipairs(self) do
+		observers[i] = o
 	end
 
-	for _, observer in pairs(observers) do
-		observer:receive(event)
+	for i = 1, #self do
+		observers[i]:receive(event)
 	end
 end
 
