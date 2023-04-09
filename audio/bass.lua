@@ -90,6 +90,7 @@ DWORD BASS_SampleGetChannels(HSAMPLE handle, HCHANNEL *channels);
 int BASS_ErrorGetCode();
 BOOL BASS_GetInfo(BASS_INFO *info);
 BOOL BASS_SetConfig(DWORD option, DWORD value);
+DWORD BASS_GetConfig(DWORD option);
 DWORD BASS_GetDevice();
 ]])
 
@@ -141,6 +142,9 @@ function __bass.getInfo()
 	bass.BASS_GetInfo(info)
 	return info[0]
 end
+
+__bass.default_dev_period = bass.BASS_GetConfig(bass_config.BASS_CONFIG_DEV_PERIOD)
+__bass.default_dev_buffer = bass.BASS_GetConfig(bass_config.BASS_CONFIG_DEV_BUFFER)
 
 function __bass.setDevicePeriod(period)
 	bass.BASS_SetConfig(bass_config.BASS_CONFIG_DEV_PERIOD, period)
