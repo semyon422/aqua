@@ -20,6 +20,10 @@ function math_util.map(x, a, b, c, d)
 	return (x - a) * (d - c) / (b - a) + c
 end
 
+function math_util.clamp(x, a, b)
+	return math.min(math.max(x, a), b)
+end
+
 function math_util.lmap(l, f)
 	for i = 1, #l do
 		l[i] = f(l[i])
