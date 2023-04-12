@@ -1,17 +1,18 @@
 local table_util = {}
 
-function table_util.leftequal(a, b)
-	for key in pairs(a) do
-		if a[key] ~= b[key] then
-			return
+function table_util.equal(a, b)
+	local size, _size = 0, 0
+	for k, v in pairs(a) do
+		size = size + 1
+		local _v = b[k]
+		if v ~= _v then
+			return false
 		end
 	end
-
-	return true
-end
-
-function table_util.equal(a, b)
-	return table.leftequal(a, b) and table.leftequal(b, a)
+	for _ in pairs(b) do
+		_size = _size + 1
+	end
+	return size == _size
 end
 
 function table_util.deepcopy(t)
@@ -87,6 +88,24 @@ function table_util.inside(t, key)
 			subvalue = subvalue[subkey]
 		end
 		return subvalue
+	end
+end
+
+function table_util.pack(...)
+	return {n = select("#", ...), ...}
+end
+
+function table_util.cache(f, index)
+	local cache = {}
+	return function(...)
+		local k = select(index or 1, ...)
+		local t = cache[k]
+		if t then
+			return unpack(t, 1, t.n)
+		end
+		t = table_util.pack(f(...))
+		cache[k] = t
+		return unpack(t, 1, t.n)
 	end
 end
 
