@@ -20,9 +20,7 @@ return function(id, value, w, h, displayValue)
 
 	local x = map(math.min(math.max(value, 0), 1), 0, 1, h / 2, w - h / 2)
 	love.graphics.setColor(1, 1, 1, 1)
-	love.graphics.translate(x - h / 2, 0)
-	theme.circle(h)
-	love.graphics.translate(h / 2 - x, 0)
+	theme.circle(h, x, h / 2)
 
 	if displayValue then
 		local width = love.graphics.getFont():getWidth(displayValue)

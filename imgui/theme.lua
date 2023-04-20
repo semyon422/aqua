@@ -31,10 +31,10 @@ function theme.rectangle(w, h)
 	love.graphics.rectangle("fill", theme._rectangle(w, h))
 end
 
-function theme.circle(s)
+function theme.circle(s, x, y)
 	local r = s * theme.size / 3
-	love.graphics.circle("fill", s / 2, s / 2, r, 64)
-	love.graphics.circle("line", s / 2, s / 2, r, 64)
+	love.graphics.circle("fill", x or s / 2, y or s / 2, r, 64)
+	love.graphics.circle("line", x or s / 2, y or s / 2, r, 64)
 end
 
 return theme
