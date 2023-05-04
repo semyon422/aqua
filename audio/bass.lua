@@ -1,10 +1,10 @@
 local ffi = require("ffi")
 
 ffi.cdef([[
-typedef uint8_t BYTE;
-typedef uint16_t WORD;
-typedef uint32_t DWORD;
-typedef uint64_t QWORD;
+typedef int8_t BYTE;
+typedef int16_t WORD;
+typedef int32_t DWORD;
+typedef int64_t QWORD;
 typedef int BOOL;
 typedef DWORD HMUSIC;
 typedef DWORD HSAMPLE;
