@@ -38,7 +38,8 @@ end
 BassSource.setFreqRate = function(self, rate)
 	if self.rateValue ~= rate then
 		self.rateValue = rate
-		bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 1, self.info.freq * rate) == 1)
+		bass.BASS_ChannelSetAttribute(self.channel, 1, self.info.freq * rate)
+		-- bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 1, self.info.freq * rate) == 1)
 	end
 end
 
