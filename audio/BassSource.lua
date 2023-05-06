@@ -56,7 +56,10 @@ BassSource.setPosition = function(self, position)
 	bass_assert(length >= 0)
 	local pos = bass.BASS_ChannelSeconds2Bytes(self.channel, position)
 	bass_assert(pos >= 0)
-	pos = bass.BASS_ChannelSetPosition(self.channel, pos - (pos >= length and 1 or 0), 0)
+	if pos >= length then
+		pos = length - 1
+	end
+	pos = bass.BASS_ChannelSetPosition(self.channel, pos, 0)
 	bass_assert(pos == 1)
 end
 
