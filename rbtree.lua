@@ -119,7 +119,7 @@ local function fix_insert(x)
 	x.tree.root.color = 0
 end
 
-local function fix_delete(x)
+local function fix_remove(x)
 	while x ~= x.tree.root and x.color == 0 do
 		if x == x.parent.left then
 			local s = x.parent.right
@@ -231,7 +231,7 @@ function Node_mt:__tostring()
 	return color .. " " .. tostring(self.key)
 end
 
-function Tree:search(key)
+function Tree:find(key)
 	local y
 	local x = self.root
 	while x and key ~= x.key do
@@ -253,7 +253,7 @@ function Tree:insert(key)
 	}
 	setmetatable(node, Node_mt)
 
-	local _, y = self:search(key)
+	local _, y = self:find(key)
 
 	node.parent = y
 	if not y then
@@ -278,8 +278,8 @@ function Tree:insert(key)
 	return node
 end
 
-function Tree:delete(key)
-	local z = self:search(key)
+function Tree:remove(key)
+	local z = self:find(key)
 	if not z then
 		return nil, "not found"
 	end
@@ -313,7 +313,7 @@ function Tree:delete(key)
 	end
 
 	if x and color == 0 then
-		fix_delete(x)
+		fix_remove(x)
 	end
 
 	return z
