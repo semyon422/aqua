@@ -65,6 +65,7 @@ DWORD freq;
 } BASS_INFO;
 
 BOOL BASS_Init(int device, DWORD freq, DWORD flags, void *win, void *dsguid);
+BOOL BASS_Free();
 HSAMPLE BASS_SampleCreate(DWORD length, DWORD freq, DWORD chans, DWORD max, DWORD flags);
 BOOL BASS_SampleGetInfo(HSAMPLE handle, BASS_SAMPLE *info);
 BOOL BASS_SampleGetData(HSAMPLE handle, void *buffer);
@@ -86,6 +87,7 @@ DWORD BASS_ChannelIsActive(DWORD handle);
 double BASS_ChannelBytes2Seconds(DWORD handle, QWORD pos);
 BOOL BASS_ChannelSetPosition(DWORD handle, QWORD pos, DWORD mode);
 HPLUGIN BASS_PluginLoad(const char *file, DWORD flags);
+BOOL BASS_PluginFree(HPLUGIN handle);
 DWORD BASS_SampleGetChannels(HSAMPLE handle, HCHANNEL *channels);
 int BASS_ErrorGetCode();
 BOOL BASS_GetInfo(BASS_INFO *info);
