@@ -129,7 +129,7 @@ local function fix_remove(x)
 				rotate_left(x.parent)
 				s = x.parent.right
 			end
-			if s.left.color == 0 and s.right.color == 0 then
+			if (not s.left or s.left.color == 0) and (not s.right or s.right.color == 0) then
 				s.color = 1
 				x = x.parent
 			else
@@ -153,7 +153,7 @@ local function fix_remove(x)
 				rotate_right(x.parent)
 				s = x.parent.left
 			end
-			if s.right.color == 0 and s.right.color == 0 then
+			if (not s.left or s.left.color == 0) and (not s.right or s.right.color == 0) then
 				s.color = 1
 				x = x.parent
 			else
@@ -176,6 +176,9 @@ end
 
 local function next_node(self, x)
 	if not x then
+		if not self.root then
+			return
+		end
 		return min(self.root)
 	elseif x.right then
 		return min(x.right)
@@ -246,36 +249,39 @@ function Tree:find(key)
 end
 
 function Tree:insert(key)
-	local node = {
+	local x, y = self:find(key)
+	if x then
+		return nil, "found"
+	end
+
+	x = {
 		key = key,
 		tree = self,
 		color = 1,
 	}
-	setmetatable(node, Node_mt)
+	setmetatable(x, Node_mt)
 
-	local _, y = self:find(key)
-
-	node.parent = y
+	x.parent = y
 	if not y then
-		self.root = node
-	elseif node.key < y.key then
-		y.left = node
+		self.root = x
+	elseif x.key < y.key then
+		y.left = x
 	else
-		y.right = node
+		y.right = x
 	end
 
-	if not node.parent then
-		node.color = 0
-		return
+	if not x.parent then
+		x.color = 0
+		return x
 	end
 
-	if not node.parent.parent then
-		return
+	if not x.parent.parent then
+		return x
 	end
 
-	fix_insert(node)
+	fix_insert(x)
 
-	return node
+	return x
 end
 
 function Tree:remove(key)
@@ -328,11 +334,11 @@ function Tree:iter()
 end
 
 function Tree:min()
-	return min(self.root)
+	return self.root and min(self.root)
 end
 
 function Tree:max()
-	return max(self.root)
+	return self.root and max(self.root)
 end
 
 local function new()
