@@ -174,59 +174,30 @@ local function fix_remove(x)
 	x.color = 0
 end
 
-local function next_node(self, x)
-	if not x then
-		if not self.root then
-			return
-		end
-		return min(self.root)
-	elseif x.right then
-		return min(x.right)
-	end
-
-	local p = x.parent
-	while p and x == p.right do
-		x = p
-		p = p.parent
-	end
-
-	return p
-end
-
-local function prev_node(self, x)
-	if not x then
-		return max(self.root)
-	elseif x.left then
-		return max(x.left)
-	end
-
-	local p = x.parent
-	while p and x == p.left do
-		x = p
-		p = p.parent
-	end
-
-	return p
-end
-
-local function print_node(node, indent)
-	if not node then
-		return
-	end
-
-	indent = indent or 0
-
-	print_node(node.left, indent + 1)
-	print(("  "):rep(indent) .. tostring(node))
-	print_node(node.right, indent + 1)
-end
-
 function Node:next()
-	return next_node(self.tree, self)
+	if self.right then
+		return min(self.right)
+	end
+
+	local x, p = self, self.parent
+	while p and x == p.right do
+		x, p = p, p.parent
+	end
+
+	return p
 end
 
 function Node:prev()
-	return prev_node(self.tree, self)
+	if self.left then
+		return max(self.left)
+	end
+
+	local x, p = self, self.parent
+	while p and x == p.left do
+		x, p = p, p.parent
+	end
+
+	return p
 end
 
 function Node_mt:__tostring()
@@ -325,12 +296,31 @@ function Tree:remove(key)
 	return z
 end
 
+local function print_node(node, indent)
+	if not node then
+		return
+	end
+
+	indent = indent or 0
+
+	print_node(node.left, indent + 1)
+	print(("  "):rep(indent) .. tostring(node))
+	print_node(node.right, indent + 1)
+end
+
 function Tree:print()
 	return print_node(self.root, 0)
 end
 
+local function next_tree_node(tree, node)
+	if node then
+		return node:next()
+	end
+	return tree:min()
+end
+
 function Tree:iter()
-	return next_node, self
+	return next_tree_node, self
 end
 
 function Tree:min()
