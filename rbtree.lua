@@ -6,7 +6,7 @@ local Tree_mt = {__index = Tree}
 local Node = {}
 local Node_mt = {__index = Node}
 
-local function rotate_left(x)
+local function rotate_left(tree, x)
 	local p = x.parent
 	local y = x.right
 
@@ -20,7 +20,7 @@ local function rotate_left(x)
 
 	y.parent = p
 	if not p then
-		x.tree.root = y
+		tree.root = y
 	elseif x == p.left then
 		p.left = y
 	else
@@ -28,7 +28,7 @@ local function rotate_left(x)
 	end
 end
 
-local function rotate_right(x)
+local function rotate_right(tree, x)
 	local p = x.parent
 	local y = x.left
 
@@ -42,12 +42,122 @@ local function rotate_right(x)
 
 	y.parent = p
 	if not p then
-		x.tree.root = y
+		tree.root = y
 	elseif x == p.right then
 		p.right = y
 	else
 		p.left = y
 	end
+end
+
+local function transplant(tree, x, y)
+	if not x.parent then
+		tree.root = y
+	elseif x == x.parent.left then
+		x.parent.left = y
+	else
+		x.parent.right = y
+	end
+	if y then
+		y.parent = x.parent
+	end
+end
+
+local function fix_insert(tree, x)
+	while x.parent.color == 1 do
+		if x.parent == x.parent.parent.right then
+			local u = x.parent.parent.left
+			if u and u.color == 1 then
+				u.color = 0
+				x.parent.color = 0
+				x.parent.parent.color = 1
+				x = x.parent.parent
+			else
+				if x == x.parent.left then
+					x = x.parent
+					rotate_right(tree, x)
+				end
+				x.parent.color = 0
+				x.parent.parent.color = 1
+				rotate_left(tree, x.parent.parent)
+			end
+		else
+			local u = x.parent.parent.right
+			if u and u.color == 1 then
+				u.color = 0
+				x.parent.color = 0
+				x.parent.parent.color = 1
+				x = x.parent.parent
+			else
+				if x == x.parent.right then
+					x = x.parent
+					rotate_left(tree, x)
+				end
+				x.parent.color = 0
+				x.parent.parent.color = 1
+				rotate_right(tree, x.parent.parent)
+			end
+		end
+		if x == tree.root then
+			break
+		end
+	end
+	tree.root.color = 0
+end
+
+local function fix_remove(tree, x)
+	while x ~= tree.root and x.color == 0 do
+		if x == x.parent.left then
+			local s = x.parent.right
+			if s.color == 1 then
+				s.color = 0
+				x.parent.color = 1
+				rotate_left(tree, x.parent)
+				s = x.parent.right
+			end
+			if (not s.left or s.left.color == 0) and (not s.right or s.right.color == 0) then
+				s.color = 1
+				x = x.parent
+			else
+				if s.right.color == 0 then
+					s.left.color = 0
+					s.color = 1
+					rotate_right(tree, s)
+					s = x.parent.right
+				end
+				s.color = x.parent.color
+				x.parent.color = 0
+				s.right.color = 0
+				rotate_left(tree, x.parent)
+				x = tree.root
+			end
+		else
+			local s = x.parent.left
+			if s.color == 1 then
+				s.color = 0
+				x.parent.color = 1
+				rotate_right(tree, x.parent)
+				s = x.parent.left
+			end
+			if (not s.left or s.left.color == 0) and (not s.right or s.right.color == 0) then
+				s.color = 1
+				x = x.parent
+			else
+				if s.left.color == 0 then
+					s.right.color = 0
+					s.color = 1
+					rotate_left(tree, s)
+					s = x.parent.left
+				end
+				s.color = x.parent.color
+				x.parent.color = 0
+				s.left.color = 0
+				rotate_right(tree, x.parent)
+				x = tree.root
+			end
+		end
+	end
+	x.color = 0
 end
 
 local function min(x)
@@ -62,116 +172,6 @@ local function max(x)
 		x = x.right
 	end
 	return x
-end
-
-local function transplant(x, y)
-	if not x.parent then
-		x.tree.root = y
-	elseif x == x.parent.left then
-		x.parent.left = y
-	else
-		x.parent.right = y
-	end
-	if y then
-		y.parent = x.parent
-	end
-end
-
-local function fix_insert(x)
-	while x.parent.color == 1 do
-		if x.parent == x.parent.parent.right then
-			local u = x.parent.parent.left
-			if u and u.color == 1 then
-				u.color = 0
-				x.parent.color = 0
-				x.parent.parent.color = 1
-				x = x.parent.parent
-			else
-				if x == x.parent.left then
-					x = x.parent
-					rotate_right(x)
-				end
-				x.parent.color = 0
-				x.parent.parent.color = 1
-				rotate_left(x.parent.parent)
-			end
-		else
-			local u = x.parent.parent.right
-			if u and u.color == 1 then
-				u.color = 0
-				x.parent.color = 0
-				x.parent.parent.color = 1
-				x = x.parent.parent
-			else
-				if x == x.parent.right then
-					x = x.parent
-					rotate_left(x)
-				end
-				x.parent.color = 0
-				x.parent.parent.color = 1
-				rotate_right(x.parent.parent)
-			end
-		end
-		if x == x.tree.root then
-			break
-		end
-	end
-	x.tree.root.color = 0
-end
-
-local function fix_remove(x)
-	while x ~= x.tree.root and x.color == 0 do
-		if x == x.parent.left then
-			local s = x.parent.right
-			if s.color == 1 then
-				s.color = 0
-				x.parent.color = 1
-				rotate_left(x.parent)
-				s = x.parent.right
-			end
-			if (not s.left or s.left.color == 0) and (not s.right or s.right.color == 0) then
-				s.color = 1
-				x = x.parent
-			else
-				if s.right.color == 0 then
-					s.left.color = 0
-					s.color = 1
-					rotate_right(s)
-					s = x.parent.right
-				end
-				s.color = x.parent.color
-				x.parent.color = 0
-				s.right.color = 0
-				rotate_left(x.parent)
-				x = x.tree.root
-			end
-		else
-			local s = x.parent.left
-			if s.color == 1 then
-				s.color = 0
-				x.parent.color = 1
-				rotate_right(x.parent)
-				s = x.parent.left
-			end
-			if (not s.left or s.left.color == 0) and (not s.right or s.right.color == 0) then
-				s.color = 1
-				x = x.parent
-			else
-				if s.left.color == 0 then
-					s.right.color = 0
-					s.color = 1
-					rotate_left(s)
-					s = x.parent.left
-				end
-				s.color = x.parent.color
-				x.parent.color = 0
-				s.left.color = 0
-				rotate_right(x.parent)
-				x = x.tree.root
-			end
-		end
-	end
-	x.color = 0
 end
 
 function Node:next()
@@ -227,30 +227,27 @@ function Tree:insert(key)
 
 	x = {
 		key = key,
-		tree = self,
-		color = 1,
+		color = y and 1 or 0,
+		parent = y,
+		left = nil,
+		right = nil,
 	}
 	setmetatable(x, Node_mt)
 
-	x.parent = y
 	if not y then
 		self.root = x
-	elseif x.key < y.key then
+		return x
+	end
+
+	if x.key < y.key then
 		y.left = x
 	else
 		y.right = x
 	end
 
-	if not x.parent then
-		x.color = 0
-		return x
+	if y.parent then
+		fix_insert(self, x)
 	end
-
-	if not x.parent.parent then
-		return x
-	end
-
-	fix_insert(x)
 
 	return x
 end
@@ -265,10 +262,10 @@ function Tree:remove(key)
 	local color = z.color
 	if not z.left then
 		x = z.right
-		transplant(z, z.right)
+		transplant(self, z, z.right)
 	elseif not z.right then
 		x = z.left
-		transplant(z, z.left)
+		transplant(self, z, z.left)
 	else
 		local y = min(z.right)
 		color = y.color
@@ -278,19 +275,19 @@ function Tree:remove(key)
 				x.parent = y
 			end
 		else
-			transplant(y, y.right)
+			transplant(self, y, y.right)
 			y.right = z.right
 			y.right.parent = y
 		end
 
-		transplant(z, y)
+		transplant(self, z, y)
 		y.left = z.left
 		y.left.parent = y
 		y.color = z.color
 	end
 
 	if x and color == 0 then
-		fix_remove(x)
+		fix_remove(self, x)
 	end
 
 	return z
