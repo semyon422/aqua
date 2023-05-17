@@ -12,12 +12,19 @@ function reqprof.disable()
 	target_enabled = false
 end
 
+local want_print
+
 local getTime = love.timer.getTime
 local level
 local prev_time
 local total_calls = 0
 function reqprof.start()
 	enabled = target_enabled
+
+	if want_print then
+		reqprof._print()
+		want_print = false
+	end
 
 	reqprof.stats = {}
 	level = 0
@@ -40,6 +47,10 @@ local function sort_stats(a, b)
 end
 
 function reqprof.print()
+	want_print = true
+end
+
+function reqprof._print()
 	if not enabled then
 		print("total calls: " .. total_calls)
 	end
