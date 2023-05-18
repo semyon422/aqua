@@ -20,7 +20,7 @@ function fft.dft(x, N, inv)
 	local w = (inv and -1 or 1) * 2 * math.pi / N * 1i
 	local y = {}
 	for k = 0, N - 1 do
-		local y_k = 0
+		local y_k = 0i
 		for n = 0, N - 1 do
 			y_k = y_k + x[n] * (k * n * w):exp()
 		end
