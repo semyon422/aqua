@@ -16,42 +16,40 @@ function fft.gen_wave(sample_count, sample_rate, waves)
 	return wave
 end
 
-function fft.dft(x, N, inv)
-	local w = (inv and -1 or 1) * 2 * math.pi / N * 1i
-	local y = {}
-	for k = 0, N - 1 do
-		local y_k = 0i
-		for n = 0, N - 1 do
-			y_k = y_k + x[n] * (k * n * w):exp()
-		end
-		y[k] = y_k
-		if inv then
-			y[k] = y_k / N
-		end
-	end
-	return y
+-- Hann window
+-- https://en.wikipedia.org/wiki/Window_function#Hann_and_Hamming_windows
+function fft.window(n)
+	return 0.5 * (1 - math.cos(2 * math.pi * n))
 end
 
-function fft.fft(pi, po, n, sign, step, o_in, o_out)
+local pi, po, sign, w, o_in_0, size
+local function _fft(n, step, o_in, o_out)
 	if n == 1 then
-		po[o_out] = cmath.tocomplex(pi[o_in])
+		local s = w and w((o_in - o_in_0) / (size - 1), size) or 1
+		po[o_out] = cmath.tocomplex(pi[o_in] * s)
 		return
 	end
 	local k = n / 2
-	fft.fft(pi, po, k, sign, step * 2, o_in, o_out)
-	fft.fft(pi, po, k, sign, step * 2, o_in + step, o_out + k)
-	local w = sign * 2 * math.pi / n
+	_fft(k, step * 2, o_in, o_out)
+	_fft(k, step * 2, o_in + step, o_out + k)
+	local o = sign * 2 * math.pi / n
 	for i = o_out, o_out + k - 1 do
 		local u = po[i]
-		local v = po[i + k] * cmath.frompolar(1, w * i)
+		local v = po[i + k] * cmath.frompolar(1, o * i)
 		po[i] = u + v
 		po[i + k] = u - v
 	end
 end
 
-function fft.simple(p, size, inv)
+function fft.fft(_pi, _po, _sign, n, step, o_in, o_out, _w)
+	pi, po, sign = _pi, _po, _sign
+	w, o_in_0, size = _w, o_in, n
+	_fft(n, step, o_in, o_out)
+end
+
+function fft.simple(p, n, inv, windowed)
 	local out = {}
-	fft.fft(p, out, size, inv and 1 or -1, 1, 0, 0)
+	fft.fft(p, out, inv and 1 or -1, n, 1, 0, 0, windowed and fft.window)
 	if inv then
 		for i = 0, size - 1 do
 			out[i] = out[i] / size
