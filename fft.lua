@@ -32,26 +32,26 @@ function fft.dft(x, N, inv)
 	return y
 end
 
-function fft.fft(p, n, out, o_out, o_in, step, inv)
+function fft.fft(pi, po, n, sign, step, o_in, o_out)
 	if n == 1 then
-		out[o_out] = p[o_in]
+		po[o_out] = cmath.tocomplex(pi[o_in])
 		return
 	end
 	local k = n / 2
-	fft.fft(p, k, out, o_out, o_in, step * 2, inv)
-	fft.fft(p, k, out, o_out + k, o_in + step, step * 2, inv)
-	local w = (inv and -1 or 1) * 2 * math.pi / n * 1i
+	fft.fft(pi, po, k, sign, step * 2, o_in, o_out)
+	fft.fft(pi, po, k, sign, step * 2, o_in + step, o_out + k)
+	local w = sign * 2 * math.pi / n
 	for i = o_out, o_out + k - 1 do
-		local u = out[i]
-		local v = out[i + k] * (w * i):exp()
-		out[i] = u + v
-		out[i + k] = u - v
+		local u = po[i]
+		local v = po[i + k] * cmath.frompolar(1, w * i)
+		po[i] = u + v
+		po[i + k] = u - v
 	end
 end
 
 function fft.simple(p, size, inv)
 	local out = {}
-	fft.fft(p, size, out, 0, 0, 1, inv)
+	fft.fft(p, out, size, inv and 1 or -1, 1, 0, 0)
 	if inv then
 		for i = 0, size - 1 do
 			out[i] = out[i] / size
