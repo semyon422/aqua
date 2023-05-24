@@ -1,6 +1,6 @@
 local ffi = require("ffi")
 
-local fftw3 = ffi.load("fftw3")
+local fftw3 = ffi.os == "Windows" and ffi.load("libfftw3-3") or ffi.load("fftw3")
 
 ffi.cdef[[
 	typedef double fftw_complex[2];
