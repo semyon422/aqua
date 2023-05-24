@@ -30,6 +30,16 @@ function math_util.lmap(l, f)
 	end
 end
 
+function math_util.weighted_median(list, weights)
+	local sum = 0
+	for i = 1, #list do
+		sum = sum + weights[i]
+		if sum >= 0.5 then
+			return list[i], i
+		end
+	end
+end
+
 local function det(a, b, c, d)
 	return a * d - b * c
 end
