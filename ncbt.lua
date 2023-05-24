@@ -238,11 +238,11 @@ end
 
 local function get_tempo(t, mbpm)
 	local bpm = 60 / t
-	local a, b = math.floor(mbpm / math.sqrt(2)), math.ceil(mbpm + math.sqrt(2))
-	while bpm > a do
+	local a, b = math.floor(mbpm / math.sqrt(2)), math.ceil(mbpm * math.sqrt(2))
+	while bpm > b do
 		bpm = bpm / 2
 	end
-	while bpm < b do
+	while bpm < a do
 		bpm = bpm * 2
 	end
 	return bpm
@@ -337,7 +337,7 @@ function ncbt.tempo_offset(onsets)
 		end
 	end
 
-	local tempo = get_tempo(max_peak, 140)
+	local tempo = get_tempo(max_peak, 100 * math.sqrt(2))
 
 	find_best(tempo, 1, 0.005)
 
