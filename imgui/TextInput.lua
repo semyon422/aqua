@@ -3,6 +3,8 @@ local just = require("just")
 local theme = require("imgui.theme")
 
 return function(id, text, index, w, h)
+	text = tostring(text)
+
 	local font = love.graphics.getFont()
 	local lh = font:getHeight() * font:getLineHeight()
 	h = h or lh
