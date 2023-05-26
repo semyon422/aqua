@@ -3,6 +3,10 @@ local just = require("just")
 local theme = require("imgui.theme")
 
 return function(id, text, index, w, h)
+	local placeholder = ""
+	if type(text) == "table" then
+		text, placeholder = unpack(text)
+	end
 	text = tostring(text)
 
 	local font = love.graphics.getFont()
@@ -23,10 +27,6 @@ return function(id, text, index, w, h)
 
 	love.graphics.translate(h * theme.padding, (h - lh) / 2)
 
-	local placeholder = ""
-	if type(text) == "table" then
-		text, placeholder = unpack(text)
-	end
 
 	love.graphics.setColor(1, 1, 1, 1)
 
