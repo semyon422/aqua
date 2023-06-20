@@ -225,6 +225,8 @@ function Tree:insert(key)
 		return nil, "found"
 	end
 
+	self.size = self.size + 1
+
 	x = {
 		key = key,
 		color = y and 1 or 0,
@@ -257,6 +259,8 @@ function Tree:remove(key)
 	if not z then
 		return nil, "not found"
 	end
+
+	self.size = self.size - 1
 
 	local x
 	local color = z.color
@@ -329,7 +333,7 @@ function Tree:max()
 end
 
 local function new()
-	return setmetatable({}, Tree_mt)
+	return setmetatable({size = 0}, Tree_mt)
 end
 
 return {
