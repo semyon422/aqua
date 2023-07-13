@@ -105,8 +105,8 @@ local function fix_insert(tree, x)
 	tree.root.color = 0
 end
 
-local function fix_remove(tree, x, xp)  -- x may be nil
-	while not x or x ~= tree.root and x.color == 0 do
+local function fix_remove(tree, x, xp)  -- x may be nil (nil node), xp may be nil (parent of root node)
+	while xp or x ~= tree.root and x.color == 0 do
 		local p = xp or x.parent
 		xp = nil
 		if x == p.left then
@@ -121,7 +121,7 @@ local function fix_remove(tree, x, xp)  -- x may be nil
 				s.color = 1
 				x = p
 			else
-				if s.right.color == 0 then
+				if not s.right or s.right.color == 0 then
 					s.left.color = 0
 					s.color = 1
 					rotate_right(tree, s)
@@ -129,7 +129,9 @@ local function fix_remove(tree, x, xp)  -- x may be nil
 				end
 				s.color = p.color
 				p.color = 0
-				s.right.color = 0
+				if s.right then
+					s.right.color = 0
+				end
 				rotate_left(tree, p)
 				x = tree.root
 			end
@@ -145,7 +147,7 @@ local function fix_remove(tree, x, xp)  -- x may be nil
 				s.color = 1
 				x = p
 			else
-				if s.left.color == 0 then
+				if not s.left or s.left.color == 0 then
 					s.right.color = 0
 					s.color = 1
 					rotate_left(tree, s)
@@ -153,7 +155,9 @@ local function fix_remove(tree, x, xp)  -- x may be nil
 				end
 				s.color = p.color
 				p.color = 0
-				s.left.color = 0
+				if s.left then
+					s.left.color = 0
+				end
 				rotate_right(tree, p)
 				x = tree.root
 			end
@@ -298,11 +302,40 @@ function Tree:remove(key)
 		y.color = z.color
 	end
 
-	if zp and color == 0 then
+	if color == 0 then
 		fix_remove(self, x, zp)
 	end
 
 	return z
+end
+
+local function check_subtree(t)
+    if not t then
+        return true, 1
+	end
+
+    if not t.parent and t.color == 1 then
+        return false, 0
+	end
+
+	local black
+    if t.color == 1 then
+        black = 0
+        if t.left and t.left.color == 1 or t.right and t.right.color == 1 then
+            return false, -1
+		end
+    else
+        black = 1
+	end
+
+    local r, black_right = check_subtree(t.right)
+    local l, black_left = check_subtree(t.left)
+
+    return r and l and black_right == black_left, black_right + black
+end
+
+function Tree:is_valid()
+	return (check_subtree(self.root))
 end
 
 local function print_node(node, indent)
