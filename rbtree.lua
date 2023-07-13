@@ -298,7 +298,7 @@ function Tree:remove(key)
 		y.color = z.color
 	end
 
-	if color == 0 then
+	if zp and color == 0 then
 		fix_remove(self, x, zp)
 	end
 
