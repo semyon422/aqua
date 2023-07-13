@@ -105,57 +105,62 @@ local function fix_insert(tree, x)
 	tree.root.color = 0
 end
 
-local function fix_remove(tree, x)
-	while x ~= tree.root and x.color == 0 do
-		if x == x.parent.left then
-			local s = x.parent.right
+local function fix_remove(tree, x, xp)  -- x may be nil
+	while not x or x ~= tree.root and x.color == 0 do
+		local p = xp or x.parent
+		xp = nil
+		if x == p.left then
+			local s = p.right
 			if s.color == 1 then
 				s.color = 0
-				x.parent.color = 1
-				rotate_left(tree, x.parent)
-				s = x.parent.right
+				p.color = 1
+				rotate_left(tree, p)
+				s = p.right
 			end
 			if (not s.left or s.left.color == 0) and (not s.right or s.right.color == 0) then
 				s.color = 1
-				x = x.parent
+				x = p
 			else
 				if s.right.color == 0 then
 					s.left.color = 0
 					s.color = 1
 					rotate_right(tree, s)
-					s = x.parent.right
+					s = p.right
 				end
-				s.color = x.parent.color
-				x.parent.color = 0
+				s.color = p.color
+				p.color = 0
 				s.right.color = 0
-				rotate_left(tree, x.parent)
+				rotate_left(tree, p)
 				x = tree.root
 			end
 		else
-			local s = x.parent.left
+			local s = p.left
 			if s.color == 1 then
 				s.color = 0
-				x.parent.color = 1
-				rotate_right(tree, x.parent)
-				s = x.parent.left
+				p.color = 1
+				rotate_right(tree, p)
+				s = p.left
 			end
 			if (not s.left or s.left.color == 0) and (not s.right or s.right.color == 0) then
 				s.color = 1
-				x = x.parent
+				x = p
 			else
 				if s.left.color == 0 then
 					s.right.color = 0
 					s.color = 1
 					rotate_left(tree, s)
-					s = x.parent.left
+					s = p.left
 				end
-				s.color = x.parent.color
-				x.parent.color = 0
+				s.color = p.color
+				p.color = 0
 				s.left.color = 0
-				rotate_right(tree, x.parent)
+				rotate_right(tree, p)
 				x = tree.root
 			end
 		end
+	end
+	if not x then
+		return
 	end
 	x.color = 0
 end
@@ -264,7 +269,10 @@ function Tree:remove(key)
 
 	local x
 	local color = z.color
-	if not z.left then
+	local zp = z.parent
+	if not z.left and not z.right then
+		transplant(self, z, nil)
+	elseif not z.left then
 		x = z.right
 		transplant(self, z, z.right)
 	elseif not z.right then
@@ -274,12 +282,12 @@ function Tree:remove(key)
 		local y = min(z.right)
 		color = y.color
 		x = y.right
+		zp = y.parent
+
 		if y.parent == z then
-			if x then
-				x.parent = y
-			end
+			zp = y
 		else
-			transplant(self, y, y.right)
+			transplant(self, y, x)
 			y.right = z.right
 			y.right.parent = y
 		end
@@ -290,8 +298,8 @@ function Tree:remove(key)
 		y.color = z.color
 	end
 
-	if x and color == 0 then
-		fix_remove(self, x)
+	if color == 0 then
+		fix_remove(self, x, zp)
 	end
 
 	return z
