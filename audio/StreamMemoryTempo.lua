@@ -7,7 +7,7 @@ local StreamMemoryTempo = BassSource:new()
 
 StreamMemoryTempo.construct = function(self)
 	self.info = self.soundData.info
-	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, 0x200002)
+	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, 0x200002)  -- BASS_STREAM_DECODE | BASS_SAMCHAN_STREAM
 	bass_assert(self.channel ~= 0)
 	self.channel = bass_fx.BASS_FX_TempoCreate(self.channel, 0x10000)
 	bass_assert(self.channel ~= 0)

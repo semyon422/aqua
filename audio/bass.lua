@@ -79,7 +79,7 @@ BOOL BASS_SampleFree(HSAMPLE handle);
 BOOL BASS_ChannelFree(DWORD handle);
 BOOL BASS_ChannelSetAttribute(DWORD handle, DWORD attrib, float value);
 HSTREAM BASS_StreamCreateFile(BOOL mem, const void *file, QWORD offset, QWORD length, DWORD flags);
-HCHANNEL BASS_SampleGetChannel(HSAMPLE handle, BOOL onlynew);
+DWORD BASS_SampleGetChannel(HSAMPLE handle, DWORD flags);
 BOOL BASS_ChannelPlay(DWORD handle, BOOL restart);
 BOOL BASS_ChannelStop(DWORD handle);
 BOOL BASS_ChannelPause(DWORD handle);

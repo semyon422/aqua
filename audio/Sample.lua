@@ -6,7 +6,7 @@ local Sample = BassSource:new()
 
 Sample.construct = function(self)
 	self.info = self.soundData.info
-	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, 0)
+	self.channel = bass.BASS_SampleGetChannel(self.soundData.sample, 1)  -- BASS_SAMCHAN_NEW
 	bass_assert(self.channel ~= 0)
 end
 

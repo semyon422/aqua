@@ -5,10 +5,7 @@ local Source = require("audio.Source")
 local BassSource = Source:new()
 
 BassSource.release = function(self)
-	-- bass_assert(bass.BASS_ChannelFree(self.channel) == 1)
-	-- A sample channel (HCHANNEL) is automatically freed when it is overridden by a new channel.
-	-- Don't assert here.
-	bass.BASS_ChannelFree(self.channel)
+	bass_assert(bass.BASS_ChannelFree(self.channel) == 1)
 end
 
 BassSource.play = function(self)
