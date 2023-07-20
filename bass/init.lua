@@ -1,6 +1,6 @@
 local ffi = require("ffi")
 
-ffi.cdef([[
+ffi.cdef[[
 typedef int8_t BYTE;
 typedef int16_t WORD;
 typedef int32_t DWORD;
@@ -94,9 +94,9 @@ BOOL BASS_GetInfo(BASS_INFO *info);
 BOOL BASS_SetConfig(DWORD option, DWORD value);
 DWORD BASS_GetConfig(DWORD option);
 DWORD BASS_GetDevice();
-]])
+]]
 
-local bass_config = require("audio.bass_config")
+local bass_config = require("bass.config")
 
 local bass = ffi.load("bass", true)
 local _bass = newproxy(true)
@@ -135,7 +135,7 @@ end
 
 function __bass.reinit()
 	local device = bass.BASS_GetDevice()
-	local bass_assert = require("audio.bass_assert")
+	local bass_assert = require("bass.assert")
 	bass_assert(bass.BASS_Init(device, 44100, 128, nil, nil) ~= 0)
 end
 

@@ -1,6 +1,6 @@
 local ffi = require("ffi")
-local bass = require("audio.bass")
-local bass_assert = require("audio.bass_assert")
+local bass = require("bass")
+local bass_assert = require("bass.assert")
 
 local info = ffi.new("BASS_SAMPLE")
 return function(sample, gain)

@@ -1,38 +1,39 @@
-local bass = require("audio.bass")
-local bass_assert = require("audio.bass_assert")
+local class = require("class_new")
 local Source = require("audio.Source")
+local bass = require("bass")
+local bass_assert = require("bass.assert")
 
-local BassSource = Source:new()
+local BassSource, new = class(Source)
 
-BassSource.release = function(self)
+function BassSource:release()
 	bass_assert(bass.BASS_ChannelFree(self.channel) == 1)
 end
 
-BassSource.play = function(self)
+function BassSource:play()
 	bass_assert(bass.BASS_ChannelPlay(self.channel, false) == 1)
 end
 
-BassSource.pause = function(self)
+function BassSource:pause()
 	-- bass_assert(bass.BASS_ChannelPause(self.channel) == 1)
 	-- A sample channel can be ended after last BASS_ChannelIsActive.
 	-- Don't assert here.
 	bass.BASS_ChannelPause(self.channel)
 end
 
-BassSource.stop = function(self)
+function BassSource:stop()
 	self:pause()
 	self:setPosition(0)
 end
 
-BassSource.isPlaying = function(self)
+function BassSource:isPlaying()
 	return bass.BASS_ChannelIsActive(self.channel) ~= 0
 end
 
-BassSource.setRate = function(self, rate)
+function BassSource:setRate(rate)
 	return self:setFreqRate(rate)
 end
 
-BassSource.setFreqRate = function(self, rate)
+function BassSource:setFreqRate(rate)
 	if self.rateValue ~= rate then
 		self.rateValue = rate
 		bass.BASS_ChannelSetAttribute(self.channel, 1, self.info.freq * rate)
@@ -40,7 +41,7 @@ BassSource.setFreqRate = function(self, rate)
 	end
 end
 
-BassSource.getPosition = function(self)
+function BassSource:getPosition()
 	local pos = bass.BASS_ChannelGetPosition(self.channel, 0)
 	bass_assert(pos >= 0)
 	pos = bass.BASS_ChannelBytes2Seconds(self.channel, pos)
@@ -48,7 +49,7 @@ BassSource.getPosition = function(self)
 	return pos
 end
 
-BassSource.setPosition = function(self, position)
+function BassSource:setPosition(position)
 	local length = bass.BASS_ChannelGetLength(self.channel, 0)
 	bass_assert(length >= 0)
 	local pos = bass.BASS_ChannelSeconds2Bytes(self.channel, position)
@@ -60,7 +61,7 @@ BassSource.setPosition = function(self, position)
 	bass_assert(pos == 1)
 end
 
-BassSource.getLength = function(self)
+function BassSource:getLength()
 	local length = bass.BASS_ChannelGetLength(self.channel, 0)
 	bass_assert(length >= 0)
 	length = bass.BASS_ChannelBytes2Seconds(self.channel, length)
@@ -68,13 +69,13 @@ BassSource.getLength = function(self)
 	return length
 end
 
-BassSource.setBaseVolume = function(self, volume)
+function BassSource:setBaseVolume(volume)
 	self.baseVolume = volume
 	return self:setVolume(1)
 end
 
-BassSource.setVolume = function(self, volume)
+function BassSource:setVolume(volume)
 	bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 2, volume * self.baseVolume) == 1)
 end
 
-return BassSource
+return new

@@ -1,24 +1,25 @@
-local Class = require("Class")
+local class = require("class_new")
 
-local Source = Class:new()
+local Source, new = class()
 
 Source.rateValue = 1
 Source.offset = 0
 Source.baseVolume = 1
 
-Source.release = function(self) end
+function Source:new(soundData) end
+function Source:release() end
 
-Source.play = function(self) end
-Source.pause = function(self) end
-Source.stop = function(self) end
+function Source:play() end
+function Source:pause() end
+function Source:stop() end
 
-Source.isPlaying = function(self) end
-Source.setRate = function(self, rate) end
-Source.setPitch = function(self, pitch) end
-Source.getPosition = function(self) end
-Source.setPosition = function(self, position) end
-Source.getLength = function(self) end
-Source.setBaseVolume = function(self, volume) end
-Source.setVolume = function(self, volume) end
+function Source:isPlaying() end
+function Source:setRate(rate) end
+function Source:setPitch(pitch) end
+function Source:getPosition() end
+function Source:setPosition(position) end
+function Source:getLength() end
+function Source:setBaseVolume(volume) end
+function Source:setVolume(volume) end
 
-return Source
+return new
