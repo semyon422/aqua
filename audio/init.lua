@@ -1,11 +1,9 @@
-local class = require("class_new")
 local SoundData = require("audio.SoundData")
 
 local audio = {}
 
-audio.SoundData = class(SoundData, true)
+audio.SoundData = SoundData
 
-function audio.newSoundData(pointer, size) end
 function audio.newSource(soundData, _type) end
 
 function audio.init() end

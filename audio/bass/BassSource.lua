@@ -1,9 +1,8 @@
-local class = require("class_new")
 local Source = require("audio.Source")
 local bass = require("bass")
 local bass_assert = require("bass.assert")
 
-local BassSource, new = class(Source)
+local BassSource = Source + {}
 
 function BassSource:release()
 	bass_assert(bass.BASS_ChannelFree(self.channel) == 1)
@@ -78,4 +77,4 @@ function BassSource:setVolume(volume)
 	bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 2, volume * self.baseVolume) == 1)
 end
 
-return new
+return BassSource

@@ -1,10 +1,9 @@
-local class = require("class_new")
 local SoundData = require("audio.SoundData")
 local ffi = require("ffi")
 local bass = require("bass")
 local bass_assert = require("bass.assert")
 
-local BassSoundData, new = class(SoundData)
+local BassSoundData = SoundData + {}
 
 local info_fields = {
 	"freq",
@@ -67,4 +66,4 @@ function BassSoundData:release()
 	bass_assert(bass.BASS_SampleFree(self.sample) == 1)
 end
 
-return new
+return BassSoundData

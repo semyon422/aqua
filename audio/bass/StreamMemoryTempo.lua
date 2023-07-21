@@ -1,10 +1,9 @@
-local class = require("class_new")
 local BassSource = require("audio.bass.BassSource")
 local bass = require("bass")
 local bass_fx = require("bass.fx")
 local bass_assert = require("bass.assert")
 
-local StreamMemoryTempo, new = class(BassSource)
+local StreamMemoryTempo = BassSource + {}
 
 function StreamMemoryTempo:new(soundData)
 	self.soundData = soundData
@@ -30,4 +29,4 @@ function StreamMemoryTempo:setPitch(pitch)
 	end
 end
 
-return new
+return StreamMemoryTempo

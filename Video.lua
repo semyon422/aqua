@@ -1,18 +1,16 @@
 local ok, video = pcall(require, "video")  -- c
+-- local ok, video = pcall(require, "video.video")  -- ffi
+
 if not ok then
-	return function() end
+	video = {}
+	function video.open(p, s) end
 end
 
--- local ok, video = pcall(require, "video.video")  -- ffi
--- if not ok then
--- 	return function() end
--- end
+local class = require("class_new2")
 
-local class = require("class_new")
+local Video = class()
 
-local Video, new = class()
-
-Video.new = function(self, fileData)
+function Video:new(fileData)
 	local v = video.open(fileData:getPointer(), fileData:getSize())
 	if not v then
 		return nil
@@ -24,19 +22,19 @@ Video.new = function(self, fileData)
 	self.image = love.graphics.newImage(self.imageData)
 end
 
-Video.release = function(self)
+function Video:release()
 	self.video:close()
 	self.imageData:release()
 	self.image:release()
 end
 
-Video.rewind = function(self)
+function Video:rewind()
 	local v = self.video
 	v:seek(0)
 	v:read(self.imageData:getPointer())
 end
 
-Video.play = function(self, time)
+function Video:play(time)
 	local v = self.video
 	while time >= v:tell() do
 		v:read(self.imageData:getPointer())
@@ -44,4 +42,4 @@ Video.play = function(self, time)
 	self.image:replacePixels(self.imageData)
 end
 
-return new
+return Video

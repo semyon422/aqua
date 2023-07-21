@@ -1,4 +1,3 @@
-local class = require("class_new")
 local BassSoundData = require("audio.bass.BassSoundData")
 local StreamMemoryTempo = require("audio.bass.StreamMemoryTempo")
 local Sample = require("audio.bass.Sample")
@@ -6,8 +5,7 @@ local bass = require("bass")
 
 local audio = {}
 
-audio.SoundData = class(BassSoundData, true)
-audio.newSoundData = BassSoundData
+audio.SoundData = BassSoundData
 
 function audio.newSource(soundData, _type)
 	assert(soundData)

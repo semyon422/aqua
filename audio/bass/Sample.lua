@@ -1,9 +1,8 @@
-local class = require("class_new")
 local BassSource = require("audio.bass.BassSource")
 local bass = require("bass")
 local bass_assert = require("bass.assert")
 
-local Sample, new = class(BassSource)
+local Sample = BassSource + {}
 
 function Sample:new(soundData)
 	self.soundData = soundData
@@ -12,4 +11,4 @@ function Sample:new(soundData)
 	bass_assert(self.channel ~= 0)
 end
 
-return new
+return Sample

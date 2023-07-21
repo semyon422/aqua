@@ -1,6 +1,6 @@
-local class = require("class_new")
+local class = require("class_new2")
 
-local Source, new = class()
+local Source = class()
 
 Source.rateValue = 1
 Source.offset = 0
@@ -22,4 +22,4 @@ function Source:getLength() end
 function Source:setBaseVolume(volume) end
 function Source:setVolume(volume) end
 
-return new
+return Source

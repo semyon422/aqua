@@ -149,12 +149,10 @@ local function get_energy(n)
 	return sum / size
 end
 
-local class = require("class_new")
+local Onset_mt = {}
 
-local Onset, newOnset, mt = class()
-
-function mt.__eq(a, b) return a.time == b.time end
-function mt.__lt(a, b) return a.time <= b.time end
+function Onset_mt.__eq(a, b) return a.time == b.time end
+function Onset_mt.__lt(a, b) return a.time <= b.time end
 
 local function get_peak(res, i, w)
 	local sum_n, sum_d = 0, 0
@@ -191,7 +189,7 @@ local function process()
 	local w = 2
 	for i = 1 + w, #frames - w do
 		local peak, peak_size = get_peak(res, i, w)
-		local onset = newOnset()
+		local onset = setmetatable({}, Onset_mt)
 		onset.time = (i - 1) * hop / sampleRate + adjust
 		onset.value = res[i] / size
 		table.insert(onsets, onset)
