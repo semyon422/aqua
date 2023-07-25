@@ -356,9 +356,11 @@ end
 
 local function next_tree_node(tree, node)
 	if node then
-		return node:next()
+		node = node:next()
+	else
+		node = tree:min()
 	end
-	return tree:min()
+	return node, node and node.key
 end
 
 function Tree:iter()
