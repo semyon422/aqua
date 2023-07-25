@@ -1,5 +1,6 @@
 local SoundData = require("audio.SoundData")
 local ffi = require("ffi")
+local bit = require("bit")
 local bass = require("bass")
 local bass_assert = require("bass.assert")
 
@@ -45,6 +46,15 @@ function BassSoundData:new(pointer, size)
 		info[field] = sample_info[field]
 	end
 	self.info = info
+
+	self.bits = 16
+	if bit.band(info.flags, 1) ~= 0 then  -- BASS_SAMPLE_8BITS
+		self.bits = 8
+	elseif bit.band(info.flags, 256) ~= 0 then  -- BASS_SAMPLE_FLOAT
+		self.bits = 32
+	end
+
+	self.duration = info.length / info.chans / (self.bits / 8) / info.freq
 end
 
 function BassSoundData:amplify(gain)
@@ -64,6 +74,10 @@ end
 function BassSoundData:release()
 	assert(bass.BASS_SampleGetChannels(self.sample, nil) == 0, "Sample is still used")
 	bass_assert(bass.BASS_SampleFree(self.sample) == 1)
+end
+
+function BassSoundData:getDuration()
+	return self.duration
 end
 
 return BassSoundData
