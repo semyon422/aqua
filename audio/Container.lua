@@ -71,7 +71,7 @@ Container.setPosition = function(self, position)
 	for source in pairs(self.sources) do
 		if source:isPlaying() then
 			local newPosition = position - source.offset
-			if newPosition >= 0 and newPosition < source:getLength() then
+			if newPosition >= 0 and newPosition < source:getDuration() then
 				source:setPosition(newPosition)
 			else
 				source:release()
@@ -89,7 +89,7 @@ Container.getPosition = function(self)
 	for source in pairs(self.sources) do
 		local pos = source:getPosition()
 		if source:isPlaying() then
-			local _length = source:getLength()
+			local _length = source:getDuration()
 			local _pos = source.offset + pos
 			minPos = math.min(minPos, _pos)
 			maxPos = math.max(maxPos, _pos)

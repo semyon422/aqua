@@ -60,7 +60,7 @@ function BassSource:setPosition(position)
 	bass_assert(pos == 1)
 end
 
-function BassSource:getLength()
+function BassSource:getDuration()
 	local length = bass.BASS_ChannelGetLength(self.channel, 0)
 	bass_assert(length >= 0)
 	length = bass.BASS_ChannelBytes2Seconds(self.channel, length)

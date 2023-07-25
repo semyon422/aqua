@@ -18,7 +18,7 @@ function Source:setRate(rate) end
 function Source:setPitch(pitch) end
 function Source:getPosition() end
 function Source:setPosition(position) end
-function Source:getLength() end
+function Source:getDuration() end
 function Source:setBaseVolume(volume) end
 function Source:setVolume(volume) end
 
