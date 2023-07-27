@@ -95,6 +95,12 @@ function imgui.slider1(id, v, format, a, b, c, label)
 	return v
 end
 
+function imgui.logslider(id, v, format, a, b, c, k, label)
+	local lv = math_util.round(math.log(v) * k, c)
+	lv = imgui.slider1(id, lv, format, a, b, c, label)
+	return math.exp(lv / k)
+end
+
 function imgui.checkbox(id, v, label)
 	local isNumber = type(v) == "number"
 	if isNumber then
