@@ -228,6 +228,20 @@ function Tree:find(key)
 	return x, y
 end
 
+function Tree:findex(key, f)
+	local y
+	local x = self.root
+	while x and key ~= f(x.key) do
+		y = x
+		if key < f(x.key) then
+			x = x.left
+		else
+			x = x.right
+		end
+	end
+	return x, y
+end
+
 function Tree:insert(key)
 	local x, y = self:find(key)
 	if x then
