@@ -14,8 +14,8 @@ return function(id, device, key, w, h)
 			just.focus()
 		end
 		if just.keypressed("escape", true) then
-			changed = false
-			key = _key
+			changed = true
+			key = nil
 			just.focus()
 		end
 	end
