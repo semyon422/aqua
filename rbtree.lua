@@ -282,6 +282,7 @@ function Tree:remove(key)
 	if not z then
 		return nil, "not found"
 	end
+	return self:remove_node(z)
 end
 
 function Tree:remove_node(z)
