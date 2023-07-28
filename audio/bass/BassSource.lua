@@ -25,7 +25,7 @@ function BassSource:stop()
 end
 
 function BassSource:isPlaying()
-	return bass.BASS_ChannelIsActive(self.channel) ~= 0
+	return bass.BASS_ChannelIsActive(self.channel) == 1  -- BASS_ACTIVE_PLAYING
 end
 
 function BassSource:setRate(rate)
