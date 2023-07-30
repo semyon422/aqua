@@ -2,6 +2,7 @@ local Class = require("Class")
 
 local Container = Class:new()
 
+Container.playing = false
 Container.volume = 1
 Container.rate = 1
 Container.pitch = 1
@@ -20,7 +21,7 @@ end
 
 Container.update = function(self)
 	for source in pairs(self.sources) do
-		if not source:isPlaying() then
+		if self.playing and not source:isPlaying() then
 			source:release()
 			self.sources[source] = nil
 		end
@@ -32,6 +33,7 @@ Container.release = function(self)
 		source:release()
 	end
 	self.sources = {}
+	self.playing = false
 end
 
 Container.setRate = function(self, rate)
@@ -56,12 +58,14 @@ Container.setVolume = function(self, volume)
 end
 
 Container.play = function(self)
+	self.playing = true
 	for source in pairs(self.sources) do
 		source:play()
 	end
 end
 
 Container.pause = function(self)
+	self.playing = false
 	for source in pairs(self.sources) do
 		source:pause()
 	end
