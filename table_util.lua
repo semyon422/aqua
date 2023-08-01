@@ -15,6 +15,27 @@ function table_util.equal(a, b)
 	return size == _size
 end
 
+function table_util.deepequal(a, b)
+	local size, _size = 0, 0
+	for k, v in pairs(a) do
+		size = size + 1
+		local _v = b[k]
+		if type(v) == "table" and type(_v) == "table" then
+			if not table_util.deepequal(v, _v) then
+				return false
+			end
+		elseif v ~= _v then
+			return false
+		end
+	end
+	for _ in pairs(b) do
+		_size = _size + 1
+	end
+	return size == _size
+end
+
+assert(table_util.deepequal({{}}, {{}}))
+
 function table_util.deepcopy(t)
 	if type(t) ~= "table" then
 		return t
