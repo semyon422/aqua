@@ -4,6 +4,8 @@ local bit = require("bit")
 local bass = require("bass")
 local bass_assert = require("bass.assert")
 
+---@class audio.bass.BassSoundData: audio.SoundData
+---@operator call:audio.bass.BassSoundData
 local BassSoundData = SoundData + {}
 
 local info_fields = {

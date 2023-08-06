@@ -3,6 +3,8 @@ local bass = require("bass")
 local bass_fx = require("bass.fx")
 local bass_assert = require("bass.assert")
 
+---@class audio.bass.StreamMemoryTempo: audio.bass.BassSource
+---@operator call:audio.bass.StreamMemoryTempo
 local StreamMemoryTempo = BassSource + {}
 
 function StreamMemoryTempo:new(soundData)

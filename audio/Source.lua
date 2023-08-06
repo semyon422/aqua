@@ -1,5 +1,7 @@
 local class = require("class_new2")
 
+---@class audio.Source
+---@operator call:audio.Source
 local Source = class()
 
 Source.rateValue = 1

@@ -1,5 +1,7 @@
 local class = require("class_new2")
 
+---@class audio.SoundData
+---@operator call:audio.SoundData
 local SoundData = class()
 
 function SoundData:new(pointer, size) end

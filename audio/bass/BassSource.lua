@@ -2,6 +2,8 @@ local Source = require("audio.Source")
 local bass = require("bass")
 local bass_assert = require("bass.assert")
 
+---@class audio.bass.BassSource: audio.Source
+---@operator call:audio.bass.BassSource
 local BassSource = Source + {}
 
 function BassSource:release()
