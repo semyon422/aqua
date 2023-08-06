@@ -5,12 +5,12 @@ local function return_from_new(t, ...)
 	return t
 end
 
-local function new(self, ...)
-	local t = setmetatable({}, self)
-	if self.new then
-		return return_from_new(t, t:new(...))
+local function new(T, ...)
+	if not T.new then
+		return setmetatable(... or {}, T)
 	end
-	return t
+	local t = setmetatable({}, T)
+	return return_from_new(t, t:new(...))
 end
 
 local function class(p, t)
