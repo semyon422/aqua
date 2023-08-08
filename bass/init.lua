@@ -17,52 +17,58 @@ typedef DWORD HFX;
 typedef DWORD HPLUGIN;
 
 typedef struct {
-DWORD freq;
-DWORD chans;
-DWORD flags;
-DWORD ctype;
-DWORD origres;
-HPLUGIN plugin;
-HSAMPLE sample;
-const char *filename;
+	DWORD freq;
+	DWORD chans;
+	DWORD flags;
+	DWORD ctype;
+	DWORD origres;
+	HPLUGIN plugin;
+	HSAMPLE sample;
+	const char *filename;
 } BASS_CHANNELINFO;
 
 typedef struct {
-DWORD freq;
-float volume;
-float pan;
-DWORD flags;
-DWORD length;
-DWORD max;
-DWORD origres;
-DWORD chans;
-DWORD mingap;
-DWORD mode3d;
-float mindist;
-float maxdist;
-DWORD iangle;
-DWORD oangle;
-float outvol;
-DWORD vam;
-DWORD priority;
+	DWORD freq;
+	float volume;
+	float pan;
+	DWORD flags;
+	DWORD length;
+	DWORD max;
+	DWORD origres;
+	DWORD chans;
+	DWORD mingap;
+	DWORD mode3d;
+	float mindist;
+	float maxdist;
+	DWORD iangle;
+	DWORD oangle;
+	float outvol;
+	DWORD vam;
+	DWORD priority;
 } BASS_SAMPLE;
 
 typedef struct {
-DWORD flags;
-DWORD hwsize;
-DWORD hwfree;
-DWORD freesam;
-DWORD free3d;
-DWORD minrate;
-DWORD maxrate;
-BOOL eax;
-DWORD minbuf;
-DWORD dsver;
-DWORD latency;
-DWORD initflags;
-DWORD speakers;
-DWORD freq;
+	DWORD flags;
+	DWORD hwsize;
+	DWORD hwfree;
+	DWORD freesam;
+	DWORD free3d;
+	DWORD minrate;
+	DWORD maxrate;
+	BOOL eax;
+	DWORD minbuf;
+	DWORD dsver;
+	DWORD latency;
+	DWORD initflags;
+	DWORD speakers;
+	DWORD freq;
 } BASS_INFO;
+
+typedef struct {
+	char *name;
+	char *driver;
+	DWORD flags;
+} BASS_DEVICEINFO;
 
 BOOL BASS_Init(int device, DWORD freq, DWORD flags, void *win, void *dsguid);
 BOOL BASS_Free();
@@ -94,6 +100,7 @@ BOOL BASS_GetInfo(BASS_INFO *info);
 BOOL BASS_SetConfig(DWORD option, DWORD value);
 DWORD BASS_GetConfig(DWORD option);
 DWORD BASS_GetDevice();
+BOOL BASS_GetDeviceInfo(DWORD device, BASS_DEVICEINFO *info);
 ]]
 
 local bass_config = require("bass.config")
@@ -143,6 +150,32 @@ local info = ffi.new("BASS_INFO[1]")
 function __bass.getInfo()
 	bass.BASS_GetInfo(info)
 	return info[0]
+end
+
+local device_info = ffi.new("BASS_DEVICEINFO[1]")
+function __bass.getDevices()
+	local devices = {}
+
+	local info = device_info[0]
+	local device = 0
+	while bass.BASS_GetDeviceInfo(device, device_info) ~= 0 do
+		local d = {
+			id = device,
+			name = "NULL",
+			driver = "NULL",
+			flags = info.flags,
+		}
+		if info.name ~= nil then  -- not NULL
+			d.name = ffi.string(info.name)
+		end
+		if info.driver ~= nil then  -- not NULL
+			d.driver = ffi.string(info.driver)
+		end
+		table.insert(devices, d)
+		device = device + 1
+	end
+
+	return devices
 end
 
 __bass.default_dev_period = bass.BASS_GetConfig(bass_config.BASS_CONFIG_DEV_PERIOD)
