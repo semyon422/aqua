@@ -104,6 +104,7 @@ BOOL BASS_GetDeviceInfo(DWORD device, BASS_DEVICEINFO *info);
 ]]
 
 local bass_config = require("bass.config")
+local bass_device_info = require("bass.device_info")
 
 local bass = ffi.load("bass", true)
 local _bass = newproxy(true)
@@ -119,14 +120,19 @@ local Plugins = {
 	Linux = {"libbassopus.so"},
 }
 
-function __bass.init()
-	if bass.BASS_Init(-1, 44100, 0, nil, nil) == 0 then
+function __bass.init(device)
+	local bass_error_code = require("bass.error_code")
+	local bass_assert = require("bass.assert")
+
+	if bass.BASS_Init(device or -1, 44100, 0, nil, nil) == 0 then
+		print("BASS_Init failed")
+		print(bass_error_code())
 		return
 	end
 
 	mt.__gc = function()
-		assert(bass.BASS_Free() ~= 0, "BASS_Free failed")
-		assert(bass.BASS_PluginFree(0) ~= 0, "BASS_PluginFree failed")
+		bass_assert(bass.BASS_Free() ~= 0)
+		bass_assert(bass.BASS_PluginFree(0) ~= 0)
 	end
 
 	local plugins = Plugins[jit.os]
@@ -142,8 +148,13 @@ end
 
 function __bass.reinit()
 	local device = bass.BASS_GetDevice()
+	local flags = 128  -- BASS_DEVICE_REINIT
+	if device == -1 then  -- BASS_ERROR_INIT
+		device = 1
+		flags = 0
+	end
 	local bass_assert = require("bass.assert")
-	bass_assert(bass.BASS_Init(device, 44100, 128, nil, nil) ~= 0)
+	bass_assert(bass.BASS_Init(device, 44100, flags, nil, nil) ~= 0)
 end
 
 local info = ffi.new("BASS_INFO[1]")
@@ -161,9 +172,9 @@ function __bass.getDevices()
 	while bass.BASS_GetDeviceInfo(device, device_info) ~= 0 do
 		local d = {
 			id = device,
-			name = "NULL",
-			driver = "NULL",
-			flags = info.flags,
+			enabled = bit.band(info.flags, bass_device_info.BASS_DEVICE_ENABLED) ~= 0,
+			default = bit.band(info.flags, bass_device_info.BASS_DEVICE_DEFAULT) ~= 0,
+			init = bit.band(info.flags, bass_device_info.BASS_DEVICE_INIT) ~= 0,
 		}
 		if info.name ~= nil then  -- not NULL
 			d.name = ffi.string(info.name)
