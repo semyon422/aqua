@@ -34,9 +34,9 @@ function imgui.label(id, label)
 	imgui.Label(id, label, _h)
 end
 
-function imgui.text(text)
+function imgui.text(...)
 	imgui.indent()
-	just.text(text)
+	return just.text(...)
 end
 
 function imgui.url(id, text, url, isLabel)
