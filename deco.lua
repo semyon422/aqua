@@ -95,7 +95,7 @@ local function lua_loader(name)
 		local content = deco.read_file(path)
 		if content then
 			content = deco.process(content, name:match("([^/]+)$"))
-			local loader, err = loadstring(content, path)
+			local loader, err = loadstring(content, "@" .. path)  -- [string "mod.lua"] -> mod.lua
 			if loader then
 				return loader
 			end
