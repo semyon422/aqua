@@ -1,4 +1,5 @@
-local class = require("class")
+local class = require("class_new2")
+local deco = require("deco")
 
 local typecheck = {}
 
@@ -658,6 +659,47 @@ function typecheck.decorate(f, signature)
 	return function(...)
 		wrap_return("argument", name, check(ptypes, _get_args(...)))
 		return wrap_return("returning value", name, check(rtypes, f(...)))
+	end
+end
+
+---@class typecheck.TypeDecorator: deco.Decorator
+---@operator call: typecheck.TypeDecorator
+local TypeDecorator = class(deco.Decorator)
+typecheck.TypeDecorator = TypeDecorator
+
+function TypeDecorator:new()
+	self.def = {
+		param_names = {},
+		param_types = {},
+		return_types = {},
+	}
+end
+
+function TypeDecorator:func_end(func_name)
+	self.def.name = func_name
+	func_name = func_name:gsub(":", ".")
+	local signature = typecheck.encode_def(self.def)
+	self:new()
+	return ([[? = require("typecheck").decorate(?, %q)]]):gsub("?", func_name):format(signature)
+end
+
+function TypeDecorator:next(line)
+	if line:sub(1, 4) ~= "---@" then
+		return
+	end
+
+	local tokens = assert(typecheck.lex(line:sub(5)))
+
+	local def = self.def
+	local annotaion = tokens:parse_name()
+	if annotaion == "param" then
+		local name = tokens:parse_name()
+		local union = tokens:parse_type_union()
+		table.insert(def.param_names, name)
+		table.insert(def.param_types, union)
+	elseif annotaion == "return" then
+		local union = tokens:parse_type_union()
+		table.insert(def.return_types, union)
 	end
 end
 
