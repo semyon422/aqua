@@ -95,6 +95,15 @@ do
 end
 
 do
+	local tokens = lex("number[][]")  -- support both variants
+	local t = assert(tokens:parse_type())
+	assert(typeof(t, typecheck.ArrayType))
+	assert(typeof(t.type, typecheck.ArrayType))
+	assert(typeof(t.type.type, typecheck.Type))
+	assert(tostring(t) == "[][]number")
+end
+
+do
 	local tokens = lex("number, string")
 	local types = assert(tokens:parse_types())
 	assert(#types == 2)

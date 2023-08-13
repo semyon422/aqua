@@ -264,6 +264,11 @@ function Tokens:parse_type()
 		_type = typecheck.get_type(t)
 	end
 
+	while self.token and self.token.type == "array" do
+		array_depth = array_depth + 1
+		self:step()
+	end
+
 	for _ = 1, array_depth do
 		_type = ArrayType(_type)
 	end
@@ -279,20 +284,6 @@ function Tokens:parse_type_union()
 	end
 
 	self:_push()
-
-	if self.token.type == "leftparan" then
-		self:step()
-
-		local union = self:parse_type_union()
-		if not union or self.token.type ~= "rightparan" then
-			return nil, get_token_error(self:_pop())
-		end
-
-		self:step()
-		self:_pop(true)
-
-		return union
-	end
 
 	local union = UnionType()
 
