@@ -684,10 +684,17 @@ function TypeDecorator:new()
 end
 
 function TypeDecorator:func_end(func_name)
-	self.def.name = func_name
+	local def = self.def
+	if #def.param_names == 0 and #def.return_types == 0 then
+		return
+	end
+
+	def.name = func_name
 	func_name = func_name:gsub(":", ".")
-	local signature = typecheck.encode_def(self.def)
+	local signature = typecheck.encode_def(def)
+
 	self:new()
+
 	return ([[? = require("typecheck").decorate(?, %q)]]):gsub("?", func_name):format(signature)
 end
 
