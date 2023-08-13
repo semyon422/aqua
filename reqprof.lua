@@ -1,7 +1,9 @@
+local class = require("class_new2")
+local deco = require("deco")
+
 local reqprof = {}
 
 reqprof.max_level = 10
-reqprof.blacklist = {}
 reqprof.stats = {}
 
 local enabled, target_enabled = false, false
@@ -82,18 +84,16 @@ function reqprof._print()
 	end
 end
 
-local function pack(t, ...)
-	for i = 1, t.n do
-		t[i] = 0
-	end
-	t.n = select("#", ...)
-	for i = 1, t.n do
-		t[i] = select(i, ...)
-	end
-end
-
 function reqprof.decorate(f, name)
-	local arg_list = {n = 0}
+	local function return_measured(t, stats, ...)
+		level = level - 1
+
+		stats[name].time = stats[name].time + getTime() - t
+		stats[name].calls = stats[name].calls + 1
+
+		return ...
+	end
+
 	return function(...)
 		total_calls = total_calls + 1
 
@@ -116,96 +116,18 @@ function reqprof.decorate(f, name)
 
 		level = level + 1
 		local t = getTime()
-		pack(arg_list, f(...))
-		local _t = getTime()
-		level = level - 1
-
-		stats[name].time = stats[name].time + _t - t
-		stats[name].calls = stats[name].calls + 1
-
-		return unpack(arg_list, 1, arg_list.n)
+		return return_measured(t, stats, f(...))
 	end
 end
 
-local function decorate_string(func_name)
-	return ([[? = __reqprof.decorate(?, "?")]]):gsub("?", (func_name:gsub(":", ".")))
-end
+---@class reqprof.ProfileDecorator: deco.Decorator
+---@operator call: reqprof.ProfileDecorator
+local ProfileDecorator = class(deco.Decorator)
+reqprof.ProfileDecorator = ProfileDecorator
 
-local function split(s, p)
-	if not p then
-		return
-	end
-	local a, b = s:find("\n", p, true)
-	if not a then
-		return false, s:sub(p)
-	end
-	return b + 1, s:sub(p, a - 1)
-end
-
-function reqprof.process(s, name)
-	local lines = {}
-	local func_name, is_return
-	for _, line in split, s, 1 do
-		local matched =
-			line:match("^function ([%w%.:_]+)%(") or
-			line:match("^local function ([%w_]+)%(") or
-			line:match("^([%w%._]+) = function%(") or
-			line:match("^local ([%w_]+) = function%(")
-
-		if line:match("^return function%(") then
-			line = line:gsub("^return function", "return __reqprof.decorate(function")
-			matched = name
-			is_return = true
-		end
-
-		func_name = func_name or matched
-		if func_name and line:match("^end") or matched and line:match("end$") then
-			if is_return then
-				line = line .. ([[, "?")]]):gsub("?", name)
-			else
-				line = line .. " " .. decorate_string(func_name)
-			end
-			is_return = nil
-			func_name = nil
-		end
-
-		table.insert(lines, line)
-	end
-	s = [[local __reqprof = require("reqprof") ]] .. table.concat(lines, "\n")
-	assert(not func_name, s)
-	return s
-end
-
-local _lua_loader = package.loaders[2]
-local function lua_loader(name)
-	name = name:gsub("%.", "/")
-
-	local errors = {}
-
-	for path in love.filesystem.getRequirePath():gsub("%?", name):gmatch("[^;]+") do
-		for _, item in ipairs(reqprof.blacklist) do
-			if path:find(item, 1, true) then
-				return _lua_loader(name)
-			end
-		end
-		local content = love.filesystem.read(path)
-		if content then
-			content = reqprof.process(content, name:match("([^/]+)$"))
-			local loader, err = loadstring(content, path)
-			if loader then
-				return loader
-			end
-			error(err .. "\n" .. content)
-		else
-			table.insert(errors, ("no file '%s'"):format(path))
-		end
-	end
-
-	return "\n\t" .. table.concat(errors, "\n\t")
-end
-
-function reqprof.replace_loader()
-	package.loaders[2] = lua_loader
+function ProfileDecorator:func_end(func_name)
+	local func = func_name:gsub(":", ".")
+	return ([[? = require("reqprof").decorate(?, %q)]]):gsub("?", func):format(func_name)
 end
 
 return reqprof
