@@ -598,6 +598,9 @@ local function check(types, ...)
 	local iter_to = #types
 	if types.is_vararg then
 		iter_to = math.max(iter_to - 1, n)
+	elseif n > #types then
+		local i = #types + 1
+		return false, i, "no value", type(select(i, ...))
 	end
 
 	for i = 1, iter_to do

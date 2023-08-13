@@ -244,7 +244,7 @@ assert_parse_types("number, string", 1, "q")
 
 assert_not_parse_types("number")
 assert_parse_types("number", 1)
-assert_parse_types("number", 1, 2, 3)
+assert_not_parse_types("number", 1, 2, 3)
 
 assert_not_parse_types("number|nil")
 assert_parse_types("number|nil", nil)
