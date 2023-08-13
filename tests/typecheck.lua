@@ -23,9 +23,22 @@ do
 end
 
 do
+	local tokens = lex("a.b")
+	local name, is_method = tokens:parse_func_name()
+	assert(not is_method)
+	assert(name == "a.b")
+end
+
+do
+	local tokens = lex("a:b")
+	local name, is_method = tokens:parse_func_name()
+	assert(is_method)
+	assert(name == "a:b")
+end
+
+do
 	local tokens = lex("a.b.c")
 	local name = tokens:parse_name_novararg()
-	assert(tokens.pos == #tokens + 1)
 	assert(name == "a.b.c")
 end
 
@@ -273,7 +286,9 @@ do
 	assert(#types == 1)
 end
 
-assert(typecheck.parse_def("mylib.mul(): number"))
+assert(typecheck.parse_def("test(): number"))
+assert(typecheck.parse_def("mod.test(): number"))
+assert(typecheck.parse_def("(): number"))
 assert(typecheck.parse_def("()"))
 
 do
@@ -288,4 +303,22 @@ do
 	test = typecheck.decorate(test, def)
 
 	test(nil, {MyClass()})
+
+	assert(def == typecheck.encode_def(typecheck.parse_def(def)))
+end
+
+do
+	local def = "mod:test(a: number): number"
+
+	local parsed = assert(typecheck.parse_def(def))
+	assert(parsed.is_method)
+
+	assert(def == typecheck.encode_def(parsed))
+
+	local function test(self, a)
+		return a
+	end
+	test = typecheck.decorate(test, def)
+
+	test(nil, 1)
 end

@@ -158,9 +158,45 @@ function Tokens:step()
 	self.token = self[self.pos]
 end
 
+function Tokens:parse_func_name()
+	if not self.token or self.token.type ~= "id" then
+		return nil, get_token_error(self.token)
+	end
+
+	self:_push()
+
+	local name = self.token.value
+	self:step()
+
+	if self.token.type ~= "colon" and self.token.type ~= "point" then
+		self:_pop(true)
+		return name
+	end
+
+	local out = {name, self.token.value}
+
+	local is_method = false
+	if self.token.type == "colon" then
+		is_method = true
+	end
+
+	self:step()
+
+	if self.token.type ~= "id" then
+		return nil, get_token_error(self:_pop())
+	end
+
+	out[3] = self.token.value
+	self:step()
+
+	self:_pop(true)
+
+	return table.concat(out), is_method
+end
+
 function Tokens:parse_name_novararg()
-	if not self.token then
-		return nil, get_token_error()
+	if not self.token or self.token.type ~= "id" then
+		return nil, get_token_error(self.token)
 	end
 
 	self:_push()
@@ -482,6 +518,7 @@ end
 function typecheck.parse_def(signature)
 	local def = {
 		name = "?",
+		is_method = false,
 		param_names = {},
 		param_types = {},
 		return_types = {},
@@ -492,11 +529,11 @@ function typecheck.parse_def(signature)
 		return nil, err
 	end
 
-	local name, err = tokens:parse_name()
-	if not name then
-		name = "?"
+	local name, is_method = tokens:parse_func_name()
+	if name then
+		def.name = name
+		def.is_method = is_method
 	end
-	def.name = name
 
 	local param_names, param_types = tokens:parse_params()
 	if not param_names then
@@ -528,6 +565,41 @@ function typecheck.parse_def(signature)
 	return def
 end
 
+function typecheck.encode_def(def)
+	local out = {}
+
+	if def.name ~= "?" then
+		table.insert(out, def.name)
+	end
+
+	table.insert(out, "(")
+	local params = {}
+	for i = 1, #def.param_names do
+		table.insert(params, ("%s: %s"):format(def.param_names[i], def.param_types[i]))
+	end
+	table.insert(out, table.concat(params, ", "))
+	table.insert(out, ")")
+
+	if #def.return_types == 0 then
+		return table.concat(out)
+	end
+
+	table.insert(out, ": ")
+
+	local return_types = {}
+	for i = 1, #def.return_types do
+		table.insert(return_types, tostring(def.return_types[i]))
+	end
+
+	table.insert(out, table.concat(return_types, ", "))
+
+	if def.return_types.is_vararg then
+		table.insert(out, "...")
+	end
+
+	return table.concat(out)
+end
+
 local function check(types, ...)
 	local n = select("#", ...)
 
@@ -557,15 +629,24 @@ local function check(types, ...)
 end
 typecheck.check_types = check
 
-local function wrap_return(err, res, ...)
+
+local exp_got = "bad %s #%s to '%s' (%s expected, got %s)"
+local function wrap_return(bad, name, res, ...)
 	if res then
 		return ...
 	end
 	local i, _type, got = ...
-	error(err:format(i, _type, got), 2)
+	local err = exp_got:format(bad, i, name, _type, got)
+	error(err, 2)
 end
 
-local n_to_exp_got = "#%s to '?' (%s expected, got %s)"
+local function get_args(...)
+	return ...
+end
+
+local function get_method_args(_, ...)
+	return ...
+end
 
 ---@generic T
 ---@param f T
@@ -573,12 +654,19 @@ local n_to_exp_got = "#%s to '?' (%s expected, got %s)"
 ---@return T f
 function typecheck.decorate(f, signature)
 	local s = assert(typecheck.parse_def(signature))
-	local arg_err = ("bad argument " .. n_to_exp_got):gsub("?", s.name)
-	local ret_err = ("bad returning value " .. n_to_exp_got):gsub("?", s.name)
+
+	local _get_args = get_args
+	if s.is_method then
+		_get_args = get_method_args
+	end
+
+	local name = s.name
+	local ptypes = s.param_types
+	local rtypes = s.return_types
 
 	return function(...)
-		wrap_return(arg_err, check(s.param_types, ...))
-		return wrap_return(ret_err, check(s.return_types, f(...)))
+		wrap_return("argument", name, check(ptypes, _get_args(...)))
+		return wrap_return("returning value", name, check(rtypes, f(...)))
 	end
 end
 
