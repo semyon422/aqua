@@ -662,6 +662,14 @@ function typecheck.decorate(f, signature)
 	end
 end
 
+function typecheck.fix_traceback(s)
+	s = s:gsub("(\t[^\t]+): in function 'f'\n\t[^\t]+/typecheck%.lua:%w+: in function '([^']+)'\n", function(p, f)
+		return ("%s: in function '%s'\n"):format(p, f)
+	end)
+	s = s:gsub("\n[^\n]+\n[^\n]+in function 'wrap_return'\n[^\n]+\n", "\n")
+	return s
+end
+
 ---@class typecheck.TypeDecorator: deco.Decorator
 ---@operator call: typecheck.TypeDecorator
 local TypeDecorator = class(deco.Decorator)
