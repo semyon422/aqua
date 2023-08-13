@@ -629,7 +629,7 @@ local function wrap_return(bad, name, res, ...)
 	end
 	local i, _type, got = ...
 	local err = exp_got:format(bad, i, name, _type, got)
-	error(err, 2)
+	error(err, 3)
 end
 
 local function get_args(...)
