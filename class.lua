@@ -5,12 +5,19 @@ local function return_from_new(t, ...)
 	return t
 end
 
+local function return_from_new_xpcall(t, ok, ...)
+	if ok then
+		return return_from_new(t, ...)
+	end
+	error(..., 2)
+end
+
 local function new(T, ...)
 	if not T.new then
 		return setmetatable(... or {}, T)
 	end
 	local t = setmetatable({}, T)
-	return return_from_new(t, t:new(...))
+	return return_from_new_xpcall(t, xpcall(T.new, debug.traceback, t, ...))
 end
 
 local function isclass(T)
