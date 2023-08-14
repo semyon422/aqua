@@ -31,7 +31,7 @@ return function(id, device, key, w, h)
 
 	love.graphics.setColor(1, 1, 1, 1)
 
-	local text = just.focused_id == id and "???" or key
+	local text = just.focused_id == id and "???" or key or "none"
 	gfx_util.printFrame(text, h * theme.padding, 0, w, h, "left", "center")
 
 	just.next(w, h)
