@@ -36,6 +36,24 @@ function AnyType.__tostring()
 	return "any"
 end
 
+---@class typecheck.CType: typecheck.Type
+---@operator call: typecheck.CType
+local CType = class()
+typecheck.CType = CType
+
+function CType:new(name)
+	self.name = name
+end
+
+function CType:check(value)
+	local t = type(value)
+	return t == "userdata" or t == "cdata"
+end
+
+function CType.__tostring(t)
+	return t.name
+end
+
 ---@class typecheck.ClassType: typecheck.Type
 ---@operator call: typecheck.ClassType
 local ClassType = class()
@@ -264,6 +282,10 @@ function Tokens:parse_type()
 			self:_pop()
 			return nil, err
 		end
+		while self.token and self.token.type == "asterisk" do
+			t = t .. self.token.value
+			self:step()
+		end
 		_type = typecheck.get_type(t)
 	end
 
@@ -464,6 +486,7 @@ local token_patterns = {
 	{"minus", "%-"},
 	{"at", "@"},
 	{"equal", "="},
+	{"asterisk", "*"},
 }
 
 ---@param s string
@@ -503,6 +526,9 @@ end
 function typecheck.get_type(name)
 	if name == "any" then
 		return AnyType()
+	end
+	if name:find("^ffi%.") then
+		return CType(name)
 	end
 	if class_by_name[name] then
 		return ClassType(name, class_by_name[name])
