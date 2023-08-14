@@ -6,7 +6,7 @@ if not ok then
 	function video.open(p, s) end
 end
 
-local class = require("class_new2")
+local class = require("class")
 
 local Video = class()
 

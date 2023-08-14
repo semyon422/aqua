@@ -1,6 +1,6 @@
-local Class = require("Class")
+local class = require("class")
 
-local Timer = Class:new()
+local Timer = class()
 
 Timer.isPlaying = false
 Timer.offset = 0

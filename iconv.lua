@@ -12,7 +12,7 @@ local libiconv = ffi.load("iconv")
 local iconv = {}
 iconv.__index = iconv
 
-iconv.open = function(self, tocode, fromcode)
+function iconv:open(tocode, fromcode)
 	local cd = libiconv.libiconv_open(tocode, fromcode)
 
 	if cd == -1 then
@@ -24,7 +24,7 @@ iconv.open = function(self, tocode, fromcode)
 	return setmetatable({cd = cd}, self)
 end
 
-iconv.close = function(self)
+function iconv:close()
 	local cd = self.cd
 	libiconv.libiconv_close(cd)
 	ffi.gc(cd, nil)
@@ -38,7 +38,7 @@ local outbytesleft = ffi.new("size_t[1]", outbuff_size)
 local inbuff_ptr = ffi.new("const char*[1]")
 local inbytesleft = ffi.new("size_t[1]")
 
-iconv.convert = function(self, instr)
+function iconv:convert(instr)
 	local out = {}
 
 	inbuff_ptr[0] = instr

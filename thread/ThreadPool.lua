@@ -21,7 +21,7 @@ ThreadPool.synctable = synctable.new(_synctable, function(...)
 	end
 end)
 
-ThreadPool.execute = function(self, task)
+function ThreadPool:execute(task)
 	if not self.loaded then
 		return
 	end
@@ -29,11 +29,11 @@ ThreadPool.execute = function(self, task)
 	return self:update()
 end
 
-ThreadPool.isRunning = function(self)
+function ThreadPool:isRunning()
 	return next(self.runningThreads) ~= nil
 end
 
-ThreadPool.waitAsync = function(self)
+function ThreadPool:waitAsync()
 	assert(not self.loaded, "attempt to waitAsync when ThreadPool is loaded")
 	assert(not self.waiting, "attempt to waitAsync while waitingAsync")
 	if not self:isRunning() then
@@ -43,7 +43,7 @@ ThreadPool.waitAsync = function(self)
 	coroutine.yield()
 end
 
-ThreadPool.unload = function(self)
+function ThreadPool:unload()
 	self.queue = {}
 	for _, thread in pairs(self.threads) do
 		thread:stop()
@@ -51,7 +51,7 @@ ThreadPool.unload = function(self)
 	self.loaded = false
 end
 
-ThreadPool.update = function(self)
+function ThreadPool:update()
 	local currentTime = love.timer.getTime()
 
 	for i, thread in pairs(self.threads) do
@@ -85,7 +85,7 @@ ThreadPool.update = function(self)
 	end
 end
 
-ThreadPool.getIdleThread = function(self)
+function ThreadPool:getIdleThread()
 	local thread
 	for i = 1, self.poolSize do
 		thread = self.threads[i]
@@ -101,8 +101,8 @@ ThreadPool.getIdleThread = function(self)
 	end
 end
 
-ThreadPool.createThread = function(self, id)
-	local thread = Thread:new()
+function ThreadPool:createThread(id)
+	local thread = Thread()
 
 	thread.pool = self
 	thread.id = id

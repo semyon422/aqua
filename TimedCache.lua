@@ -1,16 +1,16 @@
-local Class = require("Class")
+local class = require("class")
 
-local TimedCache = Class:new()
+local TimedCache = class()
 
-TimedCache.construct = function(self)
+function TimedCache:new()
 	self.objects = {}
 	self.time = 0
 	self.timeout = 1
 end
 
-TimedCache.loadObject = function(self, key) end
+function TimedCache:loadObject(key) end
 
-TimedCache.getObject = function(self, key)
+function TimedCache:getObject(key)
 	local time = self.time
 	local objects = self.objects
 	objects[key] = objects[key] or {object = self:loadObject(key)}
@@ -18,7 +18,7 @@ TimedCache.getObject = function(self, key)
 	return objects[key].object
 end
 
-TimedCache.update = function(self)
+function TimedCache:update()
 	local timeout = self.timeout
 	local objects = self.objects
 	local time = love.timer.getTime()

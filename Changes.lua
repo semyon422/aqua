@@ -1,8 +1,8 @@
-local Class = require("Class")
+local class = require("class")
 
-local Changes = Class:new()
+local Changes = class()
 
-function Changes:construct()
+function Changes:new()
 	self[1] = 0
 	self.index = 2
 end

@@ -19,12 +19,12 @@ Queue.new = function()
 	})
 end
 
-Queue.add = function(self, event)
+function Queue:add(event)
 	self.count = self.count + 1
 	self.events[self.count] = event
 end
 
-Queue.remove = function(self)
+function Queue:remove()
 	local events = self.events
 	local count = self.count
 	local event = events[count]

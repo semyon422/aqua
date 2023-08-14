@@ -1,4 +1,4 @@
-local class = require("class_new2")
+local class = require("class")
 
 local deco = {}
 

@@ -1,8 +1,8 @@
-local Class = require("Class")
+local class = require("class")
 
-local Log = Class:new()
+local Log = class()
 
-Log.write = function(self, name, ...)
+function Log:write(name, ...)
 	local args = {...}
 	for i, v in ipairs(args) do
 		args[i] = tostring(v)

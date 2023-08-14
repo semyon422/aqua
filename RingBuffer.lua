@@ -1,21 +1,21 @@
-local Class = require("Class")
+local class = require("class")
 
-local RingBuffer = Class:new()
+local RingBuffer = class()
 
-RingBuffer.construct = function(self)
-	self.size = math.max(self.size or 1, 1)
+function RingBuffer:new(size)
+	self.size = math.max(size or 1, 1)
 	self.index = 1
 	for i = 1, self.size do
 		self[i] = 0
 	end
 end
 
-RingBuffer.write = function(self, value)
+function RingBuffer:write(value)
 	self[self.index] = value
 	self.index = self.index % self.size + 1
 end
 
-RingBuffer.read = function(self)
+function RingBuffer:read()
 	local value = self[self.index]
 	self.index = self.index % self.size + 1
 	return value

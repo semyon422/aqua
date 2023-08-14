@@ -24,7 +24,7 @@ local function inject(injects)
 					return obj(...)
 				end
 			else
-				function T:new()
+				function T()
 					return obj
 				end
 			end

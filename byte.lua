@@ -389,7 +389,7 @@ local total = function()
 	return _total
 end
 
-local resize = function(self, newsize)
+local function resize(self, newsize)
 	assert_freed(self)
 	assert_numeric(newsize)
 	assert(newsize > 0, "buffer size must be greater than zero")
@@ -417,7 +417,7 @@ local free = function(self)
 	self.size = 0
 end
 
-local gc = function(self, state)
+local function gc(self, state)
 	assert_freed(self)
 	assert_type(state, "boolean")
 
@@ -430,7 +430,7 @@ local gc = function(self, state)
 	return self
 end
 
-local seek = function(self, offset)
+local function seek(self, offset)
 	assert_freed(self)
 	assert_numeric(offset)
 	assert(offset >= 0 and offset <= self.size, "attempt to perform seek outside buffer bounds")
@@ -440,7 +440,7 @@ local seek = function(self, offset)
 	return self
 end
 
-local fill = function(self, s)
+local function fill(self, s)
 	assert_freed(self)
 	assert_type(s, "string")
 
@@ -455,7 +455,7 @@ local fill = function(self, s)
 	return self
 end
 
-local _string = function(self, length)
+local function _string(self, length)
 	assert_freed(self)
 	assert_numeric(length)
 
@@ -469,7 +469,7 @@ local _string = function(self, length)
 	return ffi.string(self.pointer + offset, length)
 end
 
-local _cstring = function(self, length)
+local function _cstring(self, length)
 	assert_freed(self)
 	assert_numeric(length)
 
@@ -488,92 +488,92 @@ local _cstring = function(self, length)
 	return s
 end
 
-local uint8 = function(self, n)
+local function uint8(self, n)
 	if n then return fill(self, int8_to_string(n)) end
 	return string_to_uint8(_string(self, 1))
 end
 
-local int8 = function(self, n)
+local function int8(self, n)
 	if n then return fill(self, int8_to_string(n)) end
 	return string_to_int8(_string(self, 1))
 end
 
-local uint16_le = function(self, n)
+local function uint16_le(self, n)
 	if n then return fill(self, int16_to_string_le(n)) end
 	return string_to_uint16_le(_string(self, 2))
 end
 
-local uint16_be = function(self, n)
+local function uint16_be(self, n)
 	if n then return fill(self, int16_to_string_be(n)) end
 	return string_to_uint16_be(_string(self, 2))
 end
 
-local int16_le = function(self, n)
+local function int16_le(self, n)
 	if n then return fill(self, int16_to_string_le(n)) end
 	return string_to_int16_le(_string(self, 2))
 end
 
-local int16_be = function(self, n)
+local function int16_be(self, n)
 	if n then return fill(self, int16_to_string_be(n)) end
 	return string_to_int16_be(_string(self, 2))
 end
 
-local uint32_le = function(self, n)
+local function uint32_le(self, n)
 	if n then return fill(self, int32_to_string_le(n)) end
 	return string_to_uint32_le(_string(self, 4))
 end
 
-local uint32_be = function(self, n)
+local function uint32_be(self, n)
 	if n then return fill(self, int32_to_string_be(n)) end
 	return string_to_uint32_be(_string(self, 4))
 end
 
-local int32_le = function(self, n)
+local function int32_le(self, n)
 	if n then return fill(self, int32_to_string_le(n)) end
 	return string_to_int32_le(_string(self, 4))
 end
 
-local int32_be = function(self, n)
+local function int32_be(self, n)
 	if n then return fill(self, int32_to_string_be(n)) end
 	return string_to_int32_be(_string(self, 4))
 end
 
-local uint64_le = function(self, n)
+local function uint64_le(self, n)
 	if n then return fill(self, uint64_to_string_le(n)) end
 	return string_to_uint64_le(_string(self, 8))
 end
 
-local uint64_be = function(self, n)
+local function uint64_be(self, n)
 	if n then return fill(self, uint64_to_string_be(n)) end
 	return string_to_uint64_be(_string(self, 8))
 end
 
-local int64_le = function(self, n)
+local function int64_le(self, n)
 	if n then return fill(self, int64_to_string_le(n)) end
 	return string_to_int64_le(_string(self, 8))
 end
 
-local int64_be = function(self, n)
+local function int64_be(self, n)
 	if n then return fill(self, int64_to_string_be(n)) end
 	return string_to_int64_be(_string(self, 8))
 end
 
-local float_le = function(self, n)
+local function float_le(self, n)
 	if n then return fill(self, float_to_string_le(n)) end
 	return uint32_to_float(string_to_uint32_le(_string(self, 4)))
 end
 
-local float_be = function(self, n)
+local function float_be(self, n)
 	if n then return fill(self, float_to_string_be(n)) end
 	return uint32_to_float(string_to_uint32_be(_string(self, 4)))
 end
 
-local double_le = function(self, n)
+local function double_le(self, n)
 	if n then return fill(self, double_to_string_le(n)) end
 	return uint64_to_double(string_to_uint64_le(_string(self, 8)))
 end
 
-local double_be = function(self, n)
+local function double_be(self, n)
 	if n then return fill(self, double_to_string_be(n)) end
 	return uint64_to_double(string_to_uint64_be(_string(self, 8)))
 end

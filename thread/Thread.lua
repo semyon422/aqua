@@ -1,12 +1,12 @@
-local Class = require("Class")
+local class = require("class")
 local synctable = require("synctable")
 
-local Thread = Class:new()
+local Thread = class()
 
 Thread.id = 0
 Thread.idle = true
 
-Thread.create = function(self, codestring)
+function Thread:create(codestring)
 	self.thread = love.thread.newThread(codestring)
 
 	self.internalInputChannel = love.thread.getChannel("internalInput" .. self.id)
@@ -24,7 +24,7 @@ Thread.create = function(self, codestring)
 	self.thread:start()
 end
 
-Thread.update = function(self)
+function Thread:update()
 	local threadError = self.thread:getError()
 	if threadError then
 		error(threadError .. "\n" .. self.event.trace)
@@ -63,11 +63,11 @@ Thread.update = function(self)
 	end
 end
 
-Thread.updateLastTime = function(self)
+function Thread:updateLastTime()
 	self.lastTime = love.timer.getTime()
 end
 
-Thread.execute = function(self, task)
+function Thread:execute(task)
 	self.idle = false
 	self.task = task
 	local f = task.f
@@ -83,17 +83,17 @@ Thread.execute = function(self, task)
 	self.internalInputChannel:push(self.event)
 end
 
-Thread.isRunning = function(self)
+function Thread:isRunning()
 	return self.thread:isRunning()
 end
 
-Thread.stop = function(self)
+function Thread:stop()
 	return self.internalInputChannel:push({
 		name = "stop"
 	})
 end
 
-Thread.receive = function(self, event)
+function Thread:receive(event)
 	return self.inputChannel:push(event)
 end
 

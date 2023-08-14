@@ -114,14 +114,14 @@ video.open = function(ptr, size)
 	return self
 end
 
-Video.close = function(self) end
+function Video:close() end
 
-Video.getDimensions = function(self)
+function Video:getDimensions()
 	local cctx = self.codecContext
 	return tonumber(cctx.width), tonumber(cctx.height)
 end
 
-Video.tell = function(self)
+function Video:tell()
 	local effort = self.frame.best_effort_timestamp
 	local base = self.stream.time_base
 
@@ -133,7 +133,7 @@ Video.tell = function(self)
 end
 
 local packet = ffi.new("AVPacket[1]")
-Video.read = function(self, dst)
+function Video:read(dst)
 	while avformat.av_read_frame(self.formatContext[0], packet) == 0 do
 		if packet[0].stream_index == self.streamIndex then
 			avcodec.avcodec_send_packet(self.codecContext, packet)
@@ -159,7 +159,7 @@ Video.read = function(self, dst)
 	end
 end
 
-Video.seek = function(self, time)
+function Video:seek(time)
 	local stream = self.stream
 	local base = self.stream.time_base
 

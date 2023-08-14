@@ -7,7 +7,7 @@ end
 
 do
 	time = 0
-	local timer = Timer:new()
+	local timer = Timer()
 
 	timer:play()
 
@@ -49,7 +49,7 @@ do
 	time = 0
 	local adjTime = 0
 
-	local timer = Timer:new()
+	local timer = Timer()
 	timer.adjustRate = 1
 	function timer:getAdjustTime()
 		return adjTime

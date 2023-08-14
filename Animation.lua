@@ -1,6 +1,6 @@
-local Class = require("Class")
+local class = require("class")
 
-local Animation = Class:new()
+local Animation = class()
 
 function Animation:update(dt)
 	local range = self.range

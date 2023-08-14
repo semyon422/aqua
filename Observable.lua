@@ -1,6 +1,6 @@
-local Class = require("Class")
+local class = require("class")
 
-local Observable = Class:new()
+local Observable = class()
 
 function Observable:add(observer)
 	for i, o in ipairs(self) do

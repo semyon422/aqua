@@ -1,17 +1,17 @@
-local Class = require("Class")
+local class = require("class")
 
-local Container = Class:new()
+local Container = class()
 
 Container.playing = false
 Container.volume = 1
 Container.rate = 1
 Container.pitch = 1
 
-Container.construct = function(self)
+function Container:new()
 	self.sources = {}
 end
 
-Container.add = function(self, source)
+function Container:add(source)
 	self.sources[source] = true
 	source:setVolume(self.volume)
 	source:setRate(self.rate)
@@ -19,7 +19,7 @@ Container.add = function(self, source)
 	source:play()
 end
 
-Container.update = function(self)
+function Container:update()
 	for source in pairs(self.sources) do
 		if self.playing and not source:isPlaying() then
 			source:release()
@@ -28,7 +28,7 @@ Container.update = function(self)
 	end
 end
 
-Container.release = function(self)
+function Container:release()
 	for source in pairs(self.sources) do
 		source:release()
 	end
@@ -36,42 +36,42 @@ Container.release = function(self)
 	self.playing = false
 end
 
-Container.setRate = function(self, rate)
+function Container:setRate(rate)
 	self.rate = rate
 	for source in pairs(self.sources) do
 		source:setRate(rate)
 	end
 end
 
-Container.setPitch = function(self, pitch)
+function Container:setPitch(pitch)
 	self.pitch = pitch
 	for source in pairs(self.sources) do
 		source:setPitch(pitch)
 	end
 end
 
-Container.setVolume = function(self, volume)
+function Container:setVolume(volume)
 	self.volume = volume
 	for source in pairs(self.sources) do
 		source:setVolume(volume)
 	end
 end
 
-Container.play = function(self)
+function Container:play()
 	self.playing = true
 	for source in pairs(self.sources) do
 		source:play()
 	end
 end
 
-Container.pause = function(self)
+function Container:pause()
 	self.playing = false
 	for source in pairs(self.sources) do
 		source:pause()
 	end
 end
 
-Container.setPosition = function(self, position)
+function Container:setPosition(position)
 	for source in pairs(self.sources) do
 		if source:isPlaying() then
 			local newPosition = position - source.offset
@@ -85,7 +85,7 @@ Container.setPosition = function(self, position)
 	end
 end
 
-Container.getPosition = function(self)
+function Container:getPosition()
 	local position = 0
 	local minPos, maxPos = math.huge, -math.huge
 	local length = 0

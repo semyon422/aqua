@@ -1,4 +1,4 @@
-local class = require("class_new2")
+local class = require("class")
 
 ---@class audio.Source
 ---@operator call:audio.Source
