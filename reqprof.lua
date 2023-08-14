@@ -1,4 +1,4 @@
-local class = require("class_new2")
+local class = require("class")
 local deco = require("deco")
 
 local reqprof = {}
@@ -120,9 +120,9 @@ function reqprof.decorate(f, name)
 	end
 end
 
----@class reqprof.ProfileDecorator: deco.Decorator
+---@class reqprof.ProfileDecorator: deco.FunctionDecorator
 ---@operator call: reqprof.ProfileDecorator
-local ProfileDecorator = class(deco.Decorator)
+local ProfileDecorator = class(deco.FunctionDecorator)
 reqprof.ProfileDecorator = ProfileDecorator
 
 function ProfileDecorator:func_end(func_name)
