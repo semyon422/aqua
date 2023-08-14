@@ -3,6 +3,8 @@ local deco = require("deco")
 
 local typecheck = {}
 
+typecheck.strict = false
+
 ---@class typecheck.Type
 ---@field type string
 ---@operator call: typecheck.Type
@@ -461,6 +463,7 @@ local token_patterns = {
 	{"pipe", "|"},
 	{"minus", "%-"},
 	{"at", "@"},
+	{"equal", "="},
 }
 
 ---@param s string
@@ -673,9 +676,9 @@ function typecheck.fix_traceback(s)
 	return s
 end
 
----@class typecheck.TypeDecorator: deco.Decorator
+---@class typecheck.TypeDecorator: deco.FunctionDecorator
 ---@operator call: typecheck.TypeDecorator
-local TypeDecorator = class(deco.Decorator)
+local TypeDecorator = class(deco.FunctionDecorator)
 typecheck.TypeDecorator = TypeDecorator
 
 function TypeDecorator:new()
@@ -688,7 +691,7 @@ end
 
 function TypeDecorator:func_end(func_name)
 	local def = self.def
-	if #def.param_names == 0 and #def.return_types == 0 then
+	if not typecheck.strict and #def.param_names == 0 and #def.return_types == 0 then
 		return
 	end
 
@@ -701,11 +704,7 @@ function TypeDecorator:func_end(func_name)
 	return ([[? = require("typecheck").decorate(?, %q)]]):gsub("?", func_name):format(signature)
 end
 
-function TypeDecorator:next(line)
-	if line:sub(1, 4) ~= "---@" then
-		return
-	end
-
+function TypeDecorator:process_annotation(line)
 	local tokens = assert(typecheck.lex(line:sub(5)))
 
 	local def = self.def
@@ -718,6 +717,40 @@ function TypeDecorator:next(line)
 	elseif annotaion == "return" then
 		local union = tokens:parse_type_union()
 		table.insert(def.return_types, union)
+	end
+end
+
+function TypeDecorator:next(line)
+	if line:sub(1, 4) == "---@" then
+		self:process_annotation(line)
+	end
+	return deco.FunctionDecorator.next(self, line)
+end
+
+---@class typecheck.ClassDecorator: deco.Decorator
+---@field prev_is_annotation boolean
+---@operator call: typecheck.ClassDecorator
+local ClassDecorator = class(deco.Decorator)
+typecheck.ClassDecorator = ClassDecorator
+
+function ClassDecorator:next(line)
+	local is_annotation = line:sub(1, 4) == "---@"
+	if not self.prev_is_annotation and is_annotation then
+		local tokens = assert(typecheck.lex(line:sub(5)))
+
+		local annotaion = tokens:parse_name()
+		if annotaion == "class" then
+			self.name = tokens:parse_name()
+			self.prev_is_annotation = true
+		end
+	elseif self.prev_is_annotation and not is_annotation then
+		self.prev_is_annotation = false
+
+		local tokens = assert(typecheck.lex(line))
+		assert(tokens:parse_name() == "local")
+		local name = assert(tokens:parse_name())
+
+		return ([[require("typecheck").register_class(%q, ?)]]):gsub("?", name):format(self.name)
 	end
 end
 
