@@ -84,21 +84,23 @@ function deco.process(s)
 	return s
 end
 
-local _lua_loader = package.loaders[2]
 local function lua_loader(name)
 	name = name:gsub("%.", "/")
 
 	local errors = {}
 
 	for path in deco.package_path:gsub("%?", name):gmatch("[^;]+") do
+		local blacklisted = false
 		for _, item in ipairs(deco.blacklist) do
 			if path:find(item, 1, true) then
-				return _lua_loader(name)
+				blacklisted = true
 			end
 		end
 		local content = deco.read_file(path)
 		if content then
-			content = deco.process(content, name:match("([^/]+)$"))
+			if not blacklisted then
+				content = deco.process(content, name:match("([^/]+)$"))
+			end
 			local loader, err = loadstring(content, "@" .. path)  -- [string "mod.lua"] -> mod.lua
 			if loader then
 				return loader
