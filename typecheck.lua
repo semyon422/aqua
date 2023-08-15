@@ -487,6 +487,8 @@ local token_patterns = {
 	{"at", "@"},
 	{"equal", "="},
 	{"asterisk", "*"},
+	{"{", "{"},
+	{"}", "}"},
 }
 
 ---@param s string
@@ -527,7 +529,7 @@ function typecheck.get_type(name)
 	if name == "any" then
 		return AnyType()
 	end
-	if name:find("^ffi%.") then
+	if name:find("^ffi%.") or name:find("^love%.") then
 		return CType(name)
 	end
 	if class_by_name[name] then
@@ -550,7 +552,14 @@ function typecheck.parse_def(signature)
 		return nil, err
 	end
 
-	local name, is_method = tokens:parse_name_novararg()
+	tokens:_push()
+	local name, is_method = tokens:parse_func_name()
+	if not name or tokens.token and tokens.token.type ~= "leftparan" then
+		tokens:_pop()
+		tokens:_push()
+		name, is_method = tokens:parse_name_novararg(), nil
+	end
+	tokens:_pop(true)
 	if name then
 		def.name = name
 		def.is_method = is_method
@@ -715,7 +724,16 @@ function TypeDecorator:new()
 	}
 end
 
+function TypeDecorator:func_begin(func_name)
+	assert(not self.def.func_name)
+end
+
 function TypeDecorator:func_end(func_name)
+	if self.nocheck then
+		self.nocheck = false
+		return
+	end
+
 	local def = self.def
 	if not typecheck.strict and #def.param_names == 0 and #def.return_types == 0 then
 		return
@@ -743,6 +761,8 @@ function TypeDecorator:process_annotation(line)
 	elseif annotaion == "return" then
 		local union = tokens:parse_type_union()
 		table.insert(def.return_types, union)
+	elseif annotaion == "nocheck" then
+		self.nocheck = true
 	end
 end
 
