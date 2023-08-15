@@ -71,8 +71,9 @@ function deco.process(s)
 
 	local lines = {}
 	for _, line in split, s, 1 do
+		local base_line = line
 		for _, d in ipairs(deco.decorators) do
-			local _line = d:next(line)
+			local _line = d:next(base_line)
 			if _line then
 				line = line .. " " .. _line
 			end
