@@ -550,7 +550,7 @@ function typecheck.parse_def(signature)
 		return nil, err
 	end
 
-	local name, is_method = tokens:parse_func_name()
+	local name, is_method = tokens:parse_name_novararg()
 	if name then
 		def.name = name
 		def.is_method = is_method
