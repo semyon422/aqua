@@ -284,9 +284,9 @@ do
 	local MyClass = class()
 	local obj = MyClass()
 
-	assert_not_parse_types("MyClass", obj)
-	typecheck.register_class("MyClass", MyClass)
-	assert_parse_types("MyClass", obj)
+	-- assert_not_parse_types("mod.MyClass", obj)
+	typecheck.register_class("mod.MyClass", MyClass)
+	assert_parse_types("mod.MyClass", obj)
 end
 
 do
@@ -301,10 +301,10 @@ assert(typecheck.parse_def("(): number"))
 assert(typecheck.parse_def("()"))
 
 do
-	local def = "mod.test(a: number|string?, b: []MyClass, ...: function): [][]number, string|number?, MyClass, table..."
+	local def = "mod.test(a: number|string?, b: []mod.MyClass, ...: function): [][]number, string|number?, mod.MyClass, table..."
 
 	local MyClass = class()
-	typecheck.register_class("MyClass", MyClass)
+	typecheck.register_class("mod.MyClass", MyClass)
 
 	local function test(a, b, ...)
 		return {{1}}, nil, MyClass()

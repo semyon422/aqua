@@ -5,6 +5,12 @@ local typecheck = {}
 
 typecheck.strict = false
 
+local class_by_name = {}
+
+function typecheck.register_class(_type, T)
+	class_by_name[_type] = T
+end
+
 ---@class typecheck.Type
 ---@field type string
 ---@operator call: typecheck.Type
@@ -59,13 +65,16 @@ end
 local ClassType = class()
 typecheck.ClassType = ClassType
 
-function ClassType:new(name, T)
+function ClassType:new(name)
 	self.name = name
-	self.type = T
 end
 
 function ClassType:check(value)
-	return self.type * value
+	local _type = class_by_name[self.name]
+	if not _type then
+		error("class " .. self.name .. " is not registered")
+	end
+	return _type * value
 end
 
 function ClassType.__tostring(t)
@@ -487,6 +496,7 @@ local token_patterns = {
 	{"at", "@"},
 	{"equal", "="},
 	{"asterisk", "*"},
+	{"plus", "+"},
 	{"{", "{"},
 	{"}", "}"},
 }
@@ -519,12 +529,6 @@ function typecheck.lex(s)
 	return tokens
 end
 
-local class_by_name = {}
-
-function typecheck.register_class(_type, T)
-	class_by_name[_type] = T
-end
-
 function typecheck.get_type(name)
 	if name == "any" then
 		return AnyType()
@@ -532,8 +536,8 @@ function typecheck.get_type(name)
 	if name:find("^ffi%.") or name:find("^love%.") then
 		return CType(name)
 	end
-	if class_by_name[name] then
-		return ClassType(name, class_by_name[name])
+	if name:find("%.") then
+		return ClassType(name)
 	end
 	return Type(name)
 end
@@ -761,6 +765,9 @@ function TypeDecorator:process_annotation(line)
 	elseif annotaion == "return" then
 		local union = tokens:parse_type_union()
 		table.insert(def.return_types, union)
+		if tokens.token and tokens.token.type == "vararg" then
+			def.return_types.is_vararg = true
+		end
 	elseif annotaion == "nocheck" then
 		self.nocheck = true
 	end
