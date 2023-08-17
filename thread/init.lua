@@ -13,15 +13,15 @@ thread.coroutines = {}
 thread.total = 0
 thread.current = 0
 
-thread.unload = function()
+function thread.unload()
 	return ThreadPool:unload()
 end
 
-thread.waitAsync = function()
+function thread.waitAsync()
 	return ThreadPool:waitAsync()
 end
 
-thread.update = function()
+function thread.update()
 	for c in pairs(thread.coroutines) do
 		if coroutine.status(c) == "dead" then
 			thread.current = thread.current - 1
@@ -32,11 +32,17 @@ thread.update = function()
 end
 
 local pushedTask
-thread.pushTask = function(task)
+
+---@param task table
+function thread.pushTask(task)
 	pushedTask = task
 end
 
-local runThread = function(f, params, callback)
+---@param f function|string
+---@param params table
+---@param callback function
+---@return boolean?
+local function runThread(f, params, callback)
 	local task = {
 		f = f,
 		params = params,
@@ -53,7 +59,10 @@ local runThread = function(f, params, callback)
 	return thread.ThreadPool:execute(task)
 end
 
-local run = function(f, ...)
+---@param f function|string
+---@param ... any?
+---@return any?...
+local function run(f, ...)
 	local c = coroutine.running()
 	if not c then
 		error("attempt to yield from outside a coroutine")
@@ -64,7 +73,10 @@ local run = function(f, ...)
 	return coroutine.yield()
 end
 
-local call = function(f, ...)
+---@param f function
+---@param ... any?
+---@return thread
+local function call(f, ...)
 	-- assert(not coroutine.running(), "attempt to call a function from a coroutine")
 	-- return coroutine.wrap(f)(...)
 	thread.total = thread.total + 1
@@ -79,13 +91,17 @@ end
 
 thread.run = runThread
 
-thread.async = function(f)
+---@param f function|string
+---@return function
+function thread.async(f)
 	return function(...)
 		return run(f, ...)
 	end
 end
 
-thread.coro = function(f)
+---@param f function
+---@return function
+function thread.coro(f)
 	return function(...)
 		return call(f, ...)
 	end

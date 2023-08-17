@@ -1,7 +1,10 @@
 local class = require("class")
 
+---@class util.Observable
+---@operator call: util.Observable
 local Observable = class()
 
+---@param observer any
 function Observable:add(observer)
 	for i, o in ipairs(self) do
 		if o == observer then
@@ -11,6 +14,8 @@ function Observable:add(observer)
 	table.insert(self, observer)
 end
 
+---@param observer any
+---@return any
 function Observable:remove(observer)
 	for i, o in ipairs(self) do
 		if o == observer then
@@ -19,6 +24,7 @@ function Observable:remove(observer)
 	end
 end
 
+---@param event table
 function Observable:send(event)
 	self.temp = self.temp or {}
 	local observers = self.temp

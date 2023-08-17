@@ -14,11 +14,12 @@ local gsubs = {
 	{"!+", function() return " " .. kaomojis[math.random(1, #kaomojis)] end},
 }
 
+---@param s string
+---@return string
 function hewwo.hewwoify(s)
 	for i = 1, #gsubs do
 		s = s:gsub(unpack(gsubs[i]))
 	end
-
 	return s
 end
 

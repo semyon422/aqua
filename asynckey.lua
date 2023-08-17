@@ -6,6 +6,9 @@ if not love or love.system.getOS() ~= "Windows" then
 end
 
 local keymap
+
+---@param event table
+---@return table
 local function transform(event)
 	local key = keymap[event.key]
 	if key then
@@ -14,7 +17,7 @@ local function transform(event)
 	return event
 end
 
-local threadCode, thread
+local threadCode
 function asynckey.start()
 	local thread = love.thread.newThread(threadCode:gsub("<delay>", asynckey.delay))
 	thread:start()

@@ -14,6 +14,7 @@ local shader_code = [[
 	}
 ]]
 
+---@return table
 local function identity()
 	return {
 		1, 0, 0, 0,
@@ -23,6 +24,9 @@ local function identity()
 	}
 end
 
+---@param out table
+---@param a table
+---@param b table
 local function cross(out, a, b)
 	local x = a[2] * b[3] - a[3] * b[2]
 	local y = a[3] * b[1] - a[1] * b[3]
@@ -32,21 +36,29 @@ local function cross(out, a, b)
 	out[3] = z
 end
 
+---@param out table
+---@param a table
+---@param b number
 local function mul(out, a, b)
 	out[1] = a[1] * b
 	out[2] = a[2] * b
 	out[3] = a[3] * b
 end
 
+---@param out table
+---@param a table
+---@param b table
 local function add(out, a, b)
 	out[1] = a[1] + b[1]
 	out[2] = a[2] + b[2]
 	out[3] = a[3] + b[3]
 end
 
+---@param out table
+---@param a table
 local function norm(out, a)
 	local k = math.sqrt(a[1] ^ 2 + a[2] ^ 2 + a[3] ^ 2)
-	return mul(out, a, k == 0 and 0 or 1 / k)
+	mul(out, a, k == 0 and 0 or 1 / k)
 end
 
 local shader
@@ -70,6 +82,10 @@ function s3dc.load()
 	s3dc.rotate(0, 0)
 end
 
+---@param x number
+---@param y number
+---@param w number
+---@param h number
 function s3dc.show(x, y, w, h)
 	local pos = s3dc.pos
 	pos[1] = x + w / 2
@@ -107,6 +123,10 @@ local function inv_rotate_x_mat4()
 	inv_rotate_x[11] = c
 end
 
+---@param fovy number
+---@param aspect number
+---@param near number
+---@param far number
 local function from_perspective(fovy, aspect, near, far)
 	assert(aspect ~= 0)
 	assert(near ~= far)
@@ -151,6 +171,9 @@ function s3dc.draw_update()
 	shader:send("inv_rotate_x", inv_rotate_x)
 end
 
+---@param dx number
+---@param dy number
+---@param dz number
 function s3dc.translate(dx, dy, dz)
 	local pos = s3dc.pos
 	pos[1] = pos[1] + dx
@@ -158,6 +181,8 @@ function s3dc.translate(dx, dy, dz)
 	pos[3] = pos[3] + dz
 end
 
+---@param dx number
+---@param dy number
 function s3dc.rotate(dx, dy)
 	local angle = s3dc.angle
 	angle.pitch = angle.pitch + dx  -- rotation about the X axis
@@ -172,11 +197,13 @@ end
 
 local tmp_vec3 = {}
 
+---@param delta number
 function s3dc.forward(delta)
 	mul(tmp_vec3, s3dc.front, delta)
 	add(s3dc.pos, s3dc.pos, tmp_vec3)
 end
 
+---@param delta number
 function s3dc.right(delta)
 	cross(tmp_vec3, s3dc.front, s3dc.top)
 	norm(tmp_vec3, tmp_vec3)
@@ -184,6 +211,7 @@ function s3dc.right(delta)
 	add(s3dc.pos, s3dc.pos, tmp_vec3)
 end
 
+---@param delta number
 function s3dc.up(delta)
 	cross(tmp_vec3, s3dc.front, s3dc.top)
 	cross(tmp_vec3, tmp_vec3, s3dc.front)
@@ -192,16 +220,19 @@ function s3dc.up(delta)
 	add(s3dc.pos, s3dc.pos, tmp_vec3)
 end
 
+---@param delta number
 function s3dc.backward(delta)
-	return s3dc.forward(-delta)
+	s3dc.forward(-delta)
 end
 
+---@param delta number
 function s3dc.left(delta)
-	return s3dc.right(-delta)
+	s3dc.right(-delta)
 end
 
+---@param delta number
 function s3dc.down(delta)
-	return s3dc.up(-delta)
+	s3dc.up(-delta)
 end
 
 return s3dc

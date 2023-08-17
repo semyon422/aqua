@@ -8,12 +8,17 @@ end
 
 local class = require("class")
 
+---@class video.Video
+---@operator call: video.Video
 local Video = class()
 
+---@param fileData love.FileData
+---@return nil?
+---@return string?
 function Video:new(fileData)
 	local v = video.open(fileData:getPointer(), fileData:getSize())
 	if not v then
-		return nil
+		return nil, "can't open video"
 	end
 
 	self.video = v
@@ -34,6 +39,7 @@ function Video:rewind()
 	v:read(self.imageData:getPointer())
 end
 
+---@param time number
 function Video:play(time)
 	local v = self.video
 	while time >= v:tell() do

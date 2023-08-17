@@ -18,19 +18,33 @@ function physfs.getLastError()
 	return ffi.string(ptr)
 end
 
+---@param res boolean
+---@return boolean?
+---@return string?
 local function protect(res)
 	if res then return res end
 	return nil, physfs.getLastError()
 end
 
+---@param path string
+---@return boolean?
+---@return string?
 function physfs.setWriteDir(path)
 	return protect(C.PHYSFS_setWriteDir(path) ~= 0)
 end
 
+---@param newDir string
+---@param mountPoint string
+---@param appendToPath boolean?
+---@return boolean?
+---@return string?
 function physfs.mount(newDir, mountPoint, appendToPath)
-	return protect(C.PHYSFS_mount(newDir, mountPoint, appendToPath) ~= 0)
+	return protect(C.PHYSFS_mount(newDir, mountPoint, appendToPath and 1 or 0) ~= 0)
 end
 
+---@param oldDir string
+---@return boolean?
+---@return string?
 function physfs.unmount(oldDir)
 	return protect(C.PHYSFS_unmount(oldDir) ~= 0)
 end

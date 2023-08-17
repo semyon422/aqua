@@ -20,6 +20,7 @@ local selection
 local devices = {"key", "gamepad", "joystick", "midi"}
 local device_arg_index = {2, 2, 2, 1}
 
+---@return table
 local function new_keyinput()
 	return {
 		down = {},
@@ -70,6 +71,7 @@ function just.reset()
 	just.clip("reset")
 end
 
+---@param ... string?
 function just.push(...)
 	love.graphics.push(...)
 	table.insert(line_stack, {
@@ -99,16 +101,24 @@ function just.origin()
 	is_sameline = false
 end
 
+---@param id any?
 function just.focus(id)
 	focused_id = id
 end
 
+---@param id any?
+---@return any|nil
 function just.catch(id)
 	local catched = rawequal(catched_id, just.catched_id)
 	catched_id = id
 	return catched
 end
 
+---@param w number
+---@param h number
+---@param x number?
+---@param y number?
+---@return boolean
 function just.is_over(w, h, x, y)
 	local mx, my = love.graphics.inverseTransformPoint(love.mouse.getPosition())
 	x, y = x or 0, y or 0
@@ -121,6 +131,10 @@ function just.is_over(w, h, x, y)
 	return x <= mx and mx < x + w and y <= my and my < y + h
 end
 
+---@param a_x number?
+---@param a_y number?
+---@param b_x number?
+---@param b_y number?
 function just.select(a_x, a_y, b_x, b_y)
 	if not a_x then
 		selection = nil
@@ -137,6 +151,12 @@ function just.select(a_x, a_y, b_x, b_y)
 end
 
 local selectable = {}
+
+---@param w number
+---@param h number
+---@param x number?
+---@param y number?
+---@return boolean
 function just.is_selected(w, h, x, y)
 	if not selection then
 		return false
@@ -151,12 +171,15 @@ function just.is_selected(w, h, x, y)
 	return math_util.intersect2(selection, c)
 end
 
+---@param state boolean?
 function just.row(state)
 	is_row = false
 	just.next()
 	is_row = state
 end
 
+---@param w number?
+---@param h number?
 function just.next(w, h)
 	w, h = w or 0, h or 0
 	line_w = line_c + w
@@ -180,10 +203,12 @@ function just.sameline()
 	just.height = just.height - line_h
 end
 
+---@param h number
 function just.emptyline(h)
 	just.next(0, h)
 end
 
+---@param w number
 function just.indent(w)
 	if line_c == 0 then
 		line_h = 0
@@ -194,6 +219,8 @@ function just.indent(w)
 	end
 end
 
+---@param w number
+---@return number?
 function just.offset(w)
 	if not w then
 		return line_w
@@ -201,6 +228,11 @@ function just.offset(w)
 	just.indent(w - line_w)
 end
 
+---@param text string
+---@param limit number?
+---@param right boolean?
+---@return number
+---@return number
 function just.text(text, limit, right)
 	local _limit = limit or math.huge
 	assert(not right or _limit ~= math.huge)
@@ -239,6 +271,9 @@ do
 		return sf(q, w, e, r, t, y, u, i)
 	end
 end
+
+---@param sf function|string?
+---@param ... any?
 function just.clip(sf, ...)
 	if sf == "reset" then
 		return reset_stencil()
@@ -255,6 +290,7 @@ function just.clip(sf, ...)
 	love.graphics.setStencilTest("greater", layer)
 end
 
+---@param t table
 local function clear_table(t)
 	for k in pairs(t) do
 		t[k] = nil
@@ -303,22 +339,26 @@ function just._end()
 	end
 end
 
+---@nocheck
 function just.callbacks.mousepressed(_, _, button)
 	mouse.down[button] = true
 	mouse.pressed[button] = true
 	return mouse.captured
 end
 
+---@nocheck
 function just.callbacks.mousereleased(_, _, button)
 	mouse.down[button] = nil
 	mouse.released[button] = true
 	return mouse.captured
 end
 
+---@nocheck
 function just.callbacks.mousemoved()
 	return mouse.captured
 end
 
+---@nocheck
 function just.callbacks.wheelmoved(_, y)
 	mouse.scroll_delta = y
 	return mouse.captured
@@ -339,19 +379,28 @@ for i, device in ipairs(devices) do
 	end
 end
 
+---@param text string
 function just.callbacks.textinput(text)
 	textinput = textinput .. text
 end
 
+---@param depth number?
+---@return boolean
 function just.is_container_over(depth)
 	local index = #container_overs - (depth or 1) + 1
 	return #container_overs == 0 or container_overs[index]
 end
 
+---@return any?
 function just.container_id()
 	return containers[#containers]
 end
 
+---@param id any?
+---@param over boolean
+---@param group string?
+---@param new_zindex boolean?
+---@return boolean?
 function just.mouse_over(id, over, group, new_zindex)
 	if not id then return end
 	assert(group, "missing group")
@@ -374,12 +423,17 @@ function just.mouse_over(id, over, group, new_zindex)
 	return container_over and rawequal(id, hover_ids[group])
 end
 
+---@param id any?
+---@param over boolean
+---@return number|boolean?
 function just.wheel_over(id, over)
 	local d = mouse.scroll_delta
 	return just.mouse_over(id, over, "wheel") and d ~= 0 and d
 end
 
 local max_layer = 0
+
+---@return boolean
 function just.key_over()
 	local layer = #containers
 	if layer == 0 then
@@ -400,6 +454,12 @@ function just.key_over()
 	return rawequal(key_stack[layer], id)
 end
 
+---@param id any?
+---@param over boolean
+---@param button number?
+---@return boolean?
+---@return boolean?
+---@return boolean?
 function just.button(id, over, button)
 	if not id then return end
 	over = just.mouse_over(id, over, "mouse")
@@ -420,9 +480,16 @@ function just.button(id, over, button)
 		just.active_id = nil
 	end
 
-	return changed, active, hovered
+	return changed ~= nil, active, hovered
 end
 
+---@param id any?
+---@param over boolean
+---@param pos number
+---@param value number
+---@return number|boolean?
+---@return boolean?
+---@return boolean?
 function just.slider(id, over, pos, value)
 	if not id then return end
 	local _, active, hovered = just.button(id, over)
@@ -435,6 +502,9 @@ function just.slider(id, over, pos, value)
 	return math.abs(new_value - value) > 1e-6 and new_value, active, hovered
 end
 
+---@param id any?
+---@param over boolean?
+---@return any?
 function just.container(id, over)
 	if not id then
 		table.remove(container_overs)
@@ -445,6 +515,8 @@ function just.container(id, over)
 	table.insert(container_overs, over)
 end
 
+---@param device string
+---@param state string
 function just.next_input(device, state)
 	for i, _device in ipairs(devices) do
 		if _device == device then
@@ -472,18 +544,30 @@ for i, device in ipairs(devices) do
 	end
 end
 
+---@param key number
 function just.mousepressed(key)
 	return mouse.pressed[key]
 end
+
+---@param key number
 function just.mousereleased(key)
 	return mouse.released[key]
 end
 
+---@param text string
+---@param index number
+---@return string
+---@return string
 local function text_split(text, index)
 	local _index = utf8.offset(text, index) or 1
 	return text:sub(1, _index - 1), text:sub(_index)
 end
 
+---@param text string
+---@param index number
+---@param forward boolean?
+---@return string
+---@return number
 local function text_remove(text, index, forward)
 	local _
 	local left, right = text_split(text, index)
@@ -498,6 +582,13 @@ local function text_remove(text, index, forward)
 	return left .. right, index
 end
 
+---@param text string
+---@param index number?
+---@return string|boolean
+---@return string
+---@return number
+---@return string
+---@return string
 function just.textinput(text, index)
 	text = tostring(text)
 	index = index or utf8.len(text) + 1

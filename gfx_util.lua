@@ -1,5 +1,11 @@
 local gfx_util = {}
 
+---@param text string
+---@param x number
+---@param baseline number
+---@param limit number
+---@param scale number
+---@param ax string
 function gfx_util.printBaseline(text, x, baseline, limit, scale, ax)
 	local font = love.graphics.getFont()
 
@@ -11,6 +17,12 @@ function gfx_util.printBaseline(text, x, baseline, limit, scale, ax)
 	end
 end
 
+---@param drawable any
+---@param x number
+---@param y number
+---@param w number
+---@param h number
+---@param locate string
 function gfx_util.drawFrame(drawable, x, y, w, h, locate)
     local dw = drawable:getWidth()
     local dh = drawable:getHeight()
@@ -25,9 +37,16 @@ function gfx_util.drawFrame(drawable, x, y, w, h, locate)
 		s = w / dw
 	end
 
-    return love.graphics.draw(drawable, x + (w - dw * s) / 2, y + (h - dh * s) / 2, 0, s)
+    love.graphics.draw(drawable, x + (w - dw * s) / 2, y + (h - dh * s) / 2, 0, s)
 end
 
+---@param text string
+---@param x number
+---@param y number
+---@param w number
+---@param h number
+---@param ax string
+---@param ay string
 function gfx_util.printFrame(text, x, y, w, h, ax, ay)
 	if w < 0 then
 		x, w = w, -w
@@ -50,6 +69,10 @@ function gfx_util.printFrame(text, x, y, w, h, ax, ay)
 end
 
 -- https://love2d.org/wiki/Gradients
+
+---@param dir string
+---@param ... table
+---@return love.Mesh
 function gfx_util.newGradient(dir, ...)
     local isHorizontal = true
     if dir == "vertical" then
@@ -85,6 +108,11 @@ function gfx_util.newGradient(dir, ...)
     return love.graphics.newMesh(meshData, "strip", "static")
 end
 
+---@param r number
+---@param g number
+---@param b number
+---@param a number
+---@return love.Image
 function gfx_util.newPixel(r, g, b, a)
 	local imageData = love.image.newImageData(1, 1)
 	imageData:setPixel(0, 0, r or 1, g or 1, b or 1, a or 1)
@@ -93,6 +121,9 @@ end
 
 local transform
 local args = {}
+
+---@param ... any
+---@return love.Transform
 function gfx_util.transform(...)
 	transform = transform or love.math.newTransform()
 
@@ -120,11 +151,16 @@ end
 
 local canvases = {}
 
+---@param w number
+---@param h number
+---@return love.Canvas
 local function newCanvas(w, h)
 	local _, _, flags = love.window.getMode()
 	return love.graphics.newCanvas(w, h, {msaa = flags.msaa})
 end
 
+---@param key any
+---@return love.Canvas
 function gfx_util.getCanvas(key)
 	local w, h = love.graphics.getDimensions()
 	if not canvases[key] then
@@ -140,6 +176,7 @@ function gfx_util.getCanvas(key)
 end
 
 local colorShader1
+
 function gfx_util.setInverseColorScale()
 	colorShader1 = colorShader1 or love.graphics.newShader([[
 		vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
@@ -151,6 +188,11 @@ function gfx_util.setInverseColorScale()
 end
 
 local colorShader2
+
+---@param r number
+---@param g number
+---@param b number
+---@param a number
 function gfx_util.setPixelColor(r, g, b, a)
 	if type(r) == "number" then
 		r = {r, g, b, a}
@@ -165,6 +207,11 @@ function gfx_util.setPixelColor(r, g, b, a)
 	colorShader2:send("pixel", r)
 end
 
+---@param offset number
+---@param size number
+---@param _w table
+---@return table
+---@return table
 function gfx_util.layout(offset, size, _w)
 	local w = {}
 	local x = {}
@@ -206,6 +253,8 @@ function gfx_util.layout(offset, size, _w)
 	return x, w
 end
 
+---@param imageData love.ImageData
+---@return love.ImageData
 function gfx_util.limitImageData(imageData)
 	local size = love.graphics.getSystemLimits().texturesize
 	local w, h = imageData:getDimensions()

@@ -38,6 +38,10 @@ end
 
 local byte = {}
 
+---@param p ffi.cdata*
+---@param n number
+---@param bits boolean?
+---@return table
 function byte.bytes(p, n, bits)
 	local list = {}
 	for i = 1, n do
@@ -54,6 +58,10 @@ function byte.bytes(p, n, bits)
 end
 
 -- https://stackoverflow.com/questions/32174991/converting-n-bit-integer-from-unsigned-to-signed
+
+---@param n number
+---@param b number
+---@return number
 function byte.to_signed(n, b)
 	if b == 4 or b < 4 and n < bit.lshift(0x80, (b - 1) * 8) then
 		return bit.tobit(n)
@@ -61,52 +69,74 @@ function byte.to_signed(n, b)
 	return bit.bor(n, bit.bnot(bit.lshift(1, b * 8 - 1) - 1))
 end
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_uint8(p)
 	return p[0]
 end
 
+---@param p ffi.cdata*
+---@param n number
 function byte.write_uint8(p, n)
 	p[0] = bit.band(n, 0xFF)
 end
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_int8(p)
 	return byte.to_signed(p[0], 1)
 end
 
+---@param p ffi.cdata*
+---@param n number
 function byte.write_int8(p, n)
 	p[0] = bit.band(n, 0xFF)
 end
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_uint16_le(p)
 	return bit.lshift(p[1], 8) + p[0]
 end
 
+---@param p ffi.cdata*
+---@param n number
 function byte.write_uint16_le(p, n)
 	p[0] = bit.band(n, 0x00FF)
 	p[1] = bit.rshift(bit.band(n, 0xFF00), 8)
 end
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_uint16_be(p)
 	return bit.lshift(p[0], 8) + p[1]
 end
 
+---@param p ffi.cdata*
+---@param n number
 function byte.write_uint16_be(p, n)
 	p[0] = bit.rshift(bit.band(n, 0xFF00), 8)
 	p[1] = bit.band(n, 0x00FF)
 end
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_int16_le(p)
 	return byte.to_signed(byte.read_uint16_le(p), 2)
 end
 
 byte.write_int16_le = byte.write_uint16_le
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_int16_be(p)
 	return byte.to_signed(byte.read_uint16_be(p), 2)
 end
 
 byte.write_int16_be = byte.write_uint16_be
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_int32_le(p)
 	return
 		  bit.lshift(p[3], 24)
@@ -115,6 +145,8 @@ function byte.read_int32_le(p)
 		+            p[0]
 end
 
+---@param p ffi.cdata*
+---@param n number
 function byte.write_int32_le(p, n)
 	p[0] = bit.band(n, 0x000000FF)
 	p[1] = bit.rshift(bit.band(n, 0x0000FF00), 8)
@@ -122,6 +154,8 @@ function byte.write_int32_le(p, n)
 	p[3] = bit.rshift(bit.band(n, 0xFF000000), 24)
 end
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_int32_be(p)
 	return
 		  bit.lshift(p[0], 24)
@@ -130,6 +164,8 @@ function byte.read_int32_be(p)
 		+            p[3]
 end
 
+---@param p ffi.cdata*
+---@param n number
 function byte.write_int32_be(p, n)
 	p[0] = bit.rshift(bit.band(n, 0xFF000000), 24)
 	p[1] = bit.rshift(bit.band(n, 0x00FF0000), 16)
@@ -141,6 +177,8 @@ do
 	local int32_pointer = ffi.new("int32_t[1]")
 	local uint32_pointer = ffi.cast("uint32_t*", int32_pointer)
 
+	---@param p ffi.cdata*
+	---@return number
 	function byte.read_uint32_le(p)
 		int32_pointer[0] = byte.read_int32_le(p)
 		return uint32_pointer[0]
@@ -148,6 +186,8 @@ do
 
 	byte.write_uint32_le = byte.write_int32_le
 
+	---@param p ffi.cdata*
+	---@return number
 	function byte.read_uint32_be(p)
 		int32_pointer[0] = byte.read_int32_be(p)
 		return uint32_pointer[0]
@@ -160,41 +200,57 @@ do
 	local int64_pointer = ffi.new("int64_t[1]")
 	local uint64_pointer = ffi.new("uint64_t[1]")
 
+	---@param p ffi.cdata*
+	---@return number
 	function byte.read_int64_le(p)
 		ffi.copy(int64_pointer, p, 8)
 		return int64_pointer[0]
 	end
 
+	---@param p ffi.cdata*
+	---@param n number
 	function byte.write_int64_le(p, n)
 		int64_pointer[0] = n
 		ffi.copy(p, int64_pointer, 8)
 	end
 
+	---@param p ffi.cdata*
+	---@return number
 	function byte.read_int64_be(p)
 		copy_reverse(int64_pointer, p, 8)
 		return int64_pointer[0]
 	end
 
+	---@param p ffi.cdata*
+	---@param n number
 	function byte.write_int64_be(p, n)
 		int64_pointer[0] = n
 		copy_reverse(p, int64_pointer, 8)
 	end
 
+	---@param p ffi.cdata*
+	---@return number
 	function byte.read_uint64_le(p)
 		ffi.copy(uint64_pointer, p, 8)
 		return uint64_pointer[0]
 	end
 
+	---@param p ffi.cdata*
+	---@param n number
 	function byte.write_uint64_le(p, n)
 		uint64_pointer[0] = n
 		ffi.copy(p, uint64_pointer, 8)
 	end
 
+	---@param p ffi.cdata*
+	---@return number
 	function byte.read_uint64_be(p)
 		copy_reverse(uint64_pointer, p, 8)
 		return uint64_pointer[0]
 	end
 
+	---@param p ffi.cdata*
+	---@param n number
 	function byte.write_uint64_be(p, n)
 		uint64_pointer[0] = n
 		copy_reverse(p, uint64_pointer, 8)
@@ -218,18 +274,26 @@ do
 	end
 end
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_float_le(p)
 	return byte.uint32_to_float(byte.read_int32_le(p))
 end
 
+---@param p ffi.cdata*
+---@param n number
 function byte.write_float_le(p, n)
 	return byte.write_int32_le(p, byte.float_to_uint32(n))
 end
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_float_be(p)
 	return byte.uint32_to_float(byte.read_int32_be(p))
 end
 
+---@param p ffi.cdata*
+---@param n number
 function byte.write_float_be(p, n)
 	return byte.write_int32_be(p, byte.float_to_uint32(n))
 end
@@ -251,18 +315,26 @@ do
 	end
 end
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_double_le(p)
 	return byte.uint64_to_double(byte.read_uint64_le(p))
 end
 
+---@param p ffi.cdata*
+---@param n number
 function byte.write_double_le(p, n)
 	return byte.write_uint64_le(p, byte.double_to_uint64(n))
 end
 
+---@param p ffi.cdata*
+---@return number
 function byte.read_double_be(p)
 	return byte.uint64_to_double(byte.read_uint64_be(p))
 end
 
+---@param p ffi.cdata*
+---@param n number
 function byte.write_double_be(p, n)
 	return byte.write_uint64_be(p, byte.double_to_uint64(n))
 end
@@ -272,15 +344,18 @@ end
 local buffer = {}
 
 function buffer:assert_freed()
-	return assert(self.size ~= 0, "buffer was already freed")
+	assert(self.size ~= 0, "buffer was already freed")
 end
 
 local _total = ffi.new("size_t")
 
+---@return ffi.cdata*
 function buffer.total()
 	return _total
 end
 
+---@param newsize number
+---@return table
 function buffer:resize(newsize)
 	self:assert_freed()
 	assert_numeric(newsize)
@@ -309,6 +384,8 @@ function buffer:free()
 	self.size = 0
 end
 
+---@param state boolean?
+---@return table
 function buffer:gc(state)
 	self:assert_freed()
 
@@ -321,6 +398,8 @@ function buffer:gc(state)
 	return self
 end
 
+---@param offset number
+---@return table
 function buffer:seek(offset)
 	self:assert_freed()
 	assert_numeric(offset)
@@ -331,6 +410,9 @@ function buffer:seek(offset)
 	return self
 end
 
+---@param s string
+---@param len number?
+---@return table
 function buffer:fill(s, len)
 	self:assert_freed()
 
@@ -345,6 +427,8 @@ function buffer:fill(s, len)
 	return self
 end
 
+---@param length number
+---@return string
 function buffer:string(length)
 	self:assert_freed()
 	assert_numeric(length)
@@ -359,6 +443,8 @@ function buffer:string(length)
 	return ffi.string(self.pointer + offset, length)
 end
 
+---@param length number
+---@return string
 function buffer:cstring(length)
 	self:assert_freed()
 	assert_numeric(length)
@@ -409,6 +495,9 @@ ffi.cdef("typedef struct {unsigned char * pointer; size_t size; size_t offset;} 
 
 local mt = {}
 
+---@param _ any
+---@param key string
+---@return function
 function mt.__index(_, key)
 	return buffer[key]
 end
@@ -417,6 +506,9 @@ end
 byte.buffer_t = ffi.metatype(ffi.typeof("buffer_t"), mt)
 
 -- buffer constructor
+
+---@param size number
+---@return ffi.cdata*
 function byte.buffer(size)
 	assert_numeric(size)
 	assert(size > 0, "buffer size must be greater than zero")

@@ -1,10 +1,12 @@
 local synctable = {}
 
+---@param v string|number|table|boolean|nil
 local function assertValueType(v)
 	local t = type(v)
 	assert(t == "string" or t == "number" or t == "table" or t == "boolean" or t == "nil")
 end
 
+---@param t table
 local function validate(t)
 	for k, v in pairs(t) do
 		local tk = type(k)
@@ -16,6 +18,8 @@ local function validate(t)
 	end
 end
 
+---@param t table
+---@return table
 local function getPath(t)
 	local path = {}
 	while t.__parent do
@@ -73,6 +77,9 @@ mt = {
 	end,
 }
 
+---@param t table
+---@param callback function
+---@return table
 function synctable.new(t, callback)
 	validate(t)
 	local res = setmetatable({
@@ -85,6 +92,11 @@ function synctable.new(t, callback)
 	return res
 end
 
+---@param object table
+---@param path table
+---@param k any
+---@param v any
+---@param isPath boolean
 function synctable.set(object, path, k, v, isPath)
 	local t = object
 	for _, _k in ipairs(path) do
@@ -102,11 +114,13 @@ function synctable.set(object, path, k, v, isPath)
 	t[k] = v
 end
 
+---@param key any
 local function formatKey(key)
 	local f = type(key) == "string" and ".%s" or "[%s]"
 	return f:format(key)
 end
 
+---@param path table
 local function formatPath(path)
 	local p = {}
 	for _, key in ipairs(path) do
@@ -115,6 +129,9 @@ local function formatPath(path)
 	return table.concat(p)
 end
 
+---@param prefix string
+---@param value any
+---@param isPath boolean?
 local function formatValue(prefix, value, isPath)
 	if isPath then
 		return prefix .. formatPath(value)
@@ -127,6 +144,11 @@ local function formatValue(prefix, value, isPath)
 	return value
 end
 
+---@param prefix string
+---@param path table
+---@param k any
+---@param v any
+---@param isPath boolean?
 function synctable.format(prefix, path, k, v, isPath)
 	return ("%s = %s"):format(
 		prefix .. formatPath(path) .. formatKey(k),

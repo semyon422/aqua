@@ -2,7 +2,11 @@ local just = require("just")
 local theme = require("imgui.theme")
 
 local dragPosition
-local getPosition = function(h, _h)
+
+---@param h number
+---@param _h number
+---@return number
+local function getPosition(h, _h)
 	if not dragPosition then
 		return 0
 	end

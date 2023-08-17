@@ -2,6 +2,12 @@ local just = require("just")
 local theme = require("imgui.theme")
 local gfx_util = require("gfx_util")
 
+---@param id any
+---@param text string
+---@param w number
+---@param h number
+---@param selected boolean?
+---@return boolean?
 local function button(id, text, w, h, selected)
 	local mx, my = love.graphics.inverseTransformPoint(love.mouse.getPosition())
 	local over = 0 <= mx and mx <= w and 0 <= my and my <= h

@@ -7,6 +7,7 @@ local bass_assert = require("bass.assert")
 ---@operator call:audio.bass.StreamMemoryTempo
 local StreamMemoryTempo = BassSource + {}
 
+---@param soundData audio.bass.BassSoundData
 function StreamMemoryTempo:new(soundData)
 	self.soundData = soundData
 	self.info = soundData.info
@@ -16,19 +17,23 @@ function StreamMemoryTempo:new(soundData)
 	bass_assert(self.channel ~= 0)
 end
 
+---@param rate number
 function StreamMemoryTempo:setRate(rate)
-	if self.rateValue ~= rate then
-		self.rateValue = rate
-		bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 0x10000, (rate - 1) * 100) == 1)
+	if self.rateValue == rate then
+		return
 	end
+	self.rateValue = rate
+	bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 0x10000, (rate - 1) * 100) == 1)
 end
 
+---@param pitch number
 function StreamMemoryTempo:setPitch(pitch)
-	-- semitone 1 : 2^(1/12)
-	if self.pitchValue ~= pitch then
-		self.pitchValue = pitch
-		bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 0x10001, 12 * math.log(pitch) / math.log(2)) == 1)
+	if self.pitchValue == pitch then
+		return
 	end
+	-- semitone 1 : 2^(1/12)
+	self.pitchValue = pitch
+	bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 0x10001, 12 * math.log(pitch) / math.log(2)) == 1)
 end
 
 return StreamMemoryTempo

@@ -1,7 +1,11 @@
 local class = require("class")
 
+---@class util.Log
+---@operator call: util.Log
 local Log = class()
 
+---@param name string
+---@param ... any?
 function Log:write(name, ...)
 	local args = {...}
 	for i, v in ipairs(args) do

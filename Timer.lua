@@ -1,5 +1,7 @@
 local class = require("class")
 
+---@class util.Timer
+---@operator call: util.Timer
 local Timer = class()
 
 Timer.isPlaying = false
@@ -7,10 +9,12 @@ Timer.offset = 0
 Timer.rate = 1
 Timer.adjustRate = 0.1
 
+---@return number
 function Timer:getAbsoluteTime()
 	return 0
 end
 
+---@return number?
 function Timer:tryAdjust()
 	if not self.getAdjustTime then
 		return
@@ -26,6 +30,7 @@ function Timer:tryAdjust()
 	return adjustTime
 end
 
+---@return number
 function Timer:getTime()
 	if not self.isPlaying then
 		return self.offset
@@ -43,15 +48,19 @@ function Timer:getTime()
 	return time
 end
 
+---@param time number
+---@return number
 function Timer:transform(time)
 	return time - self:getAbsoluteTime() + self:getTime()
 end
 
+---@param time number?
 function Timer:setTime(time)
 	self.offset = time or self:getTime()
 	self.startTime = self:getAbsoluteTime()
 end
 
+---@param rate number
 function Timer:setRate(rate)
 	self:setTime()
 	self.rate = rate

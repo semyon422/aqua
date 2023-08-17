@@ -1,11 +1,14 @@
 local class = require("class")
 local synctable = require("synctable")
 
+---@class thread.Thread
+---@operator call: thread.Thread
 local Thread = class()
 
 Thread.id = 0
 Thread.idle = true
 
+---@param codestring string
 function Thread:create(codestring)
 	self.thread = love.thread.newThread(codestring)
 
@@ -53,7 +56,6 @@ function Thread:update()
 	pool.ignoreSyncThread = self
 	event = self.outputChannel:pop()
 	while event do
-		-- print("receive", synctable.format("main", unpack(event)))
 		synctable.set(pool.synctable, unpack(event))
 		event = self.outputChannel:pop()
 	end
@@ -67,6 +69,7 @@ function Thread:updateLastTime()
 	self.lastTime = love.timer.getTime()
 end
 
+---@param task table
 function Thread:execute(task)
 	self.idle = false
 	self.task = task
@@ -83,16 +86,20 @@ function Thread:execute(task)
 	self.internalInputChannel:push(self.event)
 end
 
+---@return boolean
 function Thread:isRunning()
 	return self.thread:isRunning()
 end
 
+---@return number
 function Thread:stop()
 	return self.internalInputChannel:push({
 		name = "stop"
 	})
 end
 
+---@param event table
+---@return number
 function Thread:receive(event)
 	return self.inputChannel:push(event)
 end

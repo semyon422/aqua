@@ -6,6 +6,8 @@ local Tree_mt = {__index = Tree}
 local Node = {}
 local Node_mt = {__index = Node}
 
+---@param tree table
+---@param x table
 local function rotate_left(tree, x)
 	local p = x.parent
 	local y = x.right
@@ -28,6 +30,8 @@ local function rotate_left(tree, x)
 	end
 end
 
+---@param tree table
+---@param x table
 local function rotate_right(tree, x)
 	local p = x.parent
 	local y = x.left
@@ -50,6 +54,9 @@ local function rotate_right(tree, x)
 	end
 end
 
+---@param tree table
+---@param x table
+---@param y table?
 local function transplant(tree, x, y)
 	if not x.parent then
 		tree.root = y
@@ -63,6 +70,8 @@ local function transplant(tree, x, y)
 	end
 end
 
+---@param tree table
+---@param x table
 local function fix_insert(tree, x)
 	while x.parent.color == 1 do
 		if x.parent == x.parent.parent.right then
@@ -105,6 +114,9 @@ local function fix_insert(tree, x)
 	tree.root.color = 0
 end
 
+---@param tree table
+---@param x table
+---@param xp table
 local function fix_remove(tree, x, xp)  -- x may be nil (nil node), xp may be nil (parent of root node)
 	while xp or x ~= tree.root and x.color == 0 do
 		local p = xp or x.parent
@@ -169,6 +181,7 @@ local function fix_remove(tree, x, xp)  -- x may be nil (nil node), xp may be ni
 	x.color = 0
 end
 
+---@param x table
 local function min(x)
 	while x.left do
 		x = x.left
@@ -176,6 +189,7 @@ local function min(x)
 	return x
 end
 
+---@param x table
 local function max(x)
 	while x.right do
 		x = x.right
@@ -183,6 +197,7 @@ local function max(x)
 	return x
 end
 
+---@return table
 function Node:next()
 	if self.right then
 		return min(self.right)
@@ -196,6 +211,7 @@ function Node:next()
 	return p
 end
 
+---@return table
 function Node:prev()
 	if self.left then
 		return max(self.left)
@@ -209,11 +225,15 @@ function Node:prev()
 	return p
 end
 
+---@return string
 function Node_mt:__tostring()
 	local color = self.color == 1 and "🔴" or "⚫"
 	return color .. " " .. tostring(self.key)
 end
 
+---@param key any
+---@return table?
+---@return table?
 function Tree:find(key)
 	local y
 	local x = self.root
@@ -228,6 +248,10 @@ function Tree:find(key)
 	return x, y
 end
 
+---@param key any
+---@param f function
+---@return table?
+---@return table?
 function Tree:findex(key, f)
 	local y
 	local x = self.root
@@ -242,6 +266,9 @@ function Tree:findex(key, f)
 	return x, y
 end
 
+---@param key any
+---@return table?
+---@return string?
 function Tree:insert(key)
 	local x, y = self:find(key)
 	if x then
@@ -277,6 +304,9 @@ function Tree:insert(key)
 	return x
 end
 
+---@param key any
+---@return table?
+---@return string?
 function Tree:remove(key)
 	local z = self:find(key)
 	if not z then
@@ -285,6 +315,8 @@ function Tree:remove(key)
 	return self:remove_node(z)
 end
 
+---@param z any
+---@return table
 function Tree:remove_node(z)
 	self.size = self.size - 1
 
@@ -326,6 +358,9 @@ function Tree:remove_node(z)
 	return z
 end
 
+---@param t table?
+---@return boolean
+---@return number
 local function check_subtree(t)
     if not t then
         return true, 1
@@ -351,10 +386,13 @@ local function check_subtree(t)
     return r and l and black_right == black_left, black_right + black
 end
 
+---@return boolean
 function Tree:is_valid()
 	return (check_subtree(self.root))
 end
 
+---@param node table
+---@param indent number?
 local function print_node(node, indent)
 	if not node then
 		return
@@ -368,9 +406,13 @@ local function print_node(node, indent)
 end
 
 function Tree:print()
-	return print_node(self.root, 0)
+	print_node(self.root, 0)
 end
 
+---@param tree table
+---@param node table?
+---@return table?
+---@return any?
 local function next_tree_node(tree, node)
 	if node then
 		node = node:next()
@@ -380,18 +422,23 @@ local function next_tree_node(tree, node)
 	return node, node and node.key
 end
 
+---@return function
+---@return table
 function Tree:iter()
 	return next_tree_node, self
 end
 
+---@return table
 function Tree:min()
 	return self.root and min(self.root)
 end
 
+---@return table
 function Tree:max()
 	return self.root and max(self.root)
 end
 
+---@return table
 local function new()
 	return setmetatable({size = 0}, Tree_mt)
 end

@@ -6,6 +6,7 @@ local bass_assert = require("bass.assert")
 ---@operator call:audio.bass.Sample
 local Sample = BassSource + {}
 
+---@param soundData audio.bass.BassSoundData
 function Sample:new(soundData)
 	self.soundData = soundData
 	self.info = soundData.info

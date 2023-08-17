@@ -120,6 +120,7 @@ local Plugins = {
 	Linux = {"libbassopus.so"},
 }
 
+---@param device number?
 function __bass.init(device)
 	local bass_error_code = require("bass.error_code")
 	local bass_assert = require("bass.assert")
@@ -158,12 +159,16 @@ function __bass.reinit()
 end
 
 local info = ffi.new("BASS_INFO[1]")
+
+---@return ffi.cdata*
 function __bass.getInfo()
 	bass.BASS_GetInfo(info)
 	return info[0]
 end
 
 local device_info = ffi.new("BASS_DEVICEINFO[1]")
+
+---@return table
 function __bass.getDevices()
 	local devices = {}
 
@@ -192,10 +197,12 @@ end
 __bass.default_dev_period = bass.BASS_GetConfig(bass_config.BASS_CONFIG_DEV_PERIOD)
 __bass.default_dev_buffer = bass.BASS_GetConfig(bass_config.BASS_CONFIG_DEV_BUFFER)
 
+---@param period number
 function __bass.setDevicePeriod(period)
 	bass.BASS_SetConfig(bass_config.BASS_CONFIG_DEV_PERIOD, period)
 end
 
+---@param buffer number
 function __bass.setDeviceBuffer(buffer)
 	bass.BASS_SetConfig(bass_config.BASS_CONFIG_DEV_BUFFER, buffer)
 end

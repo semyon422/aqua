@@ -1,3 +1,6 @@
+---@param a any
+---@param b any
+---@return boolean
 local function sort(a, b)
 	local ta, tb = type(a), type(b)
 	local na, nb = ta == "number", tb == "number"

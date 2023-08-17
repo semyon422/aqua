@@ -3,7 +3,10 @@ local theme = require("imgui.theme")
 local gfx_util = require("gfx_util")
 local map = require("math_util").map
 
-local getPosition = function(w, h)
+---@param w number
+---@param h number
+---@return number
+local function getPosition(w, h)
 	local x, y = love.graphics.inverseTransformPoint(love.mouse.getPosition())
 	local value = map(x, h / 2, w - h / 2, 0, 1)
 	return math.min(math.max(value, 0), 1)

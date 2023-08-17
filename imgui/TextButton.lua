@@ -3,6 +3,10 @@ local theme = require("imgui.theme")
 local gfx_util = require("gfx_util")
 
 return function(id, text, w, h)
+	if id == nil then
+		return
+	end
+
 	local changed, active, hovered = just.button(id, just.is_over(w, h))
 
 	theme.setColor(active, hovered)

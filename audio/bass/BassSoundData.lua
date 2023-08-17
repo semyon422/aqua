@@ -30,6 +30,10 @@ local info_fields = {
 
 local sample_info = ffi.new("BASS_SAMPLE")
 
+---@param pointer ffi.cdata*
+---@param size number
+---@return nil?
+---@return string?
 function BassSoundData:new(pointer, size)
 	assert(pointer)
 	assert(size)
@@ -53,6 +57,7 @@ function BassSoundData:new(pointer, size)
 	bass_assert(bass.BASS_SampleGetData(sample, self.byteData:getFFIPointer()) == 1)
 end
 
+---@param gain number
 function BassSoundData:amplify(gain)
 	local sample = self.sample
 	local info = self.info
@@ -71,6 +76,7 @@ function BassSoundData:release()
 	bass_assert(bass.BASS_SampleFree(self.sample) == 1)
 end
 
+---@return number
 function BassSoundData:getBitDepth()
 	local flags = self.info.flags
 	local bits = 16
@@ -82,14 +88,19 @@ function BassSoundData:getBitDepth()
 	return bits
 end
 
+---@return number
 function BassSoundData:getChannelCount()
 	return self.info.chans
 end
 
+---@return number
 function BassSoundData:getDuration()
 	return self:getSampleCount() / self:getSampleRate()
 end
 
+---@param i number
+---@param channel number?
+---@return number
 function BassSoundData:getSample(i, channel)
 	local buffer = ffi.cast("int16_t*", self.byteData:getFFIPointer())
 	if not channel then
@@ -98,11 +109,13 @@ function BassSoundData:getSample(i, channel)
 	return buffer[i * self:getChannelCount() + channel - 1] / 32768
 end
 
+---@return number
 function BassSoundData:getSampleCount()
 	local info = self.info
 	return info.length / info.chans / (self:getBitDepth() / 8)
 end
 
+---@return number
 function BassSoundData:getSampleRate()
 	return self.info.freq
 end

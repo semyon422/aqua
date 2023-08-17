@@ -1,5 +1,7 @@
 local class = require("class")
 
+---@class audio.Container
+---@operator call: audio.Container
 local Container = class()
 
 Container.playing = false
@@ -11,6 +13,7 @@ function Container:new()
 	self.sources = {}
 end
 
+---@param source audio.Source
 function Container:add(source)
 	self.sources[source] = true
 	source:setVolume(self.volume)
@@ -36,6 +39,7 @@ function Container:release()
 	self.playing = false
 end
 
+---@param rate number
 function Container:setRate(rate)
 	self.rate = rate
 	for source in pairs(self.sources) do
@@ -43,6 +47,7 @@ function Container:setRate(rate)
 	end
 end
 
+---@param pitch number
 function Container:setPitch(pitch)
 	self.pitch = pitch
 	for source in pairs(self.sources) do
@@ -50,6 +55,7 @@ function Container:setPitch(pitch)
 	end
 end
 
+---@param volume number
 function Container:setVolume(volume)
 	self.volume = volume
 	for source in pairs(self.sources) do
@@ -71,6 +77,7 @@ function Container:pause()
 	end
 end
 
+---@param position number
 function Container:setPosition(position)
 	for source in pairs(self.sources) do
 		if source:isPlaying() then
@@ -85,6 +92,9 @@ function Container:setPosition(position)
 	end
 end
 
+---@return number?
+---@return number?
+---@return number?
 function Container:getPosition()
 	local position = 0
 	local minPos, maxPos = math.huge, -math.huge
@@ -103,7 +113,7 @@ function Container:getPosition()
 	end
 
 	if length == 0 then
-		return nil
+		return
 	end
 
 	return position / length, minPos, maxPos

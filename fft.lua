@@ -2,6 +2,10 @@ local cmath = require("cmath")
 
 local fft = {}
 
+---@param sample_count number
+---@param sample_rate number
+---@param waves table
+---@return table
 function fft.gen_wave(sample_count, sample_rate, waves)
 	local wave = {}
 	for i = 0, sample_count - 1 do
@@ -18,11 +22,19 @@ end
 
 -- Hann window
 -- https://en.wikipedia.org/wiki/Window_function#Hann_and_Hamming_windows
+
+---@param n number
+---@return number
 function fft.window(n)
 	return 0.5 * (1 - math.cos(2 * math.pi * n))
 end
 
 local pi, po, sign, w, o_in_0, size
+
+---@param n number
+---@param step number
+---@param o_in number
+---@param o_out number
 local function _fft(n, step, o_in, o_out)
 	if n == 1 then
 		local s = w and w((o_in - o_in_0) / (size - 1), size) or 1
@@ -41,12 +53,25 @@ local function _fft(n, step, o_in, o_out)
 	end
 end
 
+---@param _pi table|ffi.cdata*
+---@param _po table|ffi.cdata*
+---@param _sign number
+---@param n number
+---@param step number
+---@param o_in number
+---@param o_out number
+---@param _w function?
 function fft.fft(_pi, _po, _sign, n, step, o_in, o_out, _w)
 	pi, po, sign = _pi, _po, _sign
 	w, o_in_0, size = _w, o_in, n
 	_fft(n, step, o_in, o_out)
 end
 
+---@param p table|ffi.cdata*
+---@param n number
+---@param inv boolean?
+---@param windowed boolean?
+---@return table
 function fft.simple(p, n, inv, windowed)
 	local out = {}
 	fft.fft(p, out, inv and 1 or -1, n, 1, 0, 0, windowed and fft.window)

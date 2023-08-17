@@ -3,6 +3,12 @@ local socket_http = require("socket.http")
 
 local http = {}
 
+---@param url string|table
+---@param body string?
+---@return string|number?
+---@return string|number?
+---@return table?
+---@return string?
 function http.request(url, body)
 	local q, w, e, r = https.request(url, body)
 

@@ -1,3 +1,5 @@
+---@param from string
+---@param to string
 local function rcopy(from, to)
 	if to ~= "" and not love.filesystem.getInfo(to, "directory") then
 		love.filesystem.createDirectory(to)

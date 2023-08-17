@@ -26,8 +26,6 @@ return function(id, text, index, w, h)
 	theme.rectangle(w, h)
 
 	love.graphics.translate(h * theme.padding, (h - lh) / 2)
-
-
 	love.graphics.setColor(1, 1, 1, 1)
 
 	local clipw = w - h * theme.padding * 2

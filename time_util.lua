@@ -1,6 +1,10 @@
 local time_util = {}
 
 -- https://leafo.net/lapis/reference/utilities.html
+
+---@param later number
+---@param sooner number
+---@return table
 function time_util.date_diff(later, sooner)
 	if later < sooner then
 		sooner, later = later, sooner
@@ -56,6 +60,8 @@ function time_util.date_diff(later, sooner)
 	return times
 end
 
+---@param time number
+---@return table
 function time_util.time_ago(time)
 	return time_util.date_diff(os.time(), time)
 end
@@ -67,11 +73,16 @@ local singular = {
 	minutes = "minute",
 	seconds = "second"
 }
+
+---@param time number
+---@param parts number?
+---@param suffix string?
+---@return string
 function time_util.time_ago_in_words(time, parts, suffix)
-	if parts == nil then
+	if not parts then
 		parts = 1
 	end
-	if suffix == nil then
+	if not suffix then
 		suffix = "ago"
 	end
 	local ago = type(time) == "table" and time or time_util.time_ago(time)
@@ -93,11 +104,13 @@ function time_util.time_ago_in_words(time, parts, suffix)
 	end
 	if suffix and suffix ~= "" then
 		return out .. " " .. suffix
-	else
-		return out
 	end
+	return out
 end
 
+---@param time number
+---@param decimals number?
+---@return string
 function time_util.format(time, decimals)
 	local sign = time >= 0 and "" or "-"
 	time = math.abs(time)

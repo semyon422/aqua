@@ -13,7 +13,6 @@ ThreadPool.loaded = true
 
 local _synctable = {}
 ThreadPool.synctable = synctable.new(_synctable, function(...)
-	-- print("send", synctable.format("main", ...))
 	for _, thread in pairs(ThreadPool.threads) do
 		if thread ~= ThreadPool.ignoreSyncThread then
 			thread:receive({...})
@@ -21,14 +20,16 @@ ThreadPool.synctable = synctable.new(_synctable, function(...)
 	end
 end)
 
+---@param task table
 function ThreadPool:execute(task)
 	if not self.loaded then
 		return
 	end
 	self.queue[#self.queue + 1] = task
-	return self:update()
+	self:update()
 end
 
+---@return boolean?
 function ThreadPool:isRunning()
 	return next(self.runningThreads) ~= nil
 end
@@ -70,7 +71,8 @@ function ThreadPool:update()
 	local waiting = self.waiting
 	if waiting then
 		self.waiting = nil
-		return coroutine.resume(waiting)
+		coroutine.resume(waiting)
+		return
 	end
 
 	local task = self.queue[1]
@@ -85,6 +87,7 @@ function ThreadPool:update()
 	end
 end
 
+---@return thread.Thread?
 function ThreadPool:getIdleThread()
 	local thread
 	for i = 1, self.poolSize do
@@ -101,6 +104,8 @@ function ThreadPool:getIdleThread()
 	end
 end
 
+---@param id number
+---@return thread.Thread
 function ThreadPool:createThread(id)
 	local thread = Thread()
 
@@ -111,7 +116,9 @@ function ThreadPool:createThread(id)
 		local path = "aqua/thread/threadcode.lua"
 		self.codestring = love.filesystem.read(path)
 	end
-	thread:create(self.codestring:gsub('"<threadId>"', id))
+
+	local code = self.codestring:gsub('"<threadId>"', id)
+	thread:create(code)
 
 	synctable.new(_synctable, function(...)
 		thread:receive({...})

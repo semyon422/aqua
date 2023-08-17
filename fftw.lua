@@ -25,6 +25,8 @@ end
 
 local fftw = {}
 
+---@param size number
+---@return table
 function fftw.new(size)
 	local f = {}
 

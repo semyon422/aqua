@@ -1,7 +1,10 @@
 local class = require("class")
 
+---@class util.Animation
+---@operator call: util.Animation
 local Animation = class()
 
+---@param dt number
 function Animation:update(dt)
 	local range = self.range
 	self.time = self.time + dt

@@ -44,6 +44,9 @@ function reqprof.start()
 	total_calls = 0
 end
 
+---@param a table
+---@param b table
+---@return boolean
 local function sort_stats(a, b)
 	return a.time < b.time
 end
@@ -84,6 +87,9 @@ function reqprof._print()
 	end
 end
 
+---@param f function
+---@param name string
+---@return function
 function reqprof.decorate(f, name)
 	local function return_measured(t, stats, ...)
 		level = level - 1
@@ -125,6 +131,8 @@ end
 local ProfileDecorator = class(deco.FunctionDecorator)
 reqprof.ProfileDecorator = ProfileDecorator
 
+---@param func_name string
+---@return string
 function ProfileDecorator:func_end(func_name)
 	local func = func_name:gsub(":", ".")
 	return ([[? = require("reqprof").decorate(?, %q)]]):gsub("?", func):format(func_name)

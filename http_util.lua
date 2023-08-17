@@ -3,8 +3,12 @@ local http_util = {}
 local escape = require("socket.url").escape
 
 -- from lapis
+
+---@param t table
+---@param sep string?
+---@return string
 function http_util.encode_query_string(t, sep)
-	if sep == nil then
+	if not sep then
 		sep = "&"
 	end
 	local i = 0
@@ -44,6 +48,9 @@ end
 
 local boundary = "------------------------d67fe448c18233b3"
 
+---@param files table
+---@return string
+---@return table
 function http_util.multipart_form_data(files)
 	local body = {}
 	for _, file in ipairs(files) do

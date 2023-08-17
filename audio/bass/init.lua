@@ -7,8 +7,10 @@ local audio = {}
 
 audio.SoundData = BassSoundData
 
+---@param soundData audio.bass.BassSoundData
+---@param _type string?
+---@return audio.bass.StreamMemoryTempo
 function audio.newSource(soundData, _type)
-	assert(soundData)
 	if _type == "bass_fx_tempo" then
 		return StreamMemoryTempo(soundData)
 	end

@@ -12,11 +12,15 @@ local libiconv = ffi.load("iconv")
 local iconv = {}
 iconv.__index = iconv
 
+---@param tocode any
+---@param fromcode any
+---@return table?
+---@return string?
 function iconv:open(tocode, fromcode)
 	local cd = libiconv.libiconv_open(tocode, fromcode)
 
 	if cd == -1 then
-		return false, "iconv open error"
+		return nil, "iconv open error"
 	end
 
 	ffi.gc(cd, libiconv.libiconv_close)
@@ -38,6 +42,9 @@ local outbytesleft = ffi.new("size_t[1]", outbuff_size)
 local inbuff_ptr = ffi.new("const char*[1]")
 local inbytesleft = ffi.new("size_t[1]")
 
+---@param instr string
+---@return string?
+---@return string?
 function iconv:convert(instr)
 	local out = {}
 
@@ -52,7 +59,7 @@ function iconv:convert(instr)
 		-- 	print("error", ffi.errno()) -- errno doesn't work
 		-- end
 		if inbytesleft[0] - inbytesleft0 == 0 and inbytesleft[0] ~= 0 then
-			return false, "failed"
+			return nil, "failed"
 		end
 		out[#out + 1] = ffi.string(outbuff, outbuff_size - outbytesleft[0])
 		outbuff_ptr[0] = outbuff

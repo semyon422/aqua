@@ -1,5 +1,7 @@
 local class = require("class")
 
+---@class util.TimedCache
+---@operator call: util.TimedCache
 local TimedCache = class()
 
 function TimedCache:new()
@@ -8,8 +10,12 @@ function TimedCache:new()
 	self.timeout = 1
 end
 
+---@param key any
+---@return any?
 function TimedCache:loadObject(key) end
 
+---@param key any
+---@return any
 function TimedCache:getObject(key)
 	local time = self.time
 	local objects = self.objects

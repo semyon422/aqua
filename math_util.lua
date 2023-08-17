@@ -1,14 +1,23 @@
 local math_util = {}
 
+---@param x number
+---@param to number
+---@return number
 function math_util.round(x, to)
 	to = to or 1
 	return ((x / to) % 1 < 0.5 and math.floor(x / to) or math.ceil(x / to)) * to
 end
 
+---@param x number
+---@return number
 function math_util.sign(x)
 	return x == 0 and 0 or x / math.abs(x)
 end
 
+---@param x number
+---@param a number
+---@param b number
+---@return boolean
 function math_util.belong(x, a, b)
 	if b < a then
 		a, b = b, a
@@ -16,20 +25,36 @@ function math_util.belong(x, a, b)
 	return a <= x and x <= b
 end
 
+---@param x number
+---@param a number
+---@param b number
+---@param c number
+---@param d number
+---@return number
 function math_util.map(x, a, b, c, d)
 	return (x - a) * (d - c) / (b - a) + c
 end
 
+---@param x number
+---@param a number
+---@param b number
+---@return number
 function math_util.clamp(x, a, b)
 	return math.min(math.max(x, a), b)
 end
 
+---@param l number
+---@param f number
 function math_util.lmap(l, f)
 	for i = 1, #l do
 		l[i] = f(l[i])
 	end
 end
 
+---@param list number
+---@param weights table
+---@return any?
+---@return number?
 function math_util.weighted_median(list, weights)
 	local sum = 0
 	for i = 1, #list do
@@ -40,10 +65,20 @@ function math_util.weighted_median(list, weights)
 	end
 end
 
+---@param a number
+---@param b number
+---@param c number
+---@param d number
+---@return number
 local function det(a, b, c, d)
 	return a * d - b * c
 end
 
+---@param a number
+---@param b number
+---@param c number
+---@param d number
+---@return boolean
 function math_util.intersect1(a, b, c, d)
 	if a > b then a, b = b, a end
 	if c > d then c, d = d, c end
@@ -53,6 +88,16 @@ end
 local between = math_util.belong
 
 -- https://e-maxx.ru/algo/segments_intersection_checking
+
+---@param a_x number
+---@param a_y number
+---@param b_x number
+---@param b_y number
+---@param c_x number
+---@param c_y number
+---@param d_x number
+---@param d_y number
+---@return boolean
 function math_util.intersect(a_x, a_y, b_x, b_y, c_x, c_y, d_x, d_y)
 	local A1, B1 = a_y - b_y, b_x - a_x
 	local A2, B2 = c_y - d_y, d_x - c_x
@@ -69,6 +114,9 @@ function math_util.intersect(a_x, a_y, b_x, b_y, c_x, c_y, d_x, d_y)
 		and math_util.intersect1(a_y, b_y, c_y, d_y)
 end
 
+---@param s table
+---@param c table
+---@return boolean
 function math_util.intersect2(s, c)
 	local S, C = #s / 2 - 1, #c / 2 - 1
 	for i = 0, S do
@@ -93,9 +141,15 @@ function math_util.intersect2(s, c)
 			return true
 		end
 	end
+	return false
 end
 
 -- https://ru.wikibooks.org/wiki/Реализации_алгоритмов/Задача_о_принадлежности_точки_многоугольнику
+
+---@param p number
+---@param x number
+---@param y number
+---@return number
 function math_util.isPointInsidePolygon(p, x, y)
 	local i1, i2, S, S1, S2, S3, flag
 	local N = #p / 2

@@ -1,9 +1,14 @@
 local table_util = require("table_util")
 
+---@param s string
+---@return string
 function string.trim(s)
 	return s:match("^%s*(.-)%s*$")
 end
 
+---@param s string
+---@param div string
+---@return table
 function string.split(s, div)
 	local out = {}
 
@@ -17,6 +22,8 @@ function string.split(s, div)
 	return out
 end
 
+---@param d string
+---@return function
 local function next_split(d)
 	return function(s, p)
 		if not p then
@@ -31,6 +38,11 @@ local function next_split(d)
 end
 next_split = table_util.cache(next_split)
 
+---@param s string
+---@param d string
+---@return function
+---@return string
+---@return number
 function string.isplit(s, d)
 	return next_split(d), s, 1
 end

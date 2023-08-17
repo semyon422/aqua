@@ -26,22 +26,25 @@ function BassSource:stop()
 	self:setPosition(0)
 end
 
+---@return boolean
 function BassSource:isPlaying()
 	return bass.BASS_ChannelIsActive(self.channel) == 1  -- BASS_ACTIVE_PLAYING
 end
 
 function BassSource:setRate(rate)
-	return self:setFreqRate(rate)
+	self:setFreqRate(rate)
 end
 
 function BassSource:setFreqRate(rate)
-	if self.rateValue ~= rate then
-		self.rateValue = rate
-		bass.BASS_ChannelSetAttribute(self.channel, 1, self.info.freq * rate)
-		-- bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 1, self.info.freq * rate) == 1)
+	if self.rateValue == rate then
+		return
 	end
+	self.rateValue = rate
+	bass.BASS_ChannelSetAttribute(self.channel, 1, self.info.freq * rate)
+	-- bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 1, self.info.freq * rate) == 1)
 end
 
+---@return number
 function BassSource:getPosition()
 	local pos = bass.BASS_ChannelGetPosition(self.channel, 0)
 	bass_assert(pos >= 0)
@@ -50,6 +53,7 @@ function BassSource:getPosition()
 	return pos
 end
 
+---@param position number
 function BassSource:setPosition(position)
 	local length = bass.BASS_ChannelGetLength(self.channel, 0)
 	bass_assert(length >= 0)
@@ -62,6 +66,7 @@ function BassSource:setPosition(position)
 	bass_assert(pos == 1)
 end
 
+---@return number
 function BassSource:getDuration()
 	local length = bass.BASS_ChannelGetLength(self.channel, 0)
 	bass_assert(length >= 0)
@@ -70,11 +75,13 @@ function BassSource:getDuration()
 	return length
 end
 
+---@param volume number
 function BassSource:setBaseVolume(volume)
 	self.baseVolume = volume
-	return self:setVolume(1)
+	self:setVolume(1)
 end
 
+---@param volume number
 function BassSource:setVolume(volume)
 	bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 2, volume * self.baseVolume) == 1)
 end

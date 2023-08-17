@@ -1,5 +1,8 @@
 local table_util = {}
 
+---@param a table
+---@param b table
+---@return boolean
 function table_util.equal(a, b)
 	local size, _size = 0, 0
 	for k, v in pairs(a) do
@@ -15,6 +18,9 @@ function table_util.equal(a, b)
 	return size == _size
 end
 
+---@param a table
+---@param b table
+---@return boolean
 function table_util.deepequal(a, b)
 	local size, _size = 0, 0
 	for k, v in pairs(a) do
@@ -36,6 +42,8 @@ end
 
 assert(table_util.deepequal({{}}, {{}}))
 
+---@param t table
+---@return table
 function table_util.deepcopy(t)
 	if type(t) ~= "table" then
 		return t
@@ -51,6 +59,13 @@ function table_util.deepcopy(t)
 	return out
 end
 
+---@param new table
+---@param old table
+---@param new_f function?
+---@param old_f function?
+---@return table
+---@return table
+---@return table
 function table_util.array_update(new, old, new_f, old_f)
 	local _new = {}
 	for _, v in ipairs(new) do
@@ -82,6 +97,9 @@ function table_util.array_update(new, old, new_f, old_f)
 	return new, old, all
 end
 
+---@param t table
+---@param key table|string
+---@return any?
 function table_util.inside(t, key)
 	local subvalue = t
 	if type(key) == "table" then
@@ -112,10 +130,15 @@ function table_util.inside(t, key)
 	end
 end
 
+---@param ... any?
+---@return table
 function table_util.pack(...)
 	return {n = select("#", ...), ...}
 end
 
+---@param f function
+---@param index number?
+---@return function
 function table_util.cache(f, index)
 	local cache = {}
 	return function(...)

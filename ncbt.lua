@@ -47,8 +47,6 @@ local sb_cached
 
 local input_complex = ffi.new("complex[?]", size)
 
-local plan = fftw.new(size)
-
 local function load_samples()
 	samples = ffi.new("complex[?]", sampleCount)
 	for i = 0, sampleCount - 1 do
@@ -60,7 +58,10 @@ local function window(n)
 	return 0.5 * (1 - math.cos(2 * math.pi * n))
 end
 
+local plan
+
 local function transform()
+	plan = plan or fftw.new(size)
 	frames = {}
 	for offset = 0, sampleCount - size, hop do
 		ffi.copy(input_complex, samples + offset, size * complex_size)

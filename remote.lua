@@ -1,13 +1,19 @@
 local remote = {}
 
+---@param data any|nil
+---@return string
 function remote.encode(data)
 	error("mot implemented")
 end
 
+---@param data string
+---@return any|nil
 function remote.decode(data)
 	error("mot implemented")
 end
 
+---@param f function
+---@return function
 function remote.wrap(f)
 	return function(...)
 		return coroutine.wrap(f)(...)
@@ -20,12 +26,21 @@ local event_id = 0
 remote.timeout = 10
 local timeouts = {}
 
+---@param t table
+---@param i number
+---@param j number
+---@return any?...
 local function _unpack(t, i, j)
 	if not t then return end
 	if i == j then return t[i] end
 	return t[i], _unpack(t, i + 1, j)
 end
 
+---@param peer userdata
+---@param id number?
+---@param name string?
+---@param ... any?
+---@return any?...
 local function send(peer, id, name, ...)
 	return peer:send(remote.encode({
 		id = id,
@@ -34,6 +49,10 @@ local function send(peer, id, name, ...)
 	}))
 end
 
+---@param peer userdata
+---@param name string
+---@param ... any?
+---@return any?...
 local function run(peer, name, ...)
 	if name:sub(1, 1) == "_" then
 		return send(peer, nil, name:sub(2), ...)
@@ -73,6 +92,9 @@ local peer_mt = {
 		return rawget(a, "id") == rawget(b, "id")
 	end,
 }
+
+---@param peer userdata
+---@return table
 function remote.peer(peer)
 	return setmetatable({
 		peer = peer,
@@ -80,17 +102,26 @@ function remote.peer(peer)
 	}, peer_mt)
 end
 
+---@param peer userdata
+---@param e table
+---@param handlers table
+---@return any?...
 local function _handle(peer, e, handlers)
 	local handler = handlers[e.name]
 	return handler and handler(remote.peer(peer), _unpack(e, 1, 8))
 end
 
-local handle = remote.wrap(function(peer, e, handlers)
+---@param peer userdata
+---@param e table
+---@param handlers table
+---@return any?...
+local function handle(peer, e, handlers)
 	if not e.id then
 		return _handle(peer, e, handlers)
 	end
 	return send(peer, e.id, nil, _handle(peer, e, handlers))
-end)
+end
+handle = remote.wrap(handle)
 
 function remote.update()
 	local time = os.time()
@@ -101,6 +132,9 @@ function remote.update()
 	end
 end
 
+---@param event table
+---@param handlers table
+---@return any?...
 function remote.receive(event, handlers)
 	local ok, e = pcall(remote.decode, event.data)
 	if not ok or type(e) ~= "table" then
