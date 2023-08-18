@@ -236,7 +236,7 @@ function imgui.hotkey(id, key, label)
 end
 
 ---@param id any
----@param text string
+---@param text any?
 ---@param label string?
 ---@return string
 function imgui.input(id, text, label)

@@ -8,20 +8,37 @@ Source.rateValue = 1
 Source.offset = 0
 Source.baseVolume = 1
 
+---@param soundData audio.SoundData
 function Source:new(soundData) end
+
 function Source:release() end
 
 function Source:play() end
 function Source:pause() end
 function Source:stop() end
 
-function Source:isPlaying() end
+---@return boolean
+function Source:isPlaying() return false end
+
+---@param rate number
 function Source:setRate(rate) end
+
+---@param pitch number
 function Source:setPitch(pitch) end
-function Source:getPosition() end
+
+---@return number
+function Source:getPosition() return 0 end
+
+---@param position number
 function Source:setPosition(position) end
-function Source:getDuration() end
+
+---@return number
+function Source:getDuration() return 0 end
+
+---@param volume number
 function Source:setBaseVolume(volume) end
+
+---@param volume number
 function Source:setVolume(volume) end
 
 return Source

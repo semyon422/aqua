@@ -1,20 +1,20 @@
 local just = require("just")
 local gfx_util = require("gfx_util")
 
----@param text string
+---@param text any
 ---@param x number
 ---@param y number
 ---@param w number
 ---@param h number
 local function _print(text, x, y, w, h)
-	gfx_util.printFrame(text, x, y, w, h, "center", "center")
+	gfx_util.printFrame(tostring(text), x, y, w, h, "center", "center")
 end
 
 ---@param w number
 ---@param h number
 ---@param ratio number
 ---@param name string
----@param value string
+---@param value any
 ---@param right boolean?
 local function print_values(w, h, ratio, name, value, right)
 	local font = love.graphics.getFont()

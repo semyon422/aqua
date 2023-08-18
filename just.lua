@@ -219,7 +219,7 @@ function just.indent(w)
 	end
 end
 
----@param w number
+---@param w number?
 ---@return number?
 function just.offset(w)
 	if not w then
@@ -397,7 +397,7 @@ function just.container_id()
 end
 
 ---@param id any?
----@param over boolean
+---@param over boolean?
 ---@param group string?
 ---@param new_zindex boolean?
 ---@return boolean?
@@ -424,7 +424,7 @@ function just.mouse_over(id, over, group, new_zindex)
 end
 
 ---@param id any?
----@param over boolean
+---@param over boolean?
 ---@return number|boolean?
 function just.wheel_over(id, over)
 	local d = mouse.scroll_delta
@@ -455,7 +455,7 @@ function just.key_over()
 end
 
 ---@param id any?
----@param over boolean
+---@param over boolean?
 ---@param button number?
 ---@return boolean?
 ---@return boolean?
@@ -484,7 +484,7 @@ function just.button(id, over, button)
 end
 
 ---@param id any?
----@param over boolean
+---@param over boolean?
 ---@param pos number
 ---@param value number
 ---@return number|boolean?
@@ -545,11 +545,13 @@ for i, device in ipairs(devices) do
 end
 
 ---@param key number
+---@return boolean?
 function just.mousepressed(key)
 	return mouse.pressed[key]
 end
 
 ---@param key number
+---@return boolean?
 function just.mousereleased(key)
 	return mouse.released[key]
 end

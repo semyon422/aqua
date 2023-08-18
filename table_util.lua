@@ -98,7 +98,7 @@ function table_util.array_update(new, old, new_f, old_f)
 end
 
 ---@param t table
----@param key table|string
+---@param key any?
 ---@return any?
 function table_util.inside(t, key)
 	local subvalue = t

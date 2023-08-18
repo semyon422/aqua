@@ -115,7 +115,7 @@ local function fix_insert(tree, x)
 end
 
 ---@param tree table
----@param x table
+---@param x table?
 ---@param xp table
 local function fix_remove(tree, x, xp)  -- x may be nil (nil node), xp may be nil (parent of root node)
 	while xp or x ~= tree.root and x.color == 0 do
@@ -182,6 +182,7 @@ local function fix_remove(tree, x, xp)  -- x may be nil (nil node), xp may be ni
 end
 
 ---@param x table
+---@return table
 local function min(x)
 	while x.left do
 		x = x.left
@@ -190,6 +191,7 @@ local function min(x)
 end
 
 ---@param x table
+---@return table
 local function max(x)
 	while x.right do
 		x = x.right
@@ -197,7 +199,7 @@ local function max(x)
 	return x
 end
 
----@return table
+---@return table?
 function Node:next()
 	if self.right then
 		return min(self.right)
@@ -211,7 +213,7 @@ function Node:next()
 	return p
 end
 
----@return table
+---@return table?
 function Node:prev()
 	if self.left then
 		return max(self.left)
@@ -428,12 +430,12 @@ function Tree:iter()
 	return next_tree_node, self
 end
 
----@return table
+---@return table?
 function Tree:min()
 	return self.root and min(self.root)
 end
 
----@return table
+---@return table?
 function Tree:max()
 	return self.root and max(self.root)
 end

@@ -15,7 +15,7 @@ end
 function TimedCache:loadObject(key) end
 
 ---@param key any
----@return any
+---@return any?
 function TimedCache:getObject(key)
 	local time = self.time
 	local objects = self.objects

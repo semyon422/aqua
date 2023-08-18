@@ -12,7 +12,7 @@ local zlib = {}
 
 ---@param dst_p ffi.cdata*
 ---@param dst_size number
----@param src_p ffi.cdata*
+---@param src_p string|ffi.cdata*
 ---@param src_size number
 ---@return number
 function zlib.uncompress(dst_p, dst_size, src_p, src_size)
@@ -23,7 +23,7 @@ end
 
 ---@param dst_p ffi.cdata*
 ---@param dst_size number
----@param src_p ffi.cdata*
+---@param src_p string|ffi.cdata*
 ---@param src_size number
 ---@param level number?
 ---@return number

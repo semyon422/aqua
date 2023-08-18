@@ -189,10 +189,10 @@ end
 
 local colorShader2
 
----@param r number
----@param g number
----@param b number
----@param a number
+---@param r number|table
+---@param g number?
+---@param b number?
+---@param a number?
 function gfx_util.setPixelColor(r, g, b, a)
 	if type(r) == "number" then
 		r = {r, g, b, a}

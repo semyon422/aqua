@@ -43,7 +43,8 @@ local function typeof(T, t)
 	end
 
 	while _T do
-		local p = getmetatable(_T).__index
+		local mt = getmetatable(_T)
+		local p = mt and mt.__index
 		if p == T then
 			return true
 		end

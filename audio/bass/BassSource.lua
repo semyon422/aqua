@@ -31,10 +31,12 @@ function BassSource:isPlaying()
 	return bass.BASS_ChannelIsActive(self.channel) == 1  -- BASS_ACTIVE_PLAYING
 end
 
+---@param rate number
 function BassSource:setRate(rate)
 	self:setFreqRate(rate)
 end
 
+---@param rate number
 function BassSource:setFreqRate(rate)
 	if self.rateValue == rate then
 		return

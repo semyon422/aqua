@@ -1,7 +1,7 @@
 local math_util = {}
 
 ---@param x number
----@param to number
+---@param to number?
 ---@return number
 function math_util.round(x, to)
 	to = to or 1
@@ -43,8 +43,8 @@ function math_util.clamp(x, a, b)
 	return math.min(math.max(x, a), b)
 end
 
----@param l number
----@param f number
+---@param l table
+---@param f function
 function math_util.lmap(l, f)
 	for i = 1, #l do
 		l[i] = f(l[i])
@@ -146,12 +146,13 @@ end
 
 -- https://ru.wikibooks.org/wiki/Реализации_алгоритмов/Задача_о_принадлежности_точки_многоугольнику
 
----@param p number
+---@param p table
 ---@param x number
 ---@param y number
----@return number
+---@return boolean
 function math_util.isPointInsidePolygon(p, x, y)
-	local i1, i2, S, S1, S2, S3, flag
+	local flag = false
+	local i1, i2, S, S1, S2, S3
 	local N = #p / 2
 	for n = 0, N - 1 do
 		i1 = n < N - 1 and n + 1 or 0
