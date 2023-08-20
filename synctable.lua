@@ -96,7 +96,7 @@ end
 ---@param path table
 ---@param k any
 ---@param v any
----@param isPath boolean
+---@param isPath boolean?
 function synctable.set(object, path, k, v, isPath)
 	local t = object
 	for _, _k in ipairs(path) do

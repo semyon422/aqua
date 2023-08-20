@@ -108,10 +108,10 @@ function gfx_util.newGradient(dir, ...)
     return love.graphics.newMesh(meshData, "strip", "static")
 end
 
----@param r number
----@param g number
----@param b number
----@param a number
+---@param r number?
+---@param g number?
+---@param b number?
+---@param a number?
 ---@return love.Image
 function gfx_util.newPixel(r, g, b, a)
 	local imageData = love.image.newImageData(1, 1)

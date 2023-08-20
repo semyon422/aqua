@@ -379,7 +379,7 @@ for i, device in ipairs(devices) do
 	end
 end
 
----@param text string
+---@nocheck
 function just.callbacks.textinput(text)
 	textinput = textinput .. text
 end

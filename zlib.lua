@@ -45,7 +45,7 @@ end
 ---@param s string
 ---@return string
 function zlib.compress_s(s)
-	local size = _zlib.compressBound(#s)
+	local size = tonumber(_zlib.compressBound(#s))
 	local out = ffi.new("uint8_t[?]", size)
 	size = zlib.compress(out, size, s, #s)
 	return ffi.string(out, size)

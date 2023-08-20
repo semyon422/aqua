@@ -57,10 +57,11 @@ function delay.debounce(object, key, duration, func, ...)
 		return
 	end
 
-	local q, w, e, r, t, y, u, i = ...
+	local n = select("#", ...)
+	local args = {...}
 	c = coroutine.create(function()
 		delay.sleep(duration)
-		func(q, w, e, r, t, y, u, i)
+		func(unpack(args, 1, n))
 		object[key] = nil
 	end)
 	object[key] = c

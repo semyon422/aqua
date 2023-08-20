@@ -116,7 +116,7 @@ end
 
 ---@param tree table
 ---@param x table?
----@param xp table
+---@param xp table?
 local function fix_remove(tree, x, xp)  -- x may be nil (nil node), xp may be nil (parent of root node)
 	while xp or x ~= tree.root and x.color == 0 do
 		local p = xp or x.parent
