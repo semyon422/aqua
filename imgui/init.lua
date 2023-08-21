@@ -164,11 +164,11 @@ function imgui.checkbox(id, v, label)
 end
 
 ---@param id any
----@param v number|string
+---@param v any
 ---@param values table
 ---@param to_string function?
 ---@param label string?
----@return number|string
+---@return any
 function imgui.combo(id, v, values, to_string, label)
 	local fv = to_string and to_string(v) or v
 	local i = imgui.SpoilerList(id, _w, _h, values, fv, to_string)

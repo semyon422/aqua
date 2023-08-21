@@ -23,7 +23,7 @@ return function(id, w, h, preview)
 			theme.rectangle(w, h)
 
 			love.graphics.setColor(1, 1, 1, 1)
-			gfx_util.printFrame(preview, 0, 0, w, h, "center", "center")
+			gfx_util.printFrame(tostring(preview), 0, 0, w, h, "center", "center")
 
 			if open_frame_id == id then
 				just.clip(love.graphics.rectangle, "fill", 0, 0, 0, 0)
