@@ -457,7 +457,7 @@ end
 ---@param id any?
 ---@param over boolean?
 ---@param button number?
----@return boolean?
+---@return number?
 ---@return boolean?
 ---@return boolean?
 function just.button(id, over, button)
@@ -480,7 +480,7 @@ function just.button(id, over, button)
 		just.active_id = nil
 	end
 
-	return changed ~= nil, active, hovered
+	return changed, active, hovered
 end
 
 ---@param id any?
