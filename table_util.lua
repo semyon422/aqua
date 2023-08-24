@@ -42,6 +42,20 @@ end
 
 assert(table_util.deepequal({{}}, {{}}))
 
+---@param src table?
+---@param dst table?
+---@return table?
+function table_util.copy(src, dst)
+	if not src then
+		return
+	end
+	dst = dst or {}
+	for k, v in pairs(src) do
+		dst[k] = v
+	end
+	return dst
+end
+
 ---@param t table
 ---@return table
 function table_util.deepcopy(t)
