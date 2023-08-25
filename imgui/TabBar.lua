@@ -7,7 +7,7 @@ local gfx_util = require("gfx_util")
 ---@param w number
 ---@param h number
 ---@param selected boolean?
----@return boolean?
+---@return number?
 local function button(id, text, w, h, selected)
 	local mx, my = love.graphics.inverseTransformPoint(love.mouse.getPosition())
 	local over = 0 <= mx and mx <= w and 0 <= my and my <= h
