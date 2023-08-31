@@ -480,6 +480,10 @@ function just.button(id, over, button)
 		just.active_id = nil
 	end
 
+	if changed == false then
+		changed = nil
+	end
+
 	return changed, active, hovered
 end
 
