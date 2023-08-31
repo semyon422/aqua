@@ -1,14 +1,15 @@
 package.path = love.filesystem.getRequirePath()
 package.cpath = love.filesystem.getCRequirePath()
 
+local synctable = require("synctable")
+local table_util = require("table_util")
+
 local threadId = "<threadId>"
 
 local internalInputChannel = love.thread.getChannel("internalInput" .. threadId)
 local internalOutputChannel = love.thread.getChannel("internalOutput" .. threadId)
 local inputChannel = love.thread.getChannel("input" .. threadId)
 local outputChannel = love.thread.getChannel("output" .. threadId)
-
-local synctable = require("synctable")
 
 local thread = {}
 package.loaded.thread = thread
@@ -21,7 +22,7 @@ thread.shared = synctable.new(shared, function(...)
 	-- print("send", synctable.format("thread", ...))
 	outputChannel:push({...})
 end)
-thread.update = function()
+function thread.update()
 	local event = inputChannel:pop()
 	while event do
 		-- print("receive", synctable.format("thread", unpack(event)))
@@ -43,12 +44,11 @@ while true do
 		internalOutputChannel:push(true)
 		return
 	elseif event.name == "loadstring" then
-		local p = event.params
-		local status, q, w, e, r, t, y, u, i = xpcall(
-			loadstring(event.codestring),
+		local result = table_util.pack(xpcall(
+			assert(loadstring(event.codestring)),
 			debug.traceback,
-			p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]
-		)
-		internalOutputChannel:push({status, q, w, e, r, t, y, u, i})
+			unpack(event.args, 1, event.args.n)
+		))
+		internalOutputChannel:push(result)
 	end
 end

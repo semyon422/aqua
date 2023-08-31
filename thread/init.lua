@@ -39,15 +39,17 @@ function thread.pushTask(task)
 end
 
 ---@param f function|string
----@param params table
+---@param args table
 ---@param callback function
 ---@return boolean?
-local function runThread(f, params, callback)
+local function runThread(f, args, callback)
+	if type(f) == "function" then
+		f = string.dump(f)
+	end
 	local task = {
 		f = f,
-		params = params,
+		args = args,
 		result = callback,
-		error = error,
 		trace = debug.traceback(),
 	}
 	if pushedTask then
@@ -63,11 +65,9 @@ end
 ---@param ... any?
 ---@return any?...
 local function run(f, ...)
-	local c = coroutine.running()
-	if not c then
-		error("attempt to yield from outside a coroutine")
-	end
-	runThread(f, {...}, function(...)
+	local c = assert(coroutine.running(), "attempt to yield from outside a coroutine")
+	local args = {n = select("#", ...), ...}
+	runThread(f, args, function(...)
 		assert(coroutine.resume(c, ...))
 	end)
 	return coroutine.yield()
@@ -88,8 +88,6 @@ local function call(f, ...)
 	thread.coroutines[c] = true
 	return c
 end
-
-thread.run = runThread
 
 ---@param f function|string
 ---@return function

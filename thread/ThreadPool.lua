@@ -3,7 +3,7 @@ local synctable = require("synctable")
 
 local ThreadPool = {}
 
-ThreadPool.poolSize = 4
+ThreadPool.poolSize = love.system.getProcessorCount()
 ThreadPool.keepAliveTime = 1
 
 ThreadPool.threads = {}
@@ -25,11 +25,11 @@ function ThreadPool:execute(task)
 	if not self.loaded then
 		return
 	end
-	self.queue[#self.queue + 1] = task
+	table.insert(self.queue, task)
 	self:update()
 end
 
----@return boolean?
+---@return boolean
 function ThreadPool:isRunning()
 	return next(self.runningThreads) ~= nil
 end
@@ -58,7 +58,7 @@ function ThreadPool:update()
 	for i, thread in pairs(self.threads) do
 		thread:update()
 		if thread.idle and currentTime - thread.lastTime > self.keepAliveTime then
-			thread:stop()
+			thread:pushStop()
 			self.threads[i] = nil
 		end
 	end
@@ -107,19 +107,11 @@ end
 ---@param id number
 ---@return thread.Thread
 function ThreadPool:createThread(id)
-	local thread = Thread()
+	local thread = Thread(id)
 
 	thread.pool = self
-	thread.id = id
 
-	if not self.codestring then
-		local path = "aqua/thread/threadcode.lua"
-		self.codestring = love.filesystem.read(path)
-	end
-
-	local code = self.codestring:gsub('"<threadId>"', id)
-	thread:create(code)
-
+	-- populate new thread with shared data
 	synctable.new(_synctable, function(...)
 		thread:receive({...})
 	end)

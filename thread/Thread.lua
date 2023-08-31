@@ -1,21 +1,32 @@
 local class = require("class")
 local synctable = require("synctable")
 
+local codestring
+
+---@param id number
+---@return string
+local function getCodeString(id)
+	if not codestring then
+		local path = "aqua/thread/threadcode.lua"
+		codestring = love.filesystem.read(path)
+	end
+	return (codestring:gsub('"<threadId>"', id))
+end
+
 ---@class thread.Thread
 ---@operator call: thread.Thread
 local Thread = class()
 
-Thread.id = 0
 Thread.idle = true
 
----@param codestring string
-function Thread:create(codestring)
-	self.thread = love.thread.newThread(codestring)
+---@param id number
+function Thread:new(id)
+	self.thread = love.thread.newThread(getCodeString(id))
 
-	self.internalInputChannel = love.thread.getChannel("internalInput" .. self.id)
-	self.internalOutputChannel = love.thread.getChannel("internalOutput" .. self.id)
-	self.inputChannel = love.thread.getChannel("input" .. self.id)
-	self.outputChannel = love.thread.getChannel("output" .. self.id)
+	self.internalInputChannel = love.thread.getChannel("internalInput" .. id)
+	self.internalOutputChannel = love.thread.getChannel("internalOutput" .. id)
+	self.inputChannel = love.thread.getChannel("input" .. id)
+	self.outputChannel = love.thread.getChannel("output" .. id)
 
 	self.internalInputChannel:clear()
 	self.internalOutputChannel:clear()
@@ -28,28 +39,32 @@ function Thread:create(codestring)
 end
 
 function Thread:update()
-	local threadError = self.thread:getError()
-	if threadError then
-		error(threadError .. "\n" .. self.event.trace)
+	local trace = self.task.trace
+
+	local terr = self.thread:getError()
+	if terr then
+		error(terr .. "\n" .. trace)
 	end
 
 	local task = self.task
 
 	local event = self.internalOutputChannel:pop()
 	if event then
-		if type(event) == "table" then
-			local trace = self.event.trace or ""
-			if event[1] and task.result then
-				local p = event
-				local success, err = xpcall(task.result, debug.traceback, p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9])
-				if not success then
-					error(err .. "\n" .. trace)
-				end
-			elseif not event[1] and task.error then
-				task.error(tostring(event[2]) .. "\n" .. trace)
-			end
-		end
 		self.idle = true
+	end
+	if type(event) == "table" then
+		if event[1] then
+			local ok, err = xpcall(
+				task.result,
+				debug.traceback,
+				unpack(event, 2, event.n)
+			)
+			if not ok then
+				error(err .. "\n" .. trace)
+			end
+		else
+			error(tostring(event[2]) .. "\n" .. trace)
+		end
 	end
 
 	local pool = self.pool
@@ -73,17 +88,12 @@ end
 function Thread:execute(task)
 	self.idle = false
 	self.task = task
-	local f = task.f
-	if type(f) == "function" then
-		f = string.dump(f)
-	end
-	self.event = {
+	self.internalInputChannel:push({
 		name = "loadstring",
-		trace = debug.traceback(),
-		codestring = f,
-		params = task.params,
-	}
-	self.internalInputChannel:push(self.event)
+		codestring = task.f,
+		trace = task.trace,
+		args = task.args,
+	})
 end
 
 ---@return boolean
@@ -92,10 +102,8 @@ function Thread:isRunning()
 end
 
 ---@return number
-function Thread:stop()
-	return self.internalInputChannel:push({
-		name = "stop"
-	})
+function Thread:pushStop()
+	return self.internalInputChannel:push({name = "stop"})
 end
 
 ---@param event table
