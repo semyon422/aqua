@@ -1,6 +1,6 @@
-local http_util = {}
+local socket_url = require("socket.url")
 
-local escape = require("socket.url").escape
+local http_util = {}
 
 -- from lapis
 
@@ -26,13 +26,13 @@ function http_util.encode_query_string(t, sep)
 				continue = true
 				break
 			end
-			buf[i + 1] = escape(k)
+			buf[i + 1] = socket_url.escape(k)
 			if v == true then
 				buf[i + 2] = sep
 				i = i + 2
 			else
 				buf[i + 2] = "="
-				buf[i + 3] = escape(v)
+				buf[i + 3] = socket_url.escape(v)
 				buf[i + 4] = sep
 				i = i + 4
 			end
@@ -73,6 +73,30 @@ function http_util.multipart_form_data(files)
 	}
 
 	return body, headers
+end
+
+-- https://www.rfc-editor.org/rfc/rfc2183.html
+
+---@param s string
+---@return table
+function http_util.parse_content_disposition(s)
+	local cd = {}
+
+	s = s:match("^%s*(.-)%s*$")
+
+	local dtype, params = s:match("^(.-)(;.+)$")
+
+	if not dtype then
+		cd.type = s
+		return cd
+	end
+
+	for k, v in params:gmatch(";%s*([^;]-)=([^;]+)%s*") do
+		v = socket_url.unescape(v:match("^\"(.+)\"") or v)
+		cd[k] = v
+	end
+
+	return cd
 end
 
 return http_util
