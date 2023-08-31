@@ -33,7 +33,7 @@ function StreamMemoryTempo:setPitch(pitch)
 	end
 	-- semitone 1 : 2^(1/12)
 	self.pitchValue = pitch
-	bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 0x10001, 12 * math.log(pitch) / math.log(2)) == 1)
+	bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 0x10001, 12 * math.log(pitch, 2)) == 1)
 end
 
 return StreamMemoryTempo

@@ -3,6 +3,7 @@ local ffi = require("ffi")
 local bit = require("bit")
 local bass = require("bass")
 local bass_assert = require("bass.assert")
+local decibel = require("decibel")
 
 ---@class audio.bass.BassSoundData: audio.SoundData
 ---@operator call:audio.bass.BassSoundData
@@ -64,7 +65,7 @@ function BassSoundData:amplify(gain)
 
 	local buffer = ffi.cast("int16_t*", self.byteData:getFFIPointer())
 
-	local amp = math.exp(gain / 20 * math.log(10))
+	local amp = decibel.lf_to_f(gain)
 	for i = 0, info.length / 2 - 1 do
 		buffer[i] = math.min(math.max(buffer[i] * amp, -32768), 32767)
 	end

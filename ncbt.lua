@@ -20,6 +20,7 @@
 local cmath = require("cmath")
 local ffi = require("ffi")
 local fftw = require("fftw")
+local decibel = require("decibel")
 
 local complex_size = ffi.sizeof("complex")
 
@@ -177,7 +178,7 @@ local function process()
 	local res = {}
 
 	for i = 1, #frames do
-		local e_db = 10 * math.log(get_energy(i) / size, 10)
+		local e_db = decibel.p_to_lp(get_energy(i), size)
 		if e_db < -70 then
 			res[i] = 0
 		else

@@ -3,6 +3,7 @@ local theme = require("imgui.theme")
 local autoload = require("autoload")
 local math_util = require("math_util")
 local gfx_util = require("gfx_util")
+local decibel = require("decibel")
 
 local imgui = autoload("imgui")
 
@@ -141,6 +142,20 @@ function imgui.logslider(id, v, format, a, b, c, k, label)
 	local lv = math_util.round(math.log(v) * k, c)
 	lv = imgui.slider1(id, lv, format, a, b, c, label)
 	return math.exp(lv / k)
+end
+
+---@param id any
+---@param v number
+---@param format string
+---@param a number
+---@param b number
+---@param c number
+---@param label string?
+---@return number
+function imgui.lfslider(id, v, format, a, b, c, label)
+	local lv = math_util.round(decibel.f_to_lf(v), c)
+	lv = imgui.slider1(id, lv, format, a, b, c, label)
+	return decibel.lf_to_f(lv)
 end
 
 ---@param id any
