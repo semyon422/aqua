@@ -11,10 +11,10 @@ ffi.cdef[[
 ]]
 
 local Fftw = {}
-local mt = {__index = Fftw}
+Fftw.__index = Fftw
 
 function Fftw:execute()
-	assert(not self.destroyed, "plan iы destroyed")
+	assert(not self.destroyed, "plan is destroyed")
 	fftw3.fftw_execute(self.plan)
 end
 
@@ -34,7 +34,7 @@ function fftw.new(size)
 	f.buffer_out = ffi.new("complex[?]", ffi.sizeof("complex") * size)
 	f.plan = fftw3.fftw_plan_dft_1d(size, f.buffer_in, f.buffer_out, -1, 64)
 
-	return setmetatable(f, mt)
+	return setmetatable(f, Fftw)
 end
 
 return fftw
