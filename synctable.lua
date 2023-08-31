@@ -1,7 +1,25 @@
 local synctable = {}
 
+---@param src table
+---@param dst table
+local function copy(src, dst)
+	for k, v in pairs(src) do
+		dst[k] = v
+	end
+end
+
+---@param t table
+---@param path table
+---@return table
+local function deep_index(t, path)
+	for _, k in ipairs(path) do
+		t = t[k]
+	end
+	return t
+end
+
 ---@param v string|number|table|boolean|nil
-local function assertValueType(v)
+local function assert_value_type(v)
 	local t = type(v)
 	assert(t == "string" or t == "number" or t == "table" or t == "boolean" or t == "nil")
 end
@@ -11,7 +29,7 @@ local function validate(t)
 	for k, v in pairs(t) do
 		local tk = type(k)
 		assert(tk == "string" or tk == "number")
-		assertValueType(v)
+		assert_value_type(v)
 		if type(v) == "table" then
 			validate(v)
 		end
@@ -20,7 +38,7 @@ end
 
 ---@param t table
 ---@return table
-local function getPath(t)
+local function get_path(t)
 	local path = {}
 	while t.__parent do
 		table.insert(path, 1, t.__name)
@@ -29,67 +47,74 @@ local function getPath(t)
 	return path
 end
 
-local mt
-mt = {
-	__newindex = function(s, k, v)
-		local _t = s.__t
+local mt = {}
 
-		local path = getPath(s)
-		if getmetatable(v) == mt then
-			_t[k] = v.__t
-			s.__cb(path, k, getPath(v), true)
-			return
-		elseif type(v) == "table" then
-			local _v = _t[k]
-			if _v ~= v then
-				_v = {}
-				_t[k] = _v
-			end
-			s.__cb(path, k, {})
-			local _s = s[k]
-			for _k, _v in pairs(v) do
-				_s[_k] = _v
-			end
-			return
-		end
+---@param s table
+---@param k string|number
+---@param v string|number|table|boolean|nil
+function mt.__newindex(s, k, v)
+	local _t = s.__t
+	local path = get_path(s)
 
-		assertValueType(v)
+	if type(v) ~= "table" then
+		assert_value_type(v)
 		_t[k] = v
 		s.__cb(path, k, v)
-	end,
-	__index = function(s, k)
-		local _t = s.__t
-		local v = _t[k]
-		local _v = rawget(s, v)
-		if type(v) ~= "table" then
-			return v
-		elseif _v then
-			return _v
-		end
-		_v = setmetatable({
-			__t = v,
-			__name = k,
-			__parent = s,
-			__cb = s.__cb,
-		}, mt)
-		rawset(s, v, _v)
+		return
+	end
+
+	if getmetatable(v) == mt then
+		_t[k] = v.__t
+		s.__cb(path, k, get_path(v), true)
+		return
+	end
+
+	local _v = _t[k]
+	if _v ~= v then
+		_v = {}
+		_t[k] = _v
+	end
+	s.__cb(path, k, {})
+
+	copy(v, s[k])
+end
+
+---@param s table
+---@param k string|number
+---@return string|number|table|boolean|nil
+function mt.__index(s, k)
+	local _t = s.__t
+	local v = _t[k]
+	local _v = rawget(s, v)
+
+	if type(v) ~= "table" then
+		return v
+	elseif _v then
 		return _v
-	end,
-}
+	end
+
+	_v = setmetatable({
+		__t = v,
+		__name = k,
+		__parent = s,
+		__cb = s.__cb,
+	}, mt)
+	rawset(s, v, _v)
+
+	return _v
+end
 
 ---@param t table
 ---@param callback function
 ---@return table
 function synctable.new(t, callback)
 	validate(t)
-	local res = setmetatable({
+	local res = {
 		__t = t,
 		__cb = callback,
-	}, mt)
-	for k, v in pairs(t) do
-		res[k] = v
-	end
-	return res
+	}
+	copy(t, res)
+	return setmetatable(res, mt)
 end
 
 ---@param object table
@@ -98,17 +123,10 @@ end
 ---@param v any
 ---@param isPath boolean?
 function synctable.set(object, path, k, v, isPath)
-	local t = object
-	for _, _k in ipairs(path) do
-		t = t[_k]
-	end
+	local t = deep_index(object, path)
 
 	if isPath then
-		path = v
-		v = object
-		for _, _k in ipairs(path) do
-			v = v[_k]
-		end
+		v = deep_index(object, v)
 	end
 
 	t[k] = v
