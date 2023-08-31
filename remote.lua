@@ -26,16 +26,6 @@ local event_id = 0
 remote.timeout = 10
 local timeouts = {}
 
----@param t table
----@param i number
----@param j number
----@return any?...
-local function _unpack(t, i, j)
-	if not t then return end
-	if i == j then return t[i] end
-	return t[i], _unpack(t, i + 1, j)
-end
-
 ---@param peer userdata
 ---@param id number?
 ---@param name string?
@@ -45,6 +35,7 @@ local function send(peer, id, name, ...)
 	return peer:send(remote.encode({
 		id = id,
 		name = name,
+		n = select("#", ...),
 		...
 	}))
 end
@@ -82,16 +73,23 @@ local function run(peer, name, ...)
 	return coroutine.yield()
 end
 
-local peer_mt = {
-	__index = function(t, name)
-		return rawget(t, name) or function(...)
-			return run(t.peer, name, ...)
-		end
-	end,
-	__eq = function(a, b)
-		return rawget(a, "id") == rawget(b, "id")
-	end,
-}
+local peer_mt = {}
+
+---@param t table
+---@param name string
+---@return any
+function peer_mt.__index(t, name)
+	return rawget(t, name) or function(...)
+		return run(t.peer, name, ...)
+	end
+end
+
+---@param a table
+---@param b table
+---@return boolean
+function peer_mt.__eq(a, b)
+	return rawget(a, "id") == rawget(b, "id")
+end
 
 ---@param peer userdata
 ---@return table
@@ -108,7 +106,7 @@ end
 ---@return any?...
 local function _handle(peer, e, handlers)
 	local handler = handlers[e.name]
-	return handler and handler(remote.peer(peer), _unpack(e, 1, 8))
+	return handler and handler(remote.peer(peer), unpack(e, 1, e.n))
 end
 
 ---@param peer userdata
@@ -134,7 +132,6 @@ end
 
 ---@param event table
 ---@param handlers table
----@return any?...
 function remote.receive(event, handlers)
 	local ok, e = pcall(remote.decode, event.data)
 	if not ok or type(e) ~= "table" then
@@ -142,11 +139,9 @@ function remote.receive(event, handlers)
 	end
 
 	if e.name then
-		return handle(event.peer, e, handlers)
-	end
-
-	if e.id and tasks[e.id] then
-		return tasks[e.id](_unpack(e, 1, 8))
+		handle(event.peer, e, handlers)
+	elseif e.id and tasks[e.id] then
+		tasks[e.id](unpack(e, 1, e.n))
 	end
 end
 
