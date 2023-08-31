@@ -29,29 +29,37 @@ local function isclass(T)
 	return mt and mt.__call == new
 end
 
+local function typeofclass(T, _T)
+	if _T == T then
+		return true
+	end
+	if not _T then
+		return false
+	end
+
+	local mt = getmetatable(_T)
+	if not mt then
+		return false
+	end
+
+	if mt.__indexes then
+		local p, t = unpack(mt.__indexes)
+		return typeofclass(T, p) or typeofclass(T, t)
+	end
+
+	return typeofclass(T, mt.__index)
+end
+
 local function typeof(T, t)
 	if type(t) ~= "table" then
 		return false
 	end
 
-	local _T = t
 	if not isclass(t) then
-		_T = getmetatable(t)
-	end
-	if _T == T then
-		return true
+		t = getmetatable(t)
 	end
 
-	while _T do
-		local mt = getmetatable(_T)
-		local p = mt and mt.__index
-		if p == T then
-			return true
-		end
-		_T = p
-	end
-
-	return false
+	return typeofclass(T, t)
 end
 
 local function class(p, t)
@@ -60,29 +68,68 @@ local function class(p, t)
 	end
 
 	local mt = {
-		__index = p,
 		__call = new,
 		__add = class,
 		__mul = typeof,
 	}
 
-	local T = t or {}
+	local T = {}
 	T.__index = T
+
+	if not isclass(t) then
+		mt.__index = p
+		return setmetatable(T, mt)
+	end
+
+	mt.__indexes = {p, t}
+	function mt.__index(_, k)
+		local a, b = p[k], t[k]
+		if a ~= nil then
+			return a
+		end
+		return b
+	end
 
 	return setmetatable(T, mt)
 end
 
 -- tests
 
-local A = class()
-local B = A + {}
+do
+	local A = class()
+	local B = A + {}
 
-local b = B()
+	local a = A()
+	local b = B()
 
-assert(B * b)
-assert(A * b)
+	assert(A * A)
+	assert(A * B)
+	assert(A * a)
+	assert(A * b)
 
-assert(B * B)
-assert(A * B)
+	assert(not (B * A))
+	assert(B * B)
+	assert(not (B * a))
+	assert(B * b)
+end
+
+do
+	local A = class()
+	local B = class()
+	local C = class()
+	local X = A + B + C
+
+	local x = X()
+
+	assert(A * X)
+	assert(B * X)
+	assert(C * X)
+	assert(X * x)
+
+	assert(not (X * A))
+	assert(not (X * B))
+	assert(not (X * C))
+	assert(not (x * X))
+end
 
 return class
