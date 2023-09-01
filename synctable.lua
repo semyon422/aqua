@@ -109,12 +109,12 @@ end
 ---@return table
 function synctable.new(t, callback)
 	validate(t)
-	local res = {
+	local res = setmetatable({  -- set mt before copy
 		__t = t,
 		__cb = callback,
-	}
-	copy(t, res)
-	return setmetatable(res, mt)
+	}, mt)
+	copy(t, res)  -- will call callback
+	return res
 end
 
 ---@param object table
