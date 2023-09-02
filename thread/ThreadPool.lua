@@ -47,7 +47,7 @@ end
 function ThreadPool:unload()
 	self.queue = {}
 	for _, thread in pairs(self.threads) do
-		thread:stop()
+		thread:pushStop()
 	end
 	self.loaded = false
 end
