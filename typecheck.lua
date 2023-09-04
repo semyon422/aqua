@@ -6,6 +6,7 @@ local typecheck = {}
 typecheck.strict = false
 
 local class_by_name = {}
+typecheck.class_by_name = class_by_name
 
 function typecheck.register_class(_type, T)
 	class_by_name[_type] = T
@@ -198,7 +199,7 @@ function Tokens:parse_func_name()
 	local name = self.token.value
 	self:step()
 
-	if self.token.type ~= "colon" and self.token.type ~= "point" then
+	if not self.token or (self.token.type ~= "colon" and self.token.type ~= "point") then
 		self:_pop(true)
 		return name
 	end
@@ -450,8 +451,7 @@ function Tokens:parse_params()
 		end
 		if token.type == "rightparan" then
 			self:step()
-			self:_pop(true)
-			return param_names, param_types
+			break
 		end
 		if step == "comma" and token.type == "comma" then
 			self:step()
