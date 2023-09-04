@@ -149,6 +149,8 @@ function testing.test()
 
 	for path in iter_files("", "_test%.lua$") do
 		io.write(path)
+		io.flush()
+
 		local mod = get_mod(path)
 
 		local start_time = love.timer.getTime()
