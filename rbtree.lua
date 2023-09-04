@@ -395,20 +395,23 @@ end
 
 ---@param node table
 ---@param indent number?
-local function print_node(node, indent)
+---@param buf table
+local function tostring_node(node, indent, buf)
 	if not node then
 		return
 	end
 
 	indent = indent or 0
 
-	print_node(node.left, indent + 1)
-	print(("  "):rep(indent) .. tostring(node))
-	print_node(node.right, indent + 1)
+	tostring_node(node.left, indent + 1, buf)
+	table.insert(buf, ("  "):rep(indent) .. tostring(node))
+	tostring_node(node.right, indent + 1, buf)
 end
 
-function Tree:print()
-	print_node(self.root, 0)
+function Tree:tostring()
+	local buf = {}
+	tostring_node(self.root, 0, buf)
+	return table.concat(buf, "\n")
 end
 
 ---@param tree table
