@@ -2,6 +2,9 @@ local testing = {}
 
 testing.blacklist = {}
 
+---@param a table
+---@param b table
+---@return boolean
 local function sort_files(a, b)
 	if a.type == b.type then
 		return a.path < b.path
@@ -10,10 +13,11 @@ local function sort_files(a, b)
 end
 
 ---@param dpath string
+---@param pattern string
 local function lookup(dpath, pattern)
 	for _, item in ipairs(testing.blacklist) do
 		if dpath:find(item, 1, true) then
-			return {}
+			return
 		end
 	end
 
@@ -46,6 +50,7 @@ local function lookup(dpath, pattern)
 end
 
 ---@param path string
+---@param pattern string
 ---@return function
 local function iter_files(path, pattern)
 	return coroutine.wrap(function()
@@ -58,6 +63,10 @@ end
 local Test = {}
 Test.__index = Test
 
+---@param cond any?
+---@param got any?
+---@param expected any?
+---@return any?
 function Test:assert(cond, got, expected)
 	if cond then
 		return cond
@@ -67,14 +76,18 @@ function Test:assert(cond, got, expected)
 	table.insert(self, ("%s:%s: %s expected, got %s"):format(
 		line.short_src,
 		line.currentline,
-		got, expected
+		expected, got
 	))
 end
 
+---@param got any?
+---@param _type string
 function Test:typeof(got, _type)
 	self:eq(type(got), _type)
 end
 
+---@param f function
+---@return function
 local function build_method(f)
 	return function(self, got, expected)
 		return self:assert(f(got, expected), got, expected)
@@ -97,12 +110,16 @@ end
 
 --------------------------------------------------------------------------------
 
+---@param path string
+---@return table
 local function get_mod(path)
 	local data = assert(love.filesystem.read(path))
 	local f = assert(load(data, "@" .. path))
 	return f()
 end
 
+---@param test table
+---@param t table
 local function run_tests(test, t)
 	local errors = #t
 	for k, v in pairs(test) do
@@ -118,6 +135,9 @@ end
 local max_duration = 0.1
 local max_count = 2 ^ 20
 
+---@param f function
+---@return number
+---@return number
 local function run_bench(f)
 	local b = setmetatable({}, Bench)
 
@@ -134,6 +154,7 @@ local function run_bench(f)
 	return dt, N
 end
 
+---@param bench table
 local function run_benchs(bench)
 	for k, v in pairs(bench) do
 		local dt, N = run_bench(v)
