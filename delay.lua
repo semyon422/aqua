@@ -3,8 +3,22 @@ local delay = {}
 local timers = {}
 local waiters = {}
 
+---@type function
+local get_time
+
+---@param f function|table
+function delay.set_timer(f)
+	if type(f) == "function" then
+		get_time = f
+		return
+	end
+	function get_time()
+		return f[1]
+	end
+end
+
 function delay.update()
-	local time = love.timer.getTime()
+	local time = get_time()
 	for c, endTime in pairs(timers) do
 		if endTime <= time then
 			timers[c] = nil
@@ -26,7 +40,7 @@ function delay.sleep(duration)
 	if not c then
 		error("attempt to yield from outside a coroutine")
 	end
-	timers[c] = love.timer.getTime() + duration
+	timers[c] = get_time() + duration
 	return coroutine.yield()
 end
 
@@ -47,7 +61,7 @@ end
 ---@param ... any?
 ---@return function?
 function delay.debounce(object, key, duration, func, ...)
-	local time = love.timer.getTime()
+	local time = get_time()
 	local c = object[key]
 	if c then
 		if not timers[c] then
@@ -59,6 +73,9 @@ function delay.debounce(object, key, duration, func, ...)
 
 	local n = select("#", ...)
 	local args = {...}
+
+	-- after sleep timers[c] is set to nil
+	-- debounce for this object will do nothing until end of coroutine
 	c = coroutine.create(function()
 		delay.sleep(duration)
 		func(unpack(args, 1, n))
@@ -81,7 +98,7 @@ function delay.every(interval, func, ...)
 	assert(type(interval) == "number", "interval must be a number")
 	local stop = false
 	coroutine.wrap(function(...)
-		local ptime = love.timer.getTime()
+		local ptime = get_time()
 		local time = ptime
 		while true do
 			ptime = math.max(ptime + interval, time)
