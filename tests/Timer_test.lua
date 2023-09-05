@@ -1,13 +1,16 @@
 local Timer = require("Timer")
 
-local time
-function Timer:getAbsoluteTime()
-	return time
-end
+local test = {}
 
-do
-	time = 0
+function test.base()
+	local time = 0
 	local timer = Timer()
+
+	assert(timer:getAbsoluteTime() == 0)
+
+	function timer:getAbsoluteTime()
+		return time
+	end
 
 	timer:play()
 
@@ -43,14 +46,27 @@ do
 	time = 5
 
 	assert(timer:getTime() == 3)
+
+	assert(timer:transform(5) == 3)
+	assert(timer:transform(6) == 4)
+
+	timer:play()
+	timer:play()
+	timer:pause()
+	timer:pause()
 end
 
-do
-	time = 0
+function test.adjust()
+	local time = 0
 	local adjTime = 0
 
 	local timer = Timer()
 	timer.adjustRate = 1
+	assert(not timer:getAdjustTime())
+
+	function timer:getAbsoluteTime()
+		return time
+	end
 	function timer:getAdjustTime()
 		return adjTime
 	end
@@ -79,3 +95,5 @@ do
 
 	assert(timer:getTime() == 4)
 end
+
+return test

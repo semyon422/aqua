@@ -15,10 +15,10 @@ function Timer:getAbsoluteTime()
 end
 
 ---@return number?
+function Timer:getAdjustTime() end
+
+---@return number?
 function Timer:tryAdjust()
-	if not self.getAdjustTime then
-		return
-	end
 	local adjustTime = self:getAdjustTime()
 	if not adjustTime then
 		return
