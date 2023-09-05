@@ -1,15 +1,11 @@
 local remote = {}
 
----@param data any|nil
----@return string
-function remote.encode(data)
-	error("mot implemented")
-end
+---@type function, function
+local encode, decode
 
----@param data string
----@return any|nil
-function remote.decode(data)
-	error("mot implemented")
+---@param coder table
+function remote.set_coder(coder)
+	encode, decode = coder.encode, coder.decode
 end
 
 ---@param f function
@@ -26,13 +22,12 @@ local event_id = 0
 remote.timeout = 10
 local timeouts = {}
 
----@param peer userdata
+---@param peer table
 ---@param id number?
 ---@param name string?
 ---@param ... any?
----@return any?...
 local function send(peer, id, name, ...)
-	return peer:send(remote.encode({
+	peer.epeer:send(encode({
 		id = id,
 		name = name,
 		n = select("#", ...),
@@ -40,13 +35,14 @@ local function send(peer, id, name, ...)
 	}))
 end
 
----@param peer userdata
+---@param peer table
 ---@param name string
 ---@param ... any?
 ---@return any?...
 local function run(peer, name, ...)
 	if name:sub(1, 1) == "_" then
-		return send(peer, nil, name:sub(2), ...)
+		send(peer, nil, name:sub(2), ...)
+		return
 	end
 
 	local c = coroutine.running()
@@ -79,8 +75,8 @@ local peer_mt = {}
 ---@param name string
 ---@return any
 function peer_mt.__index(t, name)
-	return rawget(t, name) or function(...)
-		return run(t.peer, name, ...)
+	return function(...)
+		return run(t, name, ...)
 	end
 end
 
@@ -88,36 +84,36 @@ end
 ---@param b table
 ---@return boolean
 function peer_mt.__eq(a, b)
-	return rawget(a, "id") == rawget(b, "id")
+	return a.id == b.id
 end
 
----@param peer userdata
+---@param epeer table|userdata
 ---@return table
-function remote.peer(peer)
+function remote.peer(epeer)
 	return setmetatable({
-		peer = peer,
-		id = tonumber(tostring(peer):match("^.+:(%d+)$")),
+		epeer = epeer,
+		id = tonumber(tostring(epeer):match("^.+:(%d+)$")),
 	}, peer_mt)
 end
 
----@param peer userdata
+---@param peer table
 ---@param e table
 ---@param handlers table
 ---@return any?...
 local function _handle(peer, e, handlers)
 	local handler = handlers[e.name]
-	return handler and handler(remote.peer(peer), unpack(e, 1, e.n))
+	return handler and handler(peer, unpack(e, 1, e.n))
 end
 
----@param peer userdata
+---@param peer table
 ---@param e table
 ---@param handlers table
----@return any?...
 local function handle(peer, e, handlers)
 	if not e.id then
-		return _handle(peer, e, handlers)
+		_handle(peer, e, handlers)
+		return
 	end
-	return send(peer, e.id, nil, _handle(peer, e, handlers))
+	send(peer, e.id, nil, _handle(peer, e, handlers))
 end
 handle = remote.wrap(handle)
 
@@ -130,16 +126,17 @@ function remote.update()
 	end
 end
 
----@param event table
+---@param data any
+---@param epeer table|userdata
 ---@param handlers table
-function remote.receive(event, handlers)
-	local ok, e = pcall(remote.decode, event.data)
+function remote.receive(data, epeer, handlers)
+	local ok, e = pcall(decode, data)
 	if not ok or type(e) ~= "table" then
 		return
 	end
 
 	if e.name then
-		handle(event.peer, e, handlers)
+		handle(remote.peer(epeer), e, handlers)
 	elseif e.id and tasks[e.id] then
 		tasks[e.id](unpack(e, 1, e.n))
 	end
