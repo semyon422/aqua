@@ -59,7 +59,7 @@ function mt.__newindex(s, k, v)
 	if type(v) ~= "table" then
 		assert_value_type(v)
 		_t[k] = v
-		s.__cb(path, k, v)
+		s.__cb(path, k, v, false)
 		return
 	end
 
@@ -74,7 +74,7 @@ function mt.__newindex(s, k, v)
 		_v = {}
 		_t[k] = _v
 	end
-	s.__cb(path, k, {})
+	s.__cb(path, k, {}, false)
 
 	copy(v, s[k])
 end
@@ -121,11 +121,11 @@ end
 ---@param path table
 ---@param k any
 ---@param v any
----@param isPath boolean?
-function synctable.set(object, path, k, v, isPath)
+---@param is_path boolean
+function synctable.set(object, path, k, v, is_path)
 	local t = deep_index(object, path)
 
-	if isPath then
+	if is_path then
 		v = deep_index(object, v)
 	end
 
@@ -133,12 +133,14 @@ function synctable.set(object, path, k, v, isPath)
 end
 
 ---@param key any
+---@return string
 local function formatKey(key)
 	local f = type(key) == "string" and ".%s" or "[%s]"
 	return f:format(key)
 end
 
 ---@param path table
+---@return string
 local function formatPath(path)
 	local p = {}
 	for _, key in ipairs(path) do
@@ -149,9 +151,10 @@ end
 
 ---@param prefix string
 ---@param value any
----@param isPath boolean?
-local function formatValue(prefix, value, isPath)
-	if isPath then
+---@param is_path boolean
+---@return string
+local function formatValue(prefix, value, is_path)
+	if is_path then
 		return prefix .. formatPath(value)
 	end
 	if type(value) == "table" then
@@ -159,18 +162,19 @@ local function formatValue(prefix, value, isPath)
 	elseif type(value) == "string" then
 		return ("%q"):format(value)
 	end
-	return value
+	return tostring(value)
 end
 
 ---@param prefix string
 ---@param path table
 ---@param k any
 ---@param v any
----@param isPath boolean?
-function synctable.format(prefix, path, k, v, isPath)
+---@param is_path boolean
+---@return string
+function synctable.format(prefix, path, k, v, is_path)
 	return ("%s = %s"):format(
 		prefix .. formatPath(path) .. formatKey(k),
-		formatValue(prefix, v, isPath)
+		formatValue(prefix, v, is_path)
 	)
 end
 
