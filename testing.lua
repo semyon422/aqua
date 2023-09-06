@@ -64,10 +64,25 @@ local Test = {}
 Test.__index = Test
 
 ---@param cond any?
+---@return any?
+function Test:assert(cond)
+	if cond then
+		return cond
+	end
+	local line = debug.getinfo(2, "Sl")
+
+	table.insert(self, ("%s:%s: assertion failed, got %s"):format(
+		line.short_src,
+		line.currentline,
+		cond
+	))
+end
+
+---@param cond any?
 ---@param got any?
 ---@param expected any?
 ---@return any?
-function Test:assert(cond, got, expected)
+function Test:expected_assert(cond, got, expected)
 	if cond then
 		return cond
 	end
@@ -90,7 +105,7 @@ end
 ---@return function
 local function build_method(f)
 	return function(self, got, expected)
-		return self:assert(f(got, expected), got, expected)
+		return self:expected_assert(f(got, expected), got, expected)
 	end
 end
 
