@@ -14,9 +14,7 @@ ThreadPool.loaded = true
 local _synctable = {}
 ThreadPool.synctable = synctable.new(_synctable, function(...)
 	for _, thread in pairs(ThreadPool.threads) do
-		if thread ~= ThreadPool.ignoreSyncThread then
-			thread:receive({...})
-		end
+		thread:sync(...)
 	end
 end)
 
@@ -107,13 +105,11 @@ end
 ---@param id number
 ---@return thread.Thread
 function ThreadPool:createThread(id)
-	local thread = Thread(id)
-
-	thread.pool = self
+	local thread = Thread(id, ThreadPool.synctable)
 
 	-- populate new thread with shared data
 	synctable.new(_synctable, function(...)
-		thread:receive({...})
+		thread:sync(...)
 	end)
 
 	self.threads[id] = thread

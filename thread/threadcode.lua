@@ -6,8 +6,6 @@ local table_util = require("table_util")
 
 local threadId = "<threadId>"
 
-local internalInputChannel = love.thread.getChannel("internalInput" .. threadId)
-local internalOutputChannel = love.thread.getChannel("internalOutput" .. threadId)
 local inputChannel = love.thread.getChannel("input" .. threadId)
 local outputChannel = love.thread.getChannel("output" .. threadId)
 
@@ -19,36 +17,53 @@ thread.async = thread.coro
 
 local shared = {}
 thread.shared = synctable.new(shared, function(...)
-	-- print("send", synctable.format("thread", ...))
-	outputChannel:push({...})
+	outputChannel:push({
+		name = "synctable",
+		n = select("#", ...),
+		...
+	})
 end)
-function thread.update()
-	local event = inputChannel:pop()
-	while event do
-		-- print("receive", synctable.format("thread", unpack(event)))
-		synctable.set(shared, unpack(event))
-		event = inputChannel:pop()
-	end
-end
-thread.update()
 
 require("preloaders.preloadall")
 
 require("love.timer")
 _G.startTime = love.timer.getTime()
 
-local event
-while true do
-	event = internalInputChannel:demand()
+local should_stop = false
+
+function thread.handle(event)
 	if event.name == "stop" then
-		internalOutputChannel:push(true)
-		return
+		should_stop = true
+	elseif event.name == "synctable" then
+		synctable.set(shared, unpack(event, 1, event.n))
 	elseif event.name == "loadstring" then
 		local result = table_util.pack(xpcall(
 			assert(loadstring(event.codestring)),
 			debug.traceback,
 			unpack(event.args, 1, event.args.n)
 		))
-		internalOutputChannel:push(result)
+		result.name = "result"
+		result.thread_id = threadId
+		outputChannel:push(result)
+	else
+		error("unknown event " .. require("inspect")(event))
+	end
+end
+
+function thread.update()
+	local event = inputChannel:pop()
+	while event do
+		assert(event.name == "synctable")
+		synctable.set(shared, unpack(event, 1, event.n))
+		event = inputChannel:pop()
+	end
+end
+
+while true do
+	local event = inputChannel:demand()
+	thread.handle(event)
+
+	if should_stop then
+		return
 	end
 end

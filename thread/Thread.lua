@@ -20,22 +20,24 @@ local Thread = class()
 Thread.idle = true
 
 ---@param id number
-function Thread:new(id)
+---@param st table
+function Thread:new(id, st)
+	self.id = id
+	self.synctable = st
+
 	self.thread = love.thread.newThread(getCodeString(id))
 
-	self.internalInputChannel = love.thread.getChannel("internalInput" .. id)
-	self.internalOutputChannel = love.thread.getChannel("internalOutput" .. id)
 	self.inputChannel = love.thread.getChannel("input" .. id)
 	self.outputChannel = love.thread.getChannel("output" .. id)
 
-	self.internalInputChannel:clear()
-	self.internalOutputChannel:clear()
 	self.inputChannel:clear()
 	self.outputChannel:clear()
 
 	self:updateLastTime()
 
 	self.thread:start()
+
+	self.lockSync = false
 end
 
 function Thread:update()
@@ -48,33 +50,30 @@ function Thread:update()
 
 	local task = self.task
 
-	local event = self.internalOutputChannel:pop()
-	if event then
-		self.idle = true
-	end
-	if type(event) == "table" then
-		if event[1] then
-			local ok, err = xpcall(
-				task.result,
-				debug.traceback,
-				unpack(event, 2, event.n)
-			)
-			if not ok then
-				error(err .. "\n" .. trace)
-			end
-		else
-			error(tostring(event[2]) .. "\n" .. trace)
-		end
-	end
-
-	local pool = self.pool
-	pool.ignoreSyncThread = self
-	event = self.outputChannel:pop()
+	local event = self.outputChannel:pop()
 	while event do
-		synctable.set(pool.synctable, unpack(event))
+		if event.name == "result" then
+			if event[1] then
+				local ok, err = xpcall(
+					task.result,
+					debug.traceback,
+					unpack(event, 2, event.n)
+				)
+				if not ok then
+					error(err .. "\n" .. trace)
+				end
+			else
+				error(tostring(event[2]) .. "\n" .. trace)
+			end
+			self.idle = true
+		elseif event.name == "synctable" then
+			self.lockSync = true
+			synctable.set(self.synctable, unpack(event, 1, event.n))
+			self.lockSync = false
+		end
 		event = self.outputChannel:pop()
 	end
-	pool.ignoreSyncThread = nil
+
 	if not self.idle then
 		self:updateLastTime()
 	end
@@ -88,10 +87,9 @@ end
 function Thread:execute(task)
 	self.idle = false
 	self.task = task
-	self.internalInputChannel:push({
+	self.inputChannel:push({
 		name = "loadstring",
 		codestring = task.f,
-		trace = task.trace,
 		args = task.args,
 	})
 end
@@ -103,13 +101,24 @@ end
 
 ---@return number
 function Thread:pushStop()
-	return self.internalInputChannel:push({name = "stop"})
+	return self.inputChannel:push({name = "stop"})
 end
 
 ---@param event table
----@return number
 function Thread:receive(event)
-	return self.inputChannel:push(event)
+	self.inputChannel:push(event)
+end
+
+---@param ... any?
+function Thread:sync(...)
+	if self.lockSync then
+		return
+	end
+	self.inputChannel:push({
+		name = "synctable",
+		n = select("#", ...),
+		...
+	})
 end
 
 return Thread
