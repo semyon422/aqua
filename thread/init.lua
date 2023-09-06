@@ -31,13 +31,6 @@ function thread.update()
 	return ThreadPool:update()
 end
 
-local pushedTask
-
----@param task table
-function thread.pushTask(task)
-	pushedTask = task
-end
-
 ---@param f function|string
 ---@param args table
 ---@param callback function
@@ -52,12 +45,6 @@ local function runThread(f, args, callback)
 		result = callback,
 		trace = debug.traceback(),
 	}
-	if pushedTask then
-		for k, v in pairs(pushedTask) do
-			task[k] = v
-		end
-		pushedTask = nil
-	end
 	return thread.ThreadPool:execute(task)
 end
 
