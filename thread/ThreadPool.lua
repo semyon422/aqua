@@ -55,6 +55,9 @@ function ThreadPool:update()
 
 	for i, thread in pairs(self.threads) do
 		thread:update()
+		if not thread.idle then
+			thread:updateLastTime(love.timer.getTime())
+		end
 		if thread.idle and currentTime - thread.lastTime > self.keepAliveTime then
 			thread:pushStop()
 			self.threads[i] = nil
@@ -114,6 +117,8 @@ function ThreadPool:createThread(id)
 
 	self.threads[id] = thread
 	self.runningThreads[id] = thread
+
+	thread:start()
 
 	return thread
 end

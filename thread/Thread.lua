@@ -1,43 +1,22 @@
 local class = require("class")
 local synctable = require("synctable")
-
-local codestring
-
----@param id number
----@return string
-local function getCodeString(id)
-	if not codestring then
-		local path = "aqua/thread/threadcode.lua"
-		codestring = love.filesystem.read(path)
-	end
-	return (codestring:gsub('"<threadId>"', id))
-end
+local LoveThread = require("thread.LoveThread")
 
 ---@class thread.Thread
 ---@operator call: thread.Thread
 local Thread = class()
 
 Thread.idle = true
+Thread.lockSync = false
+Thread.lastTime = 0
 
 ---@param id number
----@param st table
-function Thread:new(id, st)
+---@param synct table
+---@param love_thread table
+function Thread:new(id, synct, love_thread)
 	self.id = id
-	self.synctable = st
-
-	self.thread = love.thread.newThread(getCodeString(id))
-
-	self.inputChannel = love.thread.getChannel("input" .. id)
-	self.outputChannel = love.thread.getChannel("output" .. id)
-
-	self.inputChannel:clear()
-	self.outputChannel:clear()
-
-	self:updateLastTime()
-
-	self.thread:start()
-
-	self.lockSync = false
+	self.synctable = synct
+	self.thread = love_thread or LoveThread(id)
 end
 
 function Thread:update()
@@ -50,7 +29,7 @@ function Thread:update()
 
 	local task = self.task
 
-	local event = self.outputChannel:pop()
+	local event = self.thread:pop()
 	while event do
 		if event.name == "result" then
 			if event[1] then
@@ -71,23 +50,19 @@ function Thread:update()
 			synctable.set(self.synctable, unpack(event, 1, event.n))
 			self.lockSync = false
 		end
-		event = self.outputChannel:pop()
-	end
-
-	if not self.idle then
-		self:updateLastTime()
+		event = self.thread:pop()
 	end
 end
 
-function Thread:updateLastTime()
-	self.lastTime = love.timer.getTime()
+function Thread:updateLastTime(time)
+	self.lastTime = time
 end
 
 ---@param task table
 function Thread:execute(task)
 	self.idle = false
 	self.task = task
-	self.inputChannel:push({
+	self.thread:push({
 		name = "loadstring",
 		codestring = task.f,
 		args = task.args,
@@ -99,14 +74,12 @@ function Thread:isRunning()
 	return self.thread:isRunning()
 end
 
----@return number
-function Thread:pushStop()
-	return self.inputChannel:push({name = "stop"})
+function Thread:start()
+	self.thread:start()
 end
 
----@param event table
-function Thread:receive(event)
-	self.inputChannel:push(event)
+function Thread:pushStop()
+	self.thread:push({name = "stop"})
 end
 
 ---@param ... any?
@@ -114,7 +87,7 @@ function Thread:sync(...)
 	if self.lockSync then
 		return
 	end
-	self.inputChannel:push({
+	self.thread:push({
 		name = "synctable",
 		n = select("#", ...),
 		...

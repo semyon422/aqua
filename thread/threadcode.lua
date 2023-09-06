@@ -43,7 +43,6 @@ function thread.handle(event)
 			unpack(event.args, 1, event.args.n)
 		))
 		result.name = "result"
-		result.thread_id = threadId
 		outputChannel:push(result)
 	else
 		error("unknown event " .. require("inspect")(event))
