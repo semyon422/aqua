@@ -16,7 +16,7 @@ function test.simple(t)
 		thread:sync(...)
 	end)
 
-	local fake = FakeLoveThread()
+	local fake = FakeLoveThread(1)
 	thread = Thread(1, st, fake)
 
 	t:assert(thread.idle)

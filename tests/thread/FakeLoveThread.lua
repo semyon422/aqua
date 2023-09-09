@@ -4,6 +4,8 @@ local class = require("class")
 ---@operator call: thread.FakeLoveThread
 local FakeLoveThread = class()
 
+FakeLoveThread.running = false
+
 ---@param id number
 function FakeLoveThread:new(id)
 	self.id = id
@@ -30,7 +32,7 @@ function FakeLoveThread:push(event)
 	table.insert(self.inputChannel, event)
 end
 
----@return any
+---@return any?
 function FakeLoveThread:pop()
 	return table.remove(self.outputChannel)
 end

@@ -12,7 +12,7 @@ Thread.lastTime = 0
 
 ---@param id number
 ---@param synct table
----@param love_thread table
+---@param love_thread table?
 function Thread:new(id, synct, love_thread)
 	self.id = id
 	self.synctable = synct
@@ -54,6 +54,7 @@ function Thread:update()
 	end
 end
 
+---@param time number
 function Thread:updateLastTime(time)
 	self.lastTime = time
 end

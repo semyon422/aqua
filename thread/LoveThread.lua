@@ -48,7 +48,7 @@ function LoveThread:push(event)
 	self.inputChannel:push(event)
 end
 
----@return any
+---@return any?
 function LoveThread:pop()
 	return self.outputChannel:pop()
 end
