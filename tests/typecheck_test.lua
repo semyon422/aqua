@@ -1,10 +1,13 @@
 local typecheck = require("typecheck")
+local lexer = require("typecheck.lexer")
 local class = require("class")
+local TypeDecorator = require("typecheck.TypeDecorator")
+local ClassDecorator = require("typecheck.ClassDecorator")
 
 local test = {}
 
 local function lex(...)
-	return assert(typecheck.lex(...))
+	return assert(lexer.lex(...))
 end
 
 local function typeof(t, T)
@@ -20,7 +23,7 @@ local function check_types(...)
 end
 
 function test.lex_unknown()
-	assert(not typecheck.lex("&"))
+	assert(not lexer.lex("&"))
 end
 
 function test.lex_tokens_count()
@@ -446,7 +449,7 @@ function test.fix_traceback_typecheck()
 end
 
 function test.type_decorator_empty()
-	local td = typecheck.TypeDecorator()
+	local td = TypeDecorator()
 
 	local strict = typecheck.strict
 	typecheck.strict = false
@@ -458,7 +461,7 @@ function test.type_decorator_empty()
 end
 
 function test.type_decorator_number_number()
-	local td = typecheck.TypeDecorator()
+	local td = TypeDecorator()
 
 	td:func_begin()
 	td:process_annotation("---@param a number")
@@ -469,7 +472,7 @@ function test.type_decorator_number_number()
 end
 
 function test.type_decorator_vararg()
-	local td = typecheck.TypeDecorator()
+	local td = TypeDecorator()
 
 	td:func_begin()
 	td:process_annotation("---@return any?...")
@@ -479,7 +482,7 @@ function test.type_decorator_vararg()
 end
 
 function test.class_decorator()
-	local cd = typecheck.ClassDecorator()
+	local cd = ClassDecorator()
 
 	cd:next("---@class mod.MyClass")
 	local got = cd:next("local MyClass = class()")
