@@ -146,14 +146,17 @@ local function check(types, ...)
 end
 typecheck.check_types = check
 
+local exp_got = {
+	arg = "bad argument #%s to '%s' (%s expected, got %s)",
+	ret = "bad returning value #%s from '%s' (%s expected, got %s)",
+}
 
-local exp_got = "bad %s #%s to '%s' (%s expected, got %s)"
 local function wrap_return(bad, name, res, ...)
 	if res then
 		return ...
 	end
 	local i, _type, got = ...
-	local err = exp_got:format(bad, i, name, _type, got)
+	local err = exp_got[bad]:format(i, name, _type, got)
 	error(err, 3)
 end
 
@@ -182,8 +185,8 @@ function typecheck.decorate(f, signature)
 	local rtypes = s.return_types
 
 	return function(...)
-		wrap_return("argument", name, check(ptypes, _get_args(...)))
-		return wrap_return("returning value", name, check(rtypes, f(...)))
+		wrap_return("arg", name, check(ptypes, _get_args(...)))
+		return wrap_return("ret", name, check(rtypes, f(...)))
 	end
 end
 
