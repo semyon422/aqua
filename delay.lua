@@ -90,12 +90,10 @@ function delay.debounce(object, key, duration, func, ...)
 end
 
 ---@param interval number
----@param func any
+---@param func function
 ---@param ... any?
 ---@return function
 function delay.every(interval, func, ...)
-	assert(type(func) == "function", "func function must be a function")
-	assert(type(interval) == "number", "interval must be a number")
 	local stop = false
 	coroutine.wrap(function(...)
 		local ptime = get_time()
