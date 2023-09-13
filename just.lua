@@ -1,5 +1,6 @@
 local utf8 = require("utf8")
 local math_util = require("math_util")
+local table_util = require("table_util")
 
 local just = {}
 
@@ -131,15 +132,15 @@ function just.is_over(w, h, x, y)
 	return x <= mx and mx < x + w and y <= my and my < y + h
 end
 
----@param a_x number?
----@param a_y number?
----@param b_x number?
----@param b_y number?
+function just.unselect()
+	selection = nil
+end
+
+---@param a_x number
+---@param a_y number
+---@param b_x number
+---@param b_y number
 function just.select(a_x, a_y, b_x, b_y)
-	if not a_x then
-		selection = nil
-		return
-	end
 	a_x, a_y = a_x or 0, a_y or 0
 	selection = selection or {}
 	local s = selection
@@ -247,16 +248,16 @@ end
 local push_stencil, pop_stencil, reset_stencil, stencilfunction
 do
 	local stack = {}
-	local sf, q, w, e, r, t, y, u, i
+	local sf, args
 	function reset_stencil()
 		stack = {}
-		sf, q, w, e, r, t, y, u, i = nil
+		sf, args = nil, {n = 0}
 	end
 	function push_stencil(_sf, ...)
 		if sf then
-			table.insert(stack, {sf, q, w, e, r, t, y, u, i})
+			table.insert(stack, {sf, args})
 		end
-		sf, q, w, e, r, t, y, u, i = _sf, ...
+		sf, args = _sf, table_util.pack(...)
 		return #stack
 	end
 	function pop_stencil()
@@ -265,10 +266,10 @@ do
 			sf = nil
 			return
 		end
-		sf, q, w, e, r, t, y, u, i = unpack(s, 1, 9)
+		sf, args = unpack(s)
 	end
 	function stencilfunction()
-		return sf(q, w, e, r, t, y, u, i)
+		return sf(unpack(args, 1, args.n))
 	end
 end
 
