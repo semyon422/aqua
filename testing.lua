@@ -187,10 +187,11 @@ function testing.test()
 		io.write(path)
 		io.flush()
 
-		local mod = get_mod(path)
-
 		local start_time = love.timer.getTime()
-		run_tests(mod, t)
+		local mod = get_mod(path)
+		if mod then
+			run_tests(mod, t)
+		end
 		local dt = love.timer.getTime() - start_time
 
 		print((": %0.3fs"):format(dt))
