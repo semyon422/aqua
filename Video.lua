@@ -45,6 +45,7 @@ function Video:play(time)
 	while time >= v:tell() do
 		v:read(self.imageData:getPointer())
 	end
+	---@diagnostic disable-next-line: missing-parameter
 	self.image:replacePixels(self.imageData)
 end
 

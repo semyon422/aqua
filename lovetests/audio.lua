@@ -21,7 +21,7 @@ for _, name in ipairs(callbacks) do
 end
 
 local source
-function love.load()
+function love.load(arg, unfilteredArg)
 	local rate = 44100
 	local t = 1
 	local samples = math.floor(rate * t)
