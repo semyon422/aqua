@@ -12,7 +12,8 @@ local function rcopy(from, to)
 		if love.filesystem.getInfo(fileFrom, "directory") then
 			rcopy(fileFrom, fileTo)
 		else
-			love.filesystem.write(fileTo, (love.filesystem.read(fileFrom)))
+			local content = assert(love.filesystem.read(fileFrom))
+			assert(love.filesystem.write(fileTo, content))
 		end
 	end
 end
