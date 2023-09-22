@@ -20,63 +20,57 @@ local function new(T, ...)
 	return return_from_new_xpcall(t, xpcall(T.new, debug.traceback, t, ...))
 end
 
-local function isclass(T)
-	if type(T) ~= "table" then
-		return false
-	end
-
+local function is_class(T)
 	local mt = getmetatable(T)
-	return mt and mt.__call == new
+	return mt and mt.__call
 end
 
-local function typeofclass(T, _T)
+local function is_instance(t)
+	local T = getmetatable(t)
+	return is_class(T)
+end
+
+local function type_of_class(T, _T)
+	if not _T or not is_class(_T) then
+		return false
+	end
 	if _T == T then
 		return true
 	end
-	if not _T then
-		return false
-	end
 
 	local mt = getmetatable(_T)
-	if not mt then
-		return false
+	if not mt.__indexes then
+		return type_of_class(T, mt.__index)
 	end
 
-	if mt.__indexes then
-		local p, t = unpack(mt.__indexes)
-		return typeofclass(T, p) or typeofclass(T, t)
-	end
-
-	return typeofclass(T, mt.__index)
+	local p, t = unpack(mt.__indexes)
+	return type_of_class(T, p) or type_of_class(T, t)
 end
 
-local function typeof(T, t)
-	if type(t) ~= "table" then
+local function type_of_instance(T, t)
+	if not is_instance(t) then
 		return false
 	end
-
-	if not isclass(t) then
-		t = getmetatable(t)
-	end
-
-	return typeofclass(T, t)
+	local _T = getmetatable(t)
+	return type_of_class(T, _T)
 end
 
 local function class(p, t)
 	if p then
-		assert(isclass(p), "bad argument #1 to 'class'")
+		assert(is_class(p), "bad argument #1 to 'class'")
 	end
 
 	local mt = {
 		__call = new,
 		__add = class,
-		__mul = typeof,
+		__mul = type_of_instance,
+		__div = type_of_class,
 	}
 
 	local T = {}
 	T.__index = T
 
-	if not isclass(t) then
+	if not is_class(t) then
 		mt.__index = p
 		return setmetatable(T, mt)
 	end
@@ -97,20 +91,35 @@ end
 
 do
 	local A = class()
+	assert(is_class(A))
+	assert(not is_instance(A))
+
+	local a = A()
+	assert(is_instance(a))
+	assert(not is_class(a))
+
+	assert(A / A)
+	assert(not (A * A))
+	assert(A * a)
+	assert(not (A / a))
+end
+
+do
+	local A = class()
 	local B = A + {}
 
 	local a = A()
 	local b = B()
 
-	assert(A * A)
-	assert(A * B)
+	assert(A / A)
+	assert(A / B)
+	assert(B / B)
+	assert(not (B / A))
+
 	assert(A * a)
 	assert(A * b)
-
-	assert(not (B * A))
-	assert(B * B)
-	assert(not (B * a))
 	assert(B * b)
+	assert(not (B * a))
 end
 
 do
@@ -121,15 +130,16 @@ do
 
 	local x = X()
 
-	assert(A * X)
-	assert(B * X)
-	assert(C * X)
+	assert(A / X)
+	assert(B / X)
+	assert(C / X)
 	assert(X * x)
 
-	assert(not (X * A))
-	assert(not (X * B))
-	assert(not (X * C))
+	assert(not (X / A))
+	assert(not (X / B))
+	assert(not (X / C))
 	assert(not (x * X))
+	assert(not (X / x))
 end
 
 return class
