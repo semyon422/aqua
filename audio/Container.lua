@@ -80,14 +80,12 @@ end
 ---@param position number
 function Container:setPosition(position)
 	for source in pairs(self.sources) do
-		if source:isPlaying() then
-			local newPosition = position - source.offset
-			if newPosition >= 0 and newPosition < source:getDuration() then
-				source:setPosition(newPosition)
-			else
-				source:release()
-				self.sources[source] = nil
-			end
+		local newPosition = position - source.offset
+		if newPosition >= 0 and newPosition < source:getDuration() then
+			source:setPosition(newPosition)
+		else
+			source:release()
+			self.sources[source] = nil
 		end
 	end
 end
