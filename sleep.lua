@@ -1,6 +1,11 @@
 local ffi = require("ffi")
 local jit = require("jit")
 
+if jit.os == "Windows" then
+	local winapi = require("winapi")
+	return winapi.sleep
+end
+
 if jit.os ~= "Linux" then
 	return love.timer.sleep
 end
