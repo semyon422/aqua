@@ -88,7 +88,7 @@ function Test:expected_assert(cond, got, expected)
 	end
 	local line = debug.getinfo(2, "Sl")
 
-	table.insert(self, ("%s:%s: %s expected, got %s"):format(
+	table.insert(self, ("%s:%s:\n---- expected\n%s\n---- got\n%s\n---- end"):format(
 		line.short_src,
 		line.currentline,
 		expected, got
