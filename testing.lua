@@ -126,7 +126,7 @@ end
 --------------------------------------------------------------------------------
 
 ---@param path string
----@return table
+---@return table?
 local function get_mod(path)
 	local data = assert(love.filesystem.read(path))
 	local f = assert(load(data, "@" .. path))
