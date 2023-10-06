@@ -167,4 +167,26 @@ function table_util.cache(f, index)
 	end
 end
 
+---@param t table
+---@param v any
+---@return number?
+function table_util.indexof(t, v)
+	for i, _v in ipairs(t) do
+		if v == _v then
+			return i
+		end
+	end
+end
+
+---@param t table
+---@param v any
+---@return number?
+function table_util.keyof(t, v)
+	for k, _v in pairs(t) do
+		if v == _v then
+			return k
+		end
+	end
+end
+
 return table_util
