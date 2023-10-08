@@ -1,5 +1,8 @@
 local table_util = {}
 
+table_util.new = require("table.new")
+table_util.clear = require("table.clear")
+
 ---@param a table
 ---@param b table
 ---@return boolean
