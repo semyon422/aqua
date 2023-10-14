@@ -270,4 +270,29 @@ function imgui.tabs(id, item, items)
 	return imgui.TabBar(id, item, items, w, _h)
 end
 
+---@param id any
+---@param v number
+---@param a number
+---@param b number
+---@param c number
+---@param drag_w number
+---@param label string?
+---@return number
+function imgui.knob(id, v, a, b, c, drag_w, label)
+	local delta = just.wheel_over(id, just.is_over(_w, _h))
+	if delta then
+		v = math.min(math.max(v + c * delta, a), b)
+	end
+
+	local _v = math_util.map(v, a, b, 0, 1)
+	_v = imgui.Knob(id, _v, _h, drag_w) or _v
+	just.sameline()
+	imgui.label(id .. "label", label)
+
+	v = math_util.map(_v, 0, 1, a, b)
+	v = math_util.round(v, c)
+
+	return v
+end
+
 return imgui
