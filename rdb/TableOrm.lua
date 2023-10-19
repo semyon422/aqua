@@ -67,7 +67,7 @@ function TableOrm:insert(table_name, values, ignore)
 		sql_util.escape_identifier(table_name),
 		keys,
 		_values
-	))
+	))[1]
 end
 
 ---@param table_name string

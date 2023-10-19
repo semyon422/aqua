@@ -33,7 +33,6 @@ end
 ---@param query string
 ---@return table?
 function LjsqliteDatabase:query(query)
-	print(query)
 	local stmt = self.c:prepare(query)
 
 	local colnames = {}
