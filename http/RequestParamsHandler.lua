@@ -9,6 +9,9 @@ local json = require("cjson")
 local RequestParamsHandler = class()
 
 local function parse_body(content, content_type)
+	if not content or not content_type then
+		return
+	end
 	if content_type == "application/json" then
 		local ok, err = pcall(json.decode, content)
 		if ok then
@@ -16,7 +19,7 @@ local function parse_body(content, content_type)
 		end
 	elseif content_type == "application/x-www-form-urlencoded" then
 		return http_util.decode_query_string(content)
-	elseif content_type:find("^multipart/form-data") then
+	elseif content_type and content_type:find("^multipart/form-data") then
 		local boundary = content_type:match("boundary=(.+)$")
 	end
 end
