@@ -21,7 +21,8 @@ function session_util.decode(s, secret)
 	if sig ~= hmac_sha256(secret, msg) then
 		return nil, "invalid signature"
 	end
-	return json.decode(mime.unb64(msg))
+	msg = mime.unb64(msg)
+	return json.decode(msg)
 end
 
 function session_util.encode(session, secret)
