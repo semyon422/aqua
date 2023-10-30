@@ -2,48 +2,46 @@ local socket_url = require("socket.url")
 
 local http_util = {}
 
--- from lapis
-
 ---@param t table
----@param sep string?
 ---@return string
-function http_util.encode_query_string(t, sep)
-	if not sep then
-		sep = "&"
-	end
+function http_util.encode_query_string(t)
 	local i = 0
 	local buf = {}
 	for k, v in pairs(t) do
-		local continue = false
-		repeat
-			if type(k) == "number" and type(v) == "table" then
-				k, v = v[1], v[2]
-				if v == nil then
-					v = true
-				end
-			end
-			if v == false then
-				continue = true
-				break
-			end
+		if v ~= false then
 			buf[i + 1] = socket_url.escape(k)
 			if v == true then
-				buf[i + 2] = sep
+				buf[i + 2] = "&"
 				i = i + 2
 			else
 				buf[i + 2] = "="
 				buf[i + 3] = socket_url.escape(v)
-				buf[i + 4] = sep
+				buf[i + 4] = "&"
 				i = i + 4
 			end
-			continue = true
-		until true
-		if not continue then
-			break
 		end
 	end
 	buf[i] = nil
 	return table.concat(buf)
+end
+
+---@param s string
+---@return table
+function http_util.decode_query_string(s)
+	local query = {}
+	if not s then
+		return query
+	end
+	s = s .. "&"
+	for kv in s:gmatch("([^&]+)&") do
+		local k, v = kv:match("^(.-)=(.+)$")
+		if k then
+			query[k] = v
+		else
+			query[kv] = true
+		end
+	end
+	return query
 end
 
 local boundary = "------------------------d67fe448c18233b3"
@@ -73,6 +71,16 @@ function http_util.multipart_form_data(files)
 	}
 
 	return body, headers
+end
+
+function http_util.parse_multipart_form_data(body, boundary)
+	local parts = {}
+
+	for part in body:gmatch("%-%-" .. boundary .. "\r?\n(.-)%-%-" .. boundary) do
+		table.insert(parts, part)
+	end
+
+	return parts
 end
 
 -- https://www.rfc-editor.org/rfc/rfc2183.html
