@@ -33,6 +33,7 @@ local function handle_headers_in(params, headers, session_config)
 end
 
 local function handle_headers_out(params, headers, session_config)
+	params.cookies = {}
 	params.cookies[session_config.name] = session_util.encode(
 		params.session,
 		session_config.secret
