@@ -27,7 +27,7 @@ function sql_util.escape_literal(v)
 	elseif tv == "boolean" then
 		return v and 1 or 0
 	elseif tv == "string" then
-		return ("x'%s'"):format(sql_util.tohex(v))
+		return ("cast(x'%s' as TEXT)"):format(sql_util.tohex(v))
 	elseif tv == "number" then
 		return ("%.20g"):format(v)
 	elseif tv == "cdata" and tonumber(v) then
