@@ -20,6 +20,9 @@ function UsecaseViewHandler:handle_params(params, usecase_name, results)
 	if view_name then
 		res_body = self.views[view_name](result)
 	end
+	if type(headers) == "function" then
+		headers = headers(result)
+	end
 
 	return code or 200, headers or {}, res_body or ""
 end
