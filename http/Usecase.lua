@@ -51,15 +51,28 @@ function Usecase:setHandler(handler)
 	self.handler = handler
 end
 
+function Usecase:setValidation(validate)
+	self.validate = validate
+end
+
 function Usecase:run(params, models)
 	local found = self:select(params, models)
 	if not found then
 		return "not_found", params
 	end
 
+	if self.validate then
+		local ok, err = self.validate(params)
+		if not ok then
+			params.errors = {err}
+			return "validation", params
+		end
+	end
+
 	local decision, err = self:authorize(params)
 	if decision ~= "permit" then
-		return "forbidden", {err}
+		params.errors = {err}
+		return "forbidden", params
 	end
 
 	return self.handler(params, models)

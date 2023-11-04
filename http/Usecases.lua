@@ -23,6 +23,9 @@ function Usecases.__index(t, mod_name)
 	if mod.handler then
 		usecase:setHandler(mod.handler)
 	end
+	if mod.validate then
+		usecase:setValidation(mod.validate)
+	end
 
 	t[mod_name] = usecase
 	return t[mod_name]
