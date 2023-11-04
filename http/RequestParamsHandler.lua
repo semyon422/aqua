@@ -55,6 +55,8 @@ function RequestParamsHandler:handle_route(req, path_params, ...)
 	table_util.copy(body_params, params)
 	table_util.copy(path_params, params)
 
+	params.ip = req.headers["X-Real-IP"]
+
 	handle_headers_in(params, req.headers, self.session_config)
 	local code, headers, res_body = self.params_handler:handle_params(params, ...)
 	handle_headers_out(params, headers, self.session_config)
