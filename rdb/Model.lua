@@ -38,7 +38,7 @@ end
 ---@param ignore boolean?
 ---@return rdb.ModelRow?
 function Model:insert(values, ignore)
-	local row = self.orm:insert(self.table_name, values, ignore)
+	local row = self.orm:insert(self.table_name, sql_util.for_db(values, self.types), ignore)
 	if not row then
 		return
 	end
