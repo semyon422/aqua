@@ -41,9 +41,10 @@ local function handle_headers_out(params, headers, session_config)
 	headers["Set-Cookie"] = cookie_util.encode(params.cookies)
 end
 
-function RequestParamsHandler:new(session_config, params_handler)
+function RequestParamsHandler:new(session_config, params_handler, before)
 	self.session_config = session_config
 	self.params_handler = params_handler
+	self.before = before
 end
 
 function RequestParamsHandler:handle_route(req, path_params, ...)
@@ -58,6 +59,7 @@ function RequestParamsHandler:handle_route(req, path_params, ...)
 	params.ip = req.headers["X-Real-IP"]
 
 	handle_headers_in(params, req.headers, self.session_config)
+	if self.before then self.before(params) end
 	local code, headers, res_body = self.params_handler:handle_params(params, ...)
 	handle_headers_out(params, headers, self.session_config)
 
