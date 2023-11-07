@@ -1,5 +1,6 @@
 local class = require("class")
 local UsecasePolicySet = require("UsecasePolicySet")
+local relations = require("rdb.relations")
 
 ---@class http.Usecase
 ---@operator call: http.Usecase
@@ -27,7 +28,7 @@ end
 
 function Usecase:select(params, models)
 	for obj_name, bind_config in pairs(self.model_params) do
-		local name, keys = unpack(bind_config)
+		local name, keys, rels = unpack(bind_config)
 		local where = {}
 		for k, v in pairs(keys) do
 			if type(k) ~= "string" then
@@ -36,12 +37,15 @@ function Usecase:select(params, models)
 			where[k] = tonumber(params[v])
 		end
 
-		local obj = models[name]:select(where)[1]
-		if not obj then
+		local objs = models[name]:select(where)
+		if #objs == 0 then
 			return
 		end
+		if rels then
+			relations.preload(objs, rels)
+		end
 
-		params[obj_name] = obj
+		params[obj_name] = objs[1]
 	end
 
 	return true
