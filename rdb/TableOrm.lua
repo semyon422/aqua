@@ -46,35 +46,56 @@ function TableOrm:select(table_name, conditions)
 end
 
 ---@param table_name string
----@param values table
+---@param values_array table
 ---@param ignore boolean?
----@return table?
-function TableOrm:insert(table_name, values, ignore)
+---@return table
+function TableOrm:insert(table_name, values_array, ignore)
 	local table_info = assert(self:table_info(table_name), "no such table: " .. table_name)
+	assert(#values_array > 0, "missing values")
 
-	local count = 0
-	local query_keys = {}
-	local query_values = {}
-	local query_values_q = {}
-	for _, column in ipairs(table_info) do
-		local key = column.name
-		local value = values[key]
-		if value then
-			count = count + 1
-			query_keys[count] = sql_util.escape_identifier(key)
-			query_values[count] = value
-			query_values_q[count] = "?"
+	local keys_map = {}
+	for _, values in ipairs(values_array) do
+		for key in pairs(values) do
+			keys_map[key] = true
 		end
 	end
 
+	local keys_list = {}
+	for _, column in ipairs(table_info) do
+		local key = column.name
+		if keys_map[key] then
+			table.insert(keys_list, key)
+		end
+	end
+
+	local query_keys = {}
+	for i, key in ipairs(keys_list) do
+		query_keys[i] = sql_util.escape_identifier(key)
+	end
 	local keys = ("(%s)"):format(table.concat(query_keys, ", "))
-	local values_q = ("(%s)"):format(table.concat(query_values_q, ", "))
+
+	local values_q0 = ("(%s)"):format(("?, "):rep(#keys_list - 1) .. "?")
+	local values_q = (values_q0 .. ", "):rep(#values_array - 1) .. values_q0
+
+	local c = 0
+	local query_values = {}
+	for _, values in ipairs(values_array) do
+		for i, key in ipairs(keys_list) do
+			local value = values[key]
+			c = c + 1
+			if value then
+				query_values[c] = value
+			else
+				query_values[c] = sql_util.NULL
+			end
+		end
+	end
 
 	return self.db:query(("INSERT%s INTO %s %s VALUES %s RETURNING *"):format(
 		ignore and " OR IGNORE" or "",
 		sql_util.escape_identifier(table_name),
 		keys, values_q
-	), query_values)[1]
+	), query_values)
 end
 
 ---@param table_name string

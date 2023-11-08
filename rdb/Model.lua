@@ -34,15 +34,32 @@ function Model:select(conditions)
 	return rows
 end
 
+---@param conditions table
+---@return rdb.ModelRow?
+function Model:find(conditions)
+	return self:select(conditions)[1]
+end
+
+---@param values_array table
+---@param ignore boolean?
+---@return rdb.ModelRow[]
+function Model:insert(values_array, ignore)
+	local new_values_array = {}
+	for i, values in ipairs(values_array) do
+		new_values_array[i] = sql_util.for_db(values, self.types)
+	end
+	local rows = self.orm:insert(self.table_name, new_values_array, ignore)
+	for i, row in ipairs(rows) do
+		rows[i] = setmetatable(sql_util.from_db(row, self.types), self.row_mt)
+	end
+	return rows
+end
+
 ---@param values table
 ---@param ignore boolean?
 ---@return rdb.ModelRow?
-function Model:insert(values, ignore)
-	local row = self.orm:insert(self.table_name, sql_util.for_db(values, self.types), ignore)
-	if not row then
-		return
-	end
-	return setmetatable(sql_util.from_db(row, self.types), self.row_mt)
+function Model:create(values, ignore)
+	return self:insert({values}, ignore)[1]
 end
 
 ---@param values table

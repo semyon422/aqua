@@ -68,7 +68,7 @@ function test.all(t)
 		name = name .. string.char(c)
 	end
 
-	local user_inserted = models.users:insert({name = name})
+	local user_inserted = models.users:create({name = name})
 	assert(user_inserted)
 	t:eq(user_inserted.id, 1)
 	t:eq(user_inserted.name, name)
@@ -77,7 +77,7 @@ function test.all(t)
 	t:eq(user_inserted.nullable_flag, 1)
 	t:eq(user_inserted.role, "user")
 
-	local user = models.users:select({id = 1})[1]
+	local user = models.users:find({id = 1})
 	assert(user)
 	t:eq(user.id, 1)
 	t:eq(user.name, name)
@@ -103,7 +103,7 @@ function test.all(t)
 	user:select()
 	t:eq(user.name, "user")
 
-	local post = models.posts:insert({user_id = 1, text = "text"})
+	local post = models.posts:create({user_id = 1, text = "text"})
 
 	relations.preload({user}, {posts = "user"})
 	t:eq(user.posts[1].text, "text")
