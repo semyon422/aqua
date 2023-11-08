@@ -1,5 +1,3 @@
-local table_util = require("table_util")
-
 local sql_util = {}
 
 sql_util.NULL = {}
@@ -180,11 +178,7 @@ function sql_util.for_db(t, types)
 		if _type == "boolean" then
 			v = v and 1 or 0
 		elseif type(_type) == "table" then
-			local key = _type[v]
-			if not key then
-				error("missing key for index '" .. v .. "'")
-			end
-			v = key
+			v = _type.encode(v)
 		end
 		_t[k] = v
 	end
@@ -204,11 +198,7 @@ function sql_util.from_db(t, types)
 		if _type == "boolean" then
 			v = sql_util.toboolean(v)
 		elseif type(_type) == "table" then
-			local index = table_util.keyof(_type, v)
-			if not index then
-				error("missing index for key '" .. v .. "'")
-			end
-			v = index
+			v = _type.decode(v)
 		end
 		_t[k] = v
 	end
