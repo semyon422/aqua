@@ -48,88 +48,102 @@ end
 
 local _format_cond = {
 	contains = function(k, v)
-		return ("%s LIKE %s"):format(
-			sql_util.escape_identifier(k),
-			sql_util.escape_literal("%" .. v .. "%")
-		)
+		return ("%s LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v .. "%"}
 	end,
 	startswith = function(k, v)
-		return ("%s LIKE %s"):format(
-			sql_util.escape_identifier(k),
-			sql_util.escape_literal(v .. "%")
-		)
+		return ("%s LIKE ?"):format(sql_util.escape_identifier(k)), {v .. "%"}
 	end,
 	endswith = function(k, v)
-		return ("%s LIKE %s"):format(
-			sql_util.escape_identifier(k),
-			sql_util.escape_literal("%" .. v)
-		)
+		return ("%s LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v}
 	end,
 	["in"] = function(k, v)
 		local _v = {}
 		for i = 1, #v do
-			_v[i] = sql_util.escape_literal(v[i])
+			_v[i] = "?"
 		end
 		return ("%s IN (%s)"):format(
 			sql_util.escape_identifier(k),
 			table.concat(_v, ", ")
-		)
+		), v
 	end,
 	notin = function(k, v)
 		local _v = {}
 		for i = 1, #v do
-			_v[i] = sql_util.escape_literal(v[i])
+			_v[i] = "?"
 		end
 		return ("%s NOT IN (%s)"):format(
 			sql_util.escape_identifier(k),
 			table.concat(_v, ", ")
-		)
+		), v
 	end,
 	isnull = "%s IS NULL",
 	isnotnull = "%s IS NOT NULL",
-	eq = "%s = %s",
-	ne = "%s != %s",
-	gt = "%s > %s",
-	gte = "%s >= %s",
-	lt = "%s < %s",
-	lte = "%s <= %s",
-	regex = "%s REGEXP %s",
+	eq = "%s = ?",
+	ne = "%s != ?",
+	gt = "%s > ?",
+	gte = "%s >= ?",
+	lt = "%s < ?",
+	lte = "%s <= ?",
+	regex = "%s REGEXP ?",
 }
 
 ---@param op string
 ---@param k string
 ---@param v any
 ---@return string
+---@return table
 local function format_cond(op, k, v)
 	local fmt = _format_cond[op]
 	if type(fmt) == "function" then
 		return fmt(k, v)
 	end
-	return fmt:format(
-		sql_util.escape_identifier(k),
-		sql_util.escape_literal(v)
-	)
+	local cond = fmt:format(sql_util.escape_identifier(k))
+	if cond:find("?") then
+		return cond, {v}
+	end
+	return cond, {}
+end
+
+---@param cond string
+---@param vals table
+---@return string
+function sql_util.bind(cond, vals)
+	local n = 0
+	local full_cond = cond:gsub("?", function()
+		n = n + 1
+		return sql_util.escape_literal(vals[n])
+	end)
+	return full_cond
 end
 
 ---@param t table
----@return string?
-function sql_util.build(t)
+---@return string
+---@return table
+function sql_util.conditions(t)
 	local conds = {}
+	local vals = {}
 
 	for k, v in pairs(t) do
+		local cd, vs
 		if type(k) == "string" then
 			local field, op = k:match("^(.+)__(.+)$")
 			if not field then
 				field, op = k, "eq"
 			end
-			table.insert(conds, format_cond(op, field, v))
+			cd, vs = format_cond(op, field, v)
 		elseif type(v) == "table" then
-			table.insert(conds, sql_util.build(v))
+			cd, vs = sql_util.conditions(v)
+		end
+		if cd then
+			table.insert(conds, cd)
+			for _, _v in ipairs(vs) do
+				table.insert(vals, _v)
+			end
 		end
 	end
 
 	if #conds == 0 then
-		return
+		return "", {}
 	end
 
 	for i = 1, #conds do
@@ -137,7 +151,20 @@ function sql_util.build(t)
 	end
 
 	local op = t[1] == "or" and "OR" or "AND"
-	return table.concat(conds, (" %s "):format(op))
+	return table.concat(conds, (" %s "):format(op)), vals
+end
+
+---@param values table
+---@return string
+---@return table
+function sql_util.assigns(values)
+	local assigns = {}
+	local vals = {}
+	for k, v in pairs(values) do
+		table.insert(assigns, ("%s = ?"):format(sql_util.escape_identifier(k)))
+		table.insert(vals, v)
+	end
+	return table.concat(assigns, ", "), vals
 end
 
 ---@param t table

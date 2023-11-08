@@ -13,8 +13,9 @@ function IDatabase:close() end
 function IDatabase:exec(query) end
 
 ---@param query string
----@return table?
-function IDatabase:query(query)
+---@param bind_vals table?
+---@return table
+function IDatabase:query(query, bind_vals)
 	return {}
 end
 

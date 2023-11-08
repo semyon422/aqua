@@ -19,7 +19,6 @@ function TableOrm:table_info(table_name)
 		return info
 	end
 	info = self.db:query("PRAGMA table_info(" .. sql_util.escape_identifier(table_name) .. ")")
-	assert(info)
 	for _, t in ipairs(info) do
 		t.cid = tonumber(t.cid)
 		t.notnull = tonumber(t.notnull) ~= 0
@@ -33,10 +32,17 @@ end
 ---@param conditions table?
 ---@return table
 function TableOrm:select(table_name, conditions)
-	return self.db:query(("SELECT * FROM %s %s"):format(
+	if not conditions or not next(conditions) then
+		return self.db:query(("SELECT * FROM %s"):format(
+			sql_util.escape_identifier(table_name)
+		))
+	end
+
+	local conds, vals = sql_util.conditions(conditions)
+	return self.db:query(("SELECT * FROM %s WHERE %s"):format(
 		sql_util.escape_identifier(table_name),
-		conditions and "WHERE " .. sql_util.build(conditions) or ""
-	)) or {}
+		conds
+	), vals)
 end
 
 ---@param table_name string
@@ -49,25 +55,26 @@ function TableOrm:insert(table_name, values, ignore)
 	local count = 0
 	local query_keys = {}
 	local query_values = {}
+	local query_values_q = {}
 	for _, column in ipairs(table_info) do
 		local key = column.name
 		local value = values[key]
 		if value then
 			count = count + 1
 			query_keys[count] = sql_util.escape_identifier(key)
-			query_values[count] = sql_util.escape_literal(value)
+			query_values[count] = value
+			query_values_q[count] = "?"
 		end
 	end
 
 	local keys = ("(%s)"):format(table.concat(query_keys, ", "))
-	local _values = ("(%s)"):format(table.concat(query_values, ", "))
+	local values_q = ("(%s)"):format(table.concat(query_values_q, ", "))
 
 	return self.db:query(("INSERT%s INTO %s %s VALUES %s RETURNING *"):format(
 		ignore and " OR IGNORE" or "",
 		sql_util.escape_identifier(table_name),
-		keys,
-		_values
-	))[1]
+		keys, values_q
+	), query_values)[1]
 end
 
 ---@param table_name string
@@ -76,39 +83,58 @@ end
 function TableOrm:update(table_name, values, conditions)
 	local table_info = assert(self:table_info(table_name), "no such table: " .. table_name)
 
-	local assigns = {}
+	local filtered_values = {}
 	for _, column in ipairs(table_info) do
 		local key = column.name
 		local value = values[key]
 		if value ~= nil then
-			table.insert(assigns, ("%s = %s"):format(
-				sql_util.escape_identifier(key), sql_util.escape_literal(value)
-			))
+			filtered_values[key] = value
 		end
 	end
+	if not next(filtered_values) then
+		return
+	end
+	local assigns, vals_a = sql_util.assigns(filtered_values)
 
-	if not conditions then
+	if not conditions or not next(conditions) then
 		self.db:query(("UPDATE %s SET %s"):format(
 			sql_util.escape_identifier(table_name),
-			table.concat(assigns, ", ")
+			assigns, vals_a
 		))
 		return
 	end
 
+	local conds, vals_b = sql_util.conditions(conditions)
+
+	local vals = {}
+	for _, v in ipairs(vals_a) do
+		table.insert(vals, v)
+	end
+	for _, v in ipairs(vals_b) do
+		table.insert(vals, v)
+	end
+
 	self.db:query(("UPDATE %s SET %s WHERE %s"):format(
 		sql_util.escape_identifier(table_name),
-		table.concat(assigns, ", "),
-		sql_util.build(conditions)
-	))
+		assigns, conds
+	), vals)
 end
 
 ---@param table_name string
 ---@param conditions table?
 function TableOrm:delete(table_name, conditions)
-	self.db:query(("DELETE FROM %s %s"):format(
+	if not conditions or not next(conditions) then
+		self.db:query(("DELETE FROM %s"):format(
+			sql_util.escape_identifier(table_name)
+		))
+		return
+	end
+
+	local conds, vals = sql_util.conditions(conditions)
+	self.db:query(("DELETE FROM %s WHERE %s"):format(
 		sql_util.escape_identifier(table_name),
-		conditions and "WHERE " .. sql_util.build(conditions) or ""
-	))
+		conds
+	), vals)
 end
 
 return TableOrm

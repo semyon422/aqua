@@ -1,5 +1,6 @@
 local sqlite = require("ljsqlite3")
 local IDatabase = require("rdb.IDatabase")
+local sql_util = require("rdb.sql_util")
 
 ---@class rdb.LjsqliteDatabase: rdb.IDatabase
 ---@operator call: rdb.LjsqliteDatabase
@@ -31,18 +32,28 @@ local function to_object(row, colnames)
 end
 
 ---@param query string
----@return table?
-function LjsqliteDatabase:query(query)
+---@param bind_vals table
+---@return table
+function LjsqliteDatabase:query(query, bind_vals)
 	local stmt = self.c:prepare(query)
+	if bind_vals then
+		for i, v in ipairs(bind_vals) do
+			if v == sql_util.NULL then
+				v = nil
+			end
+			stmt:bind1(i, v)
+		end
+	end
+
+	local objects = {}
 
 	local colnames = {}
 	local row = stmt:step({}, colnames)
 	if not row then
 		stmt:close()
-		return
+		return objects
 	end
 
-	local objects = {}
 	while row do
 		objects[#objects + 1] = to_object(row, colnames)
 		row = stmt:step(row)
