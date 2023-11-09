@@ -25,7 +25,6 @@ function RequestHandler:handle(req)
 	if body_handler_name then
 		local body_handler = self.body_handlers[body_handler_name]
 		body_params = body_handler(req.headers["Content-Type"])
-		print("body params: " .. tostring(body_params))
 	end
 	local query_params = http_util.decode_query_string(parsed_url.query)
 
