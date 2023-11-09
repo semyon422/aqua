@@ -19,6 +19,9 @@ function RequestHandler:handle(req)
 	local parsed_url = socket_url.parse(req.uri)
 
 	local path_params, route_config = self.router:handle(parsed_url.path, req.method)
+	if not route_config then
+		error("route not found '" .. tostring(req.uri) .. "'")
+	end
 	local usecase_name, results, body_handler_name = unpack(route_config)
 
 	local body_params = {}
