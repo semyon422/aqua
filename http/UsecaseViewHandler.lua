@@ -17,7 +17,7 @@ function UsecaseViewHandler:handle(params, usecase_name, results)
 
 	local code_view_headers = results[result_type] or self.default_results[result_type]
 	if not code_view_headers then
-		error("missing result handler for '" .. result_type .. "'")
+		error("missing result handler for '" .. tostring(result_type) .. "'")
 	end
 	local code, view_name, headers = unpack(code_view_headers)
 
