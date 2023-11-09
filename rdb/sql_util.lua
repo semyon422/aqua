@@ -182,6 +182,9 @@ end
 ---@return table
 function sql_util.for_db(t, types)
 	local _t = {}
+	if not t then
+		return _t
+	end
 	for k, v in pairs(t) do
 		local _k = k:match("^(.-)__") or k
 		local _type = types and types[_k]
