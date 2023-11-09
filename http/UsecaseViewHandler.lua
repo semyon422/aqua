@@ -1,5 +1,7 @@
 local class = require("class")
 
+---@class http.UsecaseViewHandler
+---@operator call: http.UsecaseViewHandler
 local UsecaseViewHandler = class()
 
 function UsecaseViewHandler:new(usecases, models, default_results, views)
@@ -9,7 +11,7 @@ function UsecaseViewHandler:new(usecases, models, default_results, views)
 	self.views = views
 end
 
-function UsecaseViewHandler:handle_params(params, usecase_name, results)
+function UsecaseViewHandler:handle(params, usecase_name, results)
 	local usecase = self.usecases[usecase_name]
 	local result_type, result = usecase:run(params, self.models)
 

@@ -1,6 +1,8 @@
 local socket = require("socket")
 local class = require("class")
 
+---@class http.TcpServer
+---@operator call: http.TcpServer
 local TcpServer = class()
 
 function TcpServer:new(ip, port, client_handler)

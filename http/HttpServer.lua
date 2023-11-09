@@ -1,6 +1,8 @@
 local Request = require("http.Request")
 local class = require("class")
 
+---@class http.HttpServer
+---@operator call: http.HttpServer
 local HttpServer = class()
 
 function HttpServer:new(request_handler)

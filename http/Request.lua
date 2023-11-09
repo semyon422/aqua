@@ -2,6 +2,8 @@ local http_codes = require("http.codes")
 local async_client = require("http.async_client")
 local class = require("class")
 
+---@class http.Request
+---@operator call: http.Request
 local Request = class()
 
 function Request:new(client)

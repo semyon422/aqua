@@ -1,10 +1,10 @@
-local socket_url = require("socket.url")
 local class = require("class")
 
+---@class http.Router
+---@operator call: http.Router
 local Router = class()
 
-function Router:new(handler)
-	self.handler = handler
+function Router:new()
 	self.routes = {}
 end
 
@@ -32,25 +32,16 @@ function Router:route_many(_routes)
 	end
 end
 
-function Router:handle_request(req)
-	local parsed_url = socket_url.parse(req.uri)
-	if not parsed_url then
-		return
-	end
-	req.parsed_url = parsed_url
+function Router:handle(path, method)
 	for _, route in ipairs(self.routes) do
-		if route.method == req.method then
-			local matched = {parsed_url.path:match(route.pattern)}
+		if route.method == method then
+			local matched = {path:match(route.pattern)}
 			if #matched > 0 then
 				local path_params = {}
 				for i, k in ipairs(route.keys) do
 					path_params[k] = matched[i]
 				end
-				return self.handler:handle_route(
-					req,
-					path_params,
-					unpack(route.config, 1, route.config.n)
-				)
+				return path_params, route.config
 			end
 		end
 	end
