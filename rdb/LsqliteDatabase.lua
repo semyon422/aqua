@@ -23,7 +23,7 @@ function LsqliteDatabase:exec(query)
 end
 
 ---@param query string
----@param bind_vals table
+---@param bind_vals table?
 ---@return table
 function LsqliteDatabase:query(query, bind_vals)
 	local stmt = self.c:prepare(query)

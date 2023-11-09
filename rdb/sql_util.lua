@@ -165,20 +165,31 @@ function sql_util.assigns(values)
 	return table.concat(assigns, ", "), vals
 end
 
----@param t table
+local function for_db(v, _type)
+	if type(v) == "cdata" then
+		v = tonumber(v)
+	end
+	if _type == "boolean" then
+		v = v and 1 or 0
+	elseif type(_type) == "table" then
+		v = _type.encode(v)
+	end
+	return v
+end
+
+---@param t table?
 ---@param types table?
 ---@return table
 function sql_util.for_db(t, types)
 	local _t = {}
 	for k, v in pairs(t) do
-		if type(v) == "cdata" then
-			v = tonumber(v)
-		end
-		local _type = types and types[k]
-		if _type == "boolean" then
-			v = v and 1 or 0
-		elseif type(_type) == "table" then
-			v = _type.encode(v)
+		local _k = k:match("^(.-)__") or k
+		local _type = types and types[_k]
+		v = for_db(v, _type)
+		if type(v) == "table" then
+			for i, _v in ipairs(v) do
+				v[i] = for_db(_v, _type)
+			end
 		end
 		_t[k] = v
 	end

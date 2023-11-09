@@ -27,9 +27,11 @@ end
 ---@param conditions table?
 ---@return rdb.ModelRow[]
 function Model:select(conditions)
+	conditions = sql_util.for_db(conditions, self.types)
 	local rows = self.orm:select(self.table_name, conditions)
 	for i, row in ipairs(rows) do
-		rows[i] = setmetatable(sql_util.from_db(row, self.types), self.row_mt)
+		row = sql_util.from_db(row, self.types)
+		rows[i] = setmetatable(row, self.row_mt)
 	end
 	return rows
 end
@@ -65,11 +67,14 @@ end
 ---@param values table
 ---@param conditions table?
 function Model:update(values, conditions)
-	self.orm:update(self.table_name, sql_util.for_db(values, self.types), conditions)
+	conditions = sql_util.for_db(conditions, self.types)
+	values = sql_util.for_db(values, self.types)
+	self.orm:update(self.table_name, values, conditions)
 end
 
 ---@param conditions table?
 function Model:delete(conditions)
+	conditions = sql_util.for_db(conditions, self.types)
 	self.orm:delete(self.table_name, conditions)
 end
 
