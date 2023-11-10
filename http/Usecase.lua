@@ -34,7 +34,7 @@ function Usecase:select(params, models)
 			if type(k) ~= "string" then
 				k = v
 			end
-			where[k] = tonumber(params[v])
+			where[k] = tonumber(params[v]) or params[v]
 		end
 
 		local objs = models[name]:select(where)
