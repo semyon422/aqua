@@ -43,7 +43,7 @@ function RequestHandler:handle(req)
 	self.before(params)
 	local code, headers, body = self.uv_handler:handle(params, usecase_name, results)
 
-	self.session_handler:encode(params, req.headers)
+	self.session_handler:encode(params, headers)
 
 	return code, headers, body
 end
