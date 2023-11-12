@@ -3,6 +3,7 @@ local TableOrm = require("rdb.TableOrm")
 local relations = require("rdb.relations")
 local Models = require("rdb.Models")
 local sql_util = require("rdb.sql_util")
+local table_util = require("table_util")
 
 local users = {}
 package.loaded["rdb.models.users"] = users
@@ -20,11 +21,16 @@ CREATE TABLE IF NOT EXISTS "users" (
 );
 ]]
 
+local Roles = {
+	user = 0,
+	admin = 1,
+}
+
 users.types = {
 	is_admin = "boolean",
 	role = {
-		user = 0,
-		admin = 1,
+		decode = function(v) return table_util.keyof(Roles, v) end,
+		encode = function(k) return Roles[k] end,
 	}
 }
 
