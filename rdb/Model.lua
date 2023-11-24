@@ -66,16 +66,18 @@ end
 
 ---@param values table
 ---@param conditions table?
+---@return rdb.ModelRow[]
 function Model:update(values, conditions)
 	conditions = sql_util.for_db(conditions, self.types)
 	values = sql_util.for_db(values, self.types)
-	self.orm:update(self.table_name, values, conditions)
+	return self.orm:update(self.table_name, values, conditions)
 end
 
 ---@param conditions table?
+---@return rdb.ModelRow[]
 function Model:delete(conditions)
 	conditions = sql_util.for_db(conditions, self.types)
-	self.orm:delete(self.table_name, conditions)
+	return self.orm:delete(self.table_name, conditions)
 end
 
 return Model

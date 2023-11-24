@@ -101,6 +101,7 @@ end
 ---@param table_name string
 ---@param values table
 ---@param conditions table?
+---@return table
 function TableOrm:update(table_name, values, conditions)
 	local table_info = assert(self:table_info(table_name), "no such table: " .. table_name)
 
@@ -113,16 +114,15 @@ function TableOrm:update(table_name, values, conditions)
 		end
 	end
 	if not next(filtered_values) then
-		return
+		return {}
 	end
 	local assigns, vals_a = sql_util.assigns(filtered_values)
 
 	if not conditions or not next(conditions) then
-		self.db:query(("UPDATE %s SET %s"):format(
+		return self.db:query(("UPDATE %s SET %s RETURNING *"):format(
 			sql_util.escape_identifier(table_name),
 			assigns, vals_a
 		))
-		return
 	end
 
 	local conds, vals_b = sql_util.conditions(conditions)
@@ -135,7 +135,7 @@ function TableOrm:update(table_name, values, conditions)
 		table.insert(vals, v)
 	end
 
-	self.db:query(("UPDATE %s SET %s WHERE %s"):format(
+	return self.db:query(("UPDATE %s SET %s WHERE %s RETURNING *"):format(
 		sql_util.escape_identifier(table_name),
 		assigns, conds
 	), vals)
@@ -143,16 +143,16 @@ end
 
 ---@param table_name string
 ---@param conditions table?
+---@return table
 function TableOrm:delete(table_name, conditions)
 	if not conditions or not next(conditions) then
-		self.db:query(("DELETE FROM %s"):format(
+		return self.db:query(("DELETE FROM %s RETURNING *"):format(
 			sql_util.escape_identifier(table_name)
 		))
-		return
 	end
 
 	local conds, vals = sql_util.conditions(conditions)
-	self.db:query(("DELETE FROM %s WHERE %s"):format(
+	return self.db:query(("DELETE FROM %s WHERE %s RETURNING *"):format(
 		sql_util.escape_identifier(table_name),
 		conds
 	), vals)
