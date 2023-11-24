@@ -24,6 +24,16 @@ function Model:new(opts, models)
 	self.row_mt = {__index = base_row}
 end
 
+---@param rows table
+---@return rdb.ModelRow[]
+function Model:rows_from_db(rows)
+	local _rows = {}
+	for i, row in ipairs(rows) do
+		_rows[i] = setmetatable(sql_util.from_db(row, self.types), self.row_mt)
+	end
+	return _rows
+end
+
 ---@param conditions table?
 ---@param options table?
 ---@return rdb.ModelRow[]
@@ -43,6 +53,13 @@ function Model:find(conditions)
 	return self:select(conditions)[1]
 end
 
+---@param conditions table?
+---@return number
+function Model:count(conditions)
+	conditions = sql_util.for_db(conditions, self.types)
+	return self.orm:count(self.table_name, conditions)
+end
+
 ---@param values_array table
 ---@param ignore boolean?
 ---@return rdb.ModelRow[]
@@ -52,10 +69,7 @@ function Model:insert(values_array, ignore)
 		new_values_array[i] = sql_util.for_db(values, self.types)
 	end
 	local rows = self.orm:insert(self.table_name, new_values_array, ignore)
-	for i, row in ipairs(rows) do
-		rows[i] = setmetatable(sql_util.from_db(row, self.types), self.row_mt)
-	end
-	return rows
+	return self:rows_from_db(rows)
 end
 
 ---@param values table
@@ -71,14 +85,16 @@ end
 function Model:update(values, conditions)
 	conditions = sql_util.for_db(conditions, self.types)
 	values = sql_util.for_db(values, self.types)
-	return self.orm:update(self.table_name, values, conditions)
+	local rows = self.orm:update(self.table_name, values, conditions)
+	return self:rows_from_db(rows)
 end
 
 ---@param conditions table?
 ---@return rdb.ModelRow[]
 function Model:delete(conditions)
 	conditions = sql_util.for_db(conditions, self.types)
-	return self.orm:delete(self.table_name, conditions)
+	local rows = self.orm:delete(self.table_name, conditions)
+	return self:rows_from_db(rows)
 end
 
 return Model

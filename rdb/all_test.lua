@@ -115,13 +115,9 @@ function test.all(t)
 	t:eq(user.posts[1].text, "text")
 	t:eq(user.posts[1].user.name, "user")
 
-	local _posts = models.posts:select()
-	t:eq(#_posts, 1)
-
+	t:eq(models.posts:count(), 1)
 	user:delete()
-
-	local _posts = models.posts:select()
-	t:eq(#_posts, 0)
+	t:eq(models.posts:count(), 0)
 end
 
 return test
