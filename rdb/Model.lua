@@ -25,10 +25,11 @@ function Model:new(opts, models)
 end
 
 ---@param conditions table?
+---@param options table?
 ---@return rdb.ModelRow[]
-function Model:select(conditions)
+function Model:select(conditions, options)
 	conditions = sql_util.for_db(conditions, self.types)
-	local rows = self.orm:select(self.table_name, conditions)
+	local rows = self.orm:select(self.table_name, conditions, options)
 	for i, row in ipairs(rows) do
 		row = sql_util.from_db(row, self.types)
 		rows[i] = setmetatable(row, self.row_mt)

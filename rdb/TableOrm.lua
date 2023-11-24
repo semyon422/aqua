@@ -28,18 +28,40 @@ function TableOrm:table_info(table_name)
 	return info
 end
 
+local default_options = {
+	columns = "*",
+	order = nil,
+	limit = nil,
+}
+
 ---@param table_name string
 ---@param conditions table?
+---@param options table?
 ---@return table
-function TableOrm:select(table_name, conditions)
+function TableOrm:select(table_name, conditions, options)
+	options = options or default_options
+	local columns = options.columns or default_options.columns
+	local order = options.order or default_options.order
+	local limit = options.limit or default_options.limit
+
+	local postfix = {}
+	if order then
+		table.insert(postfix, "ORDER BY " .. table.concat(order, ", "))
+	end
+	if limit then
+		table.insert(postfix, "LIMIT " .. limit)
+	end
+
 	if not conditions or not next(conditions) then
-		return self.db:query(("SELECT * FROM %s"):format(
+		return self.db:query(("SELECT %s FROM %s"):format(
+			columns,
 			sql_util.escape_identifier(table_name)
 		))
 	end
 
 	local conds, vals = sql_util.conditions(conditions)
-	return self.db:query(("SELECT * FROM %s WHERE %s"):format(
+	return self.db:query(("SELECT %s FROM %s WHERE %s"):format(
+		columns,
 		sql_util.escape_identifier(table_name),
 		conds
 	), vals)
@@ -156,6 +178,14 @@ function TableOrm:delete(table_name, conditions)
 		sql_util.escape_identifier(table_name),
 		conds
 	), vals)
+end
+
+---@param table_name string
+---@param conditions table?
+---@return number
+function TableOrm:count(table_name, conditions)
+	local options = {columns = "COUNT(1) as c"}
+	return self:select(table_name, conditions, options)[1].c
 end
 
 return TableOrm
