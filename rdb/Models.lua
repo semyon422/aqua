@@ -3,7 +3,7 @@ local Model = require("rdb.Model")
 
 ---@class rdb.Models
 ---@operator call: rdb.Models
----@field _prefix string
+---@field _models table
 ---@field _orm rdb.TableOrm
 ---@field [string] rdb.Model
 local Models = class()
