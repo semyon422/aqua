@@ -6,7 +6,6 @@ local sql_util = require("rdb.sql_util")
 local table_util = require("table_util")
 
 local users = {}
-package.loaded["rdb.models.users"] = users
 
 users.table_name = "users"
 
@@ -39,7 +38,6 @@ users.relations = {
 }
 
 local posts = {}
-package.loaded["rdb.models.posts"] = posts
 
 posts.table_name = "posts"
 
@@ -67,7 +65,10 @@ function test.all(t)
 	db:exec("PRAGMA foreign_keys = ON;")
 
 	local orm = TableOrm(db)
-	local models = Models("rdb.models", orm)
+	local models = Models(orm, {
+		users = users,
+		posts = posts,
+	})
 
 	local name = ""
 	for c = 0, 0xFF do

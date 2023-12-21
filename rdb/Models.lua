@@ -9,19 +9,19 @@ local Model = require("rdb.Model")
 local Models = class()
 
 ---@param t table
----@param mod_name string
+---@param k string
 ---@return any?
-function Models.__index(t, mod_name)
-	local mod = require(t._prefix .. "." .. mod_name)
-	t[mod_name] = Model(mod, t)
-	return t[mod_name]
+function Models.__index(t, k)
+	local mod = t._models[k]
+	t[k] = Model(mod, t)
+	return t[k]
 end
 
----@param prefix string
 ---@param orm rdb.TableOrm
-function Models:new(prefix, orm)
-	self._prefix = prefix
+---@param models table
+function Models:new(orm, models)
 	self._orm = orm
+	self._models = models
 end
 
 return Models
