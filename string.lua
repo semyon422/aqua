@@ -47,4 +47,29 @@ function string.isplit(s, d)
 	return next_split(d), s, 1
 end
 
+---@param s string
+---@param t table
+---@param pattern string
+---@return string
+---@return table
+function string.tpreformat(s, t, pattern)
+	local values = {}
+	local size = 0
+	s = s:gsub("{([^{^}]+)}", function(key)
+		size = size + 1
+		values[size] = t[key]
+		return pattern
+	end)
+	return s, values
+end
+
+---@param s string
+---@param t table
+---@param pattern string?
+---@return string
+function string.tformat(s, t, pattern)
+	local _s, values = string.tpreformat(s, t, pattern or "%s")
+	return _s:format(unpack(values))
+end
+
 return string
