@@ -3,7 +3,13 @@ local package = {}
 
 local lfs = love and love.filesystem
 
-local ext = jit.os == "Windows" and "dll" or "so"
+local os_ext = {
+	Windows = "dll",
+	Linux = "so",
+	OSX = "dylib",
+}
+
+local ext = os_ext[jit.os]
 
 function package.reset()
 	local added = "?.lua;?/init.lua"
