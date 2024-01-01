@@ -116,6 +116,19 @@ function test.all(t)
 	t:eq(user.posts[1].text, "text")
 	t:eq(user.posts[1].user.name, "user")
 
+	local ctx = {
+		user_id = 1,
+	}
+	models:select(ctx, {
+		{user = {"users", {id = "user_id"}, {"posts"}}},
+		after = function(ctx)
+			ctx.test = true
+		end,
+	})
+	t:eq(ctx.user.id, ctx.user_id)
+	t:eq(#ctx.user.posts, 1)
+	t:eq(ctx.test, true)
+
 	t:eq(models.posts:count(), 1)
 	user:delete()
 	t:eq(models.posts:count(), 0)
