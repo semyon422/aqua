@@ -3,62 +3,52 @@ local Rule = require("abac.Rule")
 local test = {}
 
 function test.permit(t)
-	local rule = Rule("permit")
-
-	local target_called, condition_called
-	function rule:target()
-		target_called = true
-		return true
-	end
-	function rule:condition()
+	local MyRule = Rule + {}
+	MyRule.effect = "permit"
+	local condition_called
+	function MyRule:condition()
 		condition_called = true
 		return true
 	end
 
+	local rule = MyRule()
 	local dec = rule:evaluate()
 
 	t:eq(dec, "permit")
-	t:eq(target_called, true)
 	t:eq(condition_called, true)
 end
 
 function test.not_applicable(t)
-	local rule = Rule("permit")
-
-	local target_called, condition_called
-	function rule:target()
-		target_called = true
+	local MyRule = Rule + {}
+	MyRule.effect = "permit"
+	local condition_called
+	function MyRule:condition()
+		condition_called = true
 		return false
 	end
-	function rule:condition()
-		condition_called = true
-		return true
-	end
 
+	local rule = MyRule()
 	local dec = rule:evaluate()
 
 	t:eq(dec, "not_applicable")
-	t:eq(target_called, true)
-	t:eq(condition_called, nil)
+	t:eq(condition_called, true)
 end
 
 function test.indeterminate(t)
-	local rule = Rule("permit")
-
-	local target_called, condition_called
-	function rule:target()
-		target_called = true
+	local MyRule = Rule + {}
+	MyRule.effect = "permit"
+	local condition_called
+	function MyRule:condition()
 		error("msg")
-	end
-	function rule:condition()
 		condition_called = true
 		return true
 	end
 
-	local dec = rule:evaluate()
+	local rule = MyRule()
+	local dec, err = rule:evaluate()
 
 	t:eq(dec, "indeterminate")
-	t:eq(target_called, true)
+	t:eq(err:sub(-3), "msg")
 	t:eq(condition_called, nil)
 end
 
