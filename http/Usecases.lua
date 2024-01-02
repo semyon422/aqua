@@ -1,9 +1,10 @@
 local class = require("class")
 local Usecase = require("http.Usecase")
 
----@class rdb.Usecases
----@operator call: rdb.Usecases
----@field _prefix string
+---@class http.Usecases
+---@operator call: http.Usecases
+---@field _models table
+---@field _rules_repo table
 ---@field [string] http.Usecase
 local Usecases = class()
 
