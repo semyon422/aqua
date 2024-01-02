@@ -8,32 +8,21 @@ local Usecase = require("http.Usecase")
 local Usecases = class()
 
 ---@param t table
----@param mod_name string
+---@param k string
 ---@return any?
-function Usecases.__index(t, mod_name)
-	local mod = require(t._prefix .. "." .. mod_name)
-
-	local usecase = Usecase()
-	if mod.policy_set then
-		usecase:setPolicySet(mod.policy_set)
-	end
-	if mod.models then
-		usecase:bindModels(mod.models)
-	end
-	if mod.handler then
-		usecase:setHandler(mod.handler)
-	end
-	if mod.validate then
-		usecase:setValidation(mod.validate)
-	end
-
-	t[mod_name] = usecase
-	return t[mod_name]
+function Usecases.__index(t, k)
+	local mod = t._models[k]
+	mod._models = t._models
+	mod._rules_repo = t._rules_repo
+	t[k] = Usecase(mod)
+	return t[k]
 end
 
----@param prefix string
-function Usecases:new(prefix)
-	self._prefix = prefix
+---@param models table
+---@param rules_repo table
+function Usecases:new(models, rules_repo)
+	self._models = models
+	self._rules_repo = rules_repo
 end
 
 return Usecases
