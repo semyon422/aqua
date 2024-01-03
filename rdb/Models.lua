@@ -45,6 +45,11 @@ function Models:select(ctx, model_params)
 			if type(k) ~= "string" then
 				k = v
 			end
+			if type(v) == "table" then
+				for _, _k in ipairs(v) do
+					v = v[_k]
+				end
+			end
 			where[k] = tonumber(ctx[v]) or ctx[v]
 		end
 

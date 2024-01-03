@@ -7,12 +7,22 @@ local table_util = require("table_util")
 ---@operator call: http.RequestHandler
 local RequestHandler = class()
 
-function RequestHandler:new(router, body_handlers, session_handler, uv_handler, before)
+function RequestHandler:new(router, body_handlers, session_handler, usecases, default_results, views)
 	self.router = router
 	self.body_handlers = body_handlers
 	self.session_handler = session_handler
-	self.uv_handler = uv_handler
-	self.before = before
+	self.usecases = usecases
+	self.default_results = default_results
+	self.views = views
+end
+
+function RequestHandler:get_body_params(req, body_handler_name)
+	local body_params = {}
+	if body_handler_name then
+		local body_handler = self.body_handlers[body_handler_name]
+		body_params = body_handler(req.headers["Content-Type"])
+	end
+	return body_params
 end
 
 function RequestHandler:handle(req)
@@ -24,28 +34,33 @@ function RequestHandler:handle(req)
 	end
 	local usecase_name, results, body_handler_name = unpack(route_config)
 
-	local body_params = {}
-	if body_handler_name then
-		local body_handler = self.body_handlers[body_handler_name]
-		body_params = body_handler(req.headers["Content-Type"])
-	end
-	local query_params = http_util.decode_query_string(parsed_url.query)
-
 	local params = {}
-	table_util.copy(query_params, params)
-	table_util.copy(body_params, params)
+	table_util.copy(http_util.decode_query_string(parsed_url.query), params)
+	table_util.copy(self:get_body_params(req, body_handler_name), params)
 	table_util.copy(path_params, params)
 
 	params.ip = req.headers["X-Real-IP"]
-
 	self.session_handler:decode(params, req.headers)
 
-	self.before(params)
-	local code, headers, body = self.uv_handler:handle(params, usecase_name, results)
+	local usecase = self.usecases[usecase_name]
+	local result_type, result = usecase:run(params)
+
+	local code_view_headers = results[result_type] or self.default_results[result_type]
+	assert(code_view_headers, tostring(result_type))
+	local code, view_name, headers = unpack(code_view_headers)
+
+	local res_body = ""
+	if view_name then
+		res_body = self.views[view_name](result)
+	end
+	if type(headers) == "function" then
+		headers = headers(result)
+	end
+	headers = headers or {}
 
 	self.session_handler:encode(params, headers)
 
-	return code, headers, body
+	return code or 200, headers, res_body
 end
 
 return RequestHandler
