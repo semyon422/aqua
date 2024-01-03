@@ -3,8 +3,10 @@ local Usecase = require("http.Usecase")
 
 ---@class http.Usecases
 ---@operator call: http.Usecases
+---@field _usecases table
+---@field _validator table
 ---@field _models table
----@field _rules_repo table
+---@field _access table
 ---@field [string] http.Usecase
 local Usecases = class()
 
@@ -12,18 +14,23 @@ local Usecases = class()
 ---@param k string
 ---@return any?
 function Usecases.__index(t, k)
-	local mod = t._models[k]
+	local mod = t._usecases[k]
+	mod._validator = t._validator
 	mod._models = t._models
-	mod._rules_repo = t._rules_repo
+	mod._access = t._access
 	t[k] = Usecase(mod)
 	return t[k]
 end
 
+---@param usecases table
+---@param validator table
 ---@param models table
----@param rules_repo table
-function Usecases:new(models, rules_repo)
+---@param access table
+function Usecases:new(usecases, validator, models, access)
+	self._usecases = usecases
+	self._validator = validator
 	self._models = models
-	self._rules_repo = rules_repo
+	self._access = access
 end
 
 return Usecases
