@@ -95,6 +95,11 @@ Test.le = build_method(function(a, b) return a <= b end)
 Test.teq = build_method(table_util.equal)
 Test.tdeq = build_method(table_util.deepequal)
 
+function Test:has_error(f, ...)
+	local ok = pcall(f, ...)
+	return self:eq(ok, false)
+end
+
 --------------------------------------------------------------------------------
 
 function testing.get_time()
