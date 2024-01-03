@@ -1,50 +1,25 @@
+local ls = require("ls")
+local class = require("class")
+
 local testing = {}
 
 testing.blacklist = {}
 
----@param a table
----@param b table
----@return boolean
-local function sort_files(a, b)
-	if a.type == b.type then
-		return a.path < b.path
-	end
-	return a.type == "file"
-end
-
----@param dpath string
+---@param dir string
 ---@param pattern string
-local function lookup(dpath, pattern)
+local function lookup(dir, pattern)
 	for _, item in ipairs(testing.blacklist) do
-		if dpath:find(item, 1, true) then
+		if dir:find(item, 1, true) then
 			return
 		end
 	end
 
-	local items = love.filesystem.getDirectoryItems(dpath)
-
-	local file_infos = {}
-
-	for _, name in ipairs(items) do
-		local path = dpath .. name
-		local info = love.filesystem.getInfo(path)
-		local t = info.type
-
-		if t == "file" and name:find(pattern) or t == "directory" then
-			table.insert(file_infos, {
-				path = path,
-				type = t
-			})
-		end
-	end
-
-	table.sort(file_infos, sort_files)
-
-	for _, item in ipairs(file_infos) do
-		if item.type == "file" then
-			coroutine.yield(item.path)
-		elseif item.type == "directory" then
-			lookup(item.path .. "/", pattern)
+	for name, t in ls.iter(dir) do
+		local path = dir .. name
+		if t == "file" and name:find(pattern) then
+			coroutine.yield(path)
+		elseif t == "directory" then
+			lookup(path .. "/", pattern)
 		end
 	end
 end
@@ -60,8 +35,10 @@ end
 
 --------------------------------------------------------------------------------
 
-local Test = {}
-Test.__index = Test
+local Test = class()
+
+Test.total = 0
+Test.fail = 0
 
 ---@param cond any?
 ---@return any?
@@ -98,7 +75,7 @@ end
 ---@param got any?
 ---@param _type string
 function Test:typeof(got, _type)
-	self:eq(type(got), _type)
+	return self:eq(type(got), _type)
 end
 
 ---@param f function
@@ -116,28 +93,23 @@ Test.le = build_method(function(a, b) return a <= b end)
 
 --------------------------------------------------------------------------------
 
-local Bench = {}
-Bench.__index = Bench
+function testing.get_time()
+	error("not implemented")
+end
+
+local Bench = class()
 
 function Bench:reset()
-	self.start_time = love.timer.getTime()
+	self.start_time = testing.get_time()
 end
 
 --------------------------------------------------------------------------------
-
----@param path string
----@return table?
-local function get_mod(path)
-	local data = assert(love.filesystem.read(path))
-	local f = assert(load(data, "@" .. path))
-	return f()
-end
 
 ---@param test table
 ---@param t table
 local function run_tests(test, t)
 	local errors = #t
-	for k, v in pairs(test) do
+	for _, v in pairs(test) do
 		v(t)
 		if errors ~= #t then
 			errors = #t
@@ -154,7 +126,7 @@ local max_count = 2 ^ 20
 ---@return number
 ---@return number
 local function run_bench(f)
-	local b = setmetatable({}, Bench)
+	local b = Bench()
 
 	local N = 1
 
@@ -163,7 +135,7 @@ local function run_bench(f)
 	while dt < max_duration and N < max_count do
 		N = N * 2
 		f(b, N)
-		dt = love.timer.getTime() - b.start_time
+		dt = testing.get_time() - b.start_time
 	end
 
 	return dt, N
@@ -178,21 +150,18 @@ local function run_benchs(bench)
 end
 
 function testing.test()
-	local t = setmetatable({
-		total = 0,
-		fail = 0,
-	}, Test)
+	local t = Test()
 
 	for path in iter_files("", "_test%.lua$") do
 		io.write(path)
 		io.flush()
 
-		local start_time = love.timer.getTime()
-		local mod = get_mod(path)
+		local start_time = testing.get_time()
+		local mod = dofile(path)
 		if mod then
 			run_tests(mod, t)
 		end
-		local dt = love.timer.getTime() - start_time
+		local dt = testing.get_time() - start_time
 
 		print((": %0.3fs"):format(dt))
 	end
@@ -210,7 +179,7 @@ end
 
 function testing.bench()
 	for path in iter_files("", "_bench%.lua$") do
-		local mod = get_mod(path)
+		local mod = dofile(path)
 		run_benchs(mod)
 	end
 end
