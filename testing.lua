@@ -1,4 +1,5 @@
 local ls = require("ls")
+local table_util = require("table_util")
 local class = require("class")
 
 local testing = {}
@@ -90,6 +91,9 @@ Test.eq = build_method(function(a, b) return a == b end)
 Test.ne = build_method(function(a, b) return a ~= b end)
 Test.lt = build_method(function(a, b) return a < b end)
 Test.le = build_method(function(a, b) return a <= b end)
+
+Test.teq = build_method(table_util.equal)
+Test.tdeq = build_method(table_util.deepequal)
 
 --------------------------------------------------------------------------------
 
