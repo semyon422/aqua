@@ -8,15 +8,18 @@ local Validator = require("http.Validator")
 local Usecases = require("http.Usecases")
 local Views = require("http.Views")
 
-local Access = require("rbac.Access")
+local Access = require("abac.Access")
 
 local Models = require("rdb.Models")
 local TableOrm = require("rdb.TableOrm")
 local LsqliteDatabase = require("rdb.LsqliteDatabase")
 
+---@class http.WebApp
+---@operator call: http.WebApp
 local WebApp = class()
 
-function WebApp:new()
+---@param config table
+function WebApp:new(config)
 	local db = LsqliteDatabase()
 	db:open("db.sqlite")
 	db:query("PRAGMA foreign_keys = ON;")
@@ -32,7 +35,6 @@ function WebApp:new()
 
 	------------
 
-	local config = {}
 	local session_config = {
 		name = "session",
 		secret = config.secret,
