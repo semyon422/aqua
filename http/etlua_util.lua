@@ -65,7 +65,9 @@ function etlua_util.loader(name)
 	for path in etlua_util.path:gsub("%?", name):gmatch("[^;]+") do
 		local content = read_file(path)
 		if content then
-			return etlua_util.compile(content, "@" .. path)
+			return function()
+				return etlua_util.compile(content, "@" .. path)
+			end
 		else
 			table.insert(errors, ("no file '%s'"):format(path))
 		end
