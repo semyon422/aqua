@@ -64,11 +64,12 @@ function test.all(t)
 	db:exec(posts.create_query)
 	db:exec("PRAGMA foreign_keys = ON;")
 
-	local orm = TableOrm(db)
-	local models = Models(orm, {
+	local _models = {
 		users = users,
 		posts = posts,
-	})
+	}
+	local orm = TableOrm(db)
+	local models = Models(_models, orm)
 
 	local name = ""
 	for c = 0, 0xFF do

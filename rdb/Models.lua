@@ -24,9 +24,9 @@ end
 
 ---@param orm rdb.TableOrm
 ---@param models table
-function Models:new(orm, models)
-	self._orm = orm
+function Models:new(models, orm)
 	self._models = models
+	self._orm = orm
 end
 
 ---@param ctx table
