@@ -20,6 +20,28 @@ function Views:new_viewable_env(env)
 	return new_env
 end
 
+---@param view_config table
+---@param result table
+---@return string
+function Views:render(view_config, result)
+	if type(view_config) == "string" then
+		return self[view_config](result)
+	end
+
+	if not view_config[1] then
+		local outer, inner = next(view_config)
+		result.inner = self:render(inner, result)
+		return self:render(outer, result)
+	end
+
+	local out = {}
+	for _, vc in ipairs(view_config) do
+		local s = self:render(vc, result)
+		table.insert(out, s)
+	end
+	return table.concat(out)
+end
+
 ---@param name string
 ---@return function
 function Views:__index(name)

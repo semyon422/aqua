@@ -47,11 +47,11 @@ function RequestHandler:handle(req)
 
 	local code_view_headers = results[result_type] or self.default_results[result_type]
 	assert(code_view_headers, tostring(result_type))
-	local code, view_name, headers = unpack(code_view_headers)
+	local code, view_config, headers = unpack(code_view_headers)
 
 	local res_body = ""
-	if view_name then
-		res_body = self.views[view_name](result)
+	if view_config then
+		res_body = self.views:render(view_config, result)
 	end
 	if type(headers) == "function" then
 		headers = headers(result)
