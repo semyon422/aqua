@@ -29,11 +29,12 @@ function Usecase:run(params)
 		return "forbidden", params
 	end
 
-	return self.handle(params, {
+	local uc = {
 		validator = self._validator,
 		models = self._models,
 		access = self._access,
-	})
+	}
+	return self.handle(uc, params)
 end
 
 return Usecase
