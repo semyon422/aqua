@@ -15,9 +15,8 @@ end
 ---@param env table
 ---@return table
 function Views:new_viewable_env(env)
-	local new_env = setmetatable({}, {__index = env})
-	new_env.view = View(new_env, self, self.usecases)
-	return new_env
+	env.view = View(env, self, self.usecases)
+	return setmetatable({}, {__index = env})
 end
 
 ---@param view_config table
