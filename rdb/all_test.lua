@@ -121,8 +121,8 @@ function test.all(t)
 		user_id = 1,
 	}
 	models:select(ctx, {
-		{user = {"users", {id = "user_id"}, {"posts"}}},
-		after = function(ctx)
+		user = {"users", {id = "user_id"}, {"posts"}},
+		function(ctx)
 			ctx.test = true
 		end,
 	})

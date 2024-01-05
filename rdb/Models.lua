@@ -29,6 +29,38 @@ function Models:new(models, orm)
 	self._orm = orm
 end
 
+---@param obj_name string
+---@param bind_config table
+---@param ctx table
+---@return boolean?
+function Models:select_binded(obj_name, bind_config, ctx)
+	local name, keys, rels = unpack(bind_config)
+	local where = {}
+	for k, v in pairs(keys) do
+		if type(k) ~= "string" then
+			k = v
+		end
+		if type(v) == "table" then
+			for _, _k in ipairs(v) do
+				v = v[_k]
+			end
+		end
+		where[k] = tonumber(ctx[v]) or ctx[v]
+	end
+
+	local objs = self[name]:select(where)
+	if #objs == 0 then
+		return
+	end
+	if rels then
+		relations.preload(objs, rels)
+	end
+
+	ctx[obj_name] = objs[1]
+
+	return true
+end
+
 ---@param ctx table
 ---@param model_params table
 ---@return boolean?
@@ -37,35 +69,16 @@ function Models:select(ctx, model_params)
 		return true
 	end
 
-	for _, t in ipairs(model_params) do
-		local obj_name, bind_config = next(t)
-		local name, keys, rels = unpack(bind_config)
-		local where = {}
-		for k, v in pairs(keys) do
-			if type(k) ~= "string" then
-				k = v
+	for obj_name, bind_config in pairs(model_params) do
+		if type(obj_name) == "string" then
+			local found = self:select_binded(obj_name, bind_config, ctx)
+			if not found then
+				return
 			end
-			if type(v) == "table" then
-				for _, _k in ipairs(v) do
-					v = v[_k]
-				end
-			end
-			where[k] = tonumber(ctx[v]) or ctx[v]
 		end
-
-		local objs = self[name]:select(where)
-		if #objs == 0 then
-			return
-		end
-		if rels then
-			relations.preload(objs, rels)
-		end
-
-		ctx[obj_name] = objs[1]
 	end
-
-	if model_params.after then
-		model_params.after(ctx)
+	if model_params[1] then
+		model_params[1](ctx)
 	end
 
 	return true
