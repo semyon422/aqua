@@ -8,7 +8,7 @@ function test.all(t)
 		validate = {},
 		models = {},
 		access = {},
-		handle = function(params, models)
+		handle = function(self, params)
 			return "permit", params
 		end,
 	}
