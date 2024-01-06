@@ -119,14 +119,17 @@ function test.all(t)
 
 	local ctx = {
 		user_id = 1,
+		session = {user_id = 1},
 	}
 	models:select(ctx, {
-		user = {"users", {id = "user_id"}, {"posts"}},
+		user = {"users", {id = "user_id"}, "posts"},
+		session_user = {"users", {id = {"session", "user_id"}}},
 		function(ctx)
 			ctx.test = true
 		end,
 	})
 	t:eq(ctx.user.id, ctx.user_id)
+	t:eq(ctx.session_user.id, ctx.session.user_id)
 	t:eq(#ctx.user.posts, 1)
 	t:eq(ctx.test, true)
 

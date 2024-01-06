@@ -15,6 +15,9 @@ local Usecases = class()
 ---@param k string
 ---@return any?
 function Usecases.__index(t, k)
+	if k:sub(1, 1) == "_" then
+		return
+	end
 	local mod = t._usecases[k]
 	mod._validator = t._validator
 	mod._models = t._models
@@ -28,6 +31,7 @@ end
 ---@param validator table
 ---@param models table
 ---@param access table
+---@param before function
 function Usecases:new(usecases, validator, models, access, before)
 	self._usecases = usecases
 	self._validator = validator
