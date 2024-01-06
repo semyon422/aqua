@@ -39,11 +39,17 @@ function Models:select_binded(obj_name, bind_config, ctx)
 	for k, v in pairs(keys) do
 		if type(k) ~= "string" then
 			k = v
-		end
-		if type(v) == "table" then
+		elseif type(v) == "table" then
+			local _v = ctx
 			for _, _k in ipairs(v) do
-				v = v[_k]
+				_v = _v[_k]
+				if _v == nil then
+					return
+				end
 			end
+			_v = v
+		else
+			return
 		end
 		where[k] = tonumber(ctx[v]) or ctx[v]
 	end
