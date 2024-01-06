@@ -23,7 +23,8 @@ end
 ---@return boolean
 function View:authorize(usecase_name)
 	local usecase = self.usecases[usecase_name]
-	return usecase:authorize(self.env) == "permit"
+	local permit, err = usecase:authorize(self.env)
+	return permit
 end
 
 ---@param env table
