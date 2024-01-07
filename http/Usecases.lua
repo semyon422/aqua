@@ -22,6 +22,7 @@ function Usecases.__index(t, k)
 	mod._validator = t._validator
 	mod._models = t._models
 	mod._access = t._access
+	mod._config = t._config
 	mod._before = t._before
 	t[k] = Usecase(mod)
 	return t[k]
@@ -31,12 +32,14 @@ end
 ---@param validator table
 ---@param models table
 ---@param access table
+---@param config table
 ---@param before function
-function Usecases:new(usecases, validator, models, access, before)
+function Usecases:new(usecases, validator, models, access, config, before)
 	self._usecases = usecases
 	self._validator = validator
 	self._models = models
 	self._access = access
+	self._config = config
 	self._before = before
 end
 

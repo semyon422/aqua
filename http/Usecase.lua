@@ -29,6 +29,7 @@ function Usecase:run(params)
 		validator = self._validator,
 		models = self._models,
 		access = self._access,
+		config = self._config,
 	}
 
 	if self._before then

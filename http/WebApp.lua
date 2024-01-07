@@ -27,9 +27,16 @@ function WebApp:new(config)
 
 	local models = Models(autoload("models"), TableOrm(db))
 	local access = Access(autoload("rules"))
-	local usecases = Usecases(autoload("usecases"), Validator(), models, access, function(uc, params)
-		models:select(params, {session_user = {"users", {id = {"session", "user_id"}}, "user_roles"}})
-	end)
+	local usecases = Usecases(
+		autoload("usecases"),
+		Validator(),
+		models,
+		access,
+		config,
+		function(uc, params)
+			models:select(params, {session_user = {"users", {id = {"session", "user_id"}}, "user_roles"}})
+		end
+	)
 
 	------------
 
