@@ -7,15 +7,17 @@ local Views = class()
 
 ---@param views table
 ---@param usecases http.Usecases
-function Views:new(views, usecases)
+---@param config table
+function Views:new(views, usecases, config)
 	self._views = views
-	self.usecases = usecases
+	self._usecases = usecases
+	self._config = config
 end
 
 ---@param env table
 ---@return table
 function Views:new_viewable_env(env)
-	env.view = View(env, self, self.usecases)
+	env.view = View(env, self, self._usecases)
 	return setmetatable({}, {__index = env})
 end
 
@@ -42,14 +44,19 @@ function Views:render(view_config, result)
 end
 
 ---@param name string
----@return function
+---@return function?
 function Views:__index(name)
 	if Views[name] then
 		return Views[name]
 	end
+	if name:sub(1, 1) == "_" then
+		return
+	end
 	local mod = self._views[name]
 	return function(result)
-		return mod(Views.new_viewable_env(self, result))
+		local env = Views.new_viewable_env(self, result)
+		env.config = self._config
+		return mod(env)
 	end
 end
 

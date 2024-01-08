@@ -40,7 +40,7 @@ function WebApp:new(config)
 
 	------------
 
-	local views = Views(autoload("views"), usecases)
+	local views = Views(autoload("views"), usecases, config)
 
 	------------
 
