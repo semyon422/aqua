@@ -49,6 +49,9 @@ function validators.array_of(v, schema)
 end
 
 function validation.validate(value, schema)
+	if not schema then
+		return true
+	end
 	if type(schema) == "string" then
 		if not validators[schema](value) then
 			return false
