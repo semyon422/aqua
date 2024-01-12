@@ -34,7 +34,7 @@ function http_util.decode_query_string(s)
 	end
 	s = s .. "&"
 	for kv in s:gmatch("([^&]+)&") do
-		local k, v = kv:match("^(.-)=(.+)$")
+		local k, v = kv:match("^(.-)=(.*)$")
 		if k then
 			query[socket_url.unescape(k)] = socket_url.unescape(v)
 		else
