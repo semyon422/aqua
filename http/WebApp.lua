@@ -59,7 +59,15 @@ function WebApp:new(config)
 	local router = Router()
 	router:route_many(require("routes"))
 
-	self.requestHandler = RequestHandler(router, autoload("body"), session_handler, usecases, default_results, views)
+	self.requestHandler = RequestHandler({
+		router = router,
+		body_handlers = autoload("body"),
+		input_converters = autoload("input"),
+		session_handler = session_handler,
+		usecases = usecases,
+		default_results = default_results,
+		views = views,
+	})
 end
 
 function WebApp:handle(req)

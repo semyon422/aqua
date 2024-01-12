@@ -7,15 +7,6 @@ local table_util = require("table_util")
 ---@operator call: http.RequestHandler
 local RequestHandler = class()
 
-function RequestHandler:new(router, body_handlers, session_handler, usecases, default_results, views)
-	self.router = router
-	self.body_handlers = body_handlers
-	self.session_handler = session_handler
-	self.usecases = usecases
-	self.default_results = default_results
-	self.views = views
-end
-
 function RequestHandler:get_body_params(req, body_handler_name)
 	local body_params = {}
 	if body_handler_name then
@@ -32,12 +23,17 @@ function RequestHandler:handle(req)
 	if not route_config then
 		error("route not found '" .. tostring(req.uri) .. "'")
 	end
-	local usecase_name, results, body_handler_name = unpack(route_config)
+	local usecase_name, results, body_handler_name, input_conv_name = unpack(route_config)
 
 	local params = {}
 	table_util.copy(http_util.decode_query_string(parsed_url.query), params)
 	table_util.copy(self:get_body_params(req, body_handler_name), params)
 	table_util.copy(path_params, params)
+
+	if input_conv_name then
+		local input_conv = self.input_converters[input_conv_name]
+		input_conv(params)
+	end
 
 	params.ip = req.headers["X-Real-IP"]
 	self.session_handler:decode(params, req.headers)
