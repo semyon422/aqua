@@ -50,7 +50,7 @@ end
 ---@param conditions table
 ---@return rdb.ModelRow?
 function Model:find(conditions)
-	return self:select(conditions)[1]
+	return self:select(conditions, {limit = 1})[1]
 end
 
 ---@param conditions table?
