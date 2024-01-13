@@ -29,6 +29,25 @@ function Models:new(models, orm)
 	self._orm = orm
 end
 
+local function get_kv(t, k, v)
+	if type(k) == "number" then
+		k = v
+	end
+
+	if type(v) == "string" then  -- {"user_id"} or {id = "user_id"}
+		return k, tonumber(t[v]) or t[v]
+	elseif type(v) == "table" then  -- {id = {...}}
+		local _v = t
+		for _, _k in ipairs(v) do
+			_v = _v[_k]
+			if _v == nil then
+				return
+			end
+		end
+		return k, _v
+	end
+end
+
 ---@param obj_name string
 ---@param bind_config table
 ---@param ctx table
@@ -37,31 +56,26 @@ function Models:select_binded(obj_name, bind_config, ctx)
 	local name, keys, rels = unpack(bind_config)
 	local where = {}
 	for k, v in pairs(keys) do
-		if type(k) ~= "string" then
-			k = v
+		local key, value = get_kv(ctx, k, v)
+		if key == nil or value == nil then
+			return
 		end
-		if type(v) == "table" then
-			local _v = ctx
-			for _, _k in ipairs(v) do
-				_v = _v[_k]
-				if _v == nil then
-					return
-				end
-			end
-			_v = v
-		end
-		where[k] = tonumber(ctx[v]) or ctx[v]
+		where[key] = value
 	end
 
-	local objs = self[name]:select(where)
-	if #objs == 0 then
+	if not next(where) then
+		return
+	end
+
+	local obj = self[name]:find(where)
+	if not obj then
 		return
 	end
 	if rels then
-		relations.preload(objs, rels)
+		relations.preload({obj}, rels)
 	end
 
-	ctx[obj_name] = objs[1]
+	ctx[obj_name] = obj
 
 	return true
 end
