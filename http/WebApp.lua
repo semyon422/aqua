@@ -40,16 +40,14 @@ function WebApp:new(config)
 
 	------------
 
-	local views = Views(autoload("views"), usecases, config)
+	local views = Views(autoload("views"), usecases)
 
 	------------
 
-	local session_config = {
+	local session_handler = SessionHandler({
 		name = "session",
 		secret = config.secret,
-	}
-
-	local session_handler = SessionHandler(session_config)
+	})
 
 	local default_results = {
 		forbidden = {403, "json", {["Content-Type"] = "application/json"}},
@@ -67,6 +65,7 @@ function WebApp:new(config)
 		usecases = usecases,
 		default_results = default_results,
 		views = views,
+		config = config,
 	})
 end
 

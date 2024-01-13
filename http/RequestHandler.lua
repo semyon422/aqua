@@ -45,6 +45,8 @@ function RequestHandler:handle(req)
 	assert(code_view_headers, tostring(result_type))
 	local code, view_config, headers = unpack(code_view_headers)
 
+	result.config = self.config
+
 	local res_body = ""
 	if view_config then
 		res_body = self.views:render(view_config, result)

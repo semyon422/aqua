@@ -7,11 +7,9 @@ local Views = class()
 
 ---@param views table
 ---@param usecases http.Usecases
----@param config table
-function Views:new(views, usecases, config)
+function Views:new(views, usecases)
 	self._views = views
 	self._usecases = usecases
-	self._config = config
 end
 
 ---@param env table
@@ -55,7 +53,7 @@ function Views:__index(name)
 	local mod = self._views[name]
 	return function(result)
 		local env = Views.new_viewable_env(self, result)
-		env.config = self._config
+		assert(not next(env))  -- security check, env should be an empty table
 		return mod(env)
 	end
 end
