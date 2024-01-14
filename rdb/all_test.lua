@@ -54,6 +54,11 @@ posts.relations = {
 	user = {belongs_to = "users", key = "user_id"},
 }
 
+local migrations = {}
+migrations[1] = [[
+	ALTER TABLE users ADD added_column INTEGER NOT NULL DEFAULT 0;
+]]
+
 local test = {}
 
 function test.all(t)
@@ -73,6 +78,10 @@ function test.all(t)
 	assert(orm:user_version() == 0)
 	orm:user_version(10)
 	assert(orm:user_version() == 10)
+	orm:user_version(0)
+
+	t:eq(orm:migrate(1, migrations), 1)
+	t:eq(orm:migrate(1, migrations), 0)
 
 	local models = Models(_models, orm)
 
@@ -98,6 +107,7 @@ function test.all(t)
 	t:eq(user.null_flag, nil)
 	t:eq(user.nullable_flag, 1)
 	t:eq(user.role, "user")
+	t:eq(user.added_column, 0)  -- from migration
 
 	user:update({
 		name = "admin",

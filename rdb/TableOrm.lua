@@ -199,4 +199,20 @@ function TableOrm:count(table_name, conditions)
 	return self:select(table_name, conditions, options)[1].c
 end
 
+---@param new_ver number
+---@param migrations table
+---@return number
+function TableOrm:migrate(new_ver, migrations)
+	local ver = self:user_version()
+
+	for i = ver + 1, new_ver do
+		self.db:exec("BEGIN;")
+		self.db:exec(migrations[i])
+		self:user_version(i)
+		self.db:exec("COMMIT;")
+	end
+
+	return new_ver - ver
+end
+
 return TableOrm
