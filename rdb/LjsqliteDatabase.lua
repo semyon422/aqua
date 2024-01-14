@@ -32,7 +32,7 @@ local function to_object(row, colnames)
 end
 
 ---@param query string
----@param bind_vals table
+---@param bind_vals table?
 ---@return table
 function LjsqliteDatabase:query(query, bind_vals)
 	local stmt = self.c:prepare(query)
