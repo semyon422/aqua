@@ -69,6 +69,11 @@ function test.all(t)
 		posts = posts,
 	}
 	local orm = TableOrm(db)
+
+	assert(orm:user_version() == 0)
+	orm:user_version(10)
+	assert(orm:user_version() == 10)
+
 	local models = Models(_models, orm)
 
 	local name = ""

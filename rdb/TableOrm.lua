@@ -28,6 +28,17 @@ function TableOrm:table_info(table_name)
 	return info
 end
 
+---@param ver number?
+---@return number?
+function TableOrm:user_version(ver)
+	if ver then
+		self.db:query("PRAGMA user_version = " .. ver)
+		return
+	end
+	local rows = self.db:query("PRAGMA user_version")
+	return tonumber(rows[1].user_version)
+end
+
 local default_options = {
 	columns = "*",
 	order = nil,
