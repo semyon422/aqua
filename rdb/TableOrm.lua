@@ -40,8 +40,9 @@ function TableOrm:user_version(ver)
 end
 
 local default_options = {
-	columns = "*",
+	columns = {"*"},
 	order = nil,
+	group = nil,
 	limit = nil,
 }
 
@@ -50,31 +51,30 @@ local default_options = {
 ---@param options table?
 ---@return table
 function TableOrm:select(table_name, conditions, options)
-	options = options or default_options
-	local columns = options.columns or default_options.columns
-	local order = options.order or default_options.order
-	local limit = options.limit or default_options.limit
+	local opts = options or default_options
+	local columns = opts.columns or default_options.columns
 
 	local postfix = {}
-	if order then
-		table.insert(postfix, "ORDER BY " .. table.concat(order, ", "))
+	local conds, vals
+
+	if conditions and next(conditions) then
+		conds, vals = sql_util.conditions(conditions)
+		table.insert(postfix, "WHERE " .. conds)
 	end
-	if limit then
-		table.insert(postfix, "LIMIT " .. limit)
+	if opts.group then
+		table.insert(postfix, "GROUP BY " .. table.concat(opts.group, ", "))
+	end
+	if opts.order then
+		table.insert(postfix, "ORDER BY " .. table.concat(opts.order, ", "))
+	end
+	if opts.limit then
+		table.insert(postfix, "LIMIT " .. opts.limit)
 	end
 
-	if not conditions or not next(conditions) then
-		return self.db:query(("SELECT %s FROM %s"):format(
-			columns,
-			sql_util.escape_identifier(table_name)
-		))
-	end
-
-	local conds, vals = sql_util.conditions(conditions)
-	return self.db:query(("SELECT %s FROM %s WHERE %s"):format(
-		columns,
+	return self.db:query(("SELECT %s FROM %s %s"):format(
+		table.concat(columns, ", "),
 		sql_util.escape_identifier(table_name),
-		conds
+		table.concat(postfix, " ")
 	), vals)
 end
 
@@ -193,10 +193,17 @@ end
 
 ---@param table_name string
 ---@param conditions table?
+---@param options table?
 ---@return number
-function TableOrm:count(table_name, conditions)
-	local options = {columns = "COUNT(1) as c"}
-	return self:select(table_name, conditions, options)[1].c
+function TableOrm:count(table_name, conditions, options)
+	options = options or {}
+	local opts = {
+		columns = {"COUNT(1) as c"},
+		order = options.order,
+		group = options.group,
+		limit = options.limit,
+	}
+	return self:select(table_name, conditions, opts)[1].c
 end
 
 ---@param new_ver number
