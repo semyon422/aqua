@@ -39,6 +39,14 @@ function TableOrm:user_version(ver)
 	return tonumber(rows[1].user_version)
 end
 
+function TableOrm:begin()
+	self.db:exec("BEGIN")
+end
+
+function TableOrm:commit()
+	self.db:exec("COMMIT")
+end
+
 local default_options = {
 	columns = {"*"},
 	order = nil,
@@ -213,10 +221,10 @@ function TableOrm:migrate(new_ver, migrations)
 	local ver = self:user_version()
 
 	for i = ver + 1, new_ver do
-		self.db:exec("BEGIN;")
+		self:begin()
 		self.db:exec(migrations[i])
 		self:user_version(i)
-		self.db:exec("COMMIT;")
+		self:commit()
 	end
 
 	return new_ver - ver
