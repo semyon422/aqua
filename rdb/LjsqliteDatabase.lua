@@ -33,8 +33,8 @@ end
 
 ---@param query string
 ---@param bind_vals table?
----@return table
-function LjsqliteDatabase:query(query, bind_vals)
+---@return function
+function LjsqliteDatabase:iter(query, bind_vals)
 	local stmt = self.c:prepare(query)
 	if bind_vals then
 		for i, v in ipairs(bind_vals) do
@@ -45,21 +45,30 @@ function LjsqliteDatabase:query(query, bind_vals)
 		end
 	end
 
-	local objects = {}
-
 	local colnames = {}
-	local row = stmt:step({}, colnames)
-	if not row then
+	local i = 0
+	local row = {}
+
+	return function()
+		i = i + 1
+		row = stmt:step(row, colnames)
+
+		if row then
+			return i, to_object(row, colnames)
+		end
+
 		stmt:close()
-		return objects
 	end
+end
 
-	while row do
-		objects[#objects + 1] = to_object(row, colnames)
-		row = stmt:step(row)
+---@param query string
+---@param bind_vals table?
+---@return table
+function LjsqliteDatabase:query(query, bind_vals)
+	local objects = {}
+	for i, obj in self:iter(query, bind_vals) do
+		objects[i] = obj
 	end
-
-	stmt:close()
 	return objects
 end
 

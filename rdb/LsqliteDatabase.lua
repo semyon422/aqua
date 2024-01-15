@@ -24,8 +24,8 @@ end
 
 ---@param query string
 ---@param bind_vals table?
----@return table
-function LsqliteDatabase:query(query, bind_vals)
+---@return function
+function LsqliteDatabase:iter(query, bind_vals)
 	local stmt = self.c:prepare(query)
 	if bind_vals then
 		for i, v in ipairs(bind_vals) do
@@ -35,9 +35,24 @@ function LsqliteDatabase:query(query, bind_vals)
 		end
 	end
 
+	local get_row = stmt:nrows()
+	local i = 0
+	return function()
+		i = i + 1
+		local row = get_row()
+		if row then
+			return i, row
+		end
+	end
+end
+
+---@param query string
+---@param bind_vals table?
+---@return table
+function LsqliteDatabase:query(query, bind_vals)
 	local objects = {}
-	for a in stmt:nrows() do
-		table.insert(objects, a)
+	for i, obj in self:iter(query, bind_vals) do
+		objects[i] = obj
 	end
 	return objects
 end
