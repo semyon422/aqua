@@ -86,15 +86,15 @@ function ObjectQuery:getCountQueryParams()
 	return table.concat(out, " ")
 end
 
----@return number
-function ObjectQuery:getCount()
+---@return string
+function ObjectQuery:getCountQuery()
 	local out = {}
 
 	table.insert(out, "SELECT COUNT(1) as c")
 	table.insert(out, ("FROM %s"):format(self.table))
 	table.insert(out, self:concatJoins())
 
-	return self.db:query(table.concat(out, " "))[1].c
+	return table.concat(out, " ")
 end
 
 return ObjectQuery
