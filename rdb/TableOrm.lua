@@ -1,4 +1,5 @@
 local class = require("class")
+local table_util = require("table_util")
 local sql_util = require("rdb.sql_util")
 
 ---@class rdb.TableOrm
@@ -52,6 +53,7 @@ local default_options = {
 	order = nil,
 	group = nil,
 	limit = nil,
+	format = nil,
 }
 
 ---@param table_name string
@@ -79,11 +81,17 @@ function TableOrm:select(table_name, conditions, options)
 		table.insert(postfix, "LIMIT " .. opts.limit)
 	end
 
-	return self.db:query(("SELECT %s FROM %s %s"):format(
+	local q = ("SELECT %s FROM %s %s"):format(
 		table.concat(columns, ", "),
 		sql_util.escape_identifier(table_name),
 		table.concat(postfix, " ")
-	), vals)
+	)
+
+	if opts.format then
+		q = opts.format:format(q)
+	end
+
+	return self.db:query(q, vals)
 end
 
 ---@param table_name string
@@ -204,13 +212,8 @@ end
 ---@param options table?
 ---@return number
 function TableOrm:count(table_name, conditions, options)
-	options = options or {}
-	local opts = {
-		columns = {"COUNT(1) as c"},
-		order = options.order,
-		group = options.group,
-		limit = options.limit,
-	}
+	local opts = table_util.copy(options) or {}
+	opts.format = ("SELECT COUNT(*) as c FROM (%s)"):format(opts.format or "%s")
 	return self:select(table_name, conditions, opts)[1].c
 end
 
