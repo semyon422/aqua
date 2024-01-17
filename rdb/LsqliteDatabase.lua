@@ -35,11 +35,11 @@ function LsqliteDatabase:iter(query, bind_vals)
 		end
 	end
 
-	local get_row = stmt:nrows()
+	local next_row, svm = stmt:nrows()
 	local i = 0
 	return function()
 		i = i + 1
-		local row = get_row()
+		local row = next_row(svm)
 		if row then
 			return i, row
 		end
