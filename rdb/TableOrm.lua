@@ -48,6 +48,14 @@ function TableOrm:commit()
 	self.db:exec("COMMIT")
 end
 
+function TableOrm:attach(path, name)
+	self.db:query("ATTACH ? AS ?", {path, name})
+end
+
+function TableOrm:detach(name)
+	self.db:query("DETACH ?", {name})
+end
+
 local default_options = {
 	columns = {"*"},
 	order = nil,
