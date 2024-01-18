@@ -186,7 +186,7 @@ function sql_util.for_db(t, types)
 		return _t
 	end
 	for k, v in pairs(t) do
-		local _k = k:match("^(.-)__") or k
+		local _k = type(k) == "string" and k:match("^(.-)__") or k
 		local _type = types and types[_k]
 		v = for_db(v, _type)
 		if type(v) == "table" then
