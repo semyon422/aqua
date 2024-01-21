@@ -193,4 +193,26 @@ function math_util.isPointInsidePolygon(p, x, y)
 	return flag
 end
 
+---https://www.lua.org/pil/9.3.htm
+---@param a table
+---@param n number
+---@param t number
+local function permgen(a, n, t)
+	if n == 0 then
+		coroutine.yield(a, t)
+		return
+	end
+	for i = 1, n do
+		a[n], a[i] = a[i], a[n]
+		permgen(a, n - 1, i ~= n and t + 1 or t)
+		a[n], a[i] = a[i], a[n]
+	end
+end
+
+---@param a table
+---@return function
+function math_util.permutations(a)
+	return coroutine.wrap(function() permgen(a, #a, 0) end)
+end
+
 return math_util
