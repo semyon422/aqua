@@ -271,6 +271,15 @@ function imgui.tabs(id, item, items)
 end
 
 ---@param id any
+---@param item string
+---@param items table
+---@return string
+---@return number
+function imgui.vtabs(id, item, items)
+	return imgui.TabColumn(id, item, items, h, _h)
+end
+
+---@param id any
 ---@param v number
 ---@param a number
 ---@param b number
