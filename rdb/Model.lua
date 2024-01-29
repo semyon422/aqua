@@ -57,7 +57,7 @@ end
 ---@return number
 function Model:count(conditions)
 	conditions = sql_util.for_db(conditions, self.types)
-	return self.orm:count(self.table_name, conditions)
+	return tonumber(self.orm:count(self.table_name, conditions)) or 0
 end
 
 ---@param values_array table
