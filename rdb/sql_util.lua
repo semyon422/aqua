@@ -1,5 +1,6 @@
 local sql_util = {}
 
+---@class sql_util.NULL
 sql_util.NULL = {}
 
 function sql_util.tohex(s)
@@ -186,15 +187,26 @@ function sql_util.for_db(t, types)
 		return _t
 	end
 	for k, v in pairs(t) do
-		local _k = type(k) == "string" and k:match("^(.-)__") or k
-		local _type = types and types[_k]
-		v = for_db(v, _type)
-		if type(v) == "table" then
-			for i, _v in ipairs(v) do
-				v[i] = for_db(_v, _type)
+		if type(k) == "string" then
+			local _k, op = k:match("^(.-)__(.+)$")
+			if not _k then
+				_k = k
 			end
+
+			local _type = types and types[_k]
+			if op == "in" or op == "notin" then
+				local _v = {}
+				for i = 1, #v do
+					_v[i] = for_db(v[i], _type)
+				end
+				v = _v
+			elseif not op or op ~= "isnull" and op ~= "isnotnull" then
+				v = for_db(v, _type)
+			end
+			_t[k] = v
+		else
+			_t[k] = sql_util.for_db(v, types)
 		end
-		_t[k] = v
 	end
 	return _t
 end
