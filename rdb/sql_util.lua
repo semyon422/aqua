@@ -203,10 +203,10 @@ function sql_util.for_db(t, types)
 			elseif not op or op ~= "isnull" and op ~= "isnotnull" then
 				v = for_db(v, _type)
 			end
-			_t[k] = v
-		else
-			_t[k] = sql_util.for_db(v, types)
+		elseif type(v) == "table" then
+			v = sql_util.for_db(v, types)
 		end
+		_t[k] = v
 	end
 	return _t
 end
