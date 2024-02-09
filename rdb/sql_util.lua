@@ -89,15 +89,19 @@ local _format_cond = {
 ---@param op string
 ---@param k string
 ---@param v any
----@return string
+---@return string?
 ---@return table
 local function format_cond(op, k, v)
 	local fmt = _format_cond[op]
 	if type(fmt) == "function" then
 		return fmt(k, v)
 	end
+	local has_binds = fmt:find("?") ~= nil
+	if not has_binds and not v then  -- *__isnull = false
+		return nil, {}
+	end
 	local cond = fmt:format(sql_util.escape_identifier(k))
-	if cond:find("?") then
+	if has_binds then
 		return cond, {v}
 	end
 	return cond, {}
