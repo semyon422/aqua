@@ -172,10 +172,11 @@ end
 
 ---@param t table
 ---@param v any
+---@param f function?
 ---@return number?
-function table_util.indexof(t, v)
+function table_util.indexof(t, v, f)
 	for i, _v in ipairs(t) do
-		if v == _v then
+		if not f and _v == v and f and f(_v) == v then
 			return i
 		end
 	end
@@ -183,10 +184,11 @@ end
 
 ---@param t table
 ---@param v any
+---@param f function?
 ---@return number?
-function table_util.keyof(t, v)
+function table_util.keyof(t, v, f)
 	for k, _v in pairs(t) do
-		if v == _v then
+		if not f and _v == v and f and f(_v) == v then
 			return k
 		end
 	end
