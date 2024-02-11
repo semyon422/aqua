@@ -176,7 +176,7 @@ end
 ---@return number?
 function table_util.indexof(t, v, f)
 	for i, _v in ipairs(t) do
-		if not f and _v == v and f and f(_v) == v then
+		if not f and _v == v or f and f(_v) == v then
 			return i
 		end
 	end
@@ -188,7 +188,7 @@ end
 ---@return number?
 function table_util.keyof(t, v, f)
 	for k, _v in pairs(t) do
-		if not f and _v == v and f and f(_v) == v then
+		if not f and _v == v or f and f(_v) == v then
 			return k
 		end
 	end
