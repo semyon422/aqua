@@ -73,10 +73,9 @@ function Model:insert(values_array, ignore)
 end
 
 ---@param values table
----@param ignore boolean?
----@return rdb.ModelRow?
-function Model:create(values, ignore)
-	return self:insert({values}, ignore)[1]
+---@return rdb.ModelRow
+function Model:create(values)
+	return self:insert({values})[1]
 end
 
 ---@param values table
