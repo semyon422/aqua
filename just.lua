@@ -399,7 +399,7 @@ end
 
 ---@param id any?
 ---@param over boolean?
----@param group string?
+---@param group string
 ---@param new_zindex boolean?
 ---@return boolean?
 function just.mouse_over(id, over, group, new_zindex)
