@@ -12,6 +12,7 @@ function Model:new(opts, models)
 	self.table_name = opts.table_name
 	self.types = opts.types
 	self.relations = opts.relations
+	self.from_db = opts.from_db
 	self.models = models
 	self.orm = models._orm
 
@@ -27,9 +28,14 @@ end
 ---@param rows table
 ---@return rdb.ModelRow[]
 function Model:rows_from_db(rows)
+	local from_db = self.from_db
 	local _rows = {}
 	for i, row in ipairs(rows) do
-		_rows[i] = setmetatable(sql_util.from_db(row, self.types), self.row_mt)
+		row = sql_util.from_db(row, self.types)
+		if from_db then
+			from_db(row)
+		end
+		_rows[i] = setmetatable(row, self.row_mt)
 	end
 	return _rows
 end
@@ -40,11 +46,7 @@ end
 function Model:select(conditions, options)
 	conditions = sql_util.for_db(conditions, self.types)
 	local rows = self.orm:select(self.table_name, conditions, options)
-	for i, row in ipairs(rows) do
-		row = sql_util.from_db(row, self.types)
-		rows[i] = setmetatable(row, self.row_mt)
-	end
-	return rows
+	return self:rows_from_db(rows)
 end
 
 ---@param conditions table
