@@ -194,4 +194,15 @@ function table_util.keyof(t, v, f)
 	end
 end
 
+---@param t table
+---@return table
+function table_util.invert(t)
+	local _t = {}
+	for k, v in pairs(t) do
+		assert(not _t[v], "duplicate value '" .. tostring(v) .. "'")
+		_t[v] = k
+	end
+	return _t
+end
+
 return table_util
