@@ -233,7 +233,12 @@ function TableOrm:migrate(new_ver, migrations)
 
 	for i = ver + 1, new_ver do
 		self:begin()
-		self.db:exec(migrations[i])
+		local migration = migrations[i]
+		if type(migration) == "string" then
+			self.db:exec(migration)
+		elseif type(migration) == "function" then
+			migration(self)
+		end
 		self:user_version(i)
 		self:commit()
 	end
