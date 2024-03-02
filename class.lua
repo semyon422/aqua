@@ -142,4 +142,13 @@ do
 	assert(not (X / x))
 end
 
-return class
+local M = {
+	is_class = is_class,
+	is_instance = is_instance,
+}
+
+setmetatable(M, {__call = class})
+
+---@cast M +fun(p: table?, t: table?): table
+
+return M
