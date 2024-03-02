@@ -1,3 +1,5 @@
+local class = require("class")
+
 local sql_util = {}
 
 ---@class sql_util.NULL
@@ -177,7 +179,11 @@ local function for_db(v, _type)
 	if _type == "boolean" then
 		v = v and 1 or 0
 	elseif type(_type) == "table" then
-		v = _type.encode(v)
+		if class.is_instance(_type) then
+			v = _type:encode(v)
+		else
+			v = _type.encode(v)
+		end
 	end
 	return v
 end
@@ -228,7 +234,11 @@ function sql_util.from_db(t, types)
 		if _type == "boolean" then
 			v = sql_util.toboolean(v)
 		elseif type(_type) == "table" then
-			v = _type.decode(v)
+			if class.is_instance(_type) then
+				v = _type:decode(v)
+			else
+				v = _type.decode(v)
+			end
 		end
 		_t[k] = v
 	end
