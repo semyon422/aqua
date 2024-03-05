@@ -1,6 +1,7 @@
 local class = require("class")
 local table_util = require("table_util")
 local sql_util = require("rdb.sql_util")
+local PrintDatabase = require("rdb.PrintDatabase")
 
 ---@class rdb.TableOrm
 ---@operator call: rdb.TableOrm
@@ -10,6 +11,17 @@ local TableOrm = class()
 function TableOrm:new(db)
 	self.db = db
 	self.table_infos = {}
+end
+
+---@param dbg boolean
+function TableOrm:debug(dbg)
+	if dbg and not self.debugging then
+		self.db = PrintDatabase(self.db)
+		self.debugging = true
+	else
+		self.db = self.db.db
+		self.debugging = false
+	end
 end
 
 ---@param table_name string
