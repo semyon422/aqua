@@ -51,11 +51,20 @@ local _format_cond = {
 	contains = function(k, v)
 		return ("%s LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v .. "%"}
 	end,
+	notcontains = function(k, v)
+		return ("%s NOT LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v .. "%"}
+	end,
 	startswith = function(k, v)
 		return ("%s LIKE ?"):format(sql_util.escape_identifier(k)), {v .. "%"}
 	end,
+	notstartswith = function(k, v)
+		return ("%s NOT LIKE ?"):format(sql_util.escape_identifier(k)), {v .. "%"}
+	end,
 	endswith = function(k, v)
 		return ("%s LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v}
+	end,
+	notendswith = function(k, v)
+		return ("%s NOT LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v}
 	end,
 	["in"] = function(k, v)
 		local _v = {}
