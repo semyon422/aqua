@@ -9,7 +9,7 @@ return function(id, v, size)
 
 	love.graphics.setColor(1, 1, 1, 1)
 	if v then
-		theme.circle(size)
+		theme.fillrect(size)
 	end
 
 	just.next(size, size)

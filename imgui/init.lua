@@ -179,6 +179,25 @@ function imgui.checkbox(id, v, label)
 end
 
 ---@param id any
+---@param v boolean|number
+---@param text string
+---@return boolean|number
+function imgui.textcheckbox(id, v, text)
+	local isNumber = type(v) == "number"
+	if isNumber then
+		v = v == 1
+	end
+	local width = love.graphics.getFont():getWidth(text)
+	if imgui.TextCheckbox(id, v, text, width + _h, _h) then
+		v = not v
+	end
+	if isNumber then
+		v = v and 1 or 0
+	end
+	return v
+end
+
+---@param id any
 ---@param v any
 ---@param values table
 ---@param to_string function?

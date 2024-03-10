@@ -54,4 +54,16 @@ function theme.circle(s, x, y)
 	love.graphics.circle("line", x or s / 2, y or s / 2, r, 64)
 end
 
+---@param w number
+---@param h number?
+---@param x number?
+---@param y number?
+function theme.fillrect(w, h, x, y)
+	h = h or w
+	local r = h * theme.size / 3
+	local oy = h / 2 - r
+	love.graphics.rectangle("fill", oy + (x or 0), oy + (y or 0), w - 2 * oy, h - 2 * oy, r, r, 64)
+	love.graphics.rectangle("line", oy + (x or 0), oy + (y or 0), w - 2 * oy, h - 2 * oy, r, r, 64)
+end
+
 return theme
