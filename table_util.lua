@@ -205,4 +205,12 @@ function table_util.invert(t)
 	return _t
 end
 
+---@param t table
+---@param append table
+function table_util.append(t, append)
+	for i, v in ipairs(append) do
+		table.insert(t, v)
+	end
+end
+
 return table_util
