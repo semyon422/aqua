@@ -1,4 +1,5 @@
 local BassSource = require("audio.bass.BassSource")
+local bit = require("bit")
 local bass = require("bass")
 local bass_assert = require("bass.assert")
 
@@ -7,7 +8,14 @@ local bass_assert = require("bass.assert")
 local BassStream = BassSource + {}
 
 function BassStream:new(path)
-	self.channel = bass.BASS_StreamCreateFile(false, path, 0, 0, 0)
+	local flags = 0x40000000  -- BASS_ASYNCFILE
+	if jit.os == "Windows" then
+		local winapi = require("winapi")
+		path = winapi.to_wchar_t(path)
+		flags = bit.bor(flags, 0x80000000)  -- BASS_UNICODE
+	end
+
+	self.channel = bass.BASS_StreamCreateFile(false, path, 0, 0, flags)
 	bass_assert(self.channel ~= 0)
 	self:readChannelInfo()
 end
