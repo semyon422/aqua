@@ -8,8 +8,7 @@ Source.rateValue = 1
 Source.offset = 0
 Source.baseVolume = 1
 
----@param soundData audio.SoundData
-function Source:new(soundData) end
+function Source:new() end
 
 function Source:release() end
 

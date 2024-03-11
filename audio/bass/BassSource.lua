@@ -1,3 +1,4 @@
+local ffi = require("ffi")
 local Source = require("audio.Source")
 local bass = require("bass")
 local bass_assert = require("bass.assert")
@@ -6,12 +7,35 @@ local bass_assert = require("bass.assert")
 ---@operator call:audio.bass.BassSource
 local BassSource = Source + {}
 
+local info_fields = {
+	"freq",
+	"chans",
+	"flags",
+	"ctype",
+	"origres",
+	"plugin",
+	"sample",
+	"filename",
+}
+
+local channel_info = ffi.new("BASS_CHANNELINFO")
+
+function BassSource:readChannelInfo()
+	bass_assert(bass.BASS_ChannelGetInfo(self.channel, channel_info) == 1)
+	local info = {}
+	for _, field in ipairs(info_fields) do
+		info[field] = channel_info[field]
+	end
+	self.info = info
+end
+
 function BassSource:release()
 	bass_assert(bass.BASS_ChannelFree(self.channel) == 1)
 end
 
 function BassSource:play()
 	bass_assert(bass.BASS_ChannelPlay(self.channel, false) == 1)
+	return true
 end
 
 function BassSource:pause()
@@ -66,6 +90,10 @@ function BassSource:setPosition(position)
 	end
 	pos = bass.BASS_ChannelSetPosition(self.channel, pos, 0)
 	bass_assert(pos == 1)
+end
+
+function BassSource:seek(position)
+	self:setPosition(position)
 end
 
 ---@return number

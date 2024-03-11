@@ -1,6 +1,7 @@
 local BassSoundData = require("audio.bass.BassSoundData")
 local StreamMemoryTempo = require("audio.bass.StreamMemoryTempo")
 local Sample = require("audio.bass.Sample")
+local BassStream = require("audio.bass.BassStream")
 local bass = require("bass")
 
 local audio = {}
@@ -15,6 +16,12 @@ function audio.newSource(soundData, _type)
 		return StreamMemoryTempo(soundData)
 	end
 	return Sample(soundData)
+end
+
+---@param path string
+---@return audio.bass.BassSource
+function audio.newFileSource(path)
+	return BassStream(path)
 end
 
 audio.init = bass.init

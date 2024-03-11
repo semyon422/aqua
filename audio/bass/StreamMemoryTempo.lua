@@ -10,11 +10,11 @@ local StreamMemoryTempo = BassSource + {}
 ---@param soundData audio.bass.BassSoundData
 function StreamMemoryTempo:new(soundData)
 	self.soundData = soundData
-	self.info = soundData.info
 	self.channel = bass.BASS_SampleGetChannel(soundData.sample, 0x200002)  -- BASS_STREAM_DECODE | BASS_SAMCHAN_STREAM
 	bass_assert(self.channel ~= 0)
 	self.channel = bass_fx.BASS_FX_TempoCreate(self.channel, 0x10000)
 	bass_assert(self.channel ~= 0)
+	self:readChannelInfo()
 end
 
 ---@param rate number
