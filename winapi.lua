@@ -47,6 +47,7 @@ ffi.cdef[[
 	int _wputenv_s(const wchar_t *varname, const wchar_t *value_string);
 	int _wchdir(const wchar_t *dirname);
 	wchar_t *_wgetcwd(wchar_t *buffer, int maxlen);
+	int _wfreopen_s(void **stream, const wchar_t *fileName, const wchar_t *mode, void *oldStream);
 
 	typedef union _LARGE_INTEGER {
 		struct {
@@ -134,17 +135,17 @@ end
 ---@param name string
 ---@return string?
 function winapi.getenv(name)
-	name = winapi.to_wchar_t(name)
+	local wname = winapi.to_wchar_t(name)
 
 	local size_ptr = ffi.new("size_t[1]")
 
-	assert(ffi.C._wgetenv_s(size_ptr, nil, 0, name) == 0)
+	assert(ffi.C._wgetenv_s(size_ptr, nil, 0, wname) == 0)
 	if size_ptr[0] == 0 then
 		return
 	end
 
 	local buf = ffi.new("wchar_t[?]", size_ptr[0])
-	assert(ffi.C._wgetenv_s(size_ptr, buf, size_ptr[0], name) == 0)
+	assert(ffi.C._wgetenv_s(size_ptr, buf, size_ptr[0], wname) == 0)
 
 	return winapi.to_string(buf)
 end
@@ -171,6 +172,23 @@ function winapi.getcwd()
 	local buf = ffi.C._wgetcwd(nil, 0)
 	assert(buf ~= 0)
 	return winapi.to_string(buf)
+end
+
+-- https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getcwd-wgetcwd?view=msvc-170
+
+---@param path string
+---@param mode string?
+---@return file*?
+---@return string?
+---@return number?
+function winapi.open(path, mode)
+	local file = assert(io.open("nul"))
+	local stream = ffi.new("void*[1]")
+	local err = ffi.C._wfreopen_s(stream, winapi.to_wchar_t(path), winapi.to_wchar_t(mode or "r"), file)
+	if err ~= 0 then
+		return nil, ("%s: %s"):format(path, select(2, file:close())), err
+	end
+	return file
 end
 
 local sleep_timer
