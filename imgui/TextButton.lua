@@ -18,6 +18,7 @@ return function(id, text, w, h, inactive)
 	end
 
 	gfx_util.printFrame(tostring(text), 0, 0, w, h, "center", "center")
+	love.graphics.setColor(1, 1, 1, 1)
 
 	just.next(w, h)
 
