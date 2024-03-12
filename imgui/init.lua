@@ -262,11 +262,10 @@ end
 ---@param label string?
 ---@return string
 function imgui.hotkey(id, key, label)
-	local _
-	_, key = imgui.Hotkey(id, key, _w, _h)
+	local _, _key = imgui.Hotkey(id, key, _w, _h)
 	just.sameline()
 	imgui.label(id .. "label", label)
-	return key
+	return _key or key
 end
 
 ---@param id any
