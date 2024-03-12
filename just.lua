@@ -18,16 +18,17 @@ local line_stack
 local textinput
 local selection
 
-local devices = {"key", "gamepad", "joystick", "midi"}
-local device_arg_index = {2, 2, 2, 1}
+local devices = {"keyboard", "gamepad", "joystick", "midi"}
 
----@return table
-local function new_keyinput()
-	return {
+local function get_keyinput(device, id)
+	id = id or 1
+	keyinput[device] = keyinput[device] or {}
+	keyinput[device][id] = keyinput[device][id] or {
 		down = {},
 		pressed = {},
 		released = {},
 	}
+	return keyinput[device][id]
 end
 
 function just.reset()
@@ -40,10 +41,6 @@ function just.reset()
 	}
 
 	keyinput = {}
-	for _, device in ipairs(devices) do
-		keyinput[device] = new_keyinput()
-	end
-
 	textinput = ""
 
 	just.entered_id = nil
@@ -306,9 +303,11 @@ function just._end()
 	end
 	just.focused_id = focused_id
 
-	for _, device in ipairs(devices) do
-		clear_table(keyinput[device].pressed)
-		clear_table(keyinput[device].released)
+	for _, d in pairs(keyinput) do
+		for _, input in pairs(d) do
+			clear_table(input.pressed)
+			clear_table(input.released)
+		end
 	end
 	clear_table(mouse.pressed)
 	clear_table(mouse.released)
@@ -365,16 +364,13 @@ function just.callbacks.wheelmoved(_, y)
 	return mouse.captured
 end
 
-for i, device in ipairs(devices) do
-	just.callbacks[device .. "pressed"] = function(...)
-		local input = keyinput[device]
-		local key = select(device_arg_index[i], ...)
+---@nocheck
+function just.callbacks.inputchanged(device, id, key, state)
+	local input = get_keyinput(device, id)
+	if state then
 		input.down[key] = true
 		input.pressed[key] = true
-	end
-	just.callbacks[device .. "released"] = function(...)
-		local input = keyinput[device]
-		local key = select(device_arg_index[i], ...)
+	else
 		input.down[key] = nil
 		input.released[key] = true
 	end
@@ -520,33 +516,33 @@ function just.container(id, over)
 	table.insert(container_overs, over)
 end
 
----@param device string
 ---@param state string
-function just.next_input(device, state)
-	for i, _device in ipairs(devices) do
-		if _device == device then
-			return next(keyinput[device][state])
+function just.next_input(state)
+	for device, d in pairs(keyinput) do
+		for id, input in pairs(d) do
+			local key = next(input[state])
+			if key then
+				return key, device, id
+			end
 		end
 	end
 end
 
-for i, device in ipairs(devices) do
-	just[device .. "pressed"] = function(key, unset)
-		local input = keyinput[device]
-		local res = just.key_over() and input.pressed[key]
-		if res and unset then
-			input.pressed[key] = nil
-		end
-		return res
+function just.keypressed(key, unset)
+	local input = get_keyinput("keyboard")
+	local res = just.key_over() and input.pressed[key]
+	if res and unset then
+		input.pressed[key] = nil
 	end
-	just[device .. "released"] = function(key, unset)
-		local input = keyinput[device]
-		local res = just.key_over() and input.released[key]
-		if res and unset then
-			input.released[key] = nil
-		end
-		return res
+	return res
+end
+function just.keyreleased(key, unset)
+	local input = get_keyinput("keyboard")
+	local res = just.key_over() and input.released[key]
+	if res and unset then
+		input.released[key] = nil
 	end
+	return res
 end
 
 ---@param key number
@@ -614,7 +610,7 @@ function just.textinput(text, index)
 		index = index + utf8.len(_text)
 	end
 
-	local pressed = keyinput.key.pressed
+	local pressed = get_keyinput("keyboard").pressed
 	if pressed.left then
 		index = index - 1
 	elseif pressed.right then

@@ -263,7 +263,7 @@ end
 ---@return string
 function imgui.hotkey(id, key, label)
 	local _
-	_, key = imgui.Hotkey(id, "keyboard", key, _w, _h)
+	_, key = imgui.Hotkey(id, key, _w, _h)
 	just.sameline()
 	imgui.label(id .. "label", label)
 	return key
