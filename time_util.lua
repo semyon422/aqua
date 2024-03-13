@@ -115,6 +115,10 @@ function time_util.format(time, decimals)
 	local sign = time >= 0 and "" or "-"
 	time = math.abs(time)
 
+	if time == math.huge then
+		return sign .. "inf"
+	end
+
 	local hours = math.floor(time / 3600)
 	local minutes = math.floor(time % 3600 / 60)
 	local seconds = math.floor(time % 60)
