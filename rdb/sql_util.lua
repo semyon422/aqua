@@ -104,6 +104,9 @@ local _format_cond = {
 ---@return table
 local function format_cond(op, k, v)
 	local fmt = _format_cond[op]
+	if not fmt then
+		error(("invalid operator '%s'"):format(op))
+	end
 	if type(fmt) == "function" then
 		return fmt(k, v)
 	end
