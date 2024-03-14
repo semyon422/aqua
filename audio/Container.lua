@@ -17,8 +17,8 @@ end
 function Container:add(source)
 	self.sources[source] = true
 	source:setVolume(self.volume)
-	source:setRate(self.rate)
 	source:setPitch(self.pitch)
+	source:setRate(self.rate)
 	source:play()
 end
 
