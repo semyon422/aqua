@@ -89,6 +89,9 @@ function encoders.table(t)
 end
 
 function stbl.encode(v)
+	if v == nil then
+		return ""
+	end
 	local encoder = encoders[type(v)]
 	if not encoder then
 		error("unsupported value type '" .. type(v) .. "'")
@@ -98,7 +101,7 @@ end
 
 function stbl.decode(v, chunkname)
 	local env = {}
-	local f = assert(load("return " .. v, chunkname, "t"))
+	local f = assert(load(("return %s"):format(v), chunkname, "t"))
 	setfenv(f, env)
 	return f()
 end
