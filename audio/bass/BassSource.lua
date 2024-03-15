@@ -88,6 +88,7 @@ end
 function BassSource:setPosition(position)
 	local length = bass.BASS_ChannelGetLength(self.channel, 0)
 	bass_assert(length >= 0)
+	assert(position >= 0)
 	local pos = bass.BASS_ChannelSeconds2Bytes(self.channel, position)
 	bass_assert(pos >= 0)
 	if pos >= length then
