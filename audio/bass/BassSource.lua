@@ -60,11 +60,6 @@ function BassSource:setRate(rate)
 	self:setFreqRate(rate)
 end
 
----@param pitch number
-function BassSource:setPitch(pitch)
-	self:setFreqRate(pitch)
-end
-
 ---@param rate number
 function BassSource:setFreqRate(rate)
 	if self.rateValue == rate then

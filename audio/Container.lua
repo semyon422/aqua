@@ -17,7 +17,6 @@ end
 function Container:add(source)
 	self.sources[source] = true
 	source:setVolume(self.volume)
-	source:setPitch(self.pitch)
 	source:setRate(self.rate)
 	source:play()
 end
@@ -44,14 +43,6 @@ function Container:setRate(rate)
 	self.rate = rate
 	for source in pairs(self.sources) do
 		source:setRate(rate)
-	end
-end
-
----@param pitch number
-function Container:setPitch(pitch)
-	self.pitch = pitch
-	for source in pairs(self.sources) do
-		source:setPitch(pitch)
 	end
 end
 

@@ -22,9 +22,6 @@ function Source:isPlaying() return false end
 ---@param rate number
 function Source:setRate(rate) end
 
----@param pitch number
-function Source:setPitch(pitch) end
-
 ---@return number
 function Source:getPosition() return 0 end
 
