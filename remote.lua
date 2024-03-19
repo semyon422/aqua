@@ -9,10 +9,21 @@ function remote.set_coder(coder)
 end
 
 ---@param f function
+---@param ... any?
+---@return thread
+local function wrap(f, ...)
+	local c = coroutine.create(function(...)
+		assert(xpcall(f, debug.traceback, ...))
+	end)
+	assert(coroutine.resume(c, ...))
+	return c
+end
+
+---@param f function
 ---@return function
 function remote.wrap(f)
 	return function(...)
-		return coroutine.wrap(f)(...)
+		return wrap(f, ...)
 	end
 end
 
