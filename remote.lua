@@ -113,7 +113,11 @@ local function handle(peer, e, handlers)
 		_handle(peer, e, handlers)
 		return
 	end
-	send(peer, e.id, nil, _handle(peer, e, handlers))
+	local ok, err = xpcall(send, debug.traceback, peer, e.id, nil, _handle(peer, e, handlers))
+	if ok then
+		return
+	end
+	error(e.name .. "\n" .. err)
 end
 handle = remote.wrap(handle)
 
