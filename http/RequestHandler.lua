@@ -38,8 +38,10 @@ function RequestHandler:handle(req)
 	params.ip = req.headers["X-Real-IP"]
 	self.session_handler:decode(params, req.headers)
 
+	self.models:select(params, {session_user = {"users", {id = {"session", "user_id"}}, "user_roles"}})
+
 	local usecase = self.usecases[usecase_name]
-	local result_type, result = usecase:run(params)
+	local result_type, result = usecase:handle(params)
 
 	local code_view_headers = results[result_type] or self.default_results[result_type]
 	assert(code_view_headers, tostring(result_type))
