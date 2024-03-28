@@ -1,5 +1,4 @@
 local class = require("class")
-local Usecase = require("http.Usecase")
 
 ---@class http.Usecases
 ---@operator call: http.Usecases
@@ -16,10 +15,8 @@ function Usecases.__index(t, k)
 	if k:sub(1, 1) == "_" then
 		return
 	end
-	local mod = t._usecases[k]
-	mod.config = t._config
-	mod.domain = t._domain
-	t[k] = Usecase(mod)
+	local Uc = t._usecases[k]
+	t[k] = Uc(t._domain, t._config)
 	return t[k]
 end
 
