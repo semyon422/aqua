@@ -41,23 +41,23 @@ function RequestHandler:handle(req)
 	self.models:select(params, {session_user = {"users", {id = {"session", "user_id"}}, "user_roles"}})
 
 	local usecase = self.usecases[usecase_name]
-	local result_type, result = usecase:handle(params)
+	local result_type = usecase:handle(params)
 
 	local code_page_headers = results[result_type] or self.default_results[result_type]
 	assert(code_page_headers, tostring(result_type))
 	local code, page, headers = unpack(code_page_headers)
 
-	result.config = self.config
+	params.config = self.config
 
 	local res_body = ""
 	if page then
 		local Page = self.pages[page]
-		result.page = Page(self.domain, params.session_user, params)
-		result.page:load()
-		res_body = self.views:render(Page.view, result)
+		params.page = Page(self.domain, params.session_user, params)
+		params.page:load()
+		res_body = self.views:render(Page.view, params)
 	end
 	if type(headers) == "function" then
-		headers = headers(result)
+		headers = headers(params)
 	end
 	headers = headers or {}
 
