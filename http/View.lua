@@ -6,25 +6,15 @@ local View = class()
 
 ---@param env table
 ---@param views http.Views
----@param usecases http.Usecases
-function View:new(env, views, usecases)
+function View:new(env, views)
 	self.env = env
 	self.views = views
-	self.usecases = usecases
 end
 
 ---@param name string
 ---@return string
 function View:render(name)
 	return self.views[name](self.env)
-end
-
----@param usecase_name string
----@return boolean
-function View:authorize(usecase_name)
-	local usecase = self.usecases[usecase_name]
-	local permit, err = usecase:authorize(self.env)
-	return permit
 end
 
 ---@param env table

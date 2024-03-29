@@ -15,14 +15,6 @@ local WebApp = class()
 ---@param domain table
 ---@param models table
 function WebApp:new(config, domain, models)
-	local usecases = Usecases(
-		autoload("usecases"),
-		config,
-		domain
-	)
-
-	local views = Views(autoload("views"), usecases)
-
 	local session_handler = SessionHandler({
 		name = "session",
 		secret = config.secret,
@@ -38,14 +30,16 @@ function WebApp:new(config, domain, models)
 
 	self.requestHandler = RequestHandler({
 		router = router,
+		pages = autoload("pages"),
 		body_handlers = autoload("body"),
 		input_converters = autoload("input"),
 		session_handler = session_handler,
-		usecases = usecases,
+		usecases = Usecases(autoload("usecases"), config, domain),
 		default_results = default_results,
-		views = views,
+		views = Views(autoload("views")),
 		config = config,
 		models = models,
+		domain = domain,
 	})
 end
 

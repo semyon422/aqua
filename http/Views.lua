@@ -3,19 +3,19 @@ local class = require("class")
 
 ---@class http.Views
 ---@operator call: http.Views
+---@field _views table
+---@field [string] http.View
 local Views = class()
 
 ---@param views table
----@param usecases http.Usecases
-function Views:new(views, usecases)
+function Views:new(views)
 	self._views = views
-	self._usecases = usecases
 end
 
 ---@param env table
 ---@return table
 function Views:new_viewable_env(env)
-	env.view = View(env, self, self._usecases)
+	env.view = View(env, self)
 	return setmetatable({}, {__index = env})
 end
 

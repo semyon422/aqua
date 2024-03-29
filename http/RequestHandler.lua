@@ -43,15 +43,18 @@ function RequestHandler:handle(req)
 	local usecase = self.usecases[usecase_name]
 	local result_type, result = usecase:handle(params)
 
-	local code_view_headers = results[result_type] or self.default_results[result_type]
-	assert(code_view_headers, tostring(result_type))
-	local code, view_config, headers = unpack(code_view_headers)
+	local code_page_headers = results[result_type] or self.default_results[result_type]
+	assert(code_page_headers, tostring(result_type))
+	local code, page, headers = unpack(code_page_headers)
 
 	result.config = self.config
 
 	local res_body = ""
-	if view_config then
-		res_body = self.views:render(view_config, result)
+	if page then
+		local Page = self.pages[page]
+		result.page = Page(self.domain, params.session_user, params)
+		result.page:load()
+		res_body = self.views:render(Page.view, result)
 	end
 	if type(headers) == "function" then
 		headers = headers(result)

@@ -11,12 +11,6 @@ function Usecase:new(domain, config)
 	self.config = config
 end
 
----@param params table
----@return boolean
-function Usecase:authorize(params)
-	return false
-end
-
 function Usecase:handle(params)
 	return "ok", params
 end
