@@ -14,7 +14,9 @@ end
 
 local function new(T, ...)
 	if not T.new then
-		return setmetatable(... or {}, T)
+		local t = ... or {}
+		assert(type(t) == "table" and not getmetatable(t), "bad argument to default constructor")
+		return setmetatable(t, T)
 	end
 	local t = setmetatable({}, T)
 	return return_from_new_xpcall(t, xpcall(T.new, debug.traceback, t, ...))
