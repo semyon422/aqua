@@ -89,6 +89,24 @@ local function class(p, t)
 	return setmetatable(T, mt)
 end
 
+local function not_implemented()
+	error("not implemented", 2)
+end
+
+local function inteface_newindex(t, k, v)
+	if type(v) == "function" then
+		rawset(t, k, not_implemented)
+	else
+		rawset(t, k, v)
+	end
+end
+
+local function to_interface(T)
+	local mt = getmetatable(T)
+	mt.__call = not_implemented
+	mt.__newindex = inteface_newindex
+end
+
 -- tests
 
 do
@@ -147,6 +165,7 @@ end
 local M = {
 	is_class = is_class,
 	is_instance = is_instance,
+	to_interface = to_interface,
 }
 
 setmetatable(M, {__call = class})
