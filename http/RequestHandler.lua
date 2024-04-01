@@ -52,7 +52,7 @@ function RequestHandler:handle(req)
 	local res_body = ""
 	if page then
 		local Page = self.pages[page]
-		params.page = Page(self.domain, params.session_user, params)
+		params.page = Page(self.domain, params)
 		params.page:load()
 		res_body = self.views:render(Page.view, params)
 	end

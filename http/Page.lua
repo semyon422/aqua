@@ -7,12 +7,11 @@ local Page = class()
 Page.view = nil
 
 ---@param domain domain.Domain
----@param user table
 ---@param params table
-function Page:new(domain, user, params)
+function Page:new(domain, params)
 	self.domain = domain
-	self.user = user
 	self.params = params
+	self.user = params.session_user or self.domain.anonUser
 end
 
 function Page:load()
