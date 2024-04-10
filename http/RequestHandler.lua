@@ -39,6 +39,7 @@ function RequestHandler:handle(req)
 	self.session_handler:decode(params, req.headers)
 
 	self.models:select(params, {session_user = {"users", {id = {"session", "user_id"}}, "user_roles"}})
+	params.session_user = params.session_user or self.domain.anonUser
 
 	local usecase = self.usecases[usecase_name]
 	local result_type = usecase:handle(params)
@@ -52,7 +53,7 @@ function RequestHandler:handle(req)
 	local res_body = ""
 	if page then
 		local Page = self.pages[page]
-		params.page = Page(self.domain, params)
+		params.page = Page(self.domain, params, params.session_user)
 		params.page:load()
 		res_body = self.views:render(Page.view, params)
 	end
