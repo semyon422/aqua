@@ -48,12 +48,10 @@ function RequestHandler:handle(req)
 	assert(code_page_headers, tostring(result_type))
 	local code, page, headers = unpack(code_page_headers)
 
-	params.config = self.config
-
 	local res_body = ""
 	if page then
 		local Page = self.pages[page]
-		params.page = Page(self.domain, params, params.session_user)
+		params.page = Page(self.domain, params, params.session_user, self.config)
 		params.page:load()
 		res_body = self.views:render(Page.view, params)
 	end
