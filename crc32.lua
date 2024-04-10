@@ -21,4 +21,13 @@ function crc32.hash(s)
 	return bit.bxor(crc, 0xFFFFFFFF)
 end
 
+function crc32.format(n)
+	return ("%08X"):format(n):sub(-8, -1)
+end
+
+assert(crc32.hash("asdf") == 1361703869)
+assert(crc32.hash("zxcv") == -2003678623)
+assert(crc32.format(crc32.hash("asdf")) == "5129F3BD")
+assert(crc32.format(crc32.hash("zxcv")) == "88924A61")
+
 return crc32
