@@ -491,7 +491,7 @@ ffi.cdef("void * malloc(size_t size);")
 ffi.cdef("void * realloc(void * ptr, size_t newsize);")
 ffi.cdef("void free(void * ptr);")
 
-ffi.cdef("typedef struct {unsigned char * pointer; size_t size; size_t offset;} buffer_t;")
+ffi.cdef("typedef struct {unsigned char * pointer; size_t size; size_t offset;} buffer_t__byte_new;")
 
 local mt = {}
 
@@ -503,7 +503,7 @@ function mt.__index(_, key)
 end
 
 -- buffer ctype
-byte.buffer_t = ffi.metatype(ffi.typeof("buffer_t"), mt)
+byte.buffer_t = ffi.metatype(ffi.typeof("buffer_t__byte_new"), mt)
 
 -- buffer constructor
 
