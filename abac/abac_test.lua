@@ -22,7 +22,7 @@ function test.all(t)
 	t:eq(dec, "permit")
 
 	local access = Access(rules_repo)
-	local dec = access:authorize({}, policy_set_config)
+	local dec = access:authorize({}, setmetatable(policy_set_config, nil))
 	t:eq(dec, true)
 end
 

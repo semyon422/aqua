@@ -1,17 +1,14 @@
 local Usecases = require("http.Usecases")
+local Usecase = require("http.Usecase")
 
 local test = {}
 
 function test.all(t)
 	local _usecases = {}
-	_usecases.test = {
-		validate = {},
-		models = {},
-		access = {},
-		handle = function(self, params)
-			return "permit", params
-		end,
-	}
+	_usecases.test = Usecase + {}
+	_usecases.test.handle = function(self, params)
+		return "ok", params
+	end
 
 	local _validator = {}
 	function _validator:validate()
@@ -31,9 +28,9 @@ function test.all(t)
 	local usecases = Usecases(_usecases, _validator, _models, _access)
 
 	local params = {}
-	local res, _params = usecases.test:run(params)
+	local res, _params = usecases.test:handle(params)
 
-	t:eq(res, "permit")
+	t:eq(res, "ok")
 	t:eq(_params, params)
 end
 
