@@ -213,4 +213,17 @@ function table_util.append(t, append)
 	end
 end
 
+
+---@param t table
+---@return number
+function table_util.max_index(t)
+	local max_i = 0
+	for i in pairs(t) do
+		if type(i) == "number" then
+			max_i = math.max(max_i, i)
+		end
+	end
+	return max_i
+end
+
 return table_util
