@@ -121,6 +121,15 @@ function Video:getDimensions()
 	return tonumber(cctx.width), tonumber(cctx.height)
 end
 
+-- https://ffmpeg.org/doxygen/trunk/structAVStream.html#a7c67ae70632c91df8b0f721658ec5377
+local function stream_start_time(stream)
+	local start_time = stream.start_time
+	if start_time == ffmpeg.AV_NOPTS_VALUE then
+		return 0
+	end
+	return start_time
+end
+
 function Video:tell()
 	local effort = self.frame.best_effort_timestamp
 	local base = self.stream.time_base
@@ -129,7 +138,7 @@ function Video:tell()
 		return 0
 	end
 
-	return tonumber(effort - self.stream.start_time) * base.num / base.den
+	return tonumber(effort - stream_start_time(self.stream)) * base.num / base.den
 end
 
 local packet = ffi.new("AVPacket[1]")
@@ -160,11 +169,11 @@ function Video:read(dst)
 end
 
 function Video:seek(time)
-	local stream = self.stream
 	local base = self.stream.time_base
 
-	local ts = time * base.den / base.num - stream.start_time
-	local cts = self.frame.best_effort_timestamp - stream.start_time
+	local start_time = stream_start_time(self.stream)
+	local ts = time * base.den / base.num - start_time
+	local cts = self.frame.best_effort_timestamp - start_time
 
 	local flags = 4  -- AVSEEK_FLAG_ANY
 	if cts > ts then

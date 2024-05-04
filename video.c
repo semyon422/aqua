@@ -227,6 +227,15 @@ static int Video_getDimensions(lua_State *L) {
 	return 2;
 }
 
+// https://ffmpeg.org/doxygen/trunk/structAVStream.html#a7c67ae70632c91df8b0f721658ec5377
+int64_t stream_start_time(AVStream *stream) {
+	int64_t start_time = stream->start_time;
+	if (start_time == AV_NOPTS_VALUE) {
+		return 0;
+	}
+	return start_time;
+}
+
 static int Video_tell(lua_State *L) {
 	Video *video = checkVideo(L, 1, true);
 
@@ -237,7 +246,7 @@ static int Video_tell(lua_State *L) {
 		lua_pushinteger(L, 0);
 		return 1;
 	}
-	lua_Number time = (lua_Number)(effort - video->stream->start_time) * base.num / base.den;
+	lua_Number time = (lua_Number)(effort - stream_start_time(video->stream)) * base.num / base.den;
 	lua_pushnumber(L, time);
 
 	return 1;
@@ -250,8 +259,9 @@ static int Video_seek(lua_State *L) {
 	AVStream *stream = video->stream;
 	AVRational base = stream->time_base;
 
-	int64_t ts = time * base.den / base.num - stream->start_time;
-	int64_t cts = video->frame->best_effort_timestamp - stream->start_time;
+	int64_t start_time = stream_start_time(stream);
+	int64_t ts = time * base.den / base.num - start_time;
+	int64_t cts = video->frame->best_effort_timestamp - start_time;
 
 	int flags = AVSEEK_FLAG_ANY;
 	if (cts > ts) {

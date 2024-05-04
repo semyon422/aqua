@@ -5,6 +5,8 @@ ffi.cdef(require("video.headers"))
 
 local ffmpeg = {}
 
+ffmpeg.AV_NOPTS_VALUE = 0x8000000000000000ll
+
 if jit.os == "Windows" then
 	ffmpeg.avcodec = ffi.load("avcodec-59.dll")
 	ffmpeg.avformat = ffi.load("avformat-59.dll")
