@@ -3,10 +3,12 @@ Linux:
 gcc -I$TREE/include/luajit-2.1 -fPIC -shared -o video.so video.c -lavformat -lavcodec -lswresample -lswscale -lavutil -lm
 
 Windows:
-msys2
-mingw-w64-x86_64-make
-mingw-w64-x86_64-gcc
-compile luajit with mingw
+open msys2 mingw64
+pacman -S make mingw-w64-x86_64-gcc
+clone lua-dev-env,
+shell-mingw.bat
+clone-luajit.bat
+build-mingw.bat
 https://github.com/BtbN/FFmpeg-Builds/releases
 gcc -I%TREE%/include/luajit-2.1 -Iffmpeg/include -fPIC -shared -o video.dll video.c -L%TREE%/lib -Lffmpeg/lib -l:libluajit-5.1.dll.a -lavformat -lavcodec -lswresample -lswscale -lavutil -lm
 */
