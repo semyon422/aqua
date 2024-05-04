@@ -8,16 +8,16 @@ end
 
 ---@param s string
 ---@param div string
----@return table
+---@return string[]
 function string.split(s, div)
 	local out = {}
 
 	local pos = 0
 	for a, b in function() return s:find(div, pos, true) end do
-		out[#out + 1] = s:sub(pos, a - 1)
+		table.insert(out, s:sub(pos, a - 1))
 		pos = b + 1
 	end
-	out[#out + 1] = s:sub(pos)
+	table.insert(out, s:sub(pos))
 
 	return out
 end
@@ -25,6 +25,8 @@ end
 ---@param d string
 ---@return function
 local function next_split(d)
+	---@param s string
+	---@param p integer
 	return function(s, p)
 		if not p then
 			return
@@ -53,6 +55,7 @@ end
 ---@return string
 ---@return table
 function string.tpreformat(s, t, pattern)
+	---@type any[]
 	local values = {}
 	local size = 0
 	s = s:gsub("{([^{^}]+)}", function(key)
