@@ -185,7 +185,7 @@ end
 ---@param t table
 ---@param v any
 ---@param f function?
----@return number?
+---@return any?
 function table_util.keyof(t, v, f)
 	for k, _v in pairs(t) do
 		if not f and _v == v or f and f(_v) == v then
@@ -213,7 +213,6 @@ function table_util.append(t, append)
 	end
 end
 
-
 ---@param t table
 ---@return number
 function table_util.max_index(t)
@@ -224,6 +223,18 @@ function table_util.max_index(t)
 		end
 	end
 	return max_i
+end
+
+---@param t {[string]: number}
+---@return string?
+function table_util.keyofenum(t, v)
+	if t[v] then
+		return v
+	end
+	local k = table_util.keyof(t, tonumber(v))
+	if type(k) == "string" then
+		return k
+	end
 end
 
 return table_util
