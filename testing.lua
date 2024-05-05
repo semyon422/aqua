@@ -1,5 +1,6 @@
 local ls = require("ls")
 local table_util = require("table_util")
+local stbl = require("stbl")
 local class = require("class")
 
 local testing = {}
@@ -56,6 +57,13 @@ function Test:assert(cond)
 	))
 end
 
+local function format_got_expected(v)
+	if type(v) ~= "table" then
+		return v
+	end
+	return stbl.encode(v)
+end
+
 ---@param cond any?
 ---@param got any?
 ---@param expected any?
@@ -69,7 +77,8 @@ function Test:expected_assert(cond, got, expected)
 	table.insert(self, ("%s:%s:\n---- expected\n%s\n---- got\n%s\n---- end"):format(
 		line.short_src,
 		line.currentline,
-		expected, got
+		format_got_expected(expected),
+		format_got_expected(got)
 	))
 end
 
