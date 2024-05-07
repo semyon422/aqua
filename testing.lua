@@ -64,6 +64,22 @@ local function format_got_expected(v)
 	return stbl.encode(v)
 end
 
+local function string_diff(a, b)
+	local out = {}
+	if #a ~= #b then
+		table.insert(out, ("size: %s, %s"):format(#a, #b))
+	end
+	for i = 1, #a do
+		local ca, cb = a:sub(i, i), b:sub(i, i)
+		if ca ~= cb then
+			table.insert(out, ("pos: %s"):format(i))
+			table.insert(out, ("chars: %q (%s), %q (%s)"):format(ca, ca:byte(), cb, cb:byte()))
+			break
+		end
+	end
+	return table.concat(out, ", ")
+end
+
 ---@param cond any?
 ---@param got any?
 ---@param expected any?
@@ -74,12 +90,23 @@ function Test:expected_assert(cond, got, expected)
 	end
 	local line = debug.getinfo(2, "Sl")
 
-	table.insert(self, ("%s:%s:\n---- expected\n%s\n---- got\n%s\n---- end"):format(
-		line.short_src,
-		line.currentline,
-		format_got_expected(expected),
-		format_got_expected(got)
-	))
+	got = format_got_expected(got)
+	expected = format_got_expected(expected)
+
+	local out = {}
+	table.insert(out, ("%s:%s:"):format(line.short_src, line.currentline))
+	table.insert(out, "---- expected")
+	table.insert(out, tostring(expected))
+	table.insert(out, "---- got")
+	table.insert(out, tostring(got))
+	table.insert(out, "---- end")
+
+	local tg, te = type(got), type(expected)
+	if tg == te and tg == "string" then
+		table.insert(out, "---- " .. string_diff(expected, got))
+	end
+
+	table.insert(self, table.concat(out, "\n"))
 end
 
 ---@param got any?

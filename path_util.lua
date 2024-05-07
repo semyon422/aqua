@@ -21,4 +21,15 @@ function path_util.join(...)
 	return table.concat(t, "/")
 end
 
+---@param name string
+---@param lower boolean?
+---@return string?
+function path_util.ext(name, lower)
+	local ext = name:match("^.+%.(.-)$")
+	if ext and lower then
+		ext = ext:lower()
+	end
+	return ext
+end
+
 return path_util

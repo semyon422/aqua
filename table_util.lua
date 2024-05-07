@@ -194,8 +194,10 @@ function table_util.keyof(t, v, f)
 	end
 end
 
----@param t table
----@return table
+---@generic K
+---@generic V
+---@param t {[K]: V}
+---@return {[V]: K}
 function table_util.invert(t)
 	local _t = {}
 	for k, v in pairs(t) do
