@@ -19,7 +19,7 @@ function encoders.number(v)
 end
 
 function encoders.string(v)
-	return ("%q"):format(v):gsub("\n", "n")
+	return (("%q"):format(v):gsub("\n", "n"))
 end
 
 function encoders.boolean(v)
