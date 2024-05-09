@@ -11,7 +11,13 @@ end
 ---@param x number
 ---@return number
 function math_util.sign(x)
-	return x == 0 and 0 or x / math.abs(x)
+	if x ~= x then
+		return x
+	end
+	if x == 0 then
+		return 0
+	end
+	return x < 0 and -1 or 1
 end
 
 ---@param x number
