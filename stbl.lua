@@ -42,11 +42,20 @@ local function tkey(k)
     return plain and k or ("[%s]"):format(encoders.string(k))
 end
 
-function encoders.table(t)
+---@param t table
+---@param tables {[table]: number, count: number}
+function encoders.table(t, tables)
+	if tables[t] then
+		return ("tables[%d]"):format(tables[t])
+	end
+
+	local out = {}
+	tables.count = tables.count + 1
+	tables[t] = tables.count
+
 	if next(t) == nil then
 		return "{}"
 	end
-	local out = {}
 
 	local max_int_key = 0
 	local float_keys = {}
@@ -70,7 +79,7 @@ function encoders.table(t)
 	for i = 1, max_int_key do
 		local v = t[i]
 		if v ~= nil then
-			table.insert(out, ("%s"):format(stbl.encode(v)))
+			table.insert(out, ("%s"):format(stbl.encode(v, tables)))
 		else
 			table.insert(out, "nil")
 		end
@@ -78,17 +87,20 @@ function encoders.table(t)
 
 	local eq = ("%s=%s"):format(stbl.space, stbl.space)
 	for _, k in ipairs(float_keys) do
-		table.insert(out, ("[%s]%s%s"):format(stbl.encode(k), eq, stbl.encode(t[k])))
+		table.insert(out, ("[%s]%s%s"):format(stbl.encode(k, tables), eq, stbl.encode(t[k], tables)))
 	end
 
 	for _, k in ipairs(str_keys) do
-		table.insert(out, ("%s%s%s"):format(tkey(k), eq, stbl.encode(t[k])))
+		table.insert(out, ("%s%s%s"):format(tkey(k), eq, stbl.encode(t[k], tables)))
 	end
 
 	return table.concat({"{", table.concat(out, "," .. stbl.space), "}"})
 end
 
-function stbl.encode(v)
+---@param v any
+---@param tables {[table]: number, count: number}?
+---@return string
+function stbl.encode(v, tables)
 	if v == nil then
 		return ""
 	end
@@ -96,9 +108,13 @@ function stbl.encode(v)
 	if not encoder then
 		error("unsupported value type '" .. type(v) .. "'")
 	end
-	return encoder(v)
+	tables = tables or {count = 0}
+	return encoder(v, tables)
 end
 
+---@param v string
+---@param chunkname string?
+---@return any
 function stbl.decode(v, chunkname)
 	local env = {}
 	local f = assert(load(("return %s"):format(v), chunkname, "t"))
