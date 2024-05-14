@@ -152,15 +152,18 @@ end
 
 ---@param test table
 ---@param t table
-local function run_tests(test, t)
+---@param method_pattern string?
+local function run_tests(test, t, method_pattern)
 	local errors = #t
-	for _, v in pairs(test) do
-		v(t)
-		if errors ~= #t then
-			errors = #t
-			t.fail = t.fail + 1
+	for method, v in pairs(test) do
+		if not method_pattern or method:match(method_pattern) then
+			v(t)
+			if errors ~= #t then
+				errors = #t
+				t.fail = t.fail + 1
+			end
+			t.total = t.total + 1
 		end
-		t.total = t.total + 1
 	end
 end
 
@@ -194,21 +197,25 @@ local function run_benchs(bench)
 	end
 end
 
-function testing.test()
+---@param file_pattern string?
+---@param method_pattern string?
+function testing.test(file_pattern, method_pattern)
 	local t = Test()
 
 	for path in iter_files("", "_test%.lua$") do
-		io.write(path)
-		io.flush()
+		if not file_pattern or path:match(file_pattern) then
+			io.write(path)
+			io.flush()
 
-		local start_time = testing.get_time()
-		local mod = dofile(path)
-		if mod then
-			run_tests(mod, t)
+			local start_time = testing.get_time()
+			local mod = dofile(path)
+			if mod then
+				run_tests(mod, t, method_pattern)
+			end
+			local dt = testing.get_time() - start_time
+
+			print((": %0.3fs"):format(dt))
 		end
-		local dt = testing.get_time() - start_time
-
-		print((": %0.3fs"):format(dt))
 	end
 
 	for _,  line in ipairs(t) do
