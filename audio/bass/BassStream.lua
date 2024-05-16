@@ -14,6 +14,7 @@ function BassStream:new(path)
 		path = winapi.to_wchar_t(path)
 		flags = bit.bor(flags, 0x80000000)  -- BASS_UNICODE
 	end
+	flags = bit.bor(flags, 0x20000)  -- BASS_STREAM_PRESCAN
 
 	self.channel = bass.BASS_StreamCreateFile(false, path, 0, 0, flags)
 	bass_assert(self.channel ~= 0)
