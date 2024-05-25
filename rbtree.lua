@@ -1,13 +1,23 @@
 -- red-black tree
 
+---@alias rbtree.Key any
+
+---@class rbtree.Tree
+---@field root rbtree.Node?
+---@field size integer
 local Tree = {}
 local Tree_mt = {__index = Tree}
 
+---@class rbtree.Node
+---@field color 0|1
+---@field parent rbtree.Node?
+---@field left rbtree.Node?
+---@field right rbtree.Node?
 local Node = {}
 local Node_mt = {__index = Node}
 
----@param tree table
----@param x table
+---@param tree rbtree.Tree
+---@param x rbtree.Node
 local function rotate_left(tree, x)
 	local p = x.parent
 	local y = x.right
@@ -30,8 +40,8 @@ local function rotate_left(tree, x)
 	end
 end
 
----@param tree table
----@param x table
+---@param tree rbtree.Tree
+---@param x rbtree.Node
 local function rotate_right(tree, x)
 	local p = x.parent
 	local y = x.left
@@ -54,9 +64,9 @@ local function rotate_right(tree, x)
 	end
 end
 
----@param tree table
----@param x table
----@param y table?
+---@param tree rbtree.Tree
+---@param x rbtree.Node
+---@param y rbtree.Node?
 local function transplant(tree, x, y)
 	if not x.parent then
 		tree.root = y
@@ -70,8 +80,8 @@ local function transplant(tree, x, y)
 	end
 end
 
----@param tree table
----@param x table
+---@param tree rbtree.Tree
+---@param x rbtree.Node
 local function fix_insert(tree, x)
 	while x.parent.color == 1 do
 		if x.parent == x.parent.parent.right then
@@ -114,9 +124,9 @@ local function fix_insert(tree, x)
 	tree.root.color = 0
 end
 
----@param tree table
----@param x table?
----@param xp table?
+---@param tree rbtree.Tree
+---@param x rbtree.Node?
+---@param xp rbtree.Node?
 local function fix_remove(tree, x, xp)  -- x may be nil (nil node), xp may be nil (parent of root node)
 	while xp or x ~= tree.root and x.color == 0 do
 		local p = xp or x.parent
@@ -181,25 +191,27 @@ local function fix_remove(tree, x, xp)  -- x may be nil (nil node), xp may be ni
 	x.color = 0
 end
 
----@param x table
----@return table
+---@param x rbtree.Node
+---@return rbtree.Node
 local function min(x)
 	while x.left do
+		---@type rbtree.Node
 		x = x.left
 	end
 	return x
 end
 
----@param x table
----@return table
+---@param x rbtree.Node
+---@return rbtree.Node
 local function max(x)
 	while x.right do
+		---@type rbtree.Node
 		x = x.right
 	end
 	return x
 end
 
----@return table?
+---@return rbtree.Node?
 function Node:next()
 	if self.right then
 		return min(self.right)
@@ -213,7 +225,7 @@ function Node:next()
 	return p
 end
 
----@return table?
+---@return rbtree.Node?
 function Node:prev()
 	if self.left then
 		return max(self.left)
@@ -233,10 +245,11 @@ function Node_mt:__tostring()
 	return color .. " " .. tostring(self.key)
 end
 
----@param key any
----@return table?
----@return table?
+---@param key rbtree.Key
+---@return rbtree.Node?
+---@return rbtree.Node?
 function Tree:find(key)
+	---@type rbtree.Node
 	local y
 	local x = self.root
 	while x and key ~= x.key do
@@ -250,11 +263,12 @@ function Tree:find(key)
 	return x, y
 end
 
----@param key any
+---@param key rbtree.Key
 ---@param f function
----@return table?
----@return table?
+---@return rbtree.Node?
+---@return rbtree.Node?
 function Tree:findex(key, f)
+	---@type rbtree.Node
 	local y
 	local x = self.root
 	while x and key ~= f(x.key) do
@@ -268,8 +282,8 @@ function Tree:findex(key, f)
 	return x, y
 end
 
----@param key any
----@return table?
+---@param key rbtree.Key
+---@return rbtree.Node?
 ---@return string?
 function Tree:insert(key)
 	local x, y = self:find(key)
@@ -306,8 +320,8 @@ function Tree:insert(key)
 	return x
 end
 
----@param key any
----@return table?
+---@param key rbtree.Key
+---@return rbtree.Node?
 ---@return string?
 function Tree:remove(key)
 	local z = self:find(key)
@@ -317,11 +331,12 @@ function Tree:remove(key)
 	return self:remove_node(z)
 end
 
----@param z any
----@return table
+---@param z rbtree.Node
+---@return rbtree.Node
 function Tree:remove_node(z)
 	self.size = self.size - 1
 
+	---@type rbtree.Node
 	local x
 	local color = z.color
 	local zp = z.parent
@@ -360,7 +375,7 @@ function Tree:remove_node(z)
 	return z
 end
 
----@param t table?
+---@param t rbtree.Node?
 ---@return boolean
 ---@return number
 local function check_subtree(t)
@@ -372,14 +387,12 @@ local function check_subtree(t)
         return false, 0
 	end
 
-	local black
+	local black = 1
     if t.color == 1 then
         black = 0
         if t.left and t.left.color == 1 or t.right and t.right.color == 1 then
             return false, -1
 		end
-    else
-        black = 1
 	end
 
     local r, black_right = check_subtree(t.right)
@@ -393,9 +406,9 @@ function Tree:is_valid()
 	return (check_subtree(self.root))
 end
 
----@param node table
+---@param node rbtree.Node
 ---@param indent number?
----@param buf table
+---@param buf string[]
 local function tostring_node(node, indent, buf)
 	if not node then
 		return
@@ -414,10 +427,10 @@ function Tree:tostring()
 	return table.concat(buf, "\n")
 end
 
----@param tree table
----@param node table?
----@return table?
----@return any?
+---@param tree rbtree.Tree
+---@param node rbtree.Node?
+---@return rbtree.Node?
+---@return rbtree.Key?
 local function next_tree_node(tree, node)
 	if node then
 		node = node:next()
@@ -427,23 +440,23 @@ local function next_tree_node(tree, node)
 	return node, node and node.key
 end
 
----@return function
----@return table
+---@return fun(tree: rbtree.Tree, node: rbtree.Node?): rbtree.Node, rbtree.Key
+---@return rbtree.Tree
 function Tree:iter()
 	return next_tree_node, self
 end
 
----@return table?
+---@return rbtree.Node?
 function Tree:min()
 	return self.root and min(self.root)
 end
 
----@return table?
+---@return rbtree.Node?
 function Tree:max()
 	return self.root and max(self.root)
 end
 
----@return table
+---@return rbtree.Tree
 local function new()
 	return setmetatable({size = 0}, Tree_mt)
 end
