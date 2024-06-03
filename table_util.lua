@@ -30,7 +30,7 @@ function table_util.deepequal(a, b)
 		size = size + 1
 		local _v = b[k]
 		if type(v) == "table" and type(_v) == "table" then
-			if not table_util.deepequal(v, _v) then
+			if not table_util.equal(v, _v) and not table_util.deepequal(v, _v) then
 				return false
 			end
 		elseif v == v and v ~= _v then  -- nan check
@@ -237,6 +237,70 @@ function table_util.keyofenum(t, v)
 	if type(k) == "string" then
 		return k
 	end
+end
+
+---@generic T
+---@param a T
+---@param _prev T?
+---@param _next T?
+function table_util.insert_linked(a, _prev, _next)
+	a.prev, a.next = nil, nil
+	if _prev then
+		_prev.next = a
+		a.prev = _prev
+	end
+	if _next then
+		_next.prev = a
+		a.next = _next
+	end
+end
+
+---@generic T
+---@param a T
+---@return T?
+---@return T?
+function table_util.remove_linked(a)
+	local prev, next = a.prev, a.next
+	if prev then prev.next = next end
+	if next then next.prev = prev end
+	a.prev, a.next = nil, nil
+	return prev, next
+end
+
+---@generic T
+---@param t T[]
+---@param pk string?
+---@param nk string?
+---@return T
+function table_util.to_linked(t, pk, nk)
+	pk = pk or "prev"
+	nk = nk or "next"
+	for i = 1, #t do
+		t[i][pk] = t[i - 1]
+		t[i][nk] = t[i + 1]
+	end
+	return t[1]
+end
+
+---@generic T
+---@param head T
+---@param pk string?
+---@param nk string?
+---@return T[]
+function table_util.to_array(head, pk, nk)
+	pk = pk or "prev"
+	nk = nk or "next"
+	local t = {}
+	local i = 0
+	while head do
+		i = i + 1
+		t[i] = head
+		local _next = head[nk]
+		head[pk] = nil
+		head[nk] = nil
+		head = _next
+	end
+	return t
 end
 
 return table_util
