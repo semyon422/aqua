@@ -24,6 +24,9 @@ end
 
 ---@return number
 function Changes:next()
+	if not self[self.index] then
+		return self:get()
+	end
 	self.index = self.index + 1
 	return self:get()
 end
