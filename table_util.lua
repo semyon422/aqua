@@ -303,4 +303,20 @@ function table_util.to_array(head, pk, nk)
 	return t
 end
 
+---@generic K, V
+---@param t {[K]: V}
+---@param k K
+---@param f fun(...: any?): V
+---@param ... any?
+---@return V
+function table_util.get_or_create(t, k, f, ...)
+	local v = t[k]
+	if v then
+		return v
+	end
+	v = f(...)
+	t[k] = v
+	return v
+end
+
 return table_util
