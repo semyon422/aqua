@@ -284,10 +284,11 @@ end
 
 ---@generic T
 ---@param head T
+---@param unlink boolean?
 ---@param pk string?
 ---@param nk string?
 ---@return T[]
-function table_util.to_array(head, pk, nk)
+function table_util.to_array(head, unlink, pk, nk)
 	pk = pk or "prev"
 	nk = nk or "next"
 	local t = {}
@@ -296,8 +297,10 @@ function table_util.to_array(head, pk, nk)
 		i = i + 1
 		t[i] = head
 		local _next = head[nk]
-		head[pk] = nil
-		head[nk] = nil
+		if unlink then
+			head[pk] = nil
+			head[nk] = nil
+		end
 		head = _next
 	end
 	return t
