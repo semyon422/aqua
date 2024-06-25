@@ -6,13 +6,15 @@ local Usecase = class()
 
 ---@param domain domain.Domain
 ---@param config table
-function Usecase:new(domain, config)
+---@param user table
+function Usecase:new(domain, config, user)
 	self.domain = domain
 	self.config = config
+	self.user = user
 end
 
 function Usecase:handle(params)
-	return "ok", params
+	return "ok"
 end
 
 return Usecase

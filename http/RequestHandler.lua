@@ -38,10 +38,10 @@ function RequestHandler:handle(req)
 	params.ip = req.headers["X-Real-IP"]
 	self.session_handler:decode(params, req.headers)
 
-	self.models:select(params, {session_user = {"users", {id = {"session", "user_id"}}, "user_roles"}})
-	params.session_user = params.session_user or self.domain.anonUser
+	params.session_user = self.domain:getUser(params.session.user_id)
 
-	local usecase = self.usecases[usecase_name]
+	local Usecase = self.usecases[usecase_name]
+	local usecase = Usecase(self.domain, self.config)
 	local result_type = usecase:handle(params)
 
 	local code_page_headers = results[result_type] or self.default_results[result_type]

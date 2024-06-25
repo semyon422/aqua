@@ -47,9 +47,6 @@ function Views:__index(name)
 	if Views[name] then
 		return Views[name]
 	end
-	if name:sub(1, 1) == "_" then
-		return
-	end
 	local mod = self._views[name]
 	return function(result)
 		local env = Views.new_viewable_env(self, result)

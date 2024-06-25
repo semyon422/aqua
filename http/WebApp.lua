@@ -4,7 +4,6 @@ local autoload = require("autoload")
 local Router = require("http.Router")
 local SessionHandler = require("http.SessionHandler")
 local RequestHandler = require("http.RequestHandler")
-local Usecases = require("http.Usecases")
 local Views = require("http.Views")
 
 ---@class http.WebApp
@@ -34,11 +33,10 @@ function WebApp:new(config, domain, models)
 		body_handlers = autoload("body"),
 		input_converters = autoload("input"),
 		session_handler = session_handler,
-		usecases = Usecases(autoload("usecases"), config, domain),
+		usecases = autoload("usecases"),
 		default_results = default_results,
 		views = Views(autoload("views")),
 		config = config,
-		models = models,
 		domain = domain,
 	})
 end
