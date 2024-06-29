@@ -125,6 +125,8 @@ end
 
 Test.eq = build_method(function(a, b) return a == b end)
 Test.ne = build_method(function(a, b) return a ~= b end)
+Test.raweq = build_method(function(a, b) return rawequal(a, b) end)
+Test.rawne = build_method(function(a, b) return not rawequal(a, b) end)
 Test.lt = build_method(function(a, b) return a < b end)
 Test.le = build_method(function(a, b) return a <= b end)
 
