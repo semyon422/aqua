@@ -1,5 +1,9 @@
 local math_util = {}
 
+function math_util.lerp(t, a, b)
+	return a * (1 - t) + b * t
+end
+
 ---@param x number
 ---@param to number?
 ---@return number
