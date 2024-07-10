@@ -12,7 +12,10 @@ local function sort(a, b)
 	return tostring(a) < tostring(b)
 end
 
-return function(t)
+---@generic T: table, K, V
+---@param t T
+---@return fun(table: {[K]: V}, index?: K): K, V
+local function dpairs(t)
 	local _t = {}
 	for k in pairs(t) do
 		table.insert(_t, k)
@@ -25,3 +28,5 @@ return function(t)
 		return _t[i], t[_t[i]]
 	end
 end
+
+return dpairs
