@@ -14,9 +14,15 @@ fs_util.extractAsync = thread.async(function(archive, path)
 		fs = physfs
 	end
 
-	assert(fs.mount(archive, mount, true), physfs.getLastError())
+	if not fs.mount(archive, mount, true) then
+		return nil, physfs.getLastError()
+	end
+
 	rcopy(mount, path)
-	assert(fs.unmount(archive), physfs.getLastError())
+
+	if not fs.unmount(archive) then
+		return nil, physfs.getLastError()
+	end
 
 	return true
 end)
