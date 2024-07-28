@@ -69,7 +69,7 @@ local function string_diff(a, b)
 	if #a ~= #b then
 		table.insert(out, ("size: %s, %s"):format(#a, #b))
 	end
-	for i = 1, #a do
+	for i = 1, math.min(#a, #b) do
 		local ca, cb = a:sub(i, i), b:sub(i, i)
 		if ca ~= cb then
 			table.insert(out, ("pos: %s"):format(i))
