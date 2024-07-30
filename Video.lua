@@ -42,7 +42,7 @@ end
 ---@param time number
 function Video:play(time)
 	local v = self.video
-	while time >= v:tell() do
+	while time >= v:tell() and time < v:getDuration() do
 		v:read(self.imageData:getPointer())
 	end
 	---@diagnostic disable-next-line: missing-parameter

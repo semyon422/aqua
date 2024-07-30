@@ -130,6 +130,11 @@ local function stream_start_time(stream)
 	return start_time
 end
 
+function Video:getDuration()
+	local base = self.stream.time_base
+	return tonumber(self.stream.duration) * base.num / base.den
+end
+
 function Video:tell()
 	local effort = self.frame.best_effort_timestamp
 	local base = self.stream.time_base

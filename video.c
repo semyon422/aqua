@@ -238,6 +238,17 @@ int64_t stream_start_time(AVStream *stream) {
 	return start_time;
 }
 
+static int Video_getDuration(lua_State *L) {
+	Video *video = checkVideo(L, 1, true);
+
+	AVRational base = video->stream->time_base;
+
+	lua_Number duration = (lua_Number)(video->stream->duration) * base.num / base.den;
+	lua_pushnumber(L, duration);
+
+	return 1;
+}
+
 static int Video_tell(lua_State *L) {
 	Video *video = checkVideo(L, 1, true);
 
@@ -336,6 +347,7 @@ static const struct luaL_Reg video_reg_mt[] = {
 	{"tell", Video_tell},
 	{"read", Video_read},
 	{"seek", Video_seek},
+	{"getDuration", Video_getDuration},
 	{"getDimensions", Video_getDimensions},
 	{NULL, NULL}
 };
