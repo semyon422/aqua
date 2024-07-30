@@ -42,8 +42,13 @@ end
 ---@param time number
 function Video:play(time)
 	local v = self.video
+	local read_count = 10
 	while time >= v:tell() and time < v:getDuration() do
 		v:read(self.imageData:getPointer())
+		read_count = read_count - 1
+		if read_count == 0 then
+			break
+		end
 	end
 	---@diagnostic disable-next-line: missing-parameter
 	self.image:replacePixels(self.imageData)
