@@ -204,6 +204,50 @@ function decoders.table(p)
 	return tbl, ptr_sub(p, p_0)
 end
 
+---@type {[stblbin.Type]: fun(v: stblbin.Value): integer}}
+local sizers = {}
+
+function sizers.boolean() return 1 end
+function sizers.number() return 8 end
+function sizers.string(s) return 2 + #s end
+
+---@return stblbin.Table
+---@return integer
+function sizers.table(tbl)
+	local size = 4
+	for k, v in pairs(tbl) do
+		size = size + stblbin.size(k) + stblbin.size(v)
+	end
+	return size
+end
+
+---@type {[stblbin.Type|"bound"]: function}
+local bounders = {}
+
+function bounders.boolean() coroutine.yield(1) end
+function bounders.number() coroutine.yield(8) end
+
+function bounders.string()
+	local p = coroutine.yield(2)
+	local size = byte.read_uint16_be(p)
+	coroutine.yield(size)
+end
+
+function bounders.table()
+	local p = coroutine.yield(4)
+	local count = byte.read_uint32_be(p)
+	for _ = 1, count do
+		bounders.bound()
+		bounders.bound()
+	end
+end
+
+function bounders.bound()
+	local p = coroutine.yield(1)
+	local _type = type_enum_inv[byte.read_uint8(p)]
+	bounders[_type](p)
+end
+
 ---@param p ffi.cdata*
 ---@return stblbin.Value
 ---@return integer size total read size
@@ -225,6 +269,34 @@ function stblbin.encode(p, obj)
 	return 1 + size
 end
 
+---@param obj stblbin.Value
+---@return integer
+function stblbin.size(obj)
+	local _type = value_type(obj)
+	local sizer = sizers[_type]
+	local size = sizer(obj)
+	return size + 1
+end
+
+---@param p ffi.cdata*
+---@param size integer
+---@return integer?
+function stblbin.bound(p, size)
+	local offset, ps = 0, 0
+	local bound = coroutine.wrap(bounders.bound)
+	while true do
+		---@type integer?
+		local s = bound(p + offset - ps)
+		if not s then
+			return offset
+		end
+		if offset + s > size then
+			return
+		end
+		offset, ps = offset + s, s
+	end
+end
+
 -- tests
 
 local p = ffi.new("uint8_t[?]", 1e6)
@@ -234,13 +306,21 @@ local t = {
 	b = "hi",
 	c = true,
 	d = {
-		q = {},
-		1,
+		q = {1, 2},
+		1, 2,
 	},
 	10,
 	20,
 }
-stblbin.encode(p, t)
+local size_encoded = stblbin.encode(p, t)
+local size_computed = stblbin.size(t)
+assert(size_encoded == size_computed)
+
+local size_bound = stblbin.bound(p, size_encoded)
+assert(size_bound == size_encoded)
+assert(stblbin.bound(p, size_encoded + 1) == size_encoded)
+assert(not stblbin.bound(p, size_encoded - 1))
+assert(not stblbin.bound(p, 0))
 
 local _t = stblbin.decode(p)
 ---@cast _t stblbin.Table
