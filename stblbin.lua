@@ -15,23 +15,23 @@ local stblbin = {}
 		boolean = 2
 		table = 3
 
-	struct Number: Value
+	struct Number
 		uint8 type
 		double value
 
-	struct String: Value
+	struct String
 		uint8 type
 		uint16 size
 		char[size] value
 
-	struct Boolean: Value
+	struct Boolean
 		uint8 type
 		uint8 value
 
 	struct Table
 		uint8 type
 		uint32 size
-		{Value key, Value|Table value}[size]
+		{Key key, Value value}[size]
 ]]
 
 ---@param p ffi.cdata*
@@ -299,7 +299,7 @@ end
 
 -- tests
 
-local p = ffi.new("uint8_t[?]", 1e6)
+local p = ffi.new("uint8_t[?]", 1e4)
 
 local t = {
 	a = 1,
@@ -312,7 +312,47 @@ local t = {
 	10,
 	20,
 }
+
+local buf = byte.buffer(1e4)  -- manual encode
+buf:uint8(type_enum.table)
+	buf:uint32_be(6)  -- size
+	buf:uint8(type_enum.number) buf:double_be(1)
+	buf:uint8(type_enum.number) buf:double_be(10)
+	buf:uint8(type_enum.number) buf:double_be(2)
+	buf:uint8(type_enum.number) buf:double_be(20)
+	buf:uint8(type_enum.string) buf:uint16_be(1) buf:fill("a")
+	buf:uint8(type_enum.number) buf:double_be(1)
+	buf:uint8(type_enum.string) buf:uint16_be(1) buf:fill("b")
+	buf:uint8(type_enum.string) buf:uint16_be(2) buf:fill("hi")
+	buf:uint8(type_enum.string) buf:uint16_be(1) buf:fill("c")
+	buf:uint8(type_enum.boolean) buf:uint8(1)
+	buf:uint8(type_enum.string) buf:uint16_be(1) buf:fill("d")
+	buf:uint8(type_enum.table)
+		buf:uint32_be(3)
+		buf:uint8(type_enum.number) buf:double_be(1)
+		buf:uint8(type_enum.number) buf:double_be(1)
+		buf:uint8(type_enum.number) buf:double_be(2)
+		buf:uint8(type_enum.number) buf:double_be(2)
+		buf:uint8(type_enum.string) buf:uint16_be(1) buf:fill("q")
+		buf:uint8(type_enum.table)
+			buf:uint32_be(2)
+			buf:uint8(type_enum.number) buf:double_be(1)
+			buf:uint8(type_enum.number) buf:double_be(1)
+			buf:uint8(type_enum.number) buf:double_be(2)
+			buf:uint8(type_enum.number) buf:double_be(2)
+
+local buf_size = tonumber(buf.offset)
+buf:seek(0)
+local buf_str = buf:string(buf_size)
+
 local size_encoded = stblbin.encode(p, t)
+assert(size_encoded == buf_size)
+
+local ptr_str = ffi.string(p, size_encoded)
+
+assert(#buf_str == #ptr_str)
+assert(buf_str == ptr_str)
+
 local size_computed = stblbin.size(t)
 assert(size_encoded == size_computed)
 
