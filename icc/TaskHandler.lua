@@ -1,15 +1,20 @@
 local class = require("class")
 
+---@alias icc.EventId integer
+---@alias icc.Handler fun(peer: icc.IPeer, ...: any): ...: any
+
 ---@class icc.TaskHandler
 ---@operator call: icc.TaskHandler
+---@field timeouts {[icc.EventId]: integer}
+---@field tasks {[icc.EventId]: function}
+---@field event_id icc.EventId
 local TaskHandler = class()
 
 TaskHandler.timeout = math.huge
 
----@param coder table
+---@param coder icc.ICoder
 function TaskHandler:new(coder)
 	self.coder = coder
-
 	self.timeouts = {}
 	self.tasks = {}
 	self.event_id = 0
@@ -24,12 +29,12 @@ local function wrap(f)
 end
 TaskHandler.wrap = wrap
 
----@param peer table|userdata
----@param id number?
----@param ret boolean?
+---@param peer icc.IPeer
+---@param id icc.EventId?
+---@param ret true?
 ---@param ... any?
 function TaskHandler:send(peer, id, ret, ...)
-	peer:send(self.coder.encode({
+	peer:send(self.coder:encode({
 		id = id,
 		ret = ret,
 		n = select("#", ...),
@@ -37,13 +42,13 @@ function TaskHandler:send(peer, id, ret, ...)
 	}))
 end
 
----@param peer table
+---@param peer icc.IPeer
 ---@param ... any?
 function TaskHandler:callnr(peer, ...)
 	self:send(peer, nil, nil, ...)
 end
 
----@param peer table
+---@param peer icc.IPeer
 ---@param ... any?
 ---@return any?...
 function TaskHandler:call(peer, ...)
@@ -80,31 +85,32 @@ function TaskHandler:update()
 	end
 end
 
----@param peer table|userdata
----@param e table
----@param handler function
-function TaskHandler:handle(peer, e, handler)
-	if not e.id then
-		handler(peer, unpack(e, 1, e.n))
+---@param peer icc.IPeer
+---@param msg icc.Message
+---@param handler icc.Handler
+function TaskHandler:handle(peer, msg, handler)
+	if not msg.id then
+		handler(peer, msg:unpack())
 		return
 	end
-	self:send(peer, e.id, true, handler(peer, unpack(e, 1, e.n)))
+	self:send(peer, msg.id, true, handler(peer, msg:unpack()))
 end
 TaskHandler.handle = TaskHandler.wrap(TaskHandler.handle)
 
 ---@param data any
----@param peer table|userdata
----@param handler function
+---@param peer icc.IPeer
+---@param handler icc.Handler
 function TaskHandler:receive(data, peer, handler)
-	local ok, e = pcall(self.coder.decode, data)
-	if not ok or type(e) ~= "table" then
+	local ok, msg = pcall(self.coder.decode, self.coder, data)
+	if not ok or type(msg) ~= "table" then
 		return
 	end
+	---@cast msg icc.Message
 
-	if e.ret and self.tasks[e.id] then
-		self.tasks[e.id](unpack(e, 1, e.n))
+	if msg.ret and self.tasks[msg.id] then
+		self.tasks[msg.id](msg:unpack())
 	else
-		self:handle(peer, e, handler)
+		self:handle(peer, msg, handler)
 	end
 end
 
