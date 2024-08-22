@@ -1,13 +1,10 @@
 local TaskHandler = require("icc.TaskHandler")
-local ICoder = require("icc.ICoder")
 local FakePeer = require("icc.FakePeer")
-
-local coder = ICoder()
 
 local test = {}
 
 function test.basic(t)
-	local th = TaskHandler(coder)
+	local th = TaskHandler()
 	local peer = FakePeer()
 
 	local done = false
@@ -43,7 +40,7 @@ function test.basic(t)
 end
 
 function test.basic_no_return(t)
-	local th = TaskHandler(coder)
+	local th = TaskHandler()
 	local peer = FakePeer()
 
 	local done = false

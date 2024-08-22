@@ -4,7 +4,7 @@ local class = require("class")
 ---@operator call: icc.IPeer
 local IPeer = class()
 
----@param data any
-function IPeer:send(data) end
+---@param msg icc.Message
+function IPeer:send(msg) end
 
 return IPeer

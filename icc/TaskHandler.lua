@@ -1,4 +1,5 @@
 local class = require("class")
+local Message = require("icc.Message")
 
 ---@alias icc.EventId integer
 ---@alias icc.Handler fun(peer: icc.IPeer, ...: any): ...: any
@@ -6,17 +7,15 @@ local class = require("class")
 ---@class icc.TaskHandler
 ---@operator call: icc.TaskHandler
 ---@field timeouts {[icc.EventId]: integer}
----@field tasks {[icc.EventId]: function}
+---@field callbacks {[icc.EventId]: fun(...: any)}
 ---@field event_id icc.EventId
 local TaskHandler = class()
 
 TaskHandler.timeout = math.huge
 
----@param coder icc.ICoder
-function TaskHandler:new(coder)
-	self.coder = coder
+function TaskHandler:new()
 	self.timeouts = {}
-	self.tasks = {}
+	self.callbacks = {}
 	self.event_id = 0
 end
 
@@ -34,12 +33,7 @@ TaskHandler.wrap = wrap
 ---@param ret true?
 ---@param ... any?
 function TaskHandler:send(peer, id, ret, ...)
-	peer:send(self.coder:encode({
-		id = id,
-		ret = ret,
-		n = select("#", ...),
-		...
-	}))
+	peer:send(Message(id, ret, ...))
 end
 
 ---@param peer icc.IPeer
@@ -64,8 +58,8 @@ function TaskHandler:call(peer, ...)
 
 	local trace = debug.traceback(c)
 	self.timeouts[id] = os.time() + self.timeout
-	self.tasks[id] = function(...)
-		self.tasks[id] = nil
+	self.callbacks[id] = function(...)
+		self.callbacks[id] = nil
 		self.timeouts[id] = nil
 		local status, err = coroutine.resume(c, ...)
 		if not status then
@@ -80,7 +74,7 @@ function TaskHandler:update()
 	local time = os.time()
 	for id, t in pairs(self.timeouts) do
 		if t <= time then
-			self.tasks[id](nil, "timeout")
+			self.callbacks[id](nil, "timeout")
 		end
 	end
 end
@@ -97,18 +91,13 @@ function TaskHandler:handle(peer, msg, handler)
 end
 TaskHandler.handle = TaskHandler.wrap(TaskHandler.handle)
 
----@param data any
+---@param msg icc.Message
 ---@param peer icc.IPeer
 ---@param handler icc.Handler
-function TaskHandler:receive(data, peer, handler)
-	local ok, msg = pcall(self.coder.decode, self.coder, data)
-	if not ok or type(msg) ~= "table" then
-		return
-	end
-	---@cast msg icc.Message
-
-	if msg.ret and self.tasks[msg.id] then
-		self.tasks[msg.id](msg:unpack())
+function TaskHandler:receive(msg, peer, handler)
+	local cb = self.callbacks[msg.id]
+	if msg.ret and cb then
+		cb(msg:unpack())
 	else
 		self:handle(peer, msg, handler)
 	end

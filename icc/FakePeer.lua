@@ -9,9 +9,9 @@ function FakePeer:new()
 	self.messages = {}
 end
 
----@param data any
-function FakePeer:send(data)
-	table.insert(self.messages, data)
+---@param msg icc.Message
+function FakePeer:send(msg)
+	table.insert(self.messages, msg)
 end
 
 ---@return integer
