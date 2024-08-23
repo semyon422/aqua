@@ -92,15 +92,9 @@ end
 TaskHandler.handle = TaskHandler.wrap(TaskHandler.handle)
 
 ---@param msg icc.Message
----@param peer icc.IPeer
----@param handler icc.Handler
-function TaskHandler:receive(msg, peer, handler)
-	local cb = self.callbacks[msg.id]
-	if msg.ret and cb then
-		cb(msg:unpack())
-	else
-		self:handle(peer, msg, handler)
-	end
+function TaskHandler:handleReturn(msg)
+	assert(msg.ret)
+	self.callbacks[msg.id](msg:unpack())
 end
 
 return TaskHandler
