@@ -8,27 +8,31 @@ local Test = require("testing.Test")
 ---@operator call: testing.Testing
 local Testing = class()
 
+Testing.total = 0
+Testing.fail = 0
+
 ---@param tio testing.ITestingIO
 function Testing:new(tio)
 	self.tio = tio
+	self.t = Test()
 end
 
 ---@type string[]
 Testing.blacklist = {}
 
 ---@param tmod testing.TModule
----@param t testing.T
 ---@param method_pattern string?
-local function run_tests(tmod, t, method_pattern)
+function Testing:testMod(tmod, method_pattern)
+	local t = self.t
 	local errors = #t
 	for method, tf in pairs(tmod) do
 		if not method_pattern or method:match(method_pattern) then
 			tf(t)
 			if errors ~= #t then
 				errors = #t
-				t.fail = t.fail + 1
+				self.fail = self.fail + 1
 			end
-			t.total = t.total + 1
+			self.total = self.total + 1
 		end
 	end
 end
@@ -37,16 +41,15 @@ end
 ---@param method_pattern string?
 function Testing:test(file_pattern, method_pattern)
 	local tio = self.tio
-	local t = Test()
 
 	for path in tio:iterFiles("") do
 		if path:match("_test%.lua$") and (not file_pattern or path:match(file_pattern)) then
 			tio:writeStdout(path)
 
 			local start_time = tio:getTime()
-			local mod = tio:dofile(path)
-			if mod then
-				run_tests(mod, t, method_pattern)
+			local tmod = tio:dofile(path)
+			if tmod then
+				self:testMod(tmod, method_pattern)
 			end
 			local dt = tio:getTime() - start_time
 
@@ -54,14 +57,14 @@ function Testing:test(file_pattern, method_pattern)
 		end
 	end
 
-	for _,  line in ipairs(t) do
+	for _,  line in ipairs(self.t) do
 		tio:writeStdout(line)
 	end
 
-	if t.fail == 0 then
-		tio:writeStdout(("OK: %s\n"):format(t.total))
+	if self.fail == 0 then
+		tio:writeStdout(("OK: %s\n"):format(self.total))
 	else
-		tio:writeStdout(("FAIL: %d / %d\n"):format(t.fail, t.total))
+		tio:writeStdout(("FAIL: %d / %d\n"):format(self.fail, self.total))
 	end
 end
 

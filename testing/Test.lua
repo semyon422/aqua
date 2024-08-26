@@ -7,9 +7,6 @@ local stbl = require("stbl")
 ---@field [integer] string?
 local Test = class()
 
-Test.total = 0
-Test.fail = 0
-
 ---@param cond any?
 ---@return any?
 function Test:assert(cond)
