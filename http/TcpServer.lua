@@ -1,33 +1,40 @@
 local socket = require("socket")
 local class = require("class")
+local table_util = require("table_util")
 
 ---@class http.TcpServer
 ---@operator call: http.TcpServer
 local TcpServer = class()
 
+---@param ip string
+---@param port integer
+---@param client_handler function
 function TcpServer:new(ip, port, client_handler)
 	self.ip = ip
 	self.port = port
-	self.recvt = {}
 	self.client_handler_func = function(client)
-		return client_handler:handle_client(client)
+		return client_handler(client)
 	end
 end
 
 function TcpServer:load()
-	self.server = assert(socket.tcp4())
-	local server = self.server
+	local soc = assert(socket.tcp4())
+	self.soc = soc
 
-	assert(server:setoption("reuseaddr", true))
-	assert(server:bind(self.ip, self.port))
-	assert(server:listen(1024))
-	assert(server:settimeout(0))
+	assert(soc:setoption("reuseaddr", true))
+	assert(soc:bind(self.ip, self.port))
+	assert(soc:listen(1024))
+	assert(soc:settimeout(0))
 
+	---@type TCPSocket[]
 	self.recvt = {}
-	table.insert(self.recvt, server)
+	table.insert(self.recvt, soc)
 end
 
+---@type {[TCPSocket]: thread}
 local recv_coro = {}
+
+---@param client TCPSocket
 function TcpServer:handle_client(client)
 	if not recv_coro[client] then
 		recv_coro[client] = coroutine.create(self.client_handler_func)
@@ -39,16 +46,13 @@ function TcpServer:handle_client(client)
 	end
 	recv_coro[client] = nil
 	client:close()
-	for i, v in ipairs(self.recvt) do
-		if v == client then
-			table.remove(self.recvt, i)
-			return
-		end
-	end
+
+	local index = table_util.indexof(self.recvt, client)
+	table.remove(self.recvt, index)
 end
 
 function TcpServer:handle_accept()
-	local client, err = self.server:accept()  -- timeout | ?
+	local client, err = self.soc:accept()  -- timeout | ?
 	if err then
 		if err ~= "timeout" then
 			error(err)
@@ -59,6 +63,7 @@ function TcpServer:handle_accept()
 	client:settimeout(0)
 end
 
+---@param timeout number
 function TcpServer:update(timeout)
 	local rclients, _, err = socket.select(self.recvt, nil, timeout)  -- timeout | select failed
 	if err then
@@ -68,13 +73,13 @@ function TcpServer:update(timeout)
 		return
 	end
 
-	local server = self.server
-	if rclients[server] then
+	local soc = self.soc
+	if rclients[soc] then
 		self:handle_accept()
 	end
 
 	for _, client in ipairs(rclients) do
-		if client ~= server then
+		if client ~= soc then
 			self:handle_client(client)
 		end
 	end

@@ -12,8 +12,7 @@ local WebApp = class()
 
 ---@param config table
 ---@param domain table
----@param models table
-function WebApp:new(config, domain, models)
+function WebApp:new(config, domain)
 	local session_handler = SessionHandler({
 		name = "session",
 		secret = config.secret,
