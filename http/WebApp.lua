@@ -40,10 +40,27 @@ function WebApp:new(config, domain)
 	})
 end
 
-function WebApp:handle(req)
+---@param req web.IRequest
+---@param res web.IResponse
+function WebApp:handle(req, res)
 	local rh = self.requestHandler
 	local ok, code, headers, body = xpcall(rh.handle, debug.traceback, rh, req)
-	return ok, code, headers, body
+
+	if not ok then
+		res.status = 500
+		res:write("<pre>" .. tostring(code) .. "</pre>")
+		return
+	end
+
+	if not code then
+		res.status = 404
+		res:write()
+		return
+	end
+
+	res.status = code
+	res.headers = headers
+	res:write(body)
 end
 
 return WebApp
