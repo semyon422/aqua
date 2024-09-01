@@ -10,6 +10,8 @@ local PageHandler = require("web.handlers.PageHandler")
 local ErrorHandler = require("web.handlers.ErrorHandler")
 local UsecaseHandler = require("web.handlers.UsecaseHandler")
 local UserHandler = require("web.handlers.UserHandler")
+local ProtectedHandler = require("web.handlers.ProtectedHandler")
+local ConverterHandler = require("web.handlers.ConverterHandler")
 
 ---@class http.WebApp
 ---@operator call: http.WebApp
@@ -26,25 +28,21 @@ function WebApp:new(config, domain)
 	local router = Router()
 	router:route_many(require("routes"))
 
-	local uch = UsecaseHandler(domain, autoload("usecases"), config)
-	local ush = UserHandler(uch, domain)
-	local sh = SessionHandler(ush, "session", config.secret)
-	local ph = ParamsHandler(sh, autoload("body"), autoload("input"))
-	local rh = RouterHandler(ph, router, default_results)
-	local pageh = PageHandler(domain, config, autoload("pages"), Views(autoload("views")))
+	local uc_h = UsecaseHandler(domain, autoload("usecases"), config)
+	local user_h = UserHandler(uc_h, domain)
+	local sh = SessionHandler(user_h, "session", config.secret)
+	local ph = ParamsHandler(sh, autoload("body"))
+	local ch = ConverterHandler(ph, autoload("input"))
+	local rh = RouterHandler(ch, router, default_results)
+	local page_h = PageHandler(domain, config, autoload("pages"), Views(autoload("views")))
 
-	self.read_handler = ErrorHandler(rh)
-	self.write_handler = ErrorHandler(pageh)
+	self.handler = ErrorHandler(ProtectedHandler(rh, page_h))
 end
 
 ---@param req web.IRequest
 ---@param res web.IResponse
 function WebApp:handle(req, res)
-	local ctx = {}
-	if self.read_handler:handle(req, res, ctx) then
-		return
-	end
-	self.write_handler:handle(req, res, ctx)
+	self.handler:handle(req, res, {})
 end
 
 return WebApp

@@ -22,7 +22,6 @@ function UsecaseHandler:handle(req, res, ctx)
 	local Usecase = self.usecases[ctx.usecase_name]
 	local usecase = Usecase(self.domain, self.config)
 	ctx.result_type = usecase:handle(ctx)
-	res:write()
 end
 
 return UsecaseHandler

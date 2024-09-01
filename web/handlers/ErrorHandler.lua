@@ -20,7 +20,6 @@ function ErrorHandler:handle(req, res, ctx)
 
 	res.status = 500
 	res:write(("<pre>%s</pre>"):format(err))
-	return true
 end
 
 return ErrorHandler

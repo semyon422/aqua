@@ -7,19 +7,9 @@ local HandlerContext = {}
 ---@operator call: web.IHandler
 local IHandler = class()
 
----@param handler web.IHandler?
-function IHandler:new(handler)
-	self.handler = handler
-end
-
 ---@param req web.IRequest
 ---@param res web.IResponse
 ---@param ctx web.HandlerContext
-function IHandler:handle(req, res, ctx)
-	local handler = self.handler
-	if handler then
-		handler:handle(req, res, ctx)
-	end
-end
+function IHandler:handle(req, res, ctx) end
 
 return IHandler
