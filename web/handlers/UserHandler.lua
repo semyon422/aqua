@@ -9,7 +9,7 @@ local UserContext = {}
 local UserHandler = IHandler + {}
 
 ---@param handler web.IHandler
----@param domain table
+---@param domain web.IDomain
 function UserHandler:new(handler, domain)
 	self.handler = handler
 	self.domain = domain

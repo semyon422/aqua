@@ -12,7 +12,7 @@ local ParamsContext = {}
 local ParamsHandler = IHandler + {}
 
 ---@param handler web.IHandler
----@param body_handlers table
+---@param body_handlers {[string]: function}
 function ParamsHandler:new(handler, body_handlers)
 	self.handler = handler
 	self.body_handlers = body_handlers

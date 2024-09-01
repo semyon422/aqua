@@ -8,6 +8,10 @@ local PageContext = {}
 ---@operator call: web.PageHandler
 local PageHandler = IHandler + {}
 
+---@param domain web.IDomain
+---@param config table
+---@param pages {[string]: http.Page}
+---@param views http.Views
 function PageHandler:new(domain, config, pages, views)
 	self.domain = domain
 	self.config = config

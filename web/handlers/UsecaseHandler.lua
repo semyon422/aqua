@@ -8,6 +8,9 @@ local UsecaseContext = {}
 ---@operator call: web.UsecaseHandler
 local UsecaseHandler = IHandler + {}
 
+---@param domain web.IDomain
+---@param usecases {[string]: http.Usecase}
+---@param config table
 function UsecaseHandler:new(domain, usecases, config)
 	self.domain = domain
 	self.usecases = usecases
