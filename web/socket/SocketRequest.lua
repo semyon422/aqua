@@ -1,19 +1,19 @@
-local async_client = require("http.async_client")
 local IRequest = require("web.IRequest")
 
 ---@class web.SocketRequest: web.IRequest
 ---@operator call: web.SocketRequest
 local SocketRequest = IRequest + {}
 
----@param soc TCPSocket
+---@param soc web.Socket
 function SocketRequest:new(soc)
 	self.soc = soc
+	---@type {[string]: string}
 	self.headers = {}
 end
 
 function SocketRequest:readHeaders()
 	while true do
-		local line, err = async_client.receive(self.soc, "*l")  -- closed
+		local line, err = self.soc:read("*l")  -- closed
 		if not line then
 			return nil, err
 		end
@@ -41,7 +41,7 @@ function SocketRequest:read(size)
 	if length == 0 then
 		return ""
 	end
-	return ""
+	return self.soc:read(size)
 end
 
 return SocketRequest

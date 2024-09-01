@@ -3,7 +3,7 @@ local class = require("class")
 ---@class web.IResponse
 ---@operator call: web.IResponse
 ---@field status integer
----@field headers {[string]: string}
+---@field headers {[string]: any}
 local IResponse = class()
 
 ---@param body string?

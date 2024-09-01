@@ -1,5 +1,25 @@
 local async_client = {}
 
+function async_client.ireceive(client, length)
+	local body_size = 0
+	return function()
+		if body_size == length then
+			return
+		end
+
+		coroutine.yield()
+		local line, err, partial = client:receive(length - body_size)  -- closed | timeout
+		if err == "closed" then
+			return nil, err
+		end
+
+		local data = line or partial
+		body_size = body_size + #data
+
+		return data
+	end
+end
+
 function async_client.receive(client, pattern)
 	local buffer = {}
 
