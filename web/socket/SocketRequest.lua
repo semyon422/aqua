@@ -4,7 +4,7 @@ local IRequest = require("web.IRequest")
 ---@operator call: web.SocketRequest
 local SocketRequest = IRequest + {}
 
----@param soc web.Socket
+---@param soc web.AsyncSocket
 function SocketRequest:new(soc)
 	self.soc = soc
 	---@type {[string]: string}
@@ -34,14 +34,14 @@ function SocketRequest:readHeaders()
 	return true
 end
 
----@param size integer?
+---@param size integer
 ---@return string
 function SocketRequest:read(size)
 	local length = tonumber(self.headers["Content-Length"]) or 0
 	if length == 0 then
 		return ""
 	end
-	return self.soc:read(size)
+	return assert(self.soc:read(size))
 end
 
 return SocketRequest

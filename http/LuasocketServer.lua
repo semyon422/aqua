@@ -1,7 +1,7 @@
 local class = require("class")
 
 local TcpServer = require("http.TcpServer")
-local Socket = require("web.socket.Socket")
+local AsyncSocket = require("web.socket.AsyncSocket")
 local SocketRequest = require("web.socket.SocketRequest")
 local SocketResponse = require("web.socket.SocketResponse")
 
@@ -14,7 +14,7 @@ local LuasocketServer = class()
 ---@param handler web.IHandler
 function LuasocketServer:new(ip, port, handler)
 	self.tcp_server = TcpServer(ip, port, function(client)
-		local soc = Socket(client)
+		local soc = AsyncSocket(client)
 		local req = SocketRequest(soc)
 		local res = SocketResponse(soc)
 

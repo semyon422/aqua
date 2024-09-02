@@ -7,7 +7,7 @@ local class = require("class")
 ---@field uri string
 local IRequest = class()
 
----@param size integer?
+---@param size integer
 ---@return string
 function IRequest:read(size)
 	return ""

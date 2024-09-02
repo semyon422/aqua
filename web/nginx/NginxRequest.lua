@@ -10,4 +10,11 @@ function NginxRequest:new()
 	self.uri = ngx.var.request_uri
 end
 
+---@param size integer
+---@return string
+function NginxRequest:read(size)
+	ngx.req.read_body()
+	return ngx.req.get_body_data() or ""
+end
+
 return NginxRequest

@@ -6,6 +6,7 @@ local NginxResponse = IResponse + {}
 
 function NginxResponse:new()
 	self.status = 200
+	---@type {[string]: string}
 	self.headers = {}
 	self.headers_set = false
 end

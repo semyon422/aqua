@@ -5,7 +5,7 @@ local IResponse = require("web.IResponse")
 ---@operator call: web.SocketResponse
 local SocketResponse = IResponse + {}
 
----@param soc web.Socket
+---@param soc web.AsyncSocket
 function SocketResponse:new(soc)
 	self.soc = soc
 	self.status = 200
