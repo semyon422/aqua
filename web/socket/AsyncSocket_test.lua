@@ -6,15 +6,20 @@ local test = {}
 local FAKE_SIZE = 0
 local FAKE_DATA = ""
 
+local SIZE_1 = 10
+local SIZE_2 = 20
+local DATA_1 = "qwe"
+local DATA_2 = "qwerty"
+
 function test.read_success(t)
-	local soc = FakeSocket("data")
+	local soc = FakeSocket(DATA_1)
 	local asoc = AsyncSocket(soc)
 	local data = asoc:read(FAKE_SIZE)
-	t:eq(data, "data")
+	t:eq(data, DATA_1)
 end
 
 function test.read_timeout(t)
-	local soc = FakeSocket("partial", "timeout")
+	local soc = FakeSocket(DATA_1, "timeout")
 	local asoc = AsyncSocket(soc)
 
 	local data = ""
@@ -24,30 +29,30 @@ function test.read_timeout(t)
 
 	coroutine.resume(co)
 	t:eq(data, "")
-	soc:new("data")
+	soc:new(DATA_2)
 	coroutine.resume(co)
-	t:eq(data, "partialdata")
+	t:eq(data, DATA_1 .. DATA_2)
 end
 
 function test.read_closed(t)
-	local soc = FakeSocket("partial", "closed")
+	local soc = FakeSocket(DATA_1, "closed")
 	local asoc = AsyncSocket(soc)
 
 	local data, err, partial = asoc:read(FAKE_SIZE)
 	t:eq(data, nil)
 	t:eq(err, "closed")
-	t:eq(partial, "partial")
+	t:eq(partial, DATA_1)
 end
 
 function test.write_success(t)
-	local soc = FakeSocket(4)
+	local soc = FakeSocket(SIZE_1)
 	local asoc = AsyncSocket(soc)
 	local size = asoc:write(FAKE_DATA)
-	t:eq(size, 4)
+	t:eq(size, SIZE_1)
 end
 
 function test.write_timeout(t)
-	local soc = FakeSocket(7, "timeout")
+	local soc = FakeSocket(SIZE_1, "timeout")
 	local asoc = AsyncSocket(soc)
 
 	local size = 0
@@ -57,19 +62,19 @@ function test.write_timeout(t)
 
 	coroutine.resume(co)
 	t:eq(size, 0)
-	soc:new(11)
+	soc:new(SIZE_1 + SIZE_2)
 	coroutine.resume(co)
-	t:eq(size, 11)
+	t:eq(size, SIZE_1 + SIZE_2)
 end
 
 function test.write_closed(t)
-	local soc = FakeSocket(7, "closed")
+	local soc = FakeSocket(SIZE_1, "closed")
 	local asoc = AsyncSocket(soc)
 
 	local data, err, partial = asoc:write(FAKE_DATA)
 	t:eq(data, nil)
 	t:eq(err, "closed")
-	t:eq(partial, 7)
+	t:eq(partial, SIZE_1)
 end
 
 return test

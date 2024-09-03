@@ -44,7 +44,6 @@ end
 ---@return integer?
 function AsyncSocket:write(data)
 	local i, j = 1, #data
-	local total = 0
 
 	while true do
 		local last_byte, err, _last_byte = self.soc:send(data, i, j)
@@ -55,11 +54,9 @@ function AsyncSocket:write(data)
 		local byte = last_byte or _last_byte
 		---@cast byte integer
 
-		total = total + byte - i + 1
 		i = byte + 1
-
 		if last_byte then
-			return total
+			return last_byte
 		elseif err == "timeout" then
 			coroutine.yield()
 		end
@@ -69,20 +66,21 @@ end
 ---@param size integer
 ---@return function
 function AsyncSocket:iread(size)
-	local body_size = 0
+	local total = 0
+
 	return function()
-		if body_size == size then
+		if total == size then
 			return
 		end
 
 		coroutine.yield()
-		local line, err, partial = self.soc:receive(size - body_size)  -- closed | timeout
+		local line, err, partial = self.soc:receive(size - total)
 		if err == "closed" then
 			return nil, err
 		end
 
 		local data = line or partial
-		body_size = body_size + #data
+		total = total + #data
 
 		return data
 	end
