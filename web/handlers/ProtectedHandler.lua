@@ -21,9 +21,11 @@ end
 ---@param res web.IResponse
 ---@param ctx web.HandlerContext
 function ProtectedHandler:handle(req, res, ctx)
-	-- res.write = write_error
-	self.read_handler:handle(req, res, ctx)
-	-- res.write = nil
+	res.write = write_error
+	local rh = self.read_handler
+	local ok, err = xpcall(rh.handle, debug.traceback, rh, req, res, ctx)
+	res.write = nil
+	assert(ok, err)
 	self.write_handler:handle(req, res, ctx)
 end
 
