@@ -1,6 +1,6 @@
 local IHandler = require("web.IHandler")
-local cookie_util = require("http.cookie_util")
-local session_util = require("web.session_util")
+local cookie_util = require("web.cookie.cookie_util")
+local session_util = require("web.cookie.session_util")
 
 ---@class web.SessionContext: web.HandlerContext
 ---@field session table

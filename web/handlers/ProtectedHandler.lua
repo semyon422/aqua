@@ -21,9 +21,9 @@ end
 ---@param res web.IResponse
 ---@param ctx web.HandlerContext
 function ProtectedHandler:handle(req, res, ctx)
-	res.write = write_error
+	-- res.write = write_error
 	self.read_handler:handle(req, res, ctx)
-	res.write = nil
+	-- res.write = nil
 	self.write_handler:handle(req, res, ctx)
 end
 

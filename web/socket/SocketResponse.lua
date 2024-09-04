@@ -1,4 +1,4 @@
-local http_codes = require("http.codes")
+local codes = require("web.socket.codes")
 local IResponse = require("web.IResponse")
 
 ---@class web.SocketResponse: web.IResponse
@@ -30,7 +30,7 @@ function SocketResponse:setHeaders(content_length)
 		headers["Content-Length"] = content_length
 	end
 
-	table.insert(buffer, ("HTTP/1.1 %s %s"):format(status, http_codes[status]))
+	table.insert(buffer, ("HTTP/1.1 %s %s"):format(status, codes[status]))
 
 	for k, v in pairs(headers) do
 		table.insert(buffer, ("%s: %s"):format(k, v))

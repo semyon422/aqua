@@ -1,4 +1,4 @@
-local View = require("web.View")
+local View = require("web.page.View")
 local class = require("class")
 
 ---@class web.Views

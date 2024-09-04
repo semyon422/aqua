@@ -1,6 +1,7 @@
 local IHandler = require("web.IHandler")
 
 ---@class web.PageContext: web.HandlerContext
+---@field session_user table
 ---@field page_name string
 ---@field page web.Page
 local PageContext = {}

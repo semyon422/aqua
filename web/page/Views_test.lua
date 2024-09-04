@@ -1,4 +1,4 @@
-local Views = require("web.Views")
+local Views = require("web.page.Views")
 
 local test = {}
 

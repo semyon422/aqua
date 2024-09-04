@@ -1,17 +1,19 @@
 local class = require("class")
 local autoload = require("autoload")
 
-local Router = require("web.Router")
-local Views = require("web.Views")
-local SessionHandler = require("web.handlers.SessionHandler")
 local ParamsHandler = require("web.handlers.ParamsHandler")
-local RouterHandler = require("web.handlers.RouterHandler")
-local PageHandler = require("web.handlers.PageHandler")
 local ErrorHandler = require("web.handlers.ErrorHandler")
-local UsecaseHandler = require("web.handlers.UsecaseHandler")
 local UserHandler = require("web.handlers.UserHandler")
 local ProtectedHandler = require("web.handlers.ProtectedHandler")
 local ConverterHandler = require("web.handlers.ConverterHandler")
+
+local Router = require("web.router.Router")
+local Views = require("web.page.Views")
+
+local UsecaseHandler = require("web.usecase.UsecaseHandler")
+local RouterHandler = require("web.router.RouterHandler")
+local PageHandler = require("web.page.PageHandler")
+local SessionHandler = require("web.cookie.SessionHandler")
 
 ---@class web.WebApp
 ---@operator call: web.WebApp
