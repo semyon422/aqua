@@ -1,6 +1,6 @@
 local IHandler = require("web.IHandler")
 local cookie_util = require("http.cookie_util")
-local session_util = require("http.session_util")
+local session_util = require("web.session_util")
 
 ---@class web.SessionContext: web.HandlerContext
 ---@field session table
@@ -21,10 +21,8 @@ end
 
 ---@param req web.IRequest
 ---@param res web.IResponse
----@param ctx web.HandlerContext
+---@param ctx web.SessionContext
 function SessionHandler:handle(req, res, ctx)
-	---@cast ctx +web.SessionContext
-
 	local name, secret = self.name, self.secret
 
 	local cookies = cookie_util.decode(req.headers["Cookie"])
@@ -32,6 +30,7 @@ function SessionHandler:handle(req, res, ctx)
 
 	self.handler:handle(req, res, ctx)
 
+	---@type {[string]: string}
 	cookies = {}
 	cookies[name] = session_util.encode(ctx.session, secret)
 	res.headers["Set-Cookie"] = cookie_util.encode(cookies)

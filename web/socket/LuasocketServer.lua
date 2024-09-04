@@ -1,12 +1,12 @@
 local class = require("class")
 
-local TcpServer = require("http.TcpServer")
+local TcpServer = require("web.socket.TcpServer")
 local AsyncSocket = require("web.socket.AsyncSocket")
 local SocketRequest = require("web.socket.SocketRequest")
 local SocketResponse = require("web.socket.SocketResponse")
 
----@class http.LuasocketServer
----@operator call: http.LuasocketServer
+---@class web.LuasocketServer
+---@operator call: web.LuasocketServer
 local LuasocketServer = class()
 
 ---@param ip string

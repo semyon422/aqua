@@ -2,8 +2,8 @@ local socket = require("socket")
 local class = require("class")
 local table_util = require("table_util")
 
----@class http.TcpServer
----@operator call: http.TcpServer
+---@class web.TcpServer
+---@operator call: web.TcpServer
 local TcpServer = class()
 
 ---@param ip string

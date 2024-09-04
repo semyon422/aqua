@@ -1,11 +1,11 @@
 local class = require("class")
 
----@class http.View
----@operator call: http.View
+---@class web.View
+---@operator call: web.View
 local View = class()
 
 ---@param env table
----@param views http.Views
+---@param views web.Views
 function View:new(env, views)
 	self.env = env
 	self.views = views
@@ -18,7 +18,7 @@ function View:render(name)
 end
 
 ---@param env table
----@return http.View
+---@return web.View
 function View:__call(env)
 	setmetatable(env, {__index = self.env})
 	return self.views:new_viewable_env(env).view

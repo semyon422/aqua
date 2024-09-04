@@ -5,6 +5,8 @@ local http_util = require("http_util")
 
 ---@class web.ParamsContext: web.HandlerContext
 ---@field ip string
+---@field body_handler_name string
+---@field path_params table
 local ParamsContext = {}
 
 ---@class web.ParamsHandler: web.IHandler
@@ -29,10 +31,8 @@ end
 
 ---@param req web.IRequest
 ---@param res web.IResponse
----@param ctx web.RouterContext
+---@param ctx web.ParamsContext
 function ParamsHandler:handle(req, res, ctx)
-	---@cast ctx +web.ParamsContext
-
 	local parsed_url = socket_url.parse(req.uri)
 
 	table_util.copy(http_util.decode_query_string(parsed_url.query), ctx)

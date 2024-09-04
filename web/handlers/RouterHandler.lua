@@ -14,7 +14,7 @@ local RouterContext = {}
 local RouterHandler = IHandler + {}
 
 ---@param handler web.IHandler
----@param router http.Router
+---@param router web.Router
 function RouterHandler:new(handler, router, default_results)
 	self.handler = handler
 	self.router = router
@@ -23,10 +23,8 @@ end
 
 ---@param req web.IRequest
 ---@param res web.IResponse
----@param ctx web.HandlerContext
+---@param ctx web.RouterContext
 function RouterHandler:handle(req, res, ctx)
-	---@cast ctx +web.RouterContext
-
 	local parsed_url = socket_url.parse(req.uri)
 
 	local path_params, route_config = self.router:handle(parsed_url.path, req.method)

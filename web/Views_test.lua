@@ -1,4 +1,4 @@
-local Views = require("http.Views")
+local Views = require("web.Views")
 
 local test = {}
 

@@ -1,7 +1,8 @@
 local IHandler = require("web.IHandler")
 
 ---@class web.PageContext: web.HandlerContext
----@field page http.Page
+---@field page_name string
+---@field page web.Page
 local PageContext = {}
 
 ---@class web.PageHandler: web.IHandler
@@ -10,8 +11,8 @@ local PageHandler = IHandler + {}
 
 ---@param domain web.IDomain
 ---@param config table
----@param pages {[string]: http.Page}
----@param views http.Views
+---@param pages {[string]: web.Page}
+---@param views web.Views
 function PageHandler:new(domain, config, pages, views)
 	self.domain = domain
 	self.config = config
@@ -21,10 +22,8 @@ end
 
 ---@param req web.IRequest
 ---@param res web.IResponse
----@param ctx web.ParamsContext|web.RouterContext|web.UserContext
+---@param ctx web.PageContext
 function PageHandler:handle(req, res, ctx)
-	---@cast ctx +web.PageContext
-
 	local page = ctx.page_name
 	if not page then
 		res:write()

@@ -1,6 +1,7 @@
 local IHandler = require("web.IHandler")
 
 ---@class web.UserContext: web.HandlerContext
+---@field session table
 ---@field session_user table
 local UserContext = {}
 
@@ -17,9 +18,8 @@ end
 
 ---@param req web.IRequest
 ---@param res web.IResponse
----@param ctx web.SessionContext
+---@param ctx web.UserContext
 function UserHandler:handle(req, res, ctx)
-	---@cast ctx +web.UserContext
 	ctx.session_user = self.domain:getUser(ctx.session.user_id)
 	self.handler:handle(req, res, ctx)
 end

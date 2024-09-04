@@ -1,10 +1,10 @@
 local class = require("class")
 
----@class http.Usecase
----@operator call: http.Usecase
+---@class web.Usecase
+---@operator call: web.Usecase
 local Usecase = class()
 
----@param domain domain.Domain
+---@param domain web.IDomain
 ---@param config table
 ---@param user table
 function Usecase:new(domain, config, user)

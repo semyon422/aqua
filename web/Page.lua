@@ -1,12 +1,12 @@
 local class = require("class")
 
----@class http.Page
----@operator call: http.Page
+---@class web.Page
+---@operator call: web.Page
 local Page = class()
 
 Page.view = nil
 
----@param domain domain.Domain
+---@param domain web.IDomain
 ---@param params table
 ---@param user table
 ---@param config table

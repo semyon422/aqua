@@ -1,7 +1,7 @@
 local class = require("class")
 
----@class http.Router
----@operator call: http.Router
+---@class web.Router
+---@operator call: web.Router
 local Router = class()
 
 function Router:new()

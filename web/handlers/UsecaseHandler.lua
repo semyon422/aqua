@@ -1,6 +1,7 @@
 local IHandler = require("web.IHandler")
 
 ---@class web.UsecaseContext: web.HandlerContext
+---@field usecase_name string
 ---@field result_type string
 local UsecaseContext = {}
 
@@ -9,7 +10,7 @@ local UsecaseContext = {}
 local UsecaseHandler = IHandler + {}
 
 ---@param domain web.IDomain
----@param usecases {[string]: http.Usecase}
+---@param usecases {[string]: web.Usecase}
 ---@param config table
 function UsecaseHandler:new(domain, usecases, config)
 	self.domain = domain
@@ -19,9 +20,8 @@ end
 
 ---@param req web.IRequest
 ---@param res web.IResponse
----@param ctx web.RouterContext
+---@param ctx web.UsecaseContext
 function UsecaseHandler:handle(req, res, ctx)
-	---@cast ctx +web.UsecaseContext
 	local Usecase = self.usecases[ctx.usecase_name]
 	local usecase = Usecase(self.domain, self.config)
 	ctx.result_type = usecase:handle(ctx)

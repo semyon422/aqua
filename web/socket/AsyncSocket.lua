@@ -63,30 +63,4 @@ function AsyncSocket:write(data)
 	end
 end
 
----@param size integer
----@return function
-function AsyncSocket:iread(size)
-	local total = 0
-
-	return function()
-		if total == size then
-			return
-		end
-
-		coroutine.yield()
-		local line, err, partial = self.soc:receive(size - total)
-		if err == "closed" then
-			return nil, err
-		end
-
-		local data = line or partial
-		total = total + #data
-
-		return data
-	end
-end
-
----@param data string
-function AsyncSocket:iwrite(data) end
-
 return AsyncSocket

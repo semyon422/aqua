@@ -1,10 +1,10 @@
-local View = require("http.View")
+local View = require("web.View")
 local class = require("class")
 
----@class http.Views
----@operator call: http.Views
+---@class web.Views
+---@operator call: web.Views
 ---@field _views table
----@field [string] http.View
+---@field [string] web.View
 local Views = class()
 
 ---@param views table
