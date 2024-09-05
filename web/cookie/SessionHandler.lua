@@ -10,13 +10,13 @@ local SessionContext = {}
 ---@operator call: web.SessionHandler
 local SessionHandler = IHandler + {}
 
----@param handler web.IHandler
 ---@param name string
 ---@param secret string
-function SessionHandler:new(handler, name, secret)
-	self.handler = handler
+---@param handler web.IHandler
+function SessionHandler:new(name, secret, handler)
 	self.name = name
 	self.secret = secret
+	self.handler = handler
 end
 
 ---@param req web.IRequest

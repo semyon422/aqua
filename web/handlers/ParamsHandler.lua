@@ -13,10 +13,8 @@ local ParamsContext = {}
 ---@operator call: web.ParamsHandler
 local ParamsHandler = IHandler + {}
 
----@param handler web.IHandler
 ---@param body_handlers {[string]: function}
-function ParamsHandler:new(handler, body_handlers)
-	self.handler = handler
+function ParamsHandler:new(body_handlers)
 	self.body_handlers = body_handlers
 end
 
@@ -40,8 +38,6 @@ function ParamsHandler:handle(req, res, ctx)
 	table_util.copy(ctx.path_params, ctx)
 
 	ctx.ip = req.headers["X-Real-IP"]
-
-	self.handler:handle(req, res, ctx)
 end
 
 return ParamsHandler

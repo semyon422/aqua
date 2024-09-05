@@ -8,8 +8,10 @@ function Router:new()
 	self.routes = {}
 end
 
+---@param method string
 ---@param uri string
-function Router:route(method, uri, ...)
+---@param ctx table
+function Router:route(method, uri, ctx)
 	local keys = {}
 	local pattern = uri:gsub(":([^/]+)", function(key)
 		table.insert(keys, key)
@@ -19,19 +21,24 @@ function Router:route(method, uri, ...)
 		pattern = "^" .. pattern .. "$",
 		keys = keys,
 		method = method,
-		config = {n = select("#", ...), ...},
+		ctx = ctx,
 	})
 end
 
+---@param _routes table
 function Router:route_many(_routes)
 	for _, route in ipairs(_routes) do
 		local uri = route[1]
-		for method, args in pairs(route[2]) do
-			self:route(method, uri, unpack(args))
+		for method, ctx in pairs(route[2]) do
+			self:route(method, uri, ctx)
 		end
 	end
 end
 
+---@param path string
+---@param method string
+---@return {[string]: string}?
+---@return table?
 function Router:handle(path, method)
 	for _, route in ipairs(self.routes) do
 		if route.method == method then
@@ -41,7 +48,7 @@ function Router:handle(path, method)
 				for i, k in ipairs(route.keys) do
 					path_params[k] = matched[i]
 				end
-				return path_params, route.config
+				return path_params, route.ctx
 			end
 		end
 	end

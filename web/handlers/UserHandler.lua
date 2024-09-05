@@ -9,10 +9,8 @@ local UserContext = {}
 ---@operator call: web.UserHandler
 local UserHandler = IHandler + {}
 
----@param handler web.IHandler
 ---@param domain web.IDomain
-function UserHandler:new(handler, domain)
-	self.handler = handler
+function UserHandler:new(domain)
 	self.domain = domain
 end
 
@@ -21,7 +19,6 @@ end
 ---@param ctx web.UserContext
 function UserHandler:handle(req, res, ctx)
 	ctx.session_user = self.domain:getUser(ctx.session.user_id)
-	self.handler:handle(req, res, ctx)
 end
 
 return UserHandler
