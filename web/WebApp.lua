@@ -32,7 +32,7 @@ function WebApp:new(config, domain)
 	}
 
 	local router = Router()
-	router:route_many(require("routes"))
+	router:routeMany(require("routes"))
 
 	local cpsuu = SequentialHandler({
 		ConverterHandler(autoload("input")),
