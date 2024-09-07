@@ -1,4 +1,12 @@
-local pkg = {}
+---@type table?
+local pkg = package.loaded.pkg
+
+if pkg then
+	return pkg
+end
+
+pkg = {}
+package.loaded.pkg = pkg
 
 local os_ext = {
 	Windows = {"dll"},
