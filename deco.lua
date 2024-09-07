@@ -37,8 +37,6 @@ end
 function FunctionDecorator:func_begin(func_name) end
 function FunctionDecorator:func_end(func_name) end
 
-deco.package_path = package.path
-
 ---@param path string
 ---@return string?
 function deco.read_file(path)
@@ -90,7 +88,7 @@ local function lua_loader(name)
 
 	local errors = {}
 
-	for path in deco.package_path:gsub("%?", name):gmatch("[^;]+") do
+	for path in package.path:gsub("%?", name):gmatch("[^;]+") do
 		local blacklisted = false
 		for _, item in ipairs(deco.blacklist) do
 			if path:find(item, 1, true) then
