@@ -1,5 +1,5 @@
 local openssl_hmac = require("openssl.hmac")
-local json = require("cjson")
+local json = require("json")
 local mime = require("mime")
 
 local function hmac_sha256(secret, str)
