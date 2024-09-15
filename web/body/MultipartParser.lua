@@ -9,6 +9,22 @@ function MultipartParser:new(headers)
 	self.headers = headers
 end
 
+local function parse_part(s)
+	local part = {
+		headers = {},
+	}
+
+	local headers_string, body = s:match("^(.-\r\n)\r\n(.*)$")
+	part.body = body
+
+	for header in headers_string:gmatch("([^\r^\n]*)\r\n") do
+		local k, v = header:match("^(.-): (.+)$")
+		part.headers[k] = v
+	end
+
+	return part
+end
+
 ---@param body string
 ---@return table
 function MultipartParser:read(body)
@@ -21,7 +37,7 @@ function MultipartParser:read(body)
 	while i <= #body - #boundary - 6 do
 		local a, b = body:find("--" .. boundary, i, true)
 		local c, d = body:find("--" .. boundary, b + 1, true)
-		table.insert(parts, body:sub(b + 3, c - 3))
+		table.insert(parts, parse_part(body:sub(b + 3, c - 3)))
 		i = c
 	end
 

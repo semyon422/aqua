@@ -17,8 +17,20 @@ function test.basic(t)
 	local parts = parser:read(body)
 
 	t:tdeq(parts, {
-		'Content-Disposition: form-data; name="name1"; filename="filename1"\r\nContent-Type: application/octet-stream\r\n\r\ndata1',
-		'Content-Disposition: form-data; name="name2"; filename="filename2"\r\nContent-Type: application/octet-stream\r\n\r\ndata2',
+		{
+			body = "data1",
+			headers = {
+				["Content-Disposition"] = 'form-data; name="name1"; filename="filename1"',
+				["Content-Type"] = "application/octet-stream",
+			},
+		},
+		{
+			body = "data2",
+			headers = {
+				["Content-Disposition"] = 'form-data; name="name2"; filename="filename2"',
+				["Content-Type"] = "application/octet-stream",
+			},
+		},
 	})
 end
 
