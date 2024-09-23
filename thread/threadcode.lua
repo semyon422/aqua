@@ -24,7 +24,7 @@ thread.shared = synctable.new(shared, function(...)
 	})
 end)
 
-require("preload")
+pcall(require, "preload")
 
 require("love.timer")
 _G.startTime = love.timer.getTime()
