@@ -4,7 +4,7 @@ local synctable = require("synctable")
 local ThreadPool = {}
 
 ThreadPool.poolSize = love.system.getProcessorCount()
-ThreadPool.keepAliveTime = 1
+ThreadPool.keepAliveTime = 10
 
 ThreadPool.threads = {}
 ThreadPool.runningThreads = {}
