@@ -1,5 +1,5 @@
 local ffi = require("ffi")
-local byte = require("byte_new")
+local byte = require("byte")
 
 local stblbin = {}
 
