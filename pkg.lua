@@ -8,6 +8,10 @@ end
 pkg = {}
 package.loaded.pkg = pkg
 
+---@alias pkg.Path string|table
+
+local CWD = {}  -- current working directory
+
 local os_ext = {
 	Windows = {"dll"},
 	Linux = {"so"},
@@ -16,36 +20,72 @@ local os_ext = {
 
 local exts = os_ext[jit.os]
 
+---@param a pkg.Path
+---@param b string
+---@return string
 local function join(a, b)
-	if not a then
+	if a == CWD then
 		return b
 	end
 	return ("%s/%s"):format(a, b)
 end
 
-local lua_paths, c_paths
-
 function pkg.reset()
-	lua_paths = {}
-	c_paths = {}
+	---@type pkg.Path[]
+	pkg.lua_paths = {}
+	---@type pkg.Path[]
+	pkg.c_paths = {}
 end
 pkg.reset()
 
----@param path string
-function pkg.add(path)
-	table.insert(lua_paths, path)
+---@param t pkg.Path[]
+---@param v pkg.Path
+---@return number?
+local function indexof(t, v)
+	for i, _v in ipairs(t) do
+		if _v == v then
+			return i
+		end
+	end
 end
 
----@param path string
+---@param path string?
+function pkg.add(path)
+	path = path or CWD
+	if not indexof(pkg.lua_paths, path) then
+		table.insert(pkg.lua_paths, path)
+	end
+end
+
+---@param path string?
 function pkg.addc(path)
-	table.insert(c_paths, path)
+	path = path or CWD
+	if not indexof(pkg.c_paths, path) then
+		table.insert(pkg.c_paths, path)
+	end
+end
+
+---@param path string?
+function pkg.remove(path)
+	local index = indexof(pkg.lua_paths, path or CWD)
+	if index then
+		table.remove(pkg.lua_paths, index)
+	end
+end
+
+---@param path string?
+function pkg.removec(path)
+	local index = indexof(pkg.c_paths, path or CWD)
+	if index then
+		table.remove(pkg.c_paths, index)
+	end
 end
 
 ---@return string
 function pkg.compile_path()
 	local out = {}
-	for i = 0, #lua_paths do  -- start with nil path
-		local p = lua_paths[i]
+	for i = 1, #pkg.lua_paths do
+		local p = pkg.lua_paths[i]
 		table.insert(out, join(p, "?.lua"))
 		table.insert(out, join(p, "?/init.lua"))
 	end
@@ -55,8 +95,8 @@ end
 ---@return string
 function pkg.compile_cpath()
 	local out = {}
-	for i = 0, #c_paths do  -- start with nil path
-		local p = c_paths[i]
+	for i = 1, #pkg.c_paths do
+		local p = pkg.c_paths[i]
 		for _, ext in ipairs(exts) do
 			table.insert(out, join(p, ("?.%s"):format(ext)))
 		end
@@ -72,6 +112,24 @@ end
 function pkg.export_love()
 	love.filesystem.setRequirePath(pkg.compile_path())
 	love.filesystem.setCRequirePath(pkg.compile_cpath())
+end
+
+function pkg.import()
+	for path in package.path:gmatch("([^;]*)?") do
+		if path == "" then
+			pkg.add()
+		else
+			pkg.add(path:match("^(.-)/?$"))
+		end
+	end
+
+	for path in package.cpath:gmatch("([^;]*)?") do
+		if path == "" then
+			pkg.addc()
+		else
+			pkg.addc(path:match("^(.-)/?$"))
+		end
+	end
 end
 
 return pkg
