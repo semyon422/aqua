@@ -1,2 +1,0 @@
-#!/bin/bash
-luajit -e "dofile('tests/cmath.lua')"
