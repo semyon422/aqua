@@ -11,6 +11,9 @@ ThreadPool.runningThreads = {}
 ThreadPool.queue = {}
 ThreadPool.loaded = true
 
+ThreadPool.initFunc = string.dump(function() end)
+ThreadPool.initArgsFunc = function() return {} end
+
 local _synctable = {}
 ThreadPool.synctable = synctable.new(_synctable, function(...)
 	for _, thread in pairs(ThreadPool.threads) do
@@ -25,6 +28,13 @@ function ThreadPool:execute(task)
 	end
 	table.insert(self.queue, task)
 	self:update()
+end
+
+---@param f function
+---@param argsf function?
+function ThreadPool:setInitFunc(f, argsf)
+	self.initFunc = string.dump(f)
+	self.initArgsFunc = argsf or self.initArgsFunc
 end
 
 ---@return boolean
@@ -118,7 +128,7 @@ function ThreadPool:createThread(id)
 	self.threads[id] = thread
 	self.runningThreads[id] = thread
 
-	thread:start()
+	thread:start(self.initFunc, self.initArgsFunc())
 
 	return thread
 end

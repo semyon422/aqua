@@ -31,6 +31,12 @@ function thread.update()
 	return ThreadPool:update()
 end
 
+---@param f function
+---@param argsf function
+function thread.setInitFunc(f, argsf)
+	ThreadPool:setInitFunc(f, argsf)
+end
+
 ---@param f function|string
 ---@param args table
 ---@param callback function

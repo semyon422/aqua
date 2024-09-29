@@ -1,5 +1,7 @@
-package.path = love.filesystem.getRequirePath()
-package.cpath = love.filesystem.getCRequirePath()
+local pkg = require("pkg")
+pkg.import_love()
+pkg.export_lua()
+pkg.export_love()
 
 local synctable = require("synctable")
 local table_util = require("table_util")
@@ -24,24 +26,28 @@ thread.shared = synctable.new(shared, function(...)
 	})
 end)
 
-pcall(require, "preload")
-
 require("love.timer")
 _G.startTime = love.timer.getTime()
 
 local should_stop = false
+
+local function load_code_string(event)
+	return xpcall(
+		assert(loadstring(event.codestring)),
+		debug.traceback,
+		unpack(event.args, 1, event.args.n)
+	)
+end
 
 function thread.handle(event)
 	if event.name == "stop" then
 		should_stop = true
 	elseif event.name == "synctable" then
 		synctable.set(shared, unpack(event, 1, event.n))
+	elseif event.name == "init" then
+		assert(load_code_string(event))
 	elseif event.name == "loadstring" then
-		local result = table_util.pack(xpcall(
-			assert(loadstring(event.codestring)),
-			debug.traceback,
-			unpack(event.args, 1, event.args.n)
-		))
+		local result = table_util.pack(load_code_string(event))
 		result.name = "result"
 		outputChannel:push(result)
 	else

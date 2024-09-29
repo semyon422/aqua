@@ -75,8 +75,18 @@ function Thread:isRunning()
 	return self.thread:isRunning()
 end
 
-function Thread:start()
+---@param start_func string?
+---@param args table?
+function Thread:start(start_func, args)
 	self.thread:start()
+	if not start_func then
+		return
+	end
+	self.thread:push({
+		name = "init",
+		codestring = start_func,
+		args = args or {},
+	})
 end
 
 function Thread:pushStop()
