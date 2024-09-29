@@ -1,7 +1,7 @@
 ---@type table?
 local pkg = package.loaded.pkg
 
-if pkg then
+if type(pkg) == "table" then
 	return pkg
 end
 
