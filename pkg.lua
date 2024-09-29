@@ -114,8 +114,10 @@ function pkg.export_love()
 	love.filesystem.setCRequirePath(pkg.compile_cpath())
 end
 
-function pkg.import()
-	for path in package.path:gmatch("([^;]*)?") do
+---@param package_path string
+---@param package_cpath string
+function pkg.import(package_path, package_cpath)
+	for path in package_path:gmatch("([^;]*)?") do
 		if path == "" then
 			pkg.add()
 		else
@@ -123,13 +125,21 @@ function pkg.import()
 		end
 	end
 
-	for path in package.cpath:gmatch("([^;]*)?") do
+	for path in package_cpath:gmatch("([^;]*)?") do
 		if path == "" then
 			pkg.addc()
 		else
 			pkg.addc(path:match("^(.-)/?$"))
 		end
 	end
+end
+
+function pkg.import_lua()
+	pkg.import(package.path, package.cpath)
+end
+
+function pkg.import_love()
+	pkg.import(love.filesystem.getRequirePath(), love.filesystem.getCRequirePath())
 end
 
 return pkg
