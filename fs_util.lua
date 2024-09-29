@@ -3,7 +3,11 @@ thread.shared.download = {}
 
 local fs_util = {}
 
-fs_util.extractAsync = thread.async(function(archive, path)
+---@param archive string|love.FileData
+---@param path string
+---@return true?
+---@return string?
+function fs_util.extractAsync(archive, path)
 	require("love.filesystem")
 	local physfs = require("physfs")
 	local rcopy = require("rcopy")
@@ -25,9 +29,15 @@ fs_util.extractAsync = thread.async(function(archive, path)
 	end
 
 	return true
-end)
+end
+fs_util.extractAsync = thread.async(fs_util.extractAsync)
 
-fs_util.downloadAsync = thread.async(function(url)
+---@param url string
+---@return string?
+---@return (string|number)?
+---@return table?
+---@return string?
+function fs_util.downloadAsync(url)
 	local http = require("http")
 	local ltn12 = require("ltn12")
 	local thread = require("thread")
@@ -90,6 +100,7 @@ fs_util.downloadAsync = thread.async(function(url)
 	end
 
 	return table.concat(t), code, headers, status_line
-end)
+end
+fs_util.downloadAsync = thread.async(fs_util.downloadAsync)
 
 return fs_util
