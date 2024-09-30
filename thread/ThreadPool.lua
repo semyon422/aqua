@@ -60,9 +60,10 @@ function ThreadPool:unload()
 	self.loaded = false
 end
 
-function ThreadPool:reinit()
+function ThreadPool:stopThreads()
 	for i, thread in pairs(self.threads) do
-		thread:init(self.initFunc, self.initArgsFunc())
+		thread:pushStop()
+		self.threads[i] = nil
 	end
 end
 

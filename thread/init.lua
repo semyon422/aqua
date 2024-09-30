@@ -37,8 +37,8 @@ function thread.setInitFunc(f, argsf)
 	ThreadPool:setInitFunc(f, argsf)
 end
 
-function thread.reinit()
-	ThreadPool:reinit()
+function thread.stopThreads()
+	ThreadPool:stopThreads()
 end
 
 ---@param f function|string
