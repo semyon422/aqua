@@ -37,6 +37,10 @@ function thread.setInitFunc(f, argsf)
 	ThreadPool:setInitFunc(f, argsf)
 end
 
+function thread.reinit()
+	ThreadPool:reinit()
+end
+
 ---@param f function|string
 ---@param args table
 ---@param callback function

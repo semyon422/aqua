@@ -60,6 +60,12 @@ function ThreadPool:unload()
 	self.loaded = false
 end
 
+function ThreadPool:reinit()
+	for i, thread in pairs(self.threads) do
+		thread:init(self.initFunc, self.initArgsFunc())
+	end
+end
+
 function ThreadPool:update()
 	local currentTime = love.timer.getTime()
 
@@ -128,7 +134,8 @@ function ThreadPool:createThread(id)
 	self.threads[id] = thread
 	self.runningThreads[id] = thread
 
-	thread:start(self.initFunc, self.initArgsFunc())
+	thread:start()
+	thread:init(self.initFunc, self.initArgsFunc())
 
 	return thread
 end

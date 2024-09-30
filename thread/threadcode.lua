@@ -1,7 +1,6 @@
 local pkg = require("pkg")
 pkg.import_love()
 pkg.export_lua()
-pkg.export_love()
 
 local synctable = require("synctable")
 local table_util = require("table_util")
