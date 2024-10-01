@@ -39,31 +39,10 @@ fs_util.extractAsync = thread.async(fs_util.extractAsync)
 ---@return string?
 function fs_util.downloadAsync(url)
 	local http = require("http")
-	local ltn12 = require("ltn12")
 	local thread = require("thread")
 
-	local one, code, headers, status_line = http.request({
-		url = url,
-		method = "HEAD",
-		sink = ltn12.sink.null(),
-	})
-	if not one then
-		return nil, code, headers, status_line
-	end
-	if code >= 300 then
-		return nil, code, headers, status_line
-	end
-
-	local size
-	for header, value in pairs(headers) do
-		header = header:lower()
-		if header == "content-length" then
-			size = tonumber(value) or size
-		end
-	end
-
 	thread.shared.download[url] = {
-		size = size,
+		size = 0,
 		total = 0,
 		speed = 0,
 	}
@@ -87,7 +66,7 @@ function fs_util.downloadAsync(url)
 		return true
 	end
 
-	one, code, headers, status_line = http.request({
+	local one, code, headers, status_line = http.request({
 		url = url,
 		method = "GET",
 		sink = sink,
