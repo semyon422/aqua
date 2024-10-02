@@ -151,81 +151,13 @@ local CHUNK = 512
 
 ---@param level integer
 local function deflate_async(level)
-	local ret, flush
-	local have
-	local stream_p = ffi.new("z_stream[1]")
-	local _in = ffi.new("unsigned char[?]", CHUNK)
-	local out = ffi.new("unsigned char[?]", CHUNK)
-
-	ret = _zlib.deflateInit_(stream_p, level, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
-	lz_assert(ret, stream_p)
-
-	repeat
-		local avail_in, finish = coroutine.yield("read", _in, CHUNK)
-		if not avail_in then
-			_zlib.deflateEnd(stream_p)
-			return
-		end
-		stream_p[0].avail_in = avail_in
-		flush = finish and flush_values.Z_FINISH or flush_values.Z_NO_FLUSH
-		stream_p[0].next_in = _in
-
-		repeat
-			stream_p[0].avail_out = CHUNK
-			stream_p[0].next_out = out
-			ret = _zlib.deflate(stream_p, flush)
-			assert(ret ~= ret_codes.Z_STREAM_ERROR)
-			have = CHUNK - stream_p[0].avail_out
-
-			local written = coroutine.yield("write", out, have)
-			if not written or written ~= have then
-				_zlib.deflateEnd(stream_p)
-				return
-			end
-		until stream_p[0].avail_out ~= 0
-
-		assert(stream_p[0].avail_in == 0)
-	until flush == flush_values.Z_FINISH
-	assert(ret == ret_codes.Z_STREAM_END)
-
-	_zlib.deflateEnd(stream_p)
-end
-
-function zlib.deflate(level)
-	local _in = assert(io.open("zlib.lua", "rb"))
-	local out = assert(io.open("zlib.lua.z", "wb"))
-
-	local co = coroutine.create(deflate_async)
-
-	local a, b = level, nil
-	while coroutine.status(co) ~= "dead" do
-		local _, action, buf, size = assert(coroutine.resume(co, a, b))
-		if action == "read" then
-			local data = _in:read(size)
-			if data then
-				a, b = #data, #data < size
-				ffi.copy(buf, data, #data)
-			else
-				a, b = 0, true
-			end
-		elseif action == "write" then
-			if out:write(ffi.string(buf, size)) then
-				a, b = size, nil
-			end
-		end
-	end
-	_in:close()
-	out:close()
-end
-
-local function inflate_async()
-	local ret
+	local flush = flush_values.Z_NO_FLUSH
 	local stream_p = ffi.new("z_stream[1]")
 
-	ret = _zlib.inflateInit_(stream_p, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
+	local ret = _zlib.deflateInit_(stream_p, level, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
 	lz_assert(ret, stream_p)
 
-	repeat
+	while ret ~= ret_codes.Z_STREAM_END do
 		if stream_p[0].avail_in == 0 then
 			local next_in, avail_in = coroutine.yield("read")
 			if not next_in then
@@ -245,6 +177,45 @@ local function inflate_async()
             stream_p[0].avail_out = avail_out
 		end
 
+		if stream_p[0].avail_in == 0 then
+			flush = flush_values.Z_FINISH
+		end
+
+		ret = _zlib.deflate(stream_p, flush)
+		assert(ret ~= ret_codes.Z_STREAM_ERROR)
+	end
+
+	coroutine.yield("end", stream_p[0].avail_in, stream_p[0].avail_out)
+
+	_zlib.deflateEnd(stream_p)
+end
+
+local function inflate_async()
+	local stream_p = ffi.new("z_stream[1]")
+
+	local ret = _zlib.inflateInit_(stream_p, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
+	lz_assert(ret, stream_p)
+
+	while ret ~= ret_codes.Z_STREAM_END do
+		if stream_p[0].avail_in == 0 then
+			local next_in, avail_in = coroutine.yield("read")
+			if not next_in then
+				_zlib.inflateEnd(stream_p)
+				return
+			end
+			stream_p[0].next_in = next_in
+			stream_p[0].avail_in = avail_in
+		end
+		if stream_p[0].avail_out == 0 then
+			local next_out, avail_out = coroutine.yield("write")
+			if not next_out then
+				_zlib.inflateEnd(stream_p)
+				return
+			end
+            stream_p[0].next_out = next_out
+            stream_p[0].avail_out = avail_out
+		end
+
 		ret = _zlib.inflate(stream_p, flush_values.Z_NO_FLUSH)
 		assert(ret ~= ret_codes.Z_STREAM_ERROR)
 		if
@@ -255,25 +226,23 @@ local function inflate_async()
 			_zlib.inflateEnd(stream_p)
 			return
 		end
-	until ret == ret_codes.Z_STREAM_END
+	end
 
 	coroutine.yield("end", stream_p[0].avail_in, stream_p[0].avail_out)
 
-	_zlib.deflateEnd(stream_p)
-
-    return ret == ret_codes.Z_STREAM_END
+	_zlib.inflateEnd(stream_p)
 end
 
-function zlib.inflate()
-	local file_in = assert(io.open("zlib.lua.z", "rb"))
-	local file_out = assert(io.open("zlib.lua.dz", "wb"))
+function zlib.process_file(filter, path_in, path_out)
+	local file_in = assert(io.open(path_in, "rb"))
+	local file_out = assert(io.open(path_out, "wb"))
 
 	local _in = ffi.new("unsigned char[?]", CHUNK)
 	local out = ffi.new("unsigned char[?]", CHUNK)
 
 	local has_data = false
 
-	local co = coroutine.create(inflate_async)
+	local co = coroutine.create(filter)
 
 	local buf, buf_size
 	while coroutine.status(co) ~= "dead" do
@@ -281,9 +250,11 @@ function zlib.inflate()
 		if action == "read" then
 			local data = file_in:read(CHUNK)
 			if data then
-				ffi.copy(_in, data, CHUNK)
+				ffi.copy(_in, data, #data)
+				buf, buf_size = _in, #data
+			else
+				buf, buf_size = _in, 0
 			end
-			buf, buf_size = _in, CHUNK
 		elseif action == "write" then
 			if has_data then
 				file_out:write(ffi.string(out, CHUNK))
@@ -291,7 +262,6 @@ function zlib.inflate()
 			buf, buf_size = out, CHUNK
 			has_data = true
 		elseif action == "end" then
-			print(avail_in, avail_out)
 			if avail_out > 0 then
 				file_out:write(ffi.string(out, CHUNK - avail_out))
 			end
@@ -299,6 +269,14 @@ function zlib.inflate()
 	end
 	file_in:close()
 	file_out:close()
+end
+
+function zlib.deflate(level)
+	zlib.process_file(function() deflate_async(level) end, "zlib.lua", "zlib.lua.z")
+end
+
+function zlib.inflate()
+	zlib.process_file(inflate_async, "zlib.lua.z", "zlib.lua.dz")
 end
 
 zlib.deflate(6)
