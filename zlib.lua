@@ -220,48 +220,44 @@ end
 
 local function inflate_async()
 	local ret
-	local have
 	local stream_p = ffi.new("z_stream[1]")
-	local _in = ffi.new("unsigned char[?]", CHUNK)
-	local out = ffi.new("unsigned char[?]", CHUNK)
 
 	ret = _zlib.inflateInit_(stream_p, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
 	lz_assert(ret, stream_p)
 
 	repeat
-		local avail_in = coroutine.yield("read", _in, CHUNK)
-		if not avail_in then
-			_zlib.deflateEnd(stream_p)
+		if stream_p[0].avail_in == 0 then
+			local next_in, avail_in = coroutine.yield("read")
+			if not next_in then
+				_zlib.deflateEnd(stream_p)
+				return
+			end
+			stream_p[0].next_in = next_in
+			stream_p[0].avail_in = avail_in
+		end
+		if stream_p[0].avail_out == 0 then
+			local next_out, avail_out = coroutine.yield("write")
+			if not next_out then
+				_zlib.deflateEnd(stream_p)
+				return
+			end
+            stream_p[0].next_out = next_out
+            stream_p[0].avail_out = avail_out
+		end
+
+		ret = _zlib.inflate(stream_p, flush_values.Z_NO_FLUSH)
+		assert(ret ~= ret_codes.Z_STREAM_ERROR)
+		if
+			ret == ret_codes.Z_NEED_DICT or
+			ret == ret_codes.Z_DATA_ERROR or
+			ret == ret_codes.Z_MEM_ERROR
+		then
+			_zlib.inflateEnd(stream_p)
 			return
 		end
-		if avail_in == 0 then
-			break
-		end
-		stream_p[0].avail_in = avail_in
-		stream_p[0].next_in = _in
-
-		repeat
-            stream_p[0].avail_out = CHUNK
-            stream_p[0].next_out = out
-            ret = _zlib.inflate(stream_p, flush_values.Z_NO_FLUSH)
-            assert(ret ~= ret_codes.Z_STREAM_ERROR)
-			if
-				ret == ret_codes.Z_NEED_DICT or
-				ret == ret_codes.Z_DATA_ERROR or
-				ret == ret_codes.Z_DATA_ERROR
-			then
-				_zlib.inflateEnd(stream_p)
-				return
-			end
-            have = CHUNK - stream_p[0].avail_out
-
-			local written = coroutine.yield("write", out, have)
-			if not written or written ~= have then
-				_zlib.inflateEnd(stream_p)
-				return
-			end
-		until stream_p[0].avail_out ~= 0
 	until ret == ret_codes.Z_STREAM_END
+
+	coroutine.yield("end", stream_p[0].avail_in, stream_p[0].avail_out)
 
 	_zlib.deflateEnd(stream_p)
 
@@ -269,35 +265,45 @@ local function inflate_async()
 end
 
 function zlib.inflate()
-	local _in = assert(io.open("zlib.lua.z", "rb"))
-	local out = assert(io.open("zlib.lua.dz", "wb"))
+	local file_in = assert(io.open("zlib.lua.z", "rb"))
+	local file_out = assert(io.open("zlib.lua.dz", "wb"))
+
+	local _in = ffi.new("unsigned char[?]", CHUNK)
+	local out = ffi.new("unsigned char[?]", CHUNK)
+
+	local has_data = false
 
 	local co = coroutine.create(inflate_async)
 
-	local a
+	local buf, buf_size
 	while coroutine.status(co) ~= "dead" do
-		local _, action, buf, size = assert(coroutine.resume(co, a))
+		local _, action, avail_in, avail_out = assert(coroutine.resume(co, buf, buf_size))
 		if action == "read" then
-			local data = _in:read(size)
+			local data = file_in:read(CHUNK)
 			if data then
-				a = #data
-				ffi.copy(buf, data, #data)
-			else
-				a = 0
+				ffi.copy(_in, data, CHUNK)
 			end
+			buf, buf_size = _in, CHUNK
 		elseif action == "write" then
-			if out:write(ffi.string(buf, size)) then
-				a = size
+			if has_data then
+				file_out:write(ffi.string(out, CHUNK))
+			end
+			buf, buf_size = out, CHUNK
+			has_data = true
+		elseif action == "end" then
+			print(avail_in, avail_out)
+			if avail_out > 0 then
+				file_out:write(ffi.string(out, CHUNK - avail_out))
 			end
 		end
 	end
-	_in:close()
-	out:close()
+	file_in:close()
+	file_out:close()
 end
 
--- zlib.deflate(6)
--- zlib.inflate()
+zlib.deflate(6)
+zlib.inflate()
 
--- print(zlib.version())
+print(zlib.version())
 
 return zlib
