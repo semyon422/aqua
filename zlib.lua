@@ -2,6 +2,7 @@ local ffi = require("ffi")
 
 local _zlib = ffi.load("z")
 -- http://zlib.net/zpipe.c
+-- /usr/include/zlib.h
 
 ffi.cdef[[
 int uncompress(char *dest, unsigned long *destLen, const char *source, unsigned long sourceLen);
@@ -46,19 +47,6 @@ int inflate(z_streamp strm, int flush);
 int inflateEnd(z_streamp strm);
 ]]
 
----@generic K
----@generic V
----@param t {[K]: V}
----@param v V
----@return K?
-local function keyof(t, v)
-	for i, _v in pairs(t) do
-		if _v == v then
-			return i
-		end
-	end
-end
-
 local zlib = {}
 
 ---@param dst_p ffi.cdata*
@@ -69,7 +57,7 @@ local zlib = {}
 function zlib.uncompress(dst_p, dst_size, src_p, src_size)
 	local out_size = ffi.new("unsigned long[1]", dst_size)
 	assert(_zlib.uncompress(dst_p, out_size, src_p, src_size) == 0)
-	return tonumber(out_size[0])
+	return tonumber(out_size[0])  --[[@as integer]]
 end
 
 ---@param dst_p ffi.cdata*
@@ -77,11 +65,11 @@ end
 ---@param src_p string|ffi.cdata*
 ---@param src_size number
 ---@param level number?
----@return number
+---@return integer
 function zlib.compress(dst_p, dst_size, src_p, src_size, level)
 	local out_size = ffi.new("unsigned long[1]", dst_size)
 	assert(_zlib.compress2(dst_p, out_size, src_p, src_size, level or -1) == 0)
-	return tonumber(out_size[0])
+	return tonumber(out_size[0])  --[[@as integer]]
 end
 
 ---@param s string
@@ -97,12 +85,12 @@ end
 ---@return string
 function zlib.compress_s(s)
 	local size = tonumber(_zlib.compressBound(#s))
+	---@cast size integer
 	local out = ffi.new("uint8_t[?]", size)
 	size = zlib.compress(out, size, s, #s)
 	return ffi.string(out, size)
 end
 
----@enum zlib.flush_values
 local flush_values = {
 	Z_NO_FLUSH = 0,
 	Z_PARTIAL_FLUSH = 1,
@@ -113,7 +101,6 @@ local flush_values = {
 	Z_TREES = 6,
 }
 
----@enum zlib.ret_codes
 local ret_codes = {
 	Z_OK = 0,
 	Z_STREAM_END = 1,
@@ -131,114 +118,95 @@ function zlib.version()
 	return ffi.string(_zlib.zlibVersion())
 end
 
----@param result zlib.ret_codes
 ---@param stream_p ffi.cdata*
----@return integer
-local function lz_assert(result, stream_p)
-	if result == ret_codes.Z_OK or result == ret_codes.Z_STREAM_END then
-		return result
+---@return true?
+local function update_stream(stream_p)
+	if stream_p[0].avail_in == 0 then
+		local next_in, avail_in = coroutine.yield("read")
+		if not next_in then
+			return
+		end
+		stream_p[0].next_in = next_in
+		stream_p[0].avail_in = avail_in
 	end
-
-	local code = keyof(ret_codes, result)
-	if stream_p[0].msg == nil then
-		error(code)
+	if stream_p[0].avail_out == 0 then
+		local next_out, avail_out = coroutine.yield("write")
+		if not next_out then
+			return
+		end
+		stream_p[0].next_out = next_out
+		stream_p[0].avail_out = avail_out
 	end
-
-	error(("%s: %s"):format(code, ffi.string(stream_p[0].msg)))
+	assert(stream_p[0].avail_out > 0)
+	return true
 end
 
-local CHUNK = 512
-
 ---@param level integer
-local function deflate_async(level)
-	local flush = flush_values.Z_NO_FLUSH
+function zlib.deflate_async(level)
+	local finish = false
 	local stream_p = ffi.new("z_stream[1]")
 
 	local ret = _zlib.deflateInit_(stream_p, level, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
-	lz_assert(ret, stream_p)
+	assert(ret == ret_codes.Z_OK)
 
+	-- Z_OK, Z_STREAM_END, Z_STREAM_ERROR, Z_BUF_ERROR
 	while ret ~= ret_codes.Z_STREAM_END do
-		if stream_p[0].avail_in == 0 then
-			local next_in, avail_in = coroutine.yield("read")
-			if not next_in then
-				_zlib.deflateEnd(stream_p)
-				return
-			end
-			stream_p[0].next_in = next_in
-			stream_p[0].avail_in = avail_in
-		end
-		if stream_p[0].avail_out == 0 then
-			local next_out, avail_out = coroutine.yield("write")
-			if not next_out then
-				_zlib.deflateEnd(stream_p)
-				return
-			end
-            stream_p[0].next_out = next_out
-            stream_p[0].avail_out = avail_out
+		if not update_stream(stream_p) then
+			_zlib.deflateEnd(stream_p)
+			return
 		end
 
-		if stream_p[0].avail_in == 0 then
-			flush = flush_values.Z_FINISH
+		if not finish and stream_p[0].avail_in == 0 then
+			finish = true
 		end
 
-		ret = _zlib.deflate(stream_p, flush)
+		ret = _zlib.deflate(stream_p, finish and flush_values.Z_FINISH or flush_values.Z_NO_FLUSH)
 		assert(ret ~= ret_codes.Z_STREAM_ERROR)
+		-- Z_BUF_ERROR is ok
 	end
 
-	coroutine.yield("end", stream_p[0].avail_in, stream_p[0].avail_out)
-
 	_zlib.deflateEnd(stream_p)
+	coroutine.yield("write", stream_p[0].avail_out)
 end
 
-local function inflate_async()
+function zlib.inflate_async()
 	local stream_p = ffi.new("z_stream[1]")
 
 	local ret = _zlib.inflateInit_(stream_p, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
-	lz_assert(ret, stream_p)
+	assert(ret == ret_codes.Z_OK)
 
+	-- Z_OK, Z_STREAM_END, Z_NEED_DICT, Z_DATA_ERROR, Z_STREAM_ERROR, Z_MEM_ERROR, Z_BUF_ERROR
 	while ret ~= ret_codes.Z_STREAM_END do
-		if stream_p[0].avail_in == 0 then
-			local next_in, avail_in = coroutine.yield("read")
-			if not next_in then
-				_zlib.inflateEnd(stream_p)
-				return
-			end
-			stream_p[0].next_in = next_in
-			stream_p[0].avail_in = avail_in
-		end
-		if stream_p[0].avail_out == 0 then
-			local next_out, avail_out = coroutine.yield("write")
-			if not next_out then
-				_zlib.inflateEnd(stream_p)
-				return
-			end
-            stream_p[0].next_out = next_out
-            stream_p[0].avail_out = avail_out
+		if not update_stream(stream_p) then
+			_zlib.inflateEnd(stream_p)
+			return
 		end
 
 		ret = _zlib.inflate(stream_p, flush_values.Z_NO_FLUSH)
 		assert(ret ~= ret_codes.Z_STREAM_ERROR)
+		-- Z_BUF_ERROR is ok
 		if
 			ret == ret_codes.Z_NEED_DICT or
 			ret == ret_codes.Z_DATA_ERROR or
 			ret == ret_codes.Z_MEM_ERROR
 		then
 			_zlib.inflateEnd(stream_p)
+			coroutine.yield("error", ret)
 			return
 		end
 	end
 
-	coroutine.yield("end", stream_p[0].avail_in, stream_p[0].avail_out)
-
 	_zlib.inflateEnd(stream_p)
+	coroutine.yield("write", stream_p[0].avail_out)
 end
 
-function zlib.process_file(filter, path_in, path_out)
-	local file_in = assert(io.open(path_in, "rb"))
-	local file_out = assert(io.open(path_out, "wb"))
-
-	local _in = ffi.new("unsigned char[?]", CHUNK)
-	local out = ffi.new("unsigned char[?]", CHUNK)
+---@param chunk_size integer
+---@param filter function
+---@param file_in file*
+---@param file_out file*
+function zlib.process_file(chunk_size, filter, file_in, file_out)
+	local _in = ffi.new("unsigned char[?]", chunk_size)
+	local out = ffi.new("unsigned char[?]", chunk_size)
 
 	local has_data = false
 
@@ -246,9 +214,9 @@ function zlib.process_file(filter, path_in, path_out)
 
 	local buf, buf_size
 	while coroutine.status(co) ~= "dead" do
-		local _, action, avail_in, avail_out = assert(coroutine.resume(co, buf, buf_size))
+		local _, action, avail_out = assert(coroutine.resume(co, buf, buf_size))
 		if action == "read" then
-			local data = file_in:read(CHUNK)
+			local data = file_in:read(chunk_size)
 			if data then
 				ffi.copy(_in, data, #data)
 				buf, buf_size = _in, #data
@@ -257,31 +225,42 @@ function zlib.process_file(filter, path_in, path_out)
 			end
 		elseif action == "write" then
 			if has_data then
-				file_out:write(ffi.string(out, CHUNK))
+				file_out:write(ffi.string(out, chunk_size - (avail_out or 0)))
 			end
-			buf, buf_size = out, CHUNK
+			buf, buf_size = out, chunk_size
 			has_data = true
-		elseif action == "end" then
-			if avail_out > 0 then
-				file_out:write(ffi.string(out, CHUNK - avail_out))
-			end
+		elseif action == "error" then
+			error(avail_out)
 		end
 	end
+end
+
+local chunk_size = 4096
+
+---@param level integer
+---@param path_in string
+---@param path_out string
+function zlib.deflate_file(level, path_in, path_out)
+	local file_in = assert(io.open(path_in, "rb"))
+	local file_out = assert(io.open(path_out, "wb"))
+	zlib.process_file(chunk_size, function() zlib.deflate_async(level) end, file_in, file_out)
 	file_in:close()
 	file_out:close()
 end
 
-function zlib.deflate(level)
-	zlib.process_file(function() deflate_async(level) end, "zlib.lua", "zlib.lua.z")
+---@param path_in string
+---@param path_out string
+function zlib.inflate_file(path_in, path_out)
+	local file_in = assert(io.open(path_in, "rb"))
+	local file_out = assert(io.open(path_out, "wb"))
+	zlib.process_file(chunk_size, zlib.inflate_async, file_in, file_out)
+	file_in:close()
+	file_out:close()
 end
 
-function zlib.inflate()
-	zlib.process_file(inflate_async, "zlib.lua.z", "zlib.lua.dz")
-end
+-- zlib.deflate_file(6, "zlib.lua", "zlib.lua.z")
+-- zlib.inflate_file("zlib.lua.z", "zlib.lua.dz")
 
-zlib.deflate(6)
-zlib.inflate()
-
-print(zlib.version())
+-- print(zlib.version())
 
 return zlib
