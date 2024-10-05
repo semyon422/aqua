@@ -322,4 +322,18 @@ function table_util.get_or_create(t, k, f, ...)
 	return v
 end
 
+---@param ... any
+---@return any
+function table_util.remove_holes(...)
+	if select("#", ...) == 0 then
+		return
+	end
+	if select(1, ...) == nil then
+		return table_util.remove_holes(select(2, ...))
+	end
+	return select(1, ...), table_util.remove_holes(select(2, ...))
+end
+
+assert(table.concat({table_util.remove_holes(nil, 1, nil, 2, nil)}) == "12")
+
 return table_util
