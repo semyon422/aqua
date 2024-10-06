@@ -1,5 +1,6 @@
 local codes = require("web.socket.codes")
 local IResponse = require("web.IResponse")
+local Headers = require("web.socket.Headers")
 
 ---@class web.SocketResponse: web.IResponse
 ---@operator call: web.SocketResponse
@@ -43,6 +44,43 @@ function SocketResponse:setHeaders(content_length)
 	self.headers_set = true
 end
 
+---@return true?
+---@return "closed"?
+function SocketResponse:readStatusLine()
+	local line, err = self.soc:read("*l")
+	if not line then
+		return nil, err
+	end
+
+	local protocol, status_s = line:match("(HTTP/%d*%.%d*) (%d%d%d)")
+	local status = tonumber(status_s)
+	if not status then
+		return nil, line
+	end
+
+	self.status = status
+
+	return true
+end
+
+---@return true?
+---@return "closed"?
+function SocketResponse:readHeaders()
+	local headers_obj = Headers()
+
+	local ok, err = headers_obj:decode(function()
+		return self.soc:read("*l")
+	end)
+	if not ok then
+		return nil, err
+	end
+
+	self.headers = headers_obj.headers
+	self.length = tonumber(self.headers["Content-Length"]) or 0
+
+	return true
+end
+
 ---@param data string?
 function SocketResponse:write(data)
 	self:setHeaders(#data)
@@ -50,6 +88,15 @@ function SocketResponse:write(data)
 		return
 	end
 	self.soc:write(data)
+end
+
+---@param size integer
+function SocketResponse:read(size)
+	local length = tonumber(self.headers["Content-Length"]) or 0
+	if length == 0 then
+		return ""
+	end
+	return assert(self.soc:read(size))
 end
 
 return SocketResponse

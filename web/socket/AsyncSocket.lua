@@ -33,7 +33,7 @@ function AsyncSocket:read(pattern)
 		if line then
 			return table.concat(buffer)
 		elseif err == "timeout" then
-			coroutine.yield()
+			coroutine.yield("read")
 		end
 	end
 end
@@ -58,7 +58,7 @@ function AsyncSocket:write(data)
 		if last_byte then
 			return last_byte
 		elseif err == "timeout" then
-			coroutine.yield()
+			coroutine.yield("write")
 		end
 	end
 end

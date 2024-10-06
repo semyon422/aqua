@@ -1,6 +1,8 @@
 local class = require("class")
+local socket = require("socket")
+local ssl = require("ssl")
 
-local TcpServer = require("web.socket.TcpServer")
+local TcpUpdater = require("web.socket.TcpUpdater")
 local AsyncSocket = require("web.socket.AsyncSocket")
 local SocketRequest = require("web.socket.SocketRequest")
 local SocketResponse = require("web.socket.SocketResponse")
@@ -9,14 +11,31 @@ local SocketResponse = require("web.socket.SocketResponse")
 ---@operator call: web.LuasocketServer
 local LuasocketServer = class()
 
+function LuasocketServer:new()
+	self.tcp_updater = TcpUpdater()
+end
+
 ---@param ip string
 ---@param port integer
 ---@param handler web.IHandler
-function LuasocketServer:new(ip, port, handler)
-	self.tcp_server = TcpServer(ip, port, function(client)
+function LuasocketServer:server(ip, port, handler)
+	local soc = assert(socket.tcp4())
+	self.soc = soc
+
+	assert(soc:setoption("reuseaddr", true))
+	assert(soc:bind(ip, port))
+	assert(soc:listen(1024))
+	assert(soc:settimeout(0))
+
+	self.tcp_updater:addServer(soc, function(client)
 		local soc = AsyncSocket(client)
 		local req = SocketRequest(soc)
 		local res = SocketResponse(soc)
+
+		local ok, err = req:readStatusLine()
+		if not ok then
+			return nil, err
+		end
 
 		local ok, err = req:readHeaders()
 		if not ok then
@@ -27,12 +46,33 @@ function LuasocketServer:new(ip, port, handler)
 	end)
 end
 
-function LuasocketServer:load()
-	self.tcp_server:load()
+---@param ip string
+---@param port integer
+---@param handler web.IHandler
+function LuasocketServer:client(ip, port, handler)
+	local soc = assert(socket.tcp4())
+	assert(soc:connect(ip, port))
+	assert(soc:settimeout(0))
+
+	soc = ssl.wrap(soc, {
+		mode = "client",
+		protocol = "any",
+		options = {"all", "no_sslv2", "no_sslv3", "no_tlsv1"},
+		verify = "none",
+	})
+	soc:dohandshake()
+
+	self.tcp_updater:addClient(soc, function(client)
+		local soc = AsyncSocket(client)
+		local req = SocketRequest(soc)
+		local res = SocketResponse(soc)
+
+		handler:handle(req, res, {})
+	end)
 end
 
 function LuasocketServer:update()
-	self.tcp_server:update(0)
+	self.tcp_updater:update(0)
 end
 
 return LuasocketServer

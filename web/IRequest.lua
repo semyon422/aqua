@@ -5,7 +5,11 @@ local class = require("class")
 ---@field headers {[string]: string}
 ---@field method string
 ---@field uri string
+---@field protocol string
 local IRequest = class()
+
+---@param body string?
+function IRequest:write(body) end
 
 ---@param size integer
 ---@return string
