@@ -1,4 +1,5 @@
 local ffi = require("ffi")
+local bit = require("bit")
 
 -- https://learn.microsoft.com/ru-ru/windows/win32/winprog/windows-data-types
 ffi.cdef[[
@@ -18,6 +19,13 @@ ffi.cdef[[
 	typedef __int64 LONGLONG;  // ?
 	typedef void * LPVOID;
 	typedef const WCHAR * LPCWSTR;
+
+	struct HKEY__ { int unused; };
+	typedef struct HKEY__ *HKEY;
+	typedef const CHAR *LPCSTR, *PCSTR;
+	typedef DWORD *LPDWORD;
+	typedef void *PVOID;
+	typedef LONG LSTATUS;
 
 	int MultiByteToWideChar(
 		UINT CodePage,
@@ -98,6 +106,16 @@ ffi.cdef[[
 	BOOL CloseHandle(
 		HANDLE hObject
 	);
+
+	LSTATUS RegGetValueA(
+		HKEY    hkey,
+		LPCSTR  lpSubKey,
+		LPCSTR  lpValue,
+		DWORD   dwFlags,
+		LPDWORD pdwType,
+		PVOID   pvData,
+		LPDWORD pcbData
+	);
 ]]
 
 local winapi = {}
@@ -174,7 +192,7 @@ function winapi.getcwd()
 	return winapi.to_string(buf)
 end
 
--- https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getcwd-wgetcwd?view=msvc-170
+-- https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/freopen-s-wfreopen-s?view=msvc-170
 
 ---@param path string
 ---@param mode string?
@@ -190,6 +208,8 @@ function winapi.open(path, mode)
 	end
 	return file
 end
+
+-- https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createwaitabletimerexw
 
 local sleep_timer
 local li_p = ffi.new("LARGE_INTEGER[1]")
@@ -211,6 +231,84 @@ function winapi.sleep(s)
 		return
 	end
 	ffi.C.WaitForSingleObject(sleep_timer, 4294967295)
+end
+
+-- https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-reggetvaluea
+
+winapi.hkey = {
+	HKEY_CLASSES_ROOT = 0x80000000,
+	HKEY_CURRENT_USER = 0x80000001,
+	HKEY_LOCAL_MACHINE = 0x80000002,
+	HKEY_USERS = 0x80000003,
+	HKEY_PERFORMANCE_DATA = 0x80000004,
+	HKEY_PERFORMANCE_TEXT = 0x80000050,
+	HKEY_PERFORMANCE_NLSTEXT = 0x80000060,
+	HKEY_CURRENT_CONFIG = 0x80000005,
+	HKEY_DYN_DATA = 0x80000006,
+	HKEY_CURRENT_USER_LOCAL_SETTINGS = 0x80000007,
+}
+
+winapi.rrf = {
+	RRF_RT_REG_NONE = 0x00000001,
+	RRF_RT_REG_SZ = 0x00000002,
+	RRF_RT_REG_EXPAND_SZ = 0x00000004,
+	RRF_RT_REG_BINARY = 0x00000008,
+	RRF_RT_REG_DWORD = 0x00000010,
+	RRF_RT_REG_MULTI_SZ = 0x00000020,
+	RRF_RT_REG_QWORD = 0x00000040,
+	RRF_RT_DWORD = bit.bor(0x00000008, 0x00000010),
+	RRF_RT_QWORD = bit.bor(0x00000008, 0x00000040),
+	RRF_RT_ANY = 0x0000ffff,
+
+	RRF_NOEXPAND = 0x10000000,
+	RRF_ZEROONFAILURE = 0x20000000,
+	RRF_SUBKEY_WOW6464KEY = 0x00010000,
+	RRF_SUBKEY_WOW6432KEY = 0x00020000,
+	RRF_WOW64_MASK = 0x00030000,
+}
+
+---@param hkey integer
+---@param sub_key string?
+---@param value string?
+---@param flags integer
+---@return ffi.cdata*?
+---@return string|integer?
+function winapi.get_reg_value(hkey, sub_key, value, flags)
+	local buf_size = ffi.new("DWORD[1]")
+	local hkey_p = ffi.cast("void*", hkey)
+
+	local status = ffi.C.RegGetValueA(hkey_p, sub_key, value, flags, nil, nil, buf_size)
+	if status == 2 then  -- ERROR_FILE_NOT_FOUND
+		return nil, "not found"
+	end
+	assert(status == 0)
+
+	local buf = ffi.new("unsigned char[?]", buf_size[0])
+
+	status = ffi.C.RegGetValueA(hkey_p, sub_key, value, flags, nil, buf, buf_size)
+	assert(status == 0)
+
+	return buf, buf_size[0]
+end
+
+---@param hkey integer
+---@param sub_key string?
+---@param value string?
+---@return string?
+---@return string?
+function winapi.get_reg_value_sz(hkey, sub_key, value)
+	local flags = winapi.rrf.RRF_RT_REG_SZ
+
+	local buf, size =  winapi.get_reg_value(hkey, sub_key, value, flags)
+	if not buf then
+		return nil, size
+	end
+
+	if size == 0 then
+		return
+	end
+
+	return ffi.string(buf, size - 1)
 end
 
 return winapi
