@@ -27,10 +27,12 @@ function test.read_timeout(t)
 		data = asoc:read(FAKE_SIZE)
 	end)
 
-	coroutine.resume(co)
+	local _, timeout_on = coroutine.resume(co)
+	t:eq(timeout_on, "read")
 	t:eq(data, "")
 	soc:new(DATA_2)
-	coroutine.resume(co)
+	_, timeout_on = coroutine.resume(co)
+	t:eq(timeout_on, nil)
 	t:eq(data, DATA_1 .. DATA_2)
 end
 
@@ -60,10 +62,12 @@ function test.write_timeout(t)
 		size = asoc:write(FAKE_DATA)
 	end)
 
-	coroutine.resume(co)
+	local _, timeout_on = coroutine.resume(co)
+	t:eq(timeout_on, "write")
 	t:eq(size, 0)
 	soc:new(SIZE_1 + SIZE_2)
-	coroutine.resume(co)
+	_, timeout_on = coroutine.resume(co)
+	t:eq(timeout_on, nil)
 	t:eq(size, SIZE_1 + SIZE_2)
 end
 
