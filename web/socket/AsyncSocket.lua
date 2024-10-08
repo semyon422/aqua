@@ -18,18 +18,19 @@ function AsyncSocket:read(pattern)
 
 	while true do
 		local line, err, partial = self.soc:receive(pattern)
-		if err == "closed" then
-			return nil, "closed", partial
-		end
 
 		local data = line or partial
 		---@cast data string
+		table.insert(buffer, data)
+
+		if err == "closed" then
+			return nil, "closed", table.concat(buffer)
+		end
 
 		if type(pattern) == "number" then
 			pattern = pattern - #data
 		end
 
-		table.insert(buffer, data)
 		if line then
 			return table.concat(buffer)
 		elseif err == "timeout" then
