@@ -6,11 +6,12 @@ local class = require("class")
 ---@operator call: web.ISocket
 local ISocket = class()
 
----@param pattern "*a"|"*l"|integer
+---@param pattern "*a"|"*l"|integer?
+---@param prefix string?
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function ISocket:receive(pattern) end
+function ISocket:receive(pattern, prefix) end
 
 ---@param data string
 ---@param i integer?
