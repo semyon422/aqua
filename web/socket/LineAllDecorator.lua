@@ -18,21 +18,8 @@ end
 ---@return "closed"|"timeout"?
 ---@return string?
 function LineAllDecorator:receive(pattern, prefix)
-	if type(pattern) == "number" then
-		return self.soc:receive(pattern, prefix)
-	elseif pattern == "*a" then
-		return self:receiveAll(prefix)
-	elseif pattern == "*l" then
-		return self:receiveLine(prefix)
-	end
-	error("invalid pattern")
-end
+	assert(pattern == "*a" or pattern == "*l" or type(pattern) == "number", "invalid pattern")
 
----@param prefix string?
----@return string?
----@return "closed"|"timeout"?
----@return string?
-function LineAllDecorator:receiveLine(prefix)
 	---@type string[]
 	local buffer = {}
 	table.insert(buffer, prefix)
@@ -41,9 +28,64 @@ function LineAllDecorator:receiveLine(prefix)
 	self.remainder = nil
 
 	if self.closed then
-		return nil, "closed", (table.concat(buffer):gsub("\r", ""))
+		local s = table.concat(buffer)
+		if pattern == "*l" then
+			s = s:gsub("\r", "")
+		end
+		return nil, "closed", s
 	end
 
+	if type(pattern) == "number" then
+		return self:receiveSize(buffer, pattern)
+	elseif pattern == "*l" then
+		return self:receiveLine(buffer)
+	elseif pattern == "*a" then
+		return self:receiveAll(buffer)
+	end
+end
+
+---@param buffer string[]
+---@param size integer
+---@return string?
+---@return "closed"|"timeout"?
+---@return string?
+function LineAllDecorator:receiveSize(buffer, size)
+	local s = table.concat(buffer)
+
+	---@type string?
+	local ret
+	if size <= #s then
+		ret, self.remainder = s:sub(1, size), s:sub(size + 1)
+		return ret
+	end
+
+	while true do
+		local line, err, partial = self.soc:receive(self.chunk_size)
+
+		local data = line or partial
+		---@cast data string
+
+		table.insert(buffer, data)
+
+		if not line then
+			s = table.concat(buffer)
+			ret, self.remainder = s:sub(1, size), s:sub(size + 1)
+			if err == "closed" then
+				self.closed = true
+				if #ret == size then
+					return ret
+				end
+			end
+			return nil, err, ret
+		end
+	end
+end
+
+---@param buffer string[]
+---@return string?
+---@return "closed"|"timeout"?
+---@return string?
+function LineAllDecorator:receiveLine(buffer)
 	while true do
 		local line, err, partial = self.soc:receive(self.chunk_size)
 
@@ -69,22 +111,11 @@ function LineAllDecorator:receiveLine(prefix)
 	end
 end
 
----@param prefix string?
+---@param buffer string[]
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function LineAllDecorator:receiveAll(prefix)
-	---@type string[]
-	local buffer = {}
-	table.insert(buffer, prefix)
-	table.insert(buffer, self.remainder)
-
-	self.remainder = nil
-
-	if self.closed then
-		return nil, "closed", table.concat(buffer)
-	end
-
+function LineAllDecorator:receiveAll(buffer)
 	while true do
 		local line, err, partial = self.soc:receive(self.chunk_size)
 
@@ -95,12 +126,8 @@ function LineAllDecorator:receiveAll(prefix)
 
 		if err == "closed" then
 			self.closed = true
-		end
-
-		if not line then
-			if err == "closed" then
-				return table.concat(buffer)
-			end
+			return table.concat(buffer)
+		elseif err == "timeout" then
 			return nil, err, table.concat(buffer)
 		end
 	end
