@@ -21,4 +21,7 @@ function ISocket:receive(pattern, prefix) end
 ---@return integer?
 function ISocket:send(data, i, j) end
 
+---@return 1
+function ISocket:close() return 1 end
+
 return ISocket
