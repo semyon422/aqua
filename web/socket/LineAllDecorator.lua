@@ -36,6 +36,9 @@ function LineAllDecorator:receive(pattern, prefix)
 	end
 
 	if type(pattern) == "number" then
+		if prefix and pattern <= #prefix then
+			return prefix
+		end
 		return self:receiveSize(buffer, pattern)
 	elseif pattern == "*l" then
 		return self:receiveLine(buffer)
@@ -72,9 +75,9 @@ function LineAllDecorator:receiveSize(buffer, size)
 			ret, self.remainder = s:sub(1, size), s:sub(size + 1)
 			if err == "closed" then
 				self.closed = true
-				if #ret == size then
-					return ret
-				end
+			end
+			if #ret == size then
+				return ret
 			end
 			return nil, err, ret
 		end
@@ -86,6 +89,16 @@ end
 ---@return "closed"|"timeout"?
 ---@return string?
 function LineAllDecorator:receiveLine(buffer)
+	local s = table.concat(buffer)
+
+	---@type string?, string?
+	local _line, remainder = s:match("^(.-)\n(.*)$")
+	if _line then
+		self.remainder = remainder
+		table.insert(buffer, _line)
+		return (_line:gsub("\r", ""))
+	end
+
 	while true do
 		local line, err, partial = self.soc:receive(self.chunk_size)
 
@@ -131,6 +144,21 @@ function LineAllDecorator:receiveAll(buffer)
 			return nil, err, table.concat(buffer)
 		end
 	end
+end
+
+---@param data string
+---@param i integer?
+---@param j integer?
+---@return integer?
+---@return "closed"|"timeout"?
+---@return integer?
+function LineAllDecorator:send(data, i, j)
+	return self.soc:send(data, i, j)
+end
+
+---@return 1
+function LineAllDecorator:close()
+	return self.soc:close()
 end
 
 return LineAllDecorator
