@@ -7,15 +7,19 @@ function test.receive_size_exact(t)
 	local soc = FakeStringSocket()
 
 	soc:send("qwe")
-	soc:close()
 
 	t:tdeq({soc:receive(3)}, {"qwe"})
+	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})
+	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})
+
+	soc:close()
+
 	t:tdeq({soc:receive(100)}, {nil, "closed", ""})
 	t:tdeq({soc:receive(100)}, {nil, "closed", ""})
 end
 
 ---@param t testing.T
-function test.receive_size_more(t)
+function test.receive_size_more_closed(t)
 	local soc = FakeStringSocket()
 
 	soc:send("qwe")
@@ -27,17 +31,17 @@ function test.receive_size_more(t)
 end
 
 ---@param t testing.T
-function test.receive_size_exact_timeout(t)
+function test.receive_size_more_timeout(t)
 	local soc = FakeStringSocket()
 
 	soc:send("qwe")
 
 	t:tdeq({soc:receive(4)}, {nil, "timeout", "qwe"})
+	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})
+	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})
 
-	soc:send("rty")
 	soc:close()
 
-	t:tdeq({soc:receive(3)}, {"rty"})
 	t:tdeq({soc:receive(100)}, {nil, "closed", ""})
 	t:tdeq({soc:receive(100)}, {nil, "closed", ""})
 end
@@ -51,6 +55,7 @@ function test.send_size_closed(t)
 	soc:close()
 
 	t:tdeq({soc:send("qwerty", 3, 4)}, {nil, "closed", 0})
+
 	t:tdeq({soc:receive(100)}, {nil, "closed", "qw"})
 	t:tdeq({soc:receive(100)}, {nil, "closed", ""})
 	t:tdeq({soc:receive(100)}, {nil, "closed", ""})
@@ -63,6 +68,7 @@ function test.send_size_exact(t)
 	t:tdeq({soc:send("qwerty", 1, 2)}, {2})
 	t:tdeq({soc:send("qwerty", 3, 4)}, {4})
 	t:tdeq({soc:send("qwerty", 5, 6)}, {6})
+
 	t:tdeq({soc:receive(100)}, {nil, "timeout", "qwerty"})
 	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})
 	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})
@@ -74,6 +80,7 @@ function test.send_size_more(t)
 
 	t:tdeq({soc:send("qwerty", 1, 2)}, {2})
 	t:tdeq({soc:send("qwerty", 3, 6)}, {nil, "timeout", 4})
+
 	t:tdeq({soc:receive(100)}, {nil, "timeout", "qwer"})
 	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})
 	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})
