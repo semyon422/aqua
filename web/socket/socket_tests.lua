@@ -62,12 +62,26 @@ function test.receive_line(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
-function test.receive_line_multiple(t, rsoc, ssoc)
+function test.receive_line_multiple_close(t, rsoc, ssoc)
+	ssoc:send("qwe\r\nrty\r\nuio")
+	ssoc:close()
+
+	t:tdeq({rsoc:receive("*l")}, {"qwe"})
+	t:tdeq({rsoc:receive("*l")}, {"rty"})
+	t:tdeq({rsoc:receive("*l")}, {nil, "closed", "uio"})
+	t:tdeq({rsoc:receive("*l")}, {nil, "closed", ""})
+	t:tdeq({rsoc:receive("*l")}, {nil, "closed", ""})
+end
+
+---@param t testing.T
+function test.receive_line_multiple_timeout(t, rsoc, ssoc)
 	ssoc:send("qwe\r\nrty\r\nuio")
 
 	t:tdeq({rsoc:receive("*l")}, {"qwe"})
 	t:tdeq({rsoc:receive("*l")}, {"rty"})
 	t:tdeq({rsoc:receive("*l")}, {nil, "timeout", "uio"})
+	t:tdeq({rsoc:receive("*l")}, {nil, "timeout", ""})
+	t:tdeq({rsoc:receive("*l")}, {nil, "timeout", ""})
 
 	ssoc:close()
 end
@@ -177,7 +191,8 @@ function test.remainder_size(t, rsoc, ssoc)
 	ssoc:close()
 
 	t:tdeq({rsoc:receive(3)}, {"tya"})
-	t:tdeq({rsoc:receive(100)}, {nil, "closed", "sd\13\nfgh"})
+	t:tdeq({rsoc:receive(3)}, {"sd\r"})
+	t:tdeq({rsoc:receive(100)}, {nil, "closed", "\nfgh"})
 	t:tdeq({rsoc:receive("*a")}, {nil, "closed", ""})
 	t:tdeq({rsoc:receive("*a")}, {nil, "closed", ""})
 end

@@ -22,48 +22,44 @@ function LineAllDecorator:receive(pattern, prefix)
 	assert(pattern == "*a" or pattern == "*l" or type(pattern) == "number", "invalid pattern")
 
 	prefix = prefix or ""
-	---@type string[]
-	local buffer = {}
-	table.insert(buffer, self.remainder)
-
-	local rem = self.remainder
-	self.remainder = ""
-
-	if self.closed then
-		if pattern == "*l" then
-			rem = rem:gsub("\r", "")
-		end
-		return nil, "closed", (prefix or "") .. rem
-	end
 
 	if type(pattern) == "number" then
-		if prefix and pattern <= #prefix then
-			return prefix
-		end
-		return self:receiveSize(buffer, pattern, prefix)
+		return self:receiveSize(pattern, prefix)
 	elseif pattern == "*l" then
-		return self:receiveLine(buffer, prefix)
+		return self:receiveLine(prefix)
 	elseif pattern == "*a" then
-		return self:receiveAll(buffer, prefix)
+		return self:receiveAll(prefix)
 	end
 end
 
----@param buffer string[]
 ---@param size integer
 ---@param prefix string
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function LineAllDecorator:receiveSize(buffer, size, prefix)
-	local s = table.concat(buffer)
+function LineAllDecorator:receiveSize(size, prefix)
+	local rem = self.remainder
 
-	---@type string?
-	local ret
-	if size <= #s - #prefix then
-		ret, self.remainder = s:sub(1, size), s:sub(size + 1)
-		return prefix .. ret
+	size = size - #prefix
+	if prefix and size <= 0 then
+		return prefix
 	end
 
+	if size <= #rem then
+		self.remainder = rem:sub(size + 1)
+		return prefix .. rem:sub(1, size)
+	end
+
+	if self.closed then
+		self.remainder = ""
+		return nil, "closed", prefix .. rem
+	end
+
+	---@type string[]
+	local buffer = {self.remainder}
+	self.remainder = ""
+
+	local total = 0
 	while true do
 		local line, err, partial = self.soc:receive(self.chunk_size)
 
@@ -71,14 +67,17 @@ function LineAllDecorator:receiveSize(buffer, size, prefix)
 		---@cast data string
 
 		table.insert(buffer, data)
+		total = total + #data
 
-		if not line then
-			s = table.concat(buffer)
-			ret, self.remainder = s:sub(1, size - #prefix), s:sub(size - #prefix + 1)
-			if err == "closed" then
-				self.closed = true
-			end
-			if #ret == size - #prefix then
+		if err == "closed" then
+			self.closed = true
+		end
+
+		if not line or total >= size then
+			rem = table.concat(buffer)
+			local ret = rem:sub(1, size)
+			self.remainder = rem:sub(size + 1)
+			if #ret == size then
 				return prefix .. ret
 			end
 			return nil, err, prefix .. ret
@@ -86,36 +85,44 @@ function LineAllDecorator:receiveSize(buffer, size, prefix)
 	end
 end
 
----@param buffer string[]
 ---@param prefix string
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function LineAllDecorator:receiveLine(buffer, prefix)
-	local s = table.concat(buffer)
+function LineAllDecorator:receiveLine(prefix)
+	local rem = self.remainder
 
 	---@type string?, string?
-	local _line, remainder = s:match("^(.-)\n(.*)$")
-	if _line then
-		self.remainder = remainder
-		table.insert(buffer, _line)
-		return prefix .. _line:gsub("\r", "")
+	local _ret, _rem = rem:match("^(.-)\n(.*)$")
+	if _ret and _rem then
+		self.remainder = _rem
+		return prefix .. _ret:gsub("\r", "")
 	end
+
+	if self.closed then
+		self.remainder = ""
+		return nil, "closed", prefix .. rem:gsub("\r", "")
+	end
+
+	---@type string[]
+	local buffer = {self.remainder}
+	self.remainder = ""
 
 	while true do
 		local line, err, partial = self.soc:receive(self.chunk_size)
+
+		if err == "closed" then
+			self.closed = true
+		end
 
 		local data = line or partial
 		---@cast data string
 
 		---@type string?, string?
-		local _line, remainder = data:match("^(.-)\n(.*)$")
-		if _line then
-			self.remainder = remainder
-			table.insert(buffer, _line)
-			if err == "closed" then
-				self.closed = true
-			end
+		_ret, _rem = data:match("^(.-)\n(.*)$")
+		if _ret and _rem then
+			self.remainder = _rem
+			table.insert(buffer, _ret)
 			return prefix .. table.concat(buffer):gsub("\r", "")
 		end
 
@@ -127,12 +134,22 @@ function LineAllDecorator:receiveLine(buffer, prefix)
 	end
 end
 
----@param buffer string[]
 ---@param prefix string
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function LineAllDecorator:receiveAll(buffer, prefix)
+function LineAllDecorator:receiveAll(prefix)
+	local rem = self.remainder
+
+	if self.closed then
+		self.remainder = ""
+		return nil, "closed", prefix .. rem
+	end
+
+	---@type string[]
+	local buffer = {self.remainder}
+	self.remainder = ""
+
 	while true do
 		local line, err, partial = self.soc:receive(self.chunk_size)
 
