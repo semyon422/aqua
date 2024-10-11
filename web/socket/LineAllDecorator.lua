@@ -2,7 +2,7 @@ local ISocket = require("web.socket.ISocket")
 
 ---@class web.LineAllDecorator: web.ISocket
 ---@operator call: web.LineAllDecorator
----@field remainder string?
+---@field remainder string
 local LineAllDecorator = ISocket + {}
 
 LineAllDecorator.chunk_size = 4096
@@ -10,6 +10,7 @@ LineAllDecorator.chunk_size = 4096
 ---@param soc web.ISocket
 function LineAllDecorator:new(soc)
 	self.soc = soc
+	self.remainder = ""
 end
 
 ---@param pattern "*a"|"*l"|integer?
@@ -20,46 +21,47 @@ end
 function LineAllDecorator:receive(pattern, prefix)
 	assert(pattern == "*a" or pattern == "*l" or type(pattern) == "number", "invalid pattern")
 
+	prefix = prefix or ""
 	---@type string[]
 	local buffer = {}
-	table.insert(buffer, prefix)
 	table.insert(buffer, self.remainder)
 
-	self.remainder = nil
+	local rem = self.remainder
+	self.remainder = ""
 
 	if self.closed then
-		local s = table.concat(buffer)
 		if pattern == "*l" then
-			s = s:gsub("\r", "")
+			rem = rem:gsub("\r", "")
 		end
-		return nil, "closed", s
+		return nil, "closed", (prefix or "") .. rem
 	end
 
 	if type(pattern) == "number" then
 		if prefix and pattern <= #prefix then
 			return prefix
 		end
-		return self:receiveSize(buffer, pattern)
+		return self:receiveSize(buffer, pattern, prefix)
 	elseif pattern == "*l" then
-		return self:receiveLine(buffer)
+		return self:receiveLine(buffer, prefix)
 	elseif pattern == "*a" then
-		return self:receiveAll(buffer)
+		return self:receiveAll(buffer, prefix)
 	end
 end
 
 ---@param buffer string[]
 ---@param size integer
+---@param prefix string
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function LineAllDecorator:receiveSize(buffer, size)
+function LineAllDecorator:receiveSize(buffer, size, prefix)
 	local s = table.concat(buffer)
 
 	---@type string?
 	local ret
-	if size <= #s then
+	if size <= #s - #prefix then
 		ret, self.remainder = s:sub(1, size), s:sub(size + 1)
-		return ret
+		return prefix .. ret
 	end
 
 	while true do
@@ -72,23 +74,24 @@ function LineAllDecorator:receiveSize(buffer, size)
 
 		if not line then
 			s = table.concat(buffer)
-			ret, self.remainder = s:sub(1, size), s:sub(size + 1)
+			ret, self.remainder = s:sub(1, size - #prefix), s:sub(size - #prefix + 1)
 			if err == "closed" then
 				self.closed = true
 			end
-			if #ret == size then
-				return ret
+			if #ret == size - #prefix then
+				return prefix .. ret
 			end
-			return nil, err, ret
+			return nil, err, prefix .. ret
 		end
 	end
 end
 
 ---@param buffer string[]
+---@param prefix string
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function LineAllDecorator:receiveLine(buffer)
+function LineAllDecorator:receiveLine(buffer, prefix)
 	local s = table.concat(buffer)
 
 	---@type string?, string?
@@ -96,7 +99,7 @@ function LineAllDecorator:receiveLine(buffer)
 	if _line then
 		self.remainder = remainder
 		table.insert(buffer, _line)
-		return (_line:gsub("\r", ""))
+		return prefix .. _line:gsub("\r", "")
 	end
 
 	while true do
@@ -113,22 +116,23 @@ function LineAllDecorator:receiveLine(buffer)
 			if err == "closed" then
 				self.closed = true
 			end
-			return (table.concat(buffer):gsub("\r", ""))
+			return prefix .. table.concat(buffer):gsub("\r", "")
 		end
 
 		table.insert(buffer, data)
 
 		if not line then
-			return nil, err, (table.concat(buffer):gsub("\r", ""))
+			return nil, err, prefix .. table.concat(buffer):gsub("\r", "")
 		end
 	end
 end
 
 ---@param buffer string[]
+---@param prefix string
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function LineAllDecorator:receiveAll(buffer)
+function LineAllDecorator:receiveAll(buffer, prefix)
 	while true do
 		local line, err, partial = self.soc:receive(self.chunk_size)
 
@@ -139,9 +143,9 @@ function LineAllDecorator:receiveAll(buffer)
 
 		if err == "closed" then
 			self.closed = true
-			return table.concat(buffer)
+			return prefix .. table.concat(buffer)
 		elseif err == "timeout" then
-			return nil, err, table.concat(buffer)
+			return nil, err, prefix .. table.concat(buffer)
 		end
 	end
 end

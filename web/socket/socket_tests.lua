@@ -92,11 +92,11 @@ end
 function test.receive_line_prefix(t, rsoc, ssoc)
 	ssoc:send("qwe\r\nrty\r\nuio")
 
-	t:tdeq({rsoc:receive("*l", "asd")}, {"asdqwe"})
-	t:tdeq({rsoc:receive("*l", "asd")}, {"asdrty"})
-	t:tdeq({rsoc:receive("*l", "asd")}, {nil, "timeout", "asduio"})
-	t:tdeq({rsoc:receive("*l", "asd")}, {nil, "timeout", "asd"})
-	t:tdeq({rsoc:receive("*l", "asd")}, {nil, "timeout", "asd"})
+	t:tdeq({rsoc:receive("*l", "as\rd")}, {"as\rdqwe"})
+	t:tdeq({rsoc:receive("*l", "as\rd")}, {"as\rdrty"})
+	t:tdeq({rsoc:receive("*l", "as\rd")}, {nil, "timeout", "as\rduio"})
+	t:tdeq({rsoc:receive("*l", "as\rd")}, {nil, "timeout", "as\rd"})
+	t:tdeq({rsoc:receive("*l", "as\rd")}, {nil, "timeout", "as\rd"})
 
 	ssoc:close()
 end
