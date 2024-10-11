@@ -25,6 +25,10 @@ end
 function FakeStringSocket:receive(size, prefix)
 	assert(type(size) == "number", "invalid size type")
 
+	if prefix and size <= #prefix then
+		return prefix
+	end
+
 	---@type string[]
 	local buffer = {}
 	table.insert(buffer, prefix)

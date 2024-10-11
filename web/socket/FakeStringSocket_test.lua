@@ -47,6 +47,20 @@ function test.receive_size_more_timeout(t)
 end
 
 ---@param t testing.T
+function test.receive_prefix(t)
+	local soc = FakeStringSocket()
+
+	soc:send("qwerty")
+
+	t:tdeq({soc:receive(2, "asd")}, {"asd"})
+	t:tdeq({soc:receive(3, "asd")}, {"asd"})
+	t:tdeq({soc:receive(4, "asd")}, {"asdq"})
+	t:tdeq({soc:receive(5, "asd")}, {"asdwe"})
+
+	soc:close()
+end
+
+---@param t testing.T
 function test.send_size_closed(t)
 	local soc = FakeStringSocket(nil, 6)
 
