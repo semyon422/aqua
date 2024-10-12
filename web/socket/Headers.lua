@@ -60,15 +60,27 @@ function Headers:decode(next_line)
 	return true
 end
 
+---@return string[]
+function Headers:getKeys()
+	---@type string[]
+	local keys = {}
+	for k in pairs(self.headers) do
+		table.insert(keys, k)
+	end
+	table.sort(keys)
+	return keys
+end
+
 ---@return string
 function Headers:encode()
-	local out = "\r\n"
-
-	for k, v in pairs(self.headers) do
-		out = ("%s: %s\r\n%s"):format(k, v, out)
+	---@type string[]
+	local out = {}
+	for _, k in ipairs(self:getKeys()) do
+		table.insert(out, ("%s: %s\r\n"):format(k, self.headers[k]))
 	end
 
-	return out
+	table.insert(out, "\r\n")
+	return table.concat(out)
 end
 
 return Headers
