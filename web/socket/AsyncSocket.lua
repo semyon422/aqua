@@ -1,8 +1,8 @@
-local class = require("class")
+local ISocket = require("web.socket.ISocket")
 
----@class web.AsyncSocket
+---@class web.AsyncSocket: web.ISocket
 ---@operator call: web.AsyncSocket
-local AsyncSocket = class()
+local AsyncSocket = ISocket + {}
 
 ---@param soc web.ISocket
 function AsyncSocket:new(soc)
@@ -13,7 +13,7 @@ end
 ---@return string?
 ---@return "closed"?
 ---@return string?
-function AsyncSocket:read(pattern)
+function AsyncSocket:receive(pattern)
 	local buffer = {}
 
 	while true do
@@ -43,7 +43,7 @@ end
 ---@return integer?
 ---@return "closed"?
 ---@return integer?
-function AsyncSocket:write(data)
+function AsyncSocket:send(data)
 	local i, j = 1, #data
 
 	while true do
@@ -62,6 +62,11 @@ function AsyncSocket:write(data)
 			coroutine.yield("write")
 		end
 	end
+end
+
+---@return 1
+function AsyncSocket:close()
+	return self.soc:close()
 end
 
 return AsyncSocket

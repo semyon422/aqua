@@ -14,7 +14,7 @@ local DATA_2 = "qwerty"
 function test.read_success(t)
 	local soc = FakeSocket({{DATA_1}})
 	local asoc = AsyncSocket(soc)
-	local data = asoc:read(FAKE_SIZE)
+	local data = asoc:receive(FAKE_SIZE)
 	t:eq(data, DATA_1)
 end
 
@@ -27,7 +27,7 @@ function test.read_timeout(t)
 
 	local data, err, partial = nil, nil, nil
 	local co = coroutine.create(function()
-		data, err, partial = asoc:read(FAKE_SIZE)
+		data, err, partial = asoc:receive(FAKE_SIZE)
 	end)
 
 	local _, timeout_on = assert(coroutine.resume(co))
@@ -51,7 +51,7 @@ function test.read_closed(t)
 
 	local data, err, partial = nil, nil, nil
 	local co = coroutine.create(function()
-		data, err, partial = asoc:read(FAKE_SIZE)
+		data, err, partial = asoc:receive(FAKE_SIZE)
 	end)
 
 	local _, timeout_on = assert(coroutine.resume(co))
@@ -69,7 +69,7 @@ end
 function test.write_success(t)
 	local soc = FakeSocket({{SIZE_1}})
 	local asoc = AsyncSocket(soc)
-	local size = asoc:write(FAKE_DATA)
+	local size = asoc:send(FAKE_DATA)
 	t:eq(size, SIZE_1)
 end
 
@@ -82,7 +82,7 @@ function test.write_timeout(t)
 
 	local size, err, partial = 0, nil, nil
 	local co = coroutine.create(function()
-		size, err, partial = asoc:write(FAKE_DATA)
+		size, err, partial = asoc:send(FAKE_DATA)
 	end)
 
 	local _, timeout_on = assert(coroutine.resume(co))
@@ -106,7 +106,7 @@ function test.write_closed(t)
 
 	local size, err, partial = 0, nil, nil
 	local co = coroutine.create(function()
-		size, err, partial = asoc:write(FAKE_DATA)
+		size, err, partial = asoc:send(FAKE_DATA)
 	end)
 
 	local _, timeout_on = assert(coroutine.resume(co))

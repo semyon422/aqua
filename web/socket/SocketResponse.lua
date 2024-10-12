@@ -39,7 +39,7 @@ function SocketResponse:setHeaders(content_length)
 	table.insert(buffer, "")
 	table.insert(buffer, "")
 
-	self.soc:write(table.concat(buffer, "\r\n"))
+	self.soc:send(table.concat(buffer, "\r\n"))
 
 	self.headers_set = true
 end
@@ -47,7 +47,7 @@ end
 ---@return true?
 ---@return "closed"?
 function SocketResponse:readStatusLine()
-	local line, err = self.soc:read("*l")
+	local line, err = self.soc:receive("*l")
 	if not line then
 		return nil, err
 	end
@@ -69,7 +69,7 @@ function SocketResponse:readHeaders()
 	local headers_obj = Headers()
 
 	local ok, err = headers_obj:decode(function()
-		return self.soc:read("*l")
+		return self.soc:receive("*l")
 	end)
 	if not ok then
 		return nil, err
@@ -87,7 +87,7 @@ function SocketResponse:write(data)
 	if not data then
 		return
 	end
-	self.soc:write(data)
+	self.soc:send(data)
 end
 
 ---@param size integer
@@ -96,7 +96,7 @@ function SocketResponse:read(size)
 	if length == 0 then
 		return ""
 	end
-	return assert(self.soc:read(size))
+	return assert(self.soc:receive(size))
 end
 
 return SocketResponse

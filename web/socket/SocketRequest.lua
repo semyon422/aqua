@@ -17,7 +17,7 @@ end
 ---@return true?
 ---@return "closed"?
 function SocketRequest:readStatusLine()
-	local line, err = self.soc:read("*l")
+	local line, err = self.soc:receive("*l")
 	if not line then
 		return nil, err
 	end
@@ -32,7 +32,7 @@ end
 function SocketRequest:writeStatusLine()
 	local status_line = ("%s %s %s\r\n"):format(self.method, self.uri, self.protocol)
 
-	local ok, err = self.soc:write(status_line)
+	local ok, err = self.soc:send(status_line)
 	if not ok then
 		return nil, err
 	end
@@ -46,7 +46,7 @@ function SocketRequest:readHeaders()
 	local headers_obj = Headers()
 
 	local ok, err = headers_obj:decode(function()
-		return self.soc:read("*l")
+		return self.soc:receive("*l")
 	end)
 	if not ok then
 		return nil, err
@@ -64,7 +64,7 @@ function SocketRequest:writeHeaders()
 	local headers_obj = Headers()
 	headers_obj.headers = self.headers
 
-	local ok, err = self.soc:write(headers_obj:encode())
+	local ok, err = self.soc:send(headers_obj:encode())
 	if not ok then
 		return nil, err
 	end
@@ -79,12 +79,12 @@ function SocketRequest:read(size)
 	if length == 0 then
 		return ""
 	end
-	return assert(self.soc:read(size))
+	return assert(self.soc:receive(size))
 end
 
 ---@param data string
 function SocketRequest:write(data)
-	assert(self.soc:write(data))
+	assert(self.soc:send(data))
 end
 
 return SocketRequest
