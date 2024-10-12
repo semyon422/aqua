@@ -14,9 +14,8 @@ function test.basic(t)
 
 	t:eq(data, "Name1: value1\r\nName2: value2\r\n\r\n")
 
-	headers = Headers()
-	local soc = LineAllDecorator(FakeStringSocket(data))
-	t:tdeq({headers:decode(function() return soc:receive("*l") end)}, {true})
+	headers = Headers(LineAllDecorator(FakeStringSocket(data)))
+	t:tdeq({headers:decode()}, {true})
 	t:tdeq(headers.headers, {
 		Name1 = "value1",
 		Name2 = "value2",
@@ -31,9 +30,8 @@ function test.empty(t)
 
 	t:eq(data, "\r\n")
 
-	headers = Headers()
-	local soc = LineAllDecorator(FakeStringSocket(data))
-	t:tdeq({headers:decode(function() return soc:receive("*l") end)}, {true})
+	headers = Headers(LineAllDecorator(FakeStringSocket(data)))
+	t:tdeq({headers:decode()}, {true})
 	t:tdeq(headers.headers, {})
 end
 

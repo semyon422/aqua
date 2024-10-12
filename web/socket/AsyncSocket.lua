@@ -1,8 +1,8 @@
-local ISocket = require("web.socket.ISocket")
+local IAsyncSocket = require("web.socket.IAsyncSocket")
 
----@class web.AsyncSocket: web.ISocket
+---@class web.AsyncSocket: web.IAsyncSocket
 ---@operator call: web.AsyncSocket
-local AsyncSocket = ISocket + {}
+local AsyncSocket = IAsyncSocket + {}
 
 ---@param soc web.ISocket
 function AsyncSocket:new(soc)

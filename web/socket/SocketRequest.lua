@@ -41,13 +41,11 @@ function SocketRequest:writeStatusLine()
 end
 
 ---@return true?
----@return string?
+---@return "closed"|"malformed headers"?
 function SocketRequest:readHeaders()
-	local headers_obj = Headers()
+	local headers_obj = Headers(self.soc)
 
-	local ok, err = headers_obj:decode(function()
-		return self.soc:receive("*l")
-	end)
+	local ok, err = headers_obj:decode()
 	if not ok then
 		return nil, err
 	end

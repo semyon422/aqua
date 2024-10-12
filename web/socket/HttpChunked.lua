@@ -1,5 +1,6 @@
 local class = require("class")
 
+-- https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Transfer-Encoding
 -- https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Trailer
 
 ---@class web.HttpChunked
@@ -33,9 +34,7 @@ function HttpChunked:decode(headers)
 		return chunk, err, partial
 	end
 
-	local ok, err = headers:decode(function()
-		return self.soc:receive("*l")
-	end)
+	local ok, err = headers:decode()
 	if not ok then
 		return nil, err
 	end

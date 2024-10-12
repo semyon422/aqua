@@ -5,7 +5,9 @@ local class = require("class")
 ---@field headers {[string]: string|string[]}
 local Headers = class()
 
-function Headers:new()
+---@param soc web.IAsyncSocket
+function Headers:new(soc)
+	self.soc = soc
 	self.headers = {}
 end
 
@@ -25,13 +27,13 @@ function Headers:add(name, value)
 	end
 end
 
----@param next_line fun(): string?, string?
 ---@return true?
+---@return "closed"|"malformed headers"?
 ---@return string?
-function Headers:decode(next_line)
-	local line, err = next_line()
+function Headers:decode()
+	local line, err, partial = self.soc:receive("*l")
 	if not line then
-		return nil, err
+		return nil, err, partial
 	end
 
 	while line ~= "" do
@@ -39,18 +41,20 @@ function Headers:decode(next_line)
 		if not name then
 			return nil, "malformed headers"
 		end
+		---@cast name string
+		---@cast value string
 
 		-- folded values
-		line, err = next_line()
+		line, err, partial = self.soc:receive("*l")
 		if not line then
-			return nil, err
+			return nil, err, partial
 		end
 
 		while line:find("^%s") do
 			value = value .. line
-			line, err = next_line()
+			line, err, partial = self.soc:receive("*l")
 			if not line then
-				return nil, err
+				return nil, err, partial
 			end
 		end
 

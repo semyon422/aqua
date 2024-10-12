@@ -10,7 +10,7 @@ function test.basic_no_trailing(t)
 	local str_soc = FakeStringSocket()
 	local soc = LineAllDecorator(str_soc)
 
-	local headers = Headers()
+	local headers = Headers(soc)
 
 	local hc = HttpChunked(soc)
 	hc:encode("qwe")
@@ -39,7 +39,7 @@ function test.basic_trailing(t)
 
 	t:eq(str_soc.remainder, "3\r\nqwe\r\n0\r\nName: value\r\n\r\n")
 
-	headers = Headers()
+	headers = Headers(soc)
 	t:tdeq({hc:decode(headers)}, {"qwe"})
 	t:tdeq({hc:decode(headers)}, {})
 	t:tdeq({hc:decode(headers)}, {nil, "timeout"})
