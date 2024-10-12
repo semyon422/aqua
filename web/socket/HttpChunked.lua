@@ -1,16 +1,21 @@
 local class = require("class")
 
+-- https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Trailer
+
 ---@class web.HttpChunked
 ---@operator call: web.HttpChunked
 local HttpChunked = class()
 
----@param read_line fun(): string?, string?
----@param read_chunk fun(size: integer): string?, string?
+---@param soc web.ISocket
+function HttpChunked:new(soc)
+	self.soc = soc
+end
+
 ---@param headers web.Headers
 ---@return string?
 ---@return string?
-function HttpChunked:decode(read_line, read_chunk, headers)
-	local line, err = read_line()
+function HttpChunked:decode(headers)
+	local line, err = self.soc:receive("*l")
 	if not line then
 		return nil, err
 	end
@@ -21,26 +26,31 @@ function HttpChunked:decode(read_line, read_chunk, headers)
 	end
 
 	if size > 0 then
-		local chunk, err = read_chunk(size)
+		local chunk, err, partial = self.soc:receive(size)
 		if chunk then
-			read_line()
+			self.soc:receive("*l")
 		end
-		return chunk, err
+		return chunk, err, partial
 	end
 
-	local ok, err = headers:decode(read_line)
+	local ok, err = headers:decode(function()
+		return self.soc:receive("*l")
+	end)
 	if not ok then
 		return nil, err
 	end
 end
 
----@param write_chunk fun(chunk: string): string?, string?
----@param chunk string
-function HttpChunked:encode(write_chunk, chunk)
+---@param chunk string?
+---@param headers web.Headers?
+function HttpChunked:encode(chunk, headers)
 	if not chunk then
-		return write_chunk("0\r\n\r\n")
+		if not headers then
+			return self.soc:send("0\r\n\r\n")
+		end
+		return self.soc:send("0\r\n" .. headers:encode())
 	end
-	return write_chunk(("%X\r\n%s\r\n"):format(#chunk, chunk))
+	return self.soc:send(("%X\r\n%s\r\n"):format(#chunk, chunk))
 end
 
 return HttpChunked
