@@ -25,30 +25,24 @@ end
 function FakeStringSocket:receive(size, prefix)
 	assert(type(size) == "number", "invalid size type")
 
-	if prefix and size <= #prefix then
+	prefix = prefix or ""
+	local rem = self.remainder
+
+	size = size - #prefix
+	if prefix and size <= 0 then
 		return prefix
 	end
 
-	---@type string[]
-	local buffer = {}
-	table.insert(buffer, prefix)
-	table.insert(buffer, self.remainder)
-
-	self.remainder = nil
-
-	local s = table.concat(buffer)
-
-	---@type string?
-	local ret
-	ret, self.remainder = s:sub(1, size), s:sub(size + 1)
-
-	if size <= #s then
-		return ret
+	if size <= #rem then
+		self.remainder = rem:sub(size + 1)
+		return prefix .. rem:sub(1, size)
 	end
+
+	self.remainder = ""
 
 	local err = self.closed and "closed" or "timeout"
 
-	return nil, err, ret
+	return nil, err, prefix .. rem
 end
 
 ---@param data string
