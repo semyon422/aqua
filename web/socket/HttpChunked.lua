@@ -12,11 +12,11 @@ function HttpChunked:new(soc)
 	self.soc = soc
 end
 
----@param headers web.Headers
+---@param headers web.Headers?
 ---@return string?
 ---@return "closed"|"invalid chunk size"|"malformed headers"?
 ---@return string?
-function HttpChunked:decode(headers)
+function HttpChunked:receive(headers)
 	local data, err, partial = self.soc:receive("*l")
 	if not data then
 		return nil, err, partial
@@ -35,6 +35,10 @@ function HttpChunked:decode(headers)
 		return data, err, partial
 	end
 
+	if not headers then
+		return
+	end
+
 	data, err, partial = headers:receive(self.soc)
 	if not data then
 		return nil, err, partial
@@ -42,16 +46,26 @@ function HttpChunked:decode(headers)
 end
 
 ---@param chunk string?
----@param headers web.Headers?
-function HttpChunked:encode(chunk, headers)
-	if not chunk then
-		if not headers then
-			return self.soc:send("0\r\n\r\n")
-		end
-		self.soc:send("0\r\n")
-		return headers:send(self.soc)
-	end
+---@return integer?
+---@return "closed"?
+---@return integer?
+function HttpChunked:send(chunk)
 	return self.soc:send(("%X\r\n%s\r\n"):format(#chunk, chunk))
+end
+
+---@param headers web.Headers?
+---@return integer?
+---@return "closed"?
+---@return integer?
+function HttpChunked:close(headers)
+	if not headers then
+		return self.soc:send("0\r\n\r\n")
+	end
+	local last_byte, err, _last_byte = self.soc:send("0\r\n")
+	if not last_byte then
+		return nil, err, _last_byte
+	end
+	return headers:send(self.soc)
 end
 
 return HttpChunked

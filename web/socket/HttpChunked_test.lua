@@ -11,17 +11,17 @@ function test.basic_no_trailing(t)
 	local soc = LineAllDecorator(str_soc)
 
 	local hc = HttpChunked(soc)
-	hc:encode("qwe")
-	hc:encode("rty")
-	hc:encode()
+	hc:send("qwe")
+	hc:send("rty")
+	hc:close()
 
 	t:eq(str_soc.remainder, "3\r\nqwe\r\n3\r\nrty\r\n0\r\n\r\n")
 
 	local headers = Headers()
-	t:tdeq({hc:decode(headers)}, {"qwe"})
-	t:tdeq({hc:decode(headers)}, {"rty"})
-	t:tdeq({hc:decode(headers)}, {})
-	t:tdeq({hc:decode(headers)}, {nil, "timeout", ""})
+	t:tdeq({hc:receive(headers)}, {"qwe"})
+	t:tdeq({hc:receive(headers)}, {"rty"})
+	t:tdeq({hc:receive(headers)}, {})
+	t:tdeq({hc:receive(headers)}, {nil, "timeout", ""})
 end
 
 ---@param t testing.T
@@ -33,15 +33,15 @@ function test.basic_trailing(t)
 	headers:add("Name", "value")
 
 	local hc = HttpChunked(soc)
-	hc:encode("qwe")
-	hc:encode(nil, headers)
+	hc:send("qwe")
+	hc:close(headers)
 
 	t:eq(str_soc.remainder, "3\r\nqwe\r\n0\r\nName: value\r\n\r\n")
 
 	headers = Headers()
-	t:tdeq({hc:decode(headers)}, {"qwe"})
-	t:tdeq({hc:decode(headers)}, {})
-	t:tdeq({hc:decode(headers)}, {nil, "timeout", ""})
+	t:tdeq({hc:receive(headers)}, {"qwe"})
+	t:tdeq({hc:receive(headers)}, {})
+	t:tdeq({hc:receive(headers)}, {nil, "timeout", ""})
 
 	t:tdeq({headers:get("Name")}, {"value"})
 end
