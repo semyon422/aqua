@@ -4,7 +4,7 @@ local class = require("class")
 ---@operator call: web.IResponse
 ---@field protocol string
 ---@field status integer
----@field headers {[string]: any}
+---@field headers web.IHeaders
 local IResponse = class()
 
 ---@param body string?

@@ -66,9 +66,9 @@ end
 ---@return true?
 ---@return "closed"|"malformed headers"?
 function SocketResponse:readHeaders()
-	local headers_obj = Headers(self.soc)
+	local headers_obj = Headers()
 
-	local ok, err = headers_obj:decode()
+	local ok, err = headers_obj:receive(self.soc)
 	if not ok then
 		return nil, err
 	end

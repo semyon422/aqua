@@ -2,7 +2,7 @@ local class = require("class")
 
 ---@class web.IRequest
 ---@operator call: web.IRequest
----@field headers {[string]: string}
+---@field headers web.IHeaders
 ---@field method string
 ---@field uri string
 ---@field protocol string

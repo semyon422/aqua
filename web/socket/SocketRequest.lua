@@ -43,9 +43,9 @@ end
 ---@return true?
 ---@return "closed"|"malformed headers"?
 function SocketRequest:readHeaders()
-	local headers_obj = Headers(self.soc)
+	local headers_obj = Headers()
 
-	local ok, err = headers_obj:decode()
+	local ok, err = headers_obj:receive(self.soc)
 	if not ok then
 		return nil, err
 	end
@@ -62,7 +62,7 @@ function SocketRequest:writeHeaders()
 	local headers_obj = Headers()
 	headers_obj.headers = self.headers
 
-	local ok, err = self.soc:send(headers_obj:encode())
+	local ok, err = headers_obj:send(self.soc)
 	if not ok then
 		return nil, err
 	end

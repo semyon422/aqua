@@ -7,36 +7,37 @@ local class = require("class")
 ---@operator call: web.HttpChunked
 local HttpChunked = class()
 
----@param soc web.ISocket
+---@param soc web.IAsyncSocket
 function HttpChunked:new(soc)
 	self.soc = soc
 end
 
 ---@param headers web.Headers
 ---@return string?
+---@return "closed"|"invalid chunk size"|"malformed headers"?
 ---@return string?
 function HttpChunked:decode(headers)
-	local line, err = self.soc:receive("*l")
-	if not line then
-		return nil, err
+	local data, err, partial = self.soc:receive("*l")
+	if not data then
+		return nil, err, partial
 	end
 
-	local size = tonumber(line:gsub(";.*", ""), 16)
+	local size = tonumber(data:gsub(";.*", ""), 16)
 	if not size then
 		return nil, "invalid chunk size"
 	end
 
 	if size > 0 then
-		local chunk, err, partial = self.soc:receive(size)
-		if chunk then
+		data, err, partial = self.soc:receive(size)
+		if data then
 			self.soc:receive("*l")
 		end
-		return chunk, err, partial
+		return data, err, partial
 	end
 
-	local ok, err = headers:decode()
-	if not ok then
-		return nil, err
+	data, err, partial = headers:receive(self.soc)
+	if not data then
+		return nil, err, partial
 	end
 end
 
@@ -47,7 +48,8 @@ function HttpChunked:encode(chunk, headers)
 		if not headers then
 			return self.soc:send("0\r\n\r\n")
 		end
-		return self.soc:send("0\r\n" .. headers:encode())
+		self.soc:send("0\r\n")
+		return headers:send(self.soc)
 	end
 	return self.soc:send(("%X\r\n%s\r\n"):format(#chunk, chunk))
 end

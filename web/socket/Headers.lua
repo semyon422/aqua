@@ -1,13 +1,11 @@
-local class = require("class")
+local IHeaders = require("web.socket.IHeaders")
 
----@class web.Headers
+---@class web.Headers: web.IHeaders
 ---@operator call: web.Headers
 ---@field headers {[string]: string|string[]}
-local Headers = class()
+local Headers = IHeaders + {}
 
----@param soc web.IAsyncSocket
-function Headers:new(soc)
-	self.soc = soc
+function Headers:new()
 	self.headers = {}
 end
 
@@ -27,11 +25,12 @@ function Headers:add(name, value)
 	end
 end
 
+---@param soc web.IAsyncSocket
 ---@return true?
 ---@return "closed"|"malformed headers"?
 ---@return string?
-function Headers:decode()
-	local line, err, partial = self.soc:receive("*l")
+function Headers:receive(soc)
+	local line, err, partial = soc:receive("*l")
 	if not line then
 		return nil, err, partial
 	end
@@ -45,14 +44,14 @@ function Headers:decode()
 		---@cast value string
 
 		-- folded values
-		line, err, partial = self.soc:receive("*l")
+		line, err, partial = soc:receive("*l")
 		if not line then
 			return nil, err, partial
 		end
 
 		while line:find("^%s") do
 			value = value .. line
-			line, err, partial = self.soc:receive("*l")
+			line, err, partial = soc:receive("*l")
 			if not line then
 				return nil, err, partial
 			end
@@ -75,8 +74,11 @@ function Headers:getKeys()
 	return keys
 end
 
----@return string
-function Headers:encode()
+---@param soc web.IAsyncSocket
+---@return integer?
+---@return "closed"?
+---@return integer?
+function Headers:send(soc)
 	---@type string[]
 	local out = {}
 	for _, k in ipairs(self:getKeys()) do
@@ -84,7 +86,12 @@ function Headers:encode()
 	end
 
 	table.insert(out, "\r\n")
-	return table.concat(out)
+	return soc:send(table.concat(out))
+
+	-- for _, header in ipairs(self.headers) do
+	-- 	self.soc:send(("%s: %s\r\n"):format(header[1], header[2]))
+	-- end
+	-- self.soc:send("\r\n")
 end
 
 return Headers
