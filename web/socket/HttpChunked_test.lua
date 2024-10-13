@@ -1,5 +1,5 @@
 local HttpChunked = require("web.socket.HttpChunked")
-local FakeStringSocket = require("web.socket.FakeStringSocket")
+local StringSocket = require("web.socket.StringSocket")
 local LineAllDecorator = require("web.socket.LineAllDecorator")
 local Headers = require("web.socket.Headers")
 
@@ -7,7 +7,7 @@ local test = {}
 
 ---@param t testing.T
 function test.basic_no_trailing(t)
-	local str_soc = FakeStringSocket()
+	local str_soc = StringSocket()
 	local soc = LineAllDecorator(str_soc)
 
 	local hc = HttpChunked(soc)
@@ -26,7 +26,7 @@ end
 
 ---@param t testing.T
 function test.basic_trailing(t)
-	local str_soc = FakeStringSocket()
+	local str_soc = StringSocket()
 	local soc = LineAllDecorator(str_soc)
 
 	local headers = Headers()

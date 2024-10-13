@@ -1,5 +1,5 @@
 local LineAllDecorator = require("web.socket.LineAllDecorator")
-local FakeStringSocket = require("web.socket.FakeStringSocket")
+local StringSocket = require("web.socket.StringSocket")
 
 local test = {}
 
@@ -9,7 +9,7 @@ function test.all(t)
 	local tpl = require("web.socket.socket_tests")
 
 	for _, f in pairs(tpl) do
-		local soc = LineAllDecorator(FakeStringSocket())
+		local soc = LineAllDecorator(StringSocket())
 		f(t, soc, soc)
 	end
 end

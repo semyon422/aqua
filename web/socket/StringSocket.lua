@@ -1,18 +1,18 @@
 local ISocket = require("web.socket.ISocket")
 
----@class web.FakeStringSocket: web.ISocket
----@operator call: web.FakeStringSocket
-local FakeStringSocket = ISocket + {}
+---@class web.StringSocket: web.ISocket
+---@operator call: web.StringSocket
+local StringSocket = ISocket + {}
 
 ---@param data string?
 ---@param max_size integer?
-function FakeStringSocket:new(data, max_size)
+function StringSocket:new(data, max_size)
 	self.remainder = data or ""
 	self.max_size = max_size or math.huge
 end
 
 ---@return 1
-function FakeStringSocket:close()
+function StringSocket:close()
 	self.closed = true
 	return 1
 end
@@ -22,7 +22,7 @@ end
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function FakeStringSocket:receive(size, prefix)
+function StringSocket:receive(size, prefix)
 	assert(type(size) == "number", "invalid size type")
 
 	prefix = prefix or ""
@@ -51,7 +51,7 @@ end
 ---@return integer?
 ---@return "closed"|"timeout"?
 ---@return integer?
-function FakeStringSocket:send(data, i, j)
+function StringSocket:send(data, i, j)
 	if self.closed then
 		return nil, "closed", 0
 	end
@@ -73,4 +73,4 @@ function FakeStringSocket:send(data, i, j)
 	return nil, "timeout", last_byte
 end
 
-return FakeStringSocket
+return StringSocket

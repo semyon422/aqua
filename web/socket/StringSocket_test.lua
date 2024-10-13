@@ -1,10 +1,10 @@
-local FakeStringSocket = require("web.socket.FakeStringSocket")
+local StringSocket = require("web.socket.StringSocket")
 
 local test = {}
 
 ---@param t testing.T
 function test.receive_size_exact(t)
-	local soc = FakeStringSocket()
+	local soc = StringSocket()
 
 	soc:send("qwe")
 
@@ -20,7 +20,7 @@ end
 
 ---@param t testing.T
 function test.receive_size_more_closed(t)
-	local soc = FakeStringSocket()
+	local soc = StringSocket()
 
 	soc:send("qwe")
 	soc:close()
@@ -32,7 +32,7 @@ end
 
 ---@param t testing.T
 function test.receive_size_more_timeout(t)
-	local soc = FakeStringSocket()
+	local soc = StringSocket()
 
 	soc:send("qwe")
 
@@ -48,7 +48,7 @@ end
 
 ---@param t testing.T
 function test.receive_prefix(t)
-	local soc = FakeStringSocket()
+	local soc = StringSocket()
 
 	soc:send("qwerty")
 
@@ -62,7 +62,7 @@ end
 
 ---@param t testing.T
 function test.send_size_closed(t)
-	local soc = FakeStringSocket(nil, 6)
+	local soc = StringSocket(nil, 6)
 
 	t:tdeq({soc:send("qwerty", 1, 2)}, {2})
 
@@ -77,7 +77,7 @@ end
 
 ---@param t testing.T
 function test.send_size_exact(t)
-	local soc = FakeStringSocket(nil, 6)
+	local soc = StringSocket(nil, 6)
 
 	t:tdeq({soc:send("qwerty", 1, 2)}, {2})
 	t:tdeq({soc:send("qwerty", 3, 4)}, {4})
@@ -90,7 +90,7 @@ end
 
 ---@param t testing.T
 function test.send_size_more(t)
-	local soc = FakeStringSocket(nil, 4)
+	local soc = StringSocket(nil, 4)
 
 	t:tdeq({soc:send("qwerty", 1, 2)}, {2})
 	t:tdeq({soc:send("qwerty", 3, 6)}, {nil, "timeout", 4})

@@ -1,5 +1,5 @@
 local Headers = require("web.socket.Headers")
-local FakeStringSocket = require("web.socket.FakeStringSocket")
+local StringSocket = require("web.socket.StringSocket")
 local LineAllDecorator = require("web.socket.LineAllDecorator")
 local AsyncSocket = require("web.socket.AsyncSocket")
 
@@ -11,7 +11,7 @@ function test.basic(t)
 	headers:add("Name1", "value1")
 	headers:add("Name2", "value2")
 
-	local str_soc = FakeStringSocket()
+	local str_soc = StringSocket()
 	local soc = AsyncSocket(LineAllDecorator(str_soc))
 	headers:send(soc)
 
@@ -29,7 +29,7 @@ end
 function test.empty(t)
 	local headers = Headers()
 
-	local str_soc = FakeStringSocket()
+	local str_soc = StringSocket()
 	local soc = AsyncSocket(LineAllDecorator(str_soc))
 	headers:send(soc)
 
