@@ -2,26 +2,33 @@ local IHeaders = require("web.socket.IHeaders")
 
 ---@class web.Headers: web.IHeaders
 ---@operator call: web.Headers
----@field headers {[string]: string|string[]}
+---@field headers {[string]: string[]}
+---@field header_names {[string]: string}
 local Headers = IHeaders + {}
 
 function Headers:new()
 	self.headers = {}
+	self.header_names = {}
 end
 
 ---@param name string
 ---@param value string
 function Headers:add(name, value)
 	local headers = self.headers
-	-- name = name:lower()
+	local lower_name = name:lower()
 
-	local header = headers[name]
-	if type(header) == "table" then
-		table.insert(header, value)
-	elseif type(header) == "string" then
-		headers[name] = {header, value}
-	else
-		headers[name] = value
+	self.header_names[lower_name] = name
+
+	headers[lower_name] = headers[lower_name] or {}
+	table.insert(headers[lower_name], value)
+end
+
+---@param name string
+---@return string ...
+function Headers:get(name)
+	local header = self.headers[name:lower()]
+	if header then
+		return unpack(header)
 	end
 end
 
@@ -79,19 +86,27 @@ end
 ---@return "closed"?
 ---@return integer?
 function Headers:send(soc)
-	---@type string[]
-	local out = {}
+	local headers = self.headers
+	local header_names = self.header_names
+
+	local total = 0
+
 	for _, k in ipairs(self:getKeys()) do
-		table.insert(out, ("%s: %s\r\n"):format(k, self.headers[k]))
+		for _, v in ipairs(headers[k]) do
+			local last_byte, err, _last_byte = soc:send(("%s: %s\r\n"):format(header_names[k], v))
+			if not last_byte then
+				return nil, err, total + _last_byte
+			end
+			total = total + last_byte
+		end
 	end
 
-	table.insert(out, "\r\n")
-	return soc:send(table.concat(out))
+	local last_byte, err, _last_byte = soc:send("\r\n")
+	if not last_byte then
+		return nil, err, total + _last_byte
+	end
 
-	-- for _, header in ipairs(self.headers) do
-	-- 	self.soc:send(("%s: %s\r\n"):format(header[1], header[2]))
-	-- end
-	-- self.soc:send("\r\n")
+	return total
 end
 
 return Headers

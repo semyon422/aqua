@@ -1,3 +1,4 @@
+---@enum (key) web.StatusCode
 local http_codes = {
     [100] = "Continue",
     [101] = "Switching Protocols",

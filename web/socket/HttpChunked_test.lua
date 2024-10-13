@@ -43,7 +43,7 @@ function test.basic_trailing(t)
 	t:tdeq({hc:decode(headers)}, {})
 	t:tdeq({hc:decode(headers)}, {nil, "timeout", ""})
 
-	t:tdeq(headers.headers, {Name = "value"})
+	t:tdeq({headers:get("Name")}, {"value"})
 end
 
 return test

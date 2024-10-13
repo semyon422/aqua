@@ -4,97 +4,59 @@ local Headers = require("web.socket.Headers")
 
 ---@class web.SocketResponse: web.IResponse
 ---@operator call: web.SocketResponse
+---@field headers web.Headers
 local SocketResponse = IResponse + {}
+
+SocketResponse.protocol = "HTTP/1.1"
+SocketResponse.status = 200
 
 ---@param soc web.AsyncSocket
 function SocketResponse:new(soc)
 	self.soc = soc
-	self.status = 200
-	---@type {[string]: any}
-	self.headers = {}
-	self.headers_set = false
-end
-
----@param content_length integer
-function SocketResponse:setHeaders(content_length)
-	if self.headers_set then
-		return
-	end
-
-	local status = self.status
-	local headers = self.headers
-
-	---@type string[]
-	local buffer = {}
-
-	if not headers["Content-Length"] then
-		headers["Content-Length"] = content_length
-	end
-
-	table.insert(buffer, ("HTTP/1.1 %s %s"):format(status, codes[status]))
-
-	for k, v in pairs(headers) do
-		table.insert(buffer, ("%s: %s"):format(k, v))
-	end
-	table.insert(buffer, "")
-	table.insert(buffer, "")
-
-	self.soc:send(table.concat(buffer, "\r\n"))
-
-	self.headers_set = true
+	self.headers = Headers()
 end
 
 ---@return true?
----@return "closed"?
+---@return "closed"|"unknown status"?
+---@return string?
 function SocketResponse:readStatusLine()
-	local line, err = self.soc:receive("*l")
-	if not line then
-		return nil, err
+	local data, err, partial = self.soc:receive("*l")
+	if not data then
+		return nil, err, partial
 	end
 
-	local protocol, status_s = line:match("(HTTP/%d*%.%d*) (%d%d%d)")
+	local protocol, status_s = data:match("(%S+)%s+(%S+)")
 	local status = tonumber(status_s)
 	if not status then
-		return nil, line
+		return nil, "unknown status", data
 	end
 
+	self.protocol = protocol
 	self.status = status
 
 	return true
 end
 
----@return true?
----@return "closed"|"malformed headers"?
-function SocketResponse:readHeaders()
-	local headers_obj = Headers()
-
-	local ok, err = headers_obj:receive(self.soc)
-	if not ok then
-		return nil, err
-	end
-
-	self.headers = headers_obj.headers
-	self.length = tonumber(self.headers["Content-Length"]) or 0
-
-	return true
+function SocketResponse:writeStatusLine()
+	local status_line = ("%s %s %s\r\n"):format(self.protocol, self.status, codes[self.status])
+	return self.soc:send(status_line)
 end
 
----@param data string?
+function SocketResponse:readHeaders()
+	return self.headers:receive(self.soc)
+end
+
+function SocketResponse:writeHeaders()
+	return self.headers:send(self.soc)
+end
+
 function SocketResponse:write(data)
-	self:setHeaders(#data)
-	if not data then
-		return
-	end
-	self.soc:send(data)
+	return self.soc:send(data)
 end
 
 ---@param size integer
 function SocketResponse:read(size)
-	local length = tonumber(self.headers["Content-Length"]) or 0
-	if length == 0 then
-		return ""
-	end
-	return assert(self.soc:receive(size))
+	return self.soc:receive(size)
 end
 
 return SocketResponse
