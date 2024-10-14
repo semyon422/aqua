@@ -107,10 +107,10 @@ ffi.cdef[[
 		HANDLE hObject
 	);
 
-	LSTATUS RegGetValueA(
+	LSTATUS RegGetValueW(
 		HKEY    hkey,
-		LPCSTR  lpSubKey,
-		LPCSTR  lpValue,
+		LPCWSTR lpSubKey,
+		LPCWSTR lpValue,
 		DWORD   dwFlags,
 		LPDWORD pdwType,
 		PVOID   pvData,
@@ -233,7 +233,7 @@ function winapi.sleep(s)
 	ffi.C.WaitForSingleObject(sleep_timer, 4294967295)
 end
 
--- https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-reggetvaluea
+-- https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-reggetvaluew
 
 winapi.hkey = {
 	HKEY_CLASSES_ROOT = 0x80000000,
@@ -275,9 +275,12 @@ winapi.rrf = {
 ---@return string|integer?
 function winapi.get_reg_value(hkey, sub_key, value, flags)
 	local buf_size = ffi.new("DWORD[1]")
-	local hkey_p = ffi.cast("void*", hkey)
 
-	local status = ffi.C.RegGetValueA(hkey_p, sub_key, value, flags, nil, nil, buf_size)
+	local hkey_p = ffi.cast("void*", hkey)
+	local wsub_key = sub_key and winapi.to_wchar_t(sub_key)
+	local wvalue = value and winapi.to_wchar_t(value)
+
+	local status = ffi.C.RegGetValueW(hkey_p, wsub_key, wvalue, flags, nil, nil, buf_size)
 	if status == 2 then  -- ERROR_FILE_NOT_FOUND
 		return nil, "not found"
 	end
@@ -285,7 +288,7 @@ function winapi.get_reg_value(hkey, sub_key, value, flags)
 
 	local buf = ffi.new("unsigned char[?]", buf_size[0])
 
-	status = ffi.C.RegGetValueA(hkey_p, sub_key, value, flags, nil, buf, buf_size)
+	status = ffi.C.RegGetValueW(hkey_p, wsub_key, wvalue, flags, nil, buf, buf_size)
 	assert(status == 0)
 
 	return buf, buf_size[0]
@@ -308,7 +311,7 @@ function winapi.get_reg_value_sz(hkey, sub_key, value)
 		return
 	end
 
-	return ffi.string(buf, size - 1)
+	return winapi.to_string(ffi.cast("void*", buf))
 end
 
 return winapi
