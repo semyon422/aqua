@@ -32,17 +32,8 @@ function LuasocketServer:server(ip, port, handler)
 		local req = SocketRequest(soc)
 		local res = SocketResponse(soc)
 
-		local ok, err = req:readStatusLine()
-		if not ok then
-			return nil, err
-		end
-
-		local ok, err = req:readHeaders()
-		if not ok then
-			return nil, err
-		end
-
 		handler:handle(req, res, {})
+		soc:close()
 	end)
 end
 
@@ -68,6 +59,7 @@ function LuasocketServer:client(ip, port, handler)
 		local res = SocketResponse(soc)
 
 		handler:handle(req, res, {})
+		soc:close()
 	end)
 end
 

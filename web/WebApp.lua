@@ -8,6 +8,9 @@ local ConverterHandler = require("web.handlers.ConverterHandler")
 local SequentialHandler = require("web.handlers.SequentialHandler")
 local SelectHandler = require("web.handlers.SelectHandler")
 local StaticHandler = require("web.handlers.StaticHandler")
+local ReceiveHandler = require("web.handlers.ReceiveHandler")
+local SendHandler = require("web.handlers.SendHandler")
+local AnonHandler = require("web.handlers.AnonHandler")
 
 local Router = require("web.router.Router")
 local Views = require("web.page.Views")
@@ -44,6 +47,7 @@ function WebApp:new(config, domain)
 	})
 
 	local ro_seq_h = SequentialHandler({
+		ReceiveHandler(),
 		RouterHandler(router),
 		SelectHandler(function(ctx)
 			if not ctx.static then

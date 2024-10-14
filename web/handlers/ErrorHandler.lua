@@ -18,8 +18,14 @@ function ErrorHandler:handle(req, res, ctx)
 		return
 	end
 
+	local body = ("<pre>%s</pre>"):format(err)
+
 	res.status = 500
-	res:write(("<pre>%s</pre>"):format(err))
+	res.headers:add("Content-Length", #body)
+
+	res:writeStatusLine()
+	res:writeHeaders()
+	res:write(body)
 end
 
 return ErrorHandler

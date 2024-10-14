@@ -17,6 +17,12 @@ function StaticHandler:handle(req, res, ctx)
 	local f = assert(io.open(path_util.join(ctx.prefix, ctx.path_params.filename)))
 	local data = f:read("*a")
 	f:close()
+
+	res.headers:add("Content-Length", #data)
+
+	res:writeStatusLine()
+	res:writeHeaders()
+
 	res:write(data)
 end
 

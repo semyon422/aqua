@@ -27,7 +27,8 @@ end
 function PageHandler:handle(req, res, ctx)
 	local page = ctx.page_name
 	if not page then
-		res:write()
+		res:writeStatusLine()
+		res:writeHeaders()
 		return
 	end
 
@@ -35,6 +36,11 @@ function PageHandler:handle(req, res, ctx)
 	ctx.page = Page(self.domain, ctx, ctx.session_user, self.config)
 	ctx.page:load()
 	local body = self.views:render(Page.view, ctx)
+
+	res.headers:add("Content-Length", #body)
+
+	res:writeStatusLine()
+	res:writeHeaders()
 
 	res:write(body)
 end

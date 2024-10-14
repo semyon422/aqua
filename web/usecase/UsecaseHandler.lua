@@ -39,7 +39,9 @@ function UsecaseHandler:handle(req, res, ctx)
 	if type(headers) == "function" then
 		headers = headers(ctx)
 	end
-	res.headers = headers or {}
+	for k, v in pairs(headers or {}) do
+		res.headers:add(k, v)
+	end
 end
 
 return UsecaseHandler
