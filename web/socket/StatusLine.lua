@@ -40,7 +40,8 @@ end
 ---@return "closed"?
 ---@return integer?
 function StatusLine:send(soc)
-	local status_line = ("%s %s %s\r\n"):format(self.version, self.status, self.reason or codes[self.status])
+	local reason = self.reason or codes[tonumber(self.status)] or "Not Implemented"
+	local status_line = ("%s %s %s\r\n"):format(self.version, self.status, reason)
 	return soc:send(status_line)
 end
 

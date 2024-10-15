@@ -1,4 +1,3 @@
-local codes = require("web.socket.codes")
 local IResponse = require("web.IResponse")
 local Headers = require("web.socket.Headers")
 local StatusLine = require("web.socket.StatusLine")
@@ -40,7 +39,7 @@ end
 function SocketResponse:sendStatusLine()
 	if self.status_line_sent then return end
 	self.status_line_sent = true
-	return StatusLine(self.status):receive(self.soc)
+	return StatusLine(self.status):send(self.soc)
 end
 
 function SocketResponse:receiveHeaders()
@@ -57,10 +56,11 @@ function SocketResponse:sendHeaders()
 	return self.headers:send(self.soc)
 end
 
----@param size integer
+---@param size integer?
 function SocketResponse:receive(size)
 	self:receiveStatusLine()
 	self:receiveHeaders()
+	if not size or size == 0 then return end
 	return self.soc:receive(size)
 end
 
