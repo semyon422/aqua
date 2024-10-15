@@ -12,49 +12,39 @@ function SocketRequest:new(soc)
 	self.headers = Headers()
 end
 
-function SocketRequest:receiveRequestLine()
-	if self.request_line_received then return end
-	self.request_line_received = true
-	local requestLine, err = RequestLine():receive(self.soc)
-	if not requestLine then
-		return nil, err
-	end
-	self.method = requestLine.method
-	self.uri = requestLine.uri
-end
-
-function SocketRequest:sendRequestLine()
-	if self.request_line_sent then
+function SocketRequest:receiveInfo()
+	if self.info_received then
 		return
 	end
-	self.request_line_sent = true
-	return RequestLine(self.method, self.uri):send(self.soc)
+	self.info_received = true
+
+	local rline, err = RequestLine():receive(self.soc)
+	if not rline then
+		return nil, err
+	end
+
+	self.method = rline.method
+	self.uri = rline.uri
+	self.headers:receive(self.soc)
 end
 
-function SocketRequest:receiveHeaders()
-	if self.headers_received then return end
-	self.headers_received = true
-	self:receiveRequestLine()
-	return self.headers:receive(self.soc)
+function SocketRequest:sendInfo()
+	if self.info_sent then return end
+	self.info_sent = true
+	RequestLine(self.method, self.uri):send(self.soc)
+	self.headers:send(self.soc)
 end
 
-function SocketRequest:sendHeaders()
-	if self.headers_sent then return end
-	self.headers_sent = true
-	self:sendRequestLine()
-	return self.headers:send(self.soc)
+---@param pattern "*a"|"*l"|integer?
+function SocketRequest:receive(pattern)
+	self:receiveInfo()
+	if not pattern or pattern == 0 then return end
+	return self.soc:receive(pattern)
 end
 
-function SocketRequest:receive(size)
-	self:receiveRequestLine()
-	self:receiveHeaders()
-	return self.soc:receive(size)
-end
-
----@param data string
+---@param data string?
 function SocketRequest:send(data)
-	self:sendRequestLine()
-	self:sendHeaders()
+	self:sendInfo()
 	if not data or data == "" then return end
 	return self.soc:send(data)
 end

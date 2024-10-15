@@ -7,12 +7,6 @@ local class = require("class")
 ---@field headers web.Headers
 local IResponse = class()
 
-function IResponse:receiveStatusLine() end
-function IResponse:sendStatusLine() end
-
-function IResponse:receiveHeaders() end
-function IResponse:sendHeaders() end
-
 ---@param pattern "*a"|"*l"|integer?
 ---@return string
 function IResponse:receive(pattern)

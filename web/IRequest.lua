@@ -8,12 +8,6 @@ local class = require("class")
 ---@field headers web.Headers
 local IRequest = class()
 
-function IRequest:receiveRequestLine() end
-function IRequest:sendRequestLine() end
-
-function IRequest:receiveHeaders() end
-function IRequest:sendHeaders() end
-
 ---@param pattern "*a"|"*l"|integer?
 ---@return string
 function IRequest:receive(pattern)
