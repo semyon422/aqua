@@ -6,17 +6,17 @@ local codes = require("web.socket.codes")
 ---@class web.StatusLine
 ---@operator call: web.StatusLine
 ---@field version string
----@field status string|integer
+---@field status string
 ---@field reason string
 local StatusLine = class()
 
 StatusLine.version = "HTTP/1.1"
-StatusLine.status = 200
+StatusLine.status = "200"
 
 ---@param status string|integer
 ---@param reason string
 function StatusLine:new(status, reason)
-	self.status = status
+	self.status = tostring(status)
 	self.reason = reason
 end
 

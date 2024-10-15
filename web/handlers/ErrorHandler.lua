@@ -23,9 +23,7 @@ function ErrorHandler:handle(req, res, ctx)
 	res.status = 500
 	res.headers:add("Content-Length", #body)
 
-	res:writeStatusLine()
-	res:writeHeaders()
-	res:write(body)
+	res:send(body)
 end
 
 return ErrorHandler

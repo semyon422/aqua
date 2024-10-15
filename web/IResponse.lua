@@ -2,18 +2,24 @@ local class = require("class")
 
 ---@class web.IResponse
 ---@operator call: web.IResponse
----@field protocol string
----@field status web.StatusCode
----@field headers web.IHeaders
+---@field soc web.AsyncSocket
+---@field status integer
+---@field headers web.Headers
 local IResponse = class()
 
----@param body string?
-function IResponse:write(body) end
+function IResponse:receiveStatusLine() end
+function IResponse:sendStatusLine() end
+
+function IResponse:receiveHeaders() end
+function IResponse:sendHeaders() end
 
 ---@param pattern "*a"|"*l"|integer?
 ---@return string
-function IResponse:read(pattern)
+function IResponse:receive(pattern)
 	return ""
 end
+
+---@param body string?
+function IResponse:send(body) end
 
 return IResponse

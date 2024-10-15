@@ -8,8 +8,8 @@ local SendHandler = IHandler + {}
 ---@param res web.IResponse
 ---@param ctx web.ConverterContext
 function SendHandler:handle(req, res, ctx)
-	res:writeStatusLine()
-	res:writeHeaders()
+	res:sendStatusLine()
+	res:sendHeaders()
 end
 
 return SendHandler

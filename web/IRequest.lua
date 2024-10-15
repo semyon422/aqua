@@ -2,19 +2,25 @@ local class = require("class")
 
 ---@class web.IRequest
 ---@operator call: web.IRequest
+---@field soc web.AsyncSocket
 ---@field method string
 ---@field uri string
----@field protocol string
----@field headers web.IHeaders
+---@field headers web.Headers
 local IRequest = class()
 
----@param body string?
-function IRequest:write(body) end
+function IRequest:receiveRequestLine() end
+function IRequest:sendRequestLine() end
+
+function IRequest:receiveHeaders() end
+function IRequest:sendHeaders() end
 
 ---@param pattern "*a"|"*l"|integer?
 ---@return string
-function IRequest:read(pattern)
+function IRequest:receive(pattern)
 	return ""
 end
+
+---@param body string?
+function IRequest:send(body) end
 
 return IRequest
