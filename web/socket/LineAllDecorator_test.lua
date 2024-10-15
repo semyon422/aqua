@@ -14,4 +14,16 @@ function test.all(t)
 	end
 end
 
+---@param t testing.T
+function test.chunk_size_1(t)
+	---@type {[string]: function}
+	local tpl = require("web.socket.socket_tests")
+
+	for _, f in pairs(tpl) do
+		local soc = LineAllDecorator(StringSocket())
+		soc.chunk_size = 1
+		f(t, soc, soc)
+	end
+end
+
 return test
