@@ -1,14 +1,14 @@
 local ISocket = require("web.socket.ISocket")
 
----@class web.LineAllDecorator: web.ISocket
----@operator call: web.LineAllDecorator
+---@class web.ExtendedSocket: web.ISocket
+---@operator call: web.ExtendedSocket
 ---@field remainder string
-local LineAllDecorator = ISocket + {}
+local ExtendedSocket = ISocket + {}
 
-LineAllDecorator.chunk_size = 4096
+ExtendedSocket.chunk_size = 4096
 
 ---@param soc web.ISocket
-function LineAllDecorator:new(soc)
+function ExtendedSocket:new(soc)
 	self.soc = soc
 	self.remainder = ""
 end
@@ -18,7 +18,7 @@ end
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function LineAllDecorator:receive(pattern, prefix)
+function ExtendedSocket:receive(pattern, prefix)
 	assert(pattern == "*a" or pattern == "*l" or type(pattern) == "number", "invalid pattern")
 
 	prefix = prefix or ""
@@ -37,7 +37,7 @@ end
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function LineAllDecorator:receiveSize(size, prefix)
+function ExtendedSocket:receiveSize(size, prefix)
 	local rem = self.remainder
 
 	size = size - #prefix
@@ -89,7 +89,7 @@ end
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function LineAllDecorator:receiveLine(prefix)
+function ExtendedSocket:receiveLine(prefix)
 	local rem = self.remainder
 
 	---@type string?, string?
@@ -138,7 +138,7 @@ end
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function LineAllDecorator:receiveAll(prefix)
+function ExtendedSocket:receiveAll(prefix)
 	local rem = self.remainder
 
 	if self.closed then
@@ -176,13 +176,13 @@ end
 ---@return integer?
 ---@return "closed"|"timeout"?
 ---@return integer?
-function LineAllDecorator:send(data, i, j)
+function ExtendedSocket:send(data, i, j)
 	return self.soc:send(data, i, j)
 end
 
 ---@return 1
-function LineAllDecorator:close()
+function ExtendedSocket:close()
 	return self.soc:close()
 end
 
-return LineAllDecorator
+return ExtendedSocket

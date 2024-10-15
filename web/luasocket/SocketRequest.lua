@@ -1,6 +1,6 @@
 local IRequest = require("web.IRequest")
-local Headers = require("web.socket.Headers")
-local RequestLine = require("web.socket.RequestLine")
+local Headers = require("web.http.Headers")
+local RequestLine = require("web.http.RequestLine")
 
 ---@class web.SocketRequest: web.IRequest
 ---@operator call: web.SocketRequest

@@ -1,6 +1,6 @@
-local SocketResponse = require("web.socket.SocketResponse")
+local SocketResponse = require("web.luasocket.SocketResponse")
 local StringSocket = require("web.socket.StringSocket")
-local LineAllDecorator = require("web.socket.LineAllDecorator")
+local ExtendedSocket = require("web.socket.ExtendedSocket")
 
 local test = {}
 
@@ -9,7 +9,7 @@ local response = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"
 ---@param t testing.T
 function test.receive(t)
 	local str_soc = StringSocket(response)
-	local soc = LineAllDecorator(str_soc)
+	local soc = ExtendedSocket(str_soc)
 	soc:close()
 	local res = SocketResponse(soc)
 
@@ -21,7 +21,7 @@ end
 ---@param t testing.T
 function test.send(t)
 	local str_soc = StringSocket()
-	local soc = LineAllDecorator(str_soc)
+	local soc = ExtendedSocket(str_soc)
 	local res = SocketResponse(soc)
 
 	res.status = 200

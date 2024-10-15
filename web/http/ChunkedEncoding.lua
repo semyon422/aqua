@@ -3,12 +3,12 @@ local class = require("class")
 -- https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Transfer-Encoding
 -- https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Trailer
 
----@class web.HttpChunked
----@operator call: web.HttpChunked
-local HttpChunked = class()
+---@class web.ChunkedEncoding
+---@operator call: web.ChunkedEncoding
+local ChunkedEncoding = class()
 
 ---@param soc web.IAsyncSocket
-function HttpChunked:new(soc)
+function ChunkedEncoding:new(soc)
 	self.soc = soc
 end
 
@@ -16,7 +16,7 @@ end
 ---@return string?
 ---@return "closed"|"invalid chunk size"|"malformed headers"?
 ---@return string?
-function HttpChunked:receive(headers)
+function ChunkedEncoding:receive(headers)
 	local data, err, partial = self.soc:receive("*l")
 	if not data then
 		return nil, err, partial
@@ -49,7 +49,7 @@ end
 ---@return integer?
 ---@return "closed"?
 ---@return integer?
-function HttpChunked:send(chunk)
+function ChunkedEncoding:send(chunk)
 	return self.soc:send(("%X\r\n%s\r\n"):format(#chunk, chunk))
 end
 
@@ -57,7 +57,7 @@ end
 ---@return integer?
 ---@return "closed"?
 ---@return integer?
-function HttpChunked:close(headers)
+function ChunkedEncoding:close(headers)
 	if not headers then
 		return self.soc:send("0\r\n\r\n")
 	end
@@ -68,4 +68,4 @@ function HttpChunked:close(headers)
 	return headers:send(self.soc)
 end
 
-return HttpChunked
+return ChunkedEncoding

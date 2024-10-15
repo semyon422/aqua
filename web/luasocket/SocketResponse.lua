@@ -1,6 +1,6 @@
 local IResponse = require("web.IResponse")
-local Headers = require("web.socket.Headers")
-local StatusLine = require("web.socket.StatusLine")
+local Headers = require("web.http.Headers")
+local StatusLine = require("web.http.StatusLine")
 
 ---@class web.SocketResponse: web.IResponse
 ---@operator call: web.SocketResponse

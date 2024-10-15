@@ -1,5 +1,5 @@
 local class = require("class")
-local codes = require("web.socket.codes")
+local codes = require("web.http.codes")
 
 -- https://www.w3.org/Protocols/rfc2616/rfc2616-sec6.html
 

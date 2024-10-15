@@ -1,4 +1,4 @@
-local LineAllDecorator = require("web.socket.LineAllDecorator")
+local ExtendedSocket = require("web.socket.ExtendedSocket")
 local StringSocket = require("web.socket.StringSocket")
 
 local test = {}
@@ -9,7 +9,7 @@ function test.all(t)
 	local tpl = require("web.socket.socket_tests")
 
 	for _, f in pairs(tpl) do
-		local soc = LineAllDecorator(StringSocket())
+		local soc = ExtendedSocket(StringSocket())
 		f(t, soc, soc)
 	end
 end
@@ -20,7 +20,7 @@ function test.chunk_size_1(t)
 	local tpl = require("web.socket.socket_tests")
 
 	for _, f in pairs(tpl) do
-		local soc = LineAllDecorator(StringSocket())
+		local soc = ExtendedSocket(StringSocket())
 		soc.chunk_size = 1
 		f(t, soc, soc)
 	end

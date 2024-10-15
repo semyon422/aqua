@@ -2,10 +2,10 @@ local class = require("class")
 local socket = require("socket")
 local ssl = require("ssl")
 
-local TcpUpdater = require("web.socket.TcpUpdater")
+local TcpUpdater = require("web.luasocket.TcpUpdater")
 local AsyncSocket = require("web.socket.AsyncSocket")
-local SocketRequest = require("web.socket.SocketRequest")
-local SocketResponse = require("web.socket.SocketResponse")
+local SocketRequest = require("web.luasocket.SocketRequest")
+local SocketResponse = require("web.luasocket.SocketResponse")
 
 ---@class web.LuasocketServer
 ---@operator call: web.LuasocketServer

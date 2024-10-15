@@ -1,6 +1,6 @@
-local Headers = require("web.socket.Headers")
+local Headers = require("web.http.Headers")
 local StringSocket = require("web.socket.StringSocket")
-local LineAllDecorator = require("web.socket.LineAllDecorator")
+local ExtendedSocket = require("web.socket.ExtendedSocket")
 local AsyncSocket = require("web.socket.AsyncSocket")
 
 local test = {}
@@ -13,7 +13,7 @@ function test.basic(t)
 	headers:add("Name2", "value2")
 
 	local str_soc = StringSocket()
-	local soc = AsyncSocket(LineAllDecorator(str_soc))
+	local soc = AsyncSocket(ExtendedSocket(str_soc))
 	headers:send(soc)
 
 	t:eq(str_soc.remainder, "Name1: value1\r\nName1: value2\r\nName2: value2\r\n\r\n")
@@ -30,7 +30,7 @@ function test.empty(t)
 	local headers = Headers()
 
 	local str_soc = StringSocket()
-	local soc = AsyncSocket(LineAllDecorator(str_soc))
+	local soc = AsyncSocket(ExtendedSocket(str_soc))
 	headers:send(soc)
 
 	t:eq(str_soc.remainder, "\r\n")

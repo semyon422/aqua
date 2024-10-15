@@ -1,4 +1,4 @@
--- same tests as for LineAllDecorator
+-- same tests as for ExtendedSocket
 -- disabled
 
 do return end
