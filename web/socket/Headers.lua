@@ -1,10 +1,10 @@
-local IHeaders = require("web.socket.IHeaders")
+local class = require("class")
 
----@class web.Headers: web.IHeaders
+---@class web.Headers
 ---@operator call: web.Headers
 ---@field headers {[string]: string[]}
 ---@field header_names {[string]: string}
-local Headers = IHeaders + {}
+local Headers = class()
 
 function Headers:new()
 	self.headers = {}
@@ -12,7 +12,7 @@ function Headers:new()
 end
 
 ---@param name string
----@param value string
+---@param value string|number
 function Headers:add(name, value)
 	local headers = self.headers
 	local lower_name = name:lower()
@@ -20,7 +20,22 @@ function Headers:add(name, value)
 	self.header_names[lower_name] = name
 
 	headers[lower_name] = headers[lower_name] or {}
-	table.insert(headers[lower_name], value)
+	table.insert(headers[lower_name], tostring(value))
+end
+
+---@param name string
+---@param value string|string[]
+function Headers:set(name, value)
+	local headers = self.headers
+	local lower_name = name:lower()
+
+	self.header_names[lower_name] = name
+
+	if type(value) == "string" then
+		headers[lower_name] = {value}
+	elseif type(value) == "table" then
+		headers[lower_name] = value
+	end
 end
 
 ---@param name string
