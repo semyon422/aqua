@@ -166,6 +166,17 @@ end
 
 ---@param t testing.T
 function test.remainder_all(t, rsoc, ssoc)
+	ssoc:send("qw\re\r\nr\rtyasd\r\nfgh")
+	ssoc:close()
+
+	t:tdeq({rsoc:receive("*l")}, {"qwe"})
+	t:tdeq({rsoc:receive("*a")}, {"r\rtyasd\r\nfgh"})
+	t:tdeq({rsoc:receive("*a")}, {nil, "closed", ""})
+	t:tdeq({rsoc:receive("*a")}, {nil, "closed", ""})
+end
+
+---@param t testing.T
+function test.remainder_all_split(t, rsoc, ssoc)
 	ssoc:send("qw\re\r\nr\rty")
 
 	t:tdeq({rsoc:receive("*l")}, {"qwe"})
@@ -176,6 +187,17 @@ function test.remainder_all(t, rsoc, ssoc)
 	t:tdeq({rsoc:receive("*a")}, {"r\rtyasd\r\nfgh"})
 	t:tdeq({rsoc:receive("*a")}, {nil, "closed", ""})
 	t:tdeq({rsoc:receive("*a")}, {nil, "closed", ""})
+end
+
+---@param t testing.T
+function test.remainder_all_prefix(t, rsoc, ssoc)
+	ssoc:send("qw\re\r\nr\rtyasd\r\nfgh")
+	ssoc:close()
+
+	t:tdeq({rsoc:receive("*l")}, {"qwe"})
+	t:tdeq({rsoc:receive("*a", "zxc")}, {"zxcr\rtyasd\r\nfgh"})
+	t:tdeq({rsoc:receive("*a", "zxc")}, {nil, "closed", "zxc"})
+	t:tdeq({rsoc:receive("*a", "zxc")}, {nil, "closed", "zxc"})
 end
 
 ---@param t testing.T

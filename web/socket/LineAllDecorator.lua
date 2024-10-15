@@ -143,6 +143,9 @@ function LineAllDecorator:receiveAll(prefix)
 
 	if self.closed then
 		self.remainder = ""
+		if rem ~= "" then
+			return prefix .. rem
+		end
 		return nil, "closed", prefix .. rem
 	end
 
