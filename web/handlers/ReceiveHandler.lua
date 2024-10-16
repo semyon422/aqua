@@ -8,8 +8,7 @@ local ReceiveHandler = IHandler + {}
 ---@param res web.IResponse
 ---@param ctx web.ConverterContext
 function ReceiveHandler:handle(req, res, ctx)
-	req:receiveRequestLine()
-	req:receiveHeaders()
+	req:receive()
 end
 
 return ReceiveHandler

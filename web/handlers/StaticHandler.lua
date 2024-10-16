@@ -19,7 +19,7 @@ function StaticHandler:handle(req, res, ctx)
 	f:close()
 
 	res.headers:add("Content-Length", #data)
-	res:write(data)
+	res:send(data)
 end
 
 return StaticHandler
