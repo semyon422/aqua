@@ -26,4 +26,31 @@ function test.chunk_size_1(t)
 	end
 end
 
+---@param t testing.T
+function test.receiveany_timeout(t)
+	local soc = ExtendedSocket(StringSocket())
+
+	soc:send("qwerty")
+
+	t:tdeq({soc:receiveany(3)}, {"qwe"})
+	t:tdeq({soc:receiveany(1)}, {"r"})
+	t:tdeq({soc:receiveany(3)}, {"ty"})
+	t:tdeq({soc:receiveany(3)}, {nil, "timeout"})
+	t:tdeq({soc:receiveany(3)}, {nil, "timeout"})
+end
+
+---@param t testing.T
+function test.receiveany_closed(t)
+	local soc = ExtendedSocket(StringSocket())
+
+	soc:send("qwerty")
+	soc:close()
+
+	t:tdeq({soc:receiveany(3)}, {"qwe"})
+	t:tdeq({soc:receiveany(1)}, {"r"})
+	t:tdeq({soc:receiveany(3)}, {"ty"})
+	t:tdeq({soc:receiveany(3)}, {nil, "closed"})
+	t:tdeq({soc:receiveany(3)}, {nil, "closed"})
+end
+
 return test

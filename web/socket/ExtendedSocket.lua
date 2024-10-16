@@ -1,9 +1,9 @@
-local ISocket = require("web.socket.ISocket")
+local IExtendedSocket = require("web.socket.IExtendedSocket")
 
----@class web.ExtendedSocket: web.ISocket
+---@class web.ExtendedSocket: web.IExtendedSocket
 ---@operator call: web.ExtendedSocket
 ---@field remainder string
-local ExtendedSocket = ISocket + {}
+local ExtendedSocket = IExtendedSocket + {}
 
 ExtendedSocket.chunk_size = 4096
 
@@ -32,6 +32,7 @@ function ExtendedSocket:receive(pattern, prefix)
 	end
 end
 
+---@private
 ---@param size integer
 ---@param prefix string
 ---@return string?
@@ -85,6 +86,7 @@ function ExtendedSocket:receiveSize(size, prefix)
 	end
 end
 
+---@private
 ---@param prefix string
 ---@return string?
 ---@return "closed"|"timeout"?
@@ -134,6 +136,7 @@ function ExtendedSocket:receiveLine(prefix)
 	end
 end
 
+---@private
 ---@param prefix string
 ---@return string?
 ---@return "closed"|"timeout"?
@@ -168,6 +171,51 @@ function ExtendedSocket:receiveAll(prefix)
 			return nil, err, prefix .. table.concat(buffer)
 		end
 	end
+end
+
+---@param max integer
+---@return string?
+---@return "closed"|"timeout"?
+function ExtendedSocket:receiveany(max)
+	local rem = self.remainder
+
+	if max <= #rem then
+		self.remainder = rem:sub(max + 1)
+		return rem:sub(1, max)
+	end
+
+	if self.closed then
+		self.remainder = ""
+		if rem ~= "" then
+			return rem
+		end
+		return nil, "closed"
+	end
+
+	---@type string[]
+	local buffer = {self.remainder}
+	self.remainder = ""
+
+	local line, err, partial = self.soc:receive(self.chunk_size)
+
+	local data = line or partial
+	---@cast data string
+
+	table.insert(buffer, data)
+
+	if err == "closed" then
+		self.closed = true
+	end
+
+	rem = table.concat(buffer)
+	local ret = rem:sub(1, max)
+	self.remainder = rem:sub(max + 1)
+
+	if #ret > 0 then
+		return ret
+	end
+
+	return nil, err
 end
 
 ---@param data string
