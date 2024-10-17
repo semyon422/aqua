@@ -57,7 +57,7 @@ function ExtendedSocket:receiveSize(size, prefix)
 	end
 
 	---@type string[]
-	local buffer = {self.remainder}
+	local buffer = {rem}
 	self.remainder = ""
 
 	local total = 0
@@ -107,7 +107,7 @@ function ExtendedSocket:receiveLine(prefix)
 	end
 
 	---@type string[]
-	local buffer = {self.remainder}
+	local buffer = {rem}
 	self.remainder = ""
 
 	while true do
@@ -153,7 +153,7 @@ function ExtendedSocket:receiveAll(prefix)
 	end
 
 	---@type string[]
-	local buffer = {self.remainder}
+	local buffer = {rem}
 	self.remainder = ""
 
 	while true do
@@ -193,7 +193,7 @@ function ExtendedSocket:receiveany(max)
 	end
 
 	---@type string[]
-	local buffer = {self.remainder}
+	local buffer = {rem}
 	self.remainder = ""
 
 	local line, err, partial = self.soc:receive(self.chunk_size)
@@ -216,6 +216,105 @@ function ExtendedSocket:receiveany(max)
 	end
 
 	return nil, err
+end
+
+---@param pattern string
+---@param options {inclusive: boolean?}?
+---@return fun(size: integer?): string?, "closed"|"timeout"?, string?
+function ExtendedSocket:receiveuntil(pattern, options)
+	assert(#pattern > 0, "pattern is empty")
+
+	local state = 0
+
+	return function(size)
+		local rem = self.remainder
+
+		if size then
+			if state == -1 then
+				state = 0
+				return
+			end
+
+			local i, j = rem:find(pattern, 1, true)
+			if i then
+				state = -1
+				self.remainder = rem:sub(j + 1)
+				return rem:sub(1, i - 1)
+			end
+
+			---@type string[]
+			local buffer = {rem}
+			self.remainder = ""
+
+			while true do
+				local line, err, partial = self.soc:receive(self.chunk_size)
+
+				if err == "closed" then
+					self.closed = true
+				end
+
+				local data = line or partial
+				---@cast data string
+
+				table.insert(buffer, data)
+
+				local ret = table.concat(buffer)
+
+				i, j = ret:find(pattern, 1, true)
+
+				if i and j then
+					if i <= size then
+						self.remainder = ret:sub(j + 1)
+						return ret:sub(1, i - 1)
+					end
+					self.remainder = ret:sub(size + 1)
+					return ret:sub(1, size)
+				end
+
+				if not line then
+					return nil, err, table.concat(buffer)
+				end
+			end
+
+			return
+		end
+
+		local i, j = rem:find(pattern, 1, true)
+		if i then
+			self.remainder = rem:sub(j + 1)
+			return rem:sub(1, i - 1)
+		end
+
+		---@type string[]
+		local buffer = {rem}
+		self.remainder = ""
+
+		while true do
+			local line, err, partial = self.soc:receive(self.chunk_size)
+
+			if err == "closed" then
+				self.closed = true
+			end
+
+			local data = line or partial
+			---@cast data string
+
+			table.insert(buffer, data)
+
+			local ret = table.concat(buffer)
+
+			i, j = ret:find(pattern, 1, true)
+
+			if i and j then
+				self.remainder = ret:sub(j + 1)
+				return ret:sub(1, i - 1)
+			end
+
+			if not line then
+				return nil, err, table.concat(buffer)
+			end
+		end
+	end
 end
 
 ---@param data string
