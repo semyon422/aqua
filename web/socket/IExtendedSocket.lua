@@ -21,7 +21,7 @@ function IExtendedSocket:receiveany(max) end
 
 ---@param pattern string
 ---@param options {inclusive: boolean?}?
----@return fun(size: integer): string?, "closed"|"timeout"?, string?
+---@return fun(size: integer?): string?, "closed"|"timeout"?, string?
 function IExtendedSocket:receiveuntil(pattern, options) return function() end end
 
 ---@param data string
