@@ -237,9 +237,13 @@ function ExtendedSocket:receiveuntil(pattern, options)
 
 			local i, j = rem:find(pattern, 1, true)
 			if i then
-				state = -1
-				self.remainder = rem:sub(j + 1)
-				return rem:sub(1, i - 1)
+				if i <= size then
+					state = -1
+					self.remainder = rem:sub(j + 1)
+					return rem:sub(1, i - 1)
+				end
+				self.remainder = rem:sub(size + 1)
+				return rem:sub(1, size)
 			end
 
 			---@type string[]
