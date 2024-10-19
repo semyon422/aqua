@@ -1,6 +1,8 @@
 local test = {}
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_size_exact(t, rsoc, ssoc)
 	ssoc:send("qwe")
 	ssoc:close()
@@ -11,6 +13,8 @@ function test.receive_size_exact(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_size_more(t, rsoc, ssoc)
 	ssoc:send("qwe")
 	ssoc:close()
@@ -21,6 +25,8 @@ function test.receive_size_more(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_size_exact_timeout(t, rsoc, ssoc)
 	ssoc:send("qwe")
 
@@ -35,6 +41,8 @@ function test.receive_size_exact_timeout(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_size_prefix(t, rsoc, ssoc)
 	ssoc:send("qwerty")
 
@@ -47,6 +55,8 @@ function test.receive_size_prefix(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_line(t, rsoc, ssoc)
 	ssoc:send("qw\re\r\nr\rty")
 
@@ -62,6 +72,8 @@ function test.receive_line(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_line_multiple_close(t, rsoc, ssoc)
 	ssoc:send("qwe\r\nrty\r\nuio")
 	ssoc:close()
@@ -74,6 +86,8 @@ function test.receive_line_multiple_close(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_line_multiple_timeout(t, rsoc, ssoc)
 	ssoc:send("qwe\r\nrty\r\nuio")
 
@@ -87,6 +101,8 @@ function test.receive_line_multiple_timeout(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_line_timeout(t, rsoc, ssoc)
 	ssoc:send("qw\re\r\nr\rty")
 
@@ -103,6 +119,8 @@ function test.receive_line_timeout(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_line_prefix(t, rsoc, ssoc)
 	ssoc:send("qwe\r\nrty\r\nuio")
 
@@ -116,6 +134,8 @@ function test.receive_line_prefix(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_line_prefix_timeout(t, rsoc, ssoc)
 	t:tdeq({rsoc:receive("*l", "asd")}, {nil, "timeout", "asd"})
 
@@ -123,6 +143,8 @@ function test.receive_line_prefix_timeout(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_all(t, rsoc, ssoc)
 	ssoc:send("qwerty")
 	ssoc:close()
@@ -135,6 +157,8 @@ function test.receive_all(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_all_timeout(t, rsoc, ssoc)
 	ssoc:send("qwe")
 
@@ -149,6 +173,8 @@ function test.receive_all_timeout(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_all_prefix(t, rsoc, ssoc)
 	ssoc:send("qwe")
 
@@ -165,6 +191,8 @@ function test.receive_all_prefix(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.remainder_all(t, rsoc, ssoc)
 	ssoc:send("qw\re\r\nr\rtyasd\r\nfgh")
 	ssoc:close()
@@ -176,6 +204,8 @@ function test.remainder_all(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.remainder_all_split(t, rsoc, ssoc)
 	ssoc:send("qw\re\r\nr\rty")
 
@@ -190,6 +220,8 @@ function test.remainder_all_split(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.remainder_all_prefix(t, rsoc, ssoc)
 	ssoc:send("qw\re\r\nr\rtyasd\r\nfgh")
 	ssoc:close()
@@ -201,6 +233,8 @@ function test.remainder_all_prefix(t, rsoc, ssoc)
 end
 
 ---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.remainder_size(t, rsoc, ssoc)
 	ssoc:send("qw\re\r\nr\rty")
 
