@@ -1,5 +1,6 @@
 local ExtendedSocket = require("web.socket.ExtendedSocket")
 local StringSocket = require("web.socket.StringSocket")
+local PrefixSocket = require("web.socket.PrefixSocket")
 
 local test = {}
 
@@ -9,7 +10,8 @@ function test.socket_all(t)
 	local tpl = require("web.socket.socket_tests")
 
 	for _, f in pairs(tpl) do
-		local soc = ExtendedSocket(StringSocket())
+		local ext_soc = ExtendedSocket(StringSocket())
+		local soc = PrefixSocket(ext_soc)
 		f(t, soc, soc)
 	end
 end
@@ -21,8 +23,9 @@ function test.socket_small_chunk_size(t)
 
 	for chunk_size = 1, 8 do
 		for _, f in pairs(tpl) do
-			local soc = ExtendedSocket(StringSocket())
-			soc.chunk_size = chunk_size
+			local ext_soc = ExtendedSocket(StringSocket())
+			local soc = PrefixSocket(ext_soc)
+			ext_soc.chunk_size = chunk_size
 			f(t, soc, soc)
 		end
 	end

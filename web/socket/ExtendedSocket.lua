@@ -20,40 +20,33 @@ end
 ---@return string?
 function ExtendedSocket:receive(pattern, prefix)
 	assert(pattern == "*a" or pattern == "*l" or type(pattern) == "number", "invalid pattern")
-
-	prefix = prefix or ""
+	assert(not prefix, "not implemented")
 
 	if type(pattern) == "number" then
-		return self:receiveSize(pattern, prefix)
+		return self:receiveSize(pattern)
 	elseif pattern == "*l" then
-		return self:receiveLine(prefix)
+		return self:receiveLine()
 	elseif pattern == "*a" then
-		return self:receiveAll(prefix)
+		return self:receiveAll()
 	end
 end
 
 ---@private
 ---@param size integer
----@param prefix string
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function ExtendedSocket:receiveSize(size, prefix)
+function ExtendedSocket:receiveSize(size)
 	local rem = self.remainder
-
-	size = size - #prefix
-	if prefix and size <= 0 then
-		return prefix
-	end
 
 	if size <= #rem then
 		self.remainder = rem:sub(size + 1)
-		return prefix .. rem:sub(1, size)
+		return rem:sub(1, size)
 	end
 
 	if self.closed then
 		self.remainder = ""
-		return nil, "closed", prefix .. rem
+		return nil, "closed", rem
 	end
 
 	---@type string[]
@@ -79,31 +72,30 @@ function ExtendedSocket:receiveSize(size, prefix)
 			local ret = rem:sub(1, size)
 			self.remainder = rem:sub(size + 1)
 			if #ret == size then
-				return prefix .. ret
+				return ret
 			end
-			return nil, err, prefix .. ret
+			return nil, err, ret
 		end
 	end
 end
 
 ---@private
----@param prefix string
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function ExtendedSocket:receiveLine(prefix)
+function ExtendedSocket:receiveLine()
 	local rem = self.remainder
 
 	---@type string?, string?
 	local _ret, _rem = rem:match("^(.-)\n(.*)$")
 	if _ret and _rem then
 		self.remainder = _rem
-		return prefix .. _ret:gsub("\r", "")
+		return (_ret:gsub("\r", ""))
 	end
 
 	if self.closed then
 		self.remainder = ""
-		return nil, "closed", prefix .. rem:gsub("\r", "")
+		return nil, "closed", (rem:gsub("\r", ""))
 	end
 
 	---@type string[]
@@ -125,31 +117,30 @@ function ExtendedSocket:receiveLine(prefix)
 		if _ret and _rem then
 			self.remainder = _rem
 			table.insert(buffer, _ret)
-			return prefix .. table.concat(buffer):gsub("\r", "")
+			return (table.concat(buffer):gsub("\r", ""))
 		end
 
 		table.insert(buffer, data)
 
 		if not line then
-			return nil, err, prefix .. table.concat(buffer):gsub("\r", "")
+			return nil, err, (table.concat(buffer):gsub("\r", ""))
 		end
 	end
 end
 
 ---@private
----@param prefix string
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function ExtendedSocket:receiveAll(prefix)
+function ExtendedSocket:receiveAll()
 	local rem = self.remainder
 
 	if self.closed then
 		self.remainder = ""
 		if rem ~= "" then
-			return prefix .. rem
+			return rem
 		end
-		return nil, "closed", prefix .. rem
+		return nil, "closed", rem
 	end
 
 	---@type string[]
@@ -166,9 +157,9 @@ function ExtendedSocket:receiveAll(prefix)
 
 		if err == "closed" then
 			self.closed = true
-			return prefix .. table.concat(buffer)
+			return table.concat(buffer)
 		elseif err == "timeout" then
-			return nil, err, prefix .. table.concat(buffer)
+			return nil, err, table.concat(buffer)
 		end
 	end
 end
@@ -383,7 +374,7 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function ExtendedSocket:send(data, i, j)
-	return self.soc:send(data, i, j)
+	return self.soc:send(data:sub(i or 1, j))
 end
 
 ---@return 1
