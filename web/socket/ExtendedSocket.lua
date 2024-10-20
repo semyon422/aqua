@@ -218,6 +218,22 @@ function ExtendedSocket:receiveany(max)
 	return nil, err
 end
 
+---@param s string
+---@param pattern string
+---@return integer?
+local function find_ambiguity(s, pattern)
+	for i = 2, #pattern do
+		local start = #s - #pattern + i
+		if s:sub(start) == pattern:sub(1, #pattern - i + 1) then
+			return start
+		end
+	end
+end
+
+assert(find_ambiguity("qwerty", "rtyuio") == 4)
+assert(not find_ambiguity("qwertyuiop", "rty"))
+assert(not find_ambiguity("qwerty", "rty"))
+
 ---@param pattern string
 ---@param options {inclusive: boolean?}?
 ---@return fun(size: integer?): string?, "closed"|"timeout"?, string?
@@ -244,6 +260,17 @@ function ExtendedSocket:receiveuntil(pattern, options)
 				end
 				self.remainder = rem:sub(size + 1)
 				return rem:sub(1, size)
+			end
+
+			if size <= #rem then
+				local ambig_start = find_ambiguity(rem, pattern)
+				if not ambig_start or ambig_start > 1 then
+					self.remainder = rem:sub(ambig_start or size + 1)
+					return rem:sub(1, (ambig_start and ambig_start - 1) or size)
+				end
+				if ambig_start == 1 then
+					return nil, "timeout", ""
+				end
 			end
 
 			---@type string[]
@@ -275,7 +302,22 @@ function ExtendedSocket:receiveuntil(pattern, options)
 					return ret:sub(1, size)
 				end
 
+				if size <= #ret then
+					local ambig_start = find_ambiguity(ret, pattern)
+					if not ambig_start or size < ambig_start then
+						self.remainder = ret:sub(size + 1)
+						return ret:sub(1, size)
+					end
+				end
+
 				if not line then
+					-- if i <= size then
+					-- 	state = -1
+					-- 	self.remainder = rem:sub(j + 1)
+					-- 	return rem:sub(1, i - 1)
+					-- end
+					-- self.remainder = rem:sub(size + 1)
+					-- return rem:sub(1, size)
 					return nil, err, table.concat(buffer)
 				end
 			end

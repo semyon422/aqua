@@ -65,6 +65,37 @@ function test.receiveuntil_size_timeout(t, rsoc, ssoc)
 	t:tdeq({read(4)}, {nil, "timeout", ""})
 end
 
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_size_full_incomplete(t, rsoc, ssoc)
+	ssoc:send("qwerty")
+
+	local reader = rsoc:receiveuntil("zxc")
+
+	t:tdeq({reader(2)}, {"qw"})
+	t:tdeq({reader(2)}, {"er"})
+	t:tdeq({reader(2)}, {"ty"})
+	t:tdeq({reader(2)}, {nil, "timeout", ""})
+
+	ssoc:close()
+end
+
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_size_ambiguous_incomplete(t, rsoc, ssoc)
+	ssoc:send("qwerty")
+
+	local reader = rsoc:receiveuntil("rtyuio")
+
+	t:tdeq({reader(2)}, {"qw"})
+	t:tdeq({reader(2)}, {"e"})
+	t:tdeq({reader(2)}, {nil, "timeout", ""})
+
+	ssoc:close()
+end
+
 -- === TEST 4: ambiguous boundary patterns (abcabd)
 
 ---@param t testing.T
