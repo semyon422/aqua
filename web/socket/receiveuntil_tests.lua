@@ -228,4 +228,64 @@ end
 -- 	ssoc:close()
 -- end
 
+-- === TEST 1: ambiguous boundary patterns (abcabd) - inclusive mode
+
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_inclusive_test_1(t, rsoc, ssoc)
+	ssoc:send("abcabcabdabcabd\n")
+	ssoc:close()
+
+	local reader = rsoc:receiveuntil("abcabd", {inclusive = true})
+
+	t:tdeq({reader()}, {"abcabcabd"})
+	t:tdeq({reader()}, {"abcabd"})
+	t:tdeq({reader()}, {nil, "closed", "\n"})
+	t:tdeq({reader()}, {nil, "closed", ""})
+end
+
+-- === TEST 9: ambiguous boundary patterns (--abc), small buffer
+
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_inclusive_test_9(t, rsoc, ssoc)
+	ssoc:send("hello, world ----abc\n")
+	ssoc:close()
+
+	local reader = rsoc:receiveuntil("--abc", {inclusive = true})
+
+	t:tdeq({reader(4)}, {"hell"})
+	t:tdeq({reader(4)}, {"o, w"})
+	t:tdeq({reader(4)}, {"orld"})
+	t:tdeq({reader(4)}, {" ----abc"})
+	t:tdeq({reader(4)}, {})
+	t:tdeq({reader(4)}, {nil, "closed", "\n"})
+	t:tdeq({reader(4)}, {nil, "closed", ""})
+end
+
+-- === TEST 10: ambiguous boundary patterns (--abc), small buffer, mixed by other reading calls
+
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_inclusive_test_10(t, rsoc, ssoc)
+	ssoc:send("hello, world ----abc\n")
+	ssoc:close()
+
+	local reader = rsoc:receiveuntil("--abc", {inclusive = true})
+
+	t:tdeq({reader(4)}, {"hell"})
+	t:tdeq({rsoc:receive(1)}, {"o"})
+	t:tdeq({reader(4)}, {", wo"})
+	t:tdeq({rsoc:receive(1)}, {"r"})
+	t:tdeq({reader(4)}, {"ld -"})
+	t:tdeq({rsoc:receive(1)}, {"-"})
+	t:tdeq({reader(4)}, {"--abc"})
+	t:tdeq({rsoc:receive(1)}, {"\n"})
+	t:tdeq({reader(4)}, {})
+	t:tdeq({rsoc:receive(4)}, {nil, "closed", ""})
+end
+
 return test

@@ -233,12 +233,16 @@ end
 assert(find_ambiguity("qwerty", "rtyuio") == 4)
 assert(not find_ambiguity("qwertyuiop", "rty"))
 assert(not find_ambiguity("qwerty", "rty"))
+assert(not find_ambiguity("qwerty", "qwe"))
+assert(not find_ambiguity("qwerty", "qwerty"))
+assert(find_ambiguity("qwe", "qwerty") == 1)
 
 ---@param pattern string
 ---@param options {inclusive: boolean?}?
 ---@return fun(size: integer?): string?, "closed"|"timeout"?, string?
 function ExtendedSocket:receiveuntil(pattern, options)
 	assert(#pattern > 0, "pattern is empty")
+	local inclusive = options and options.inclusive
 
 	local state = 0
 
@@ -256,7 +260,11 @@ function ExtendedSocket:receiveuntil(pattern, options)
 				if i <= size then
 					state = -1
 					self.remainder = rem:sub(j + 1)
-					return rem:sub(1, i - 1)
+					if not inclusive then
+						return rem:sub(1, i - 1)
+					else
+						return rem:sub(1, j)
+					end
 				end
 				self.remainder = rem:sub(size + 1)
 				return rem:sub(1, size)
@@ -296,7 +304,11 @@ function ExtendedSocket:receiveuntil(pattern, options)
 				if i and j then
 					if i <= size then
 						self.remainder = ret:sub(j + 1)
-						return ret:sub(1, i - 1)
+						if not inclusive then
+							return ret:sub(1, i - 1)
+						else
+							return ret:sub(1, j)
+						end
 					end
 					self.remainder = ret:sub(size + 1)
 					return ret:sub(1, size)
@@ -311,13 +323,6 @@ function ExtendedSocket:receiveuntil(pattern, options)
 				end
 
 				if not line then
-					-- if i <= size then
-					-- 	state = -1
-					-- 	self.remainder = rem:sub(j + 1)
-					-- 	return rem:sub(1, i - 1)
-					-- end
-					-- self.remainder = rem:sub(size + 1)
-					-- return rem:sub(1, size)
 					return nil, err, table.concat(buffer)
 				end
 			end
@@ -328,7 +333,11 @@ function ExtendedSocket:receiveuntil(pattern, options)
 		local i, j = rem:find(pattern, 1, true)
 		if i then
 			self.remainder = rem:sub(j + 1)
-			return rem:sub(1, i - 1)
+			if not inclusive then
+				return rem:sub(1, i - 1)
+			else
+				return rem:sub(1, j)
+			end
 		end
 
 		---@type string[]
@@ -353,7 +362,11 @@ function ExtendedSocket:receiveuntil(pattern, options)
 
 			if i and j then
 				self.remainder = ret:sub(j + 1)
-				return ret:sub(1, i - 1)
+				if not inclusive then
+					return ret:sub(1, i - 1)
+				else
+					return ret:sub(1, j)
+				end
 			end
 
 			if not line then
