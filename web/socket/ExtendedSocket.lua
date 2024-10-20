@@ -5,8 +5,6 @@ local IExtendedSocket = require("web.socket.IExtendedSocket")
 ---@field remainder string
 local ExtendedSocket = IExtendedSocket + {}
 
-ExtendedSocket.chunk_size = 4096
-
 ---@param soc web.ISocket
 function ExtendedSocket:new(soc)
 	self.soc = soc
@@ -37,25 +35,12 @@ end
 ---@return "closed"|"timeout"?
 ---@return string?
 function ExtendedSocket:receiveSize(size)
-	local rem = self.remainder
-
-	if size <= #rem then
-		self.remainder = rem:sub(size + 1)
-		return rem:sub(1, size)
-	end
-
-	if self.closed then
-		self.remainder = ""
-		return nil, "closed", rem
-	end
-
 	---@type string[]
-	local buffer = {rem}
-	self.remainder = ""
+	local buffer = {}
 
 	local total = 0
 	while true do
-		local line, err, partial = self.soc:receive(self.chunk_size)
+		local line, err, partial = self.soc:receive(1)
 
 		local data = line or partial
 		---@cast data string
@@ -63,18 +48,12 @@ function ExtendedSocket:receiveSize(size)
 		table.insert(buffer, data)
 		total = total + #data
 
-		if err == "closed" then
-			self.closed = true
+		if total == size then
+			return table.concat(buffer)
 		end
 
-		if not line or total >= size then
-			rem = table.concat(buffer)
-			local ret = rem:sub(1, size)
-			self.remainder = rem:sub(size + 1)
-			if #ret == size then
-				return ret
-			end
-			return nil, err, ret
+		if not line then
+			return nil, err, table.concat(buffer)
 		end
 	end
 end
@@ -84,39 +63,16 @@ end
 ---@return "closed"|"timeout"?
 ---@return string?
 function ExtendedSocket:receiveLine()
-	local rem = self.remainder
-
-	---@type string?, string?
-	local _ret, _rem = rem:match("^(.-)\n(.*)$")
-	if _ret and _rem then
-		self.remainder = _rem
-		return (_ret:gsub("\r", ""))
-	end
-
-	if self.closed then
-		self.remainder = ""
-		return nil, "closed", (rem:gsub("\r", ""))
-	end
-
 	---@type string[]
-	local buffer = {rem}
-	self.remainder = ""
+	local buffer = {}
 
 	while true do
-		local line, err, partial = self.soc:receive(self.chunk_size)
-
-		if err == "closed" then
-			self.closed = true
-		end
+		local line, err, partial = self.soc:receive(1)
 
 		local data = line or partial
 		---@cast data string
 
-		---@type string?, string?
-		_ret, _rem = data:match("^(.-)\n(.*)$")
-		if _ret and _rem then
-			self.remainder = _rem
-			table.insert(buffer, _ret)
+		if data == "\n" then
 			return (table.concat(buffer):gsub("\r", ""))
 		end
 
@@ -133,33 +89,23 @@ end
 ---@return "closed"|"timeout"?
 ---@return string?
 function ExtendedSocket:receiveAll()
-	local rem = self.remainder
-
-	if self.closed then
-		self.remainder = ""
-		if rem ~= "" then
-			return rem
-		end
-		return nil, "closed", rem
-	end
-
 	---@type string[]
-	local buffer = {rem}
-	self.remainder = ""
+	local buffer = {}
 
 	while true do
-		local line, err, partial = self.soc:receive(self.chunk_size)
+		local line, err, partial = self.soc:receive(1)
 
 		local data = line or partial
 		---@cast data string
 
 		table.insert(buffer, data)
 
-		if err == "closed" then
-			self.closed = true
-			return table.concat(buffer)
-		elseif err == "timeout" then
-			return nil, err, table.concat(buffer)
+		if err then
+			local ret = table.concat(buffer)
+			if err == "closed" and #ret > 0 then
+				return ret
+			end
+			return nil, err, ret
 		end
 	end
 end
@@ -168,42 +114,13 @@ end
 ---@return string?
 ---@return "closed"|"timeout"?
 function ExtendedSocket:receiveany(max)
-	local rem = self.remainder
-
-	if max <= #rem then
-		self.remainder = rem:sub(max + 1)
-		return rem:sub(1, max)
-	end
-
-	if self.closed then
-		self.remainder = ""
-		if rem ~= "" then
-			return rem
-		end
-		return nil, "closed"
-	end
-
-	---@type string[]
-	local buffer = {rem}
-	self.remainder = ""
-
-	local line, err, partial = self.soc:receive(self.chunk_size)
+	local line, err, partial = self.soc:receive(max)
 
 	local data = line or partial
 	---@cast data string
 
-	table.insert(buffer, data)
-
-	if err == "closed" then
-		self.closed = true
-	end
-
-	rem = table.concat(buffer)
-	local ret = rem:sub(1, max)
-	self.remainder = rem:sub(max + 1)
-
-	if #ret > 0 then
-		return ret
+	if #data > 0 then
+		return data
 	end
 
 	return nil, err
@@ -228,6 +145,18 @@ assert(not find_ambiguity("qwerty", "qwe"))
 assert(not find_ambiguity("qwerty", "qwerty"))
 assert(find_ambiguity("qwe", "qwerty") == 1)
 
+---@param s string
+---@param pattern string
+---@return integer?
+local function reverse_find_ambiguity(s, pattern)
+	for i = #pattern, 2, -1 do
+		local start = #s - #pattern + i
+		if s:sub(start) == pattern:sub(1, #pattern - i + 1) then
+			return start
+		end
+	end
+end
+
 ---@param pattern string
 ---@param options {inclusive: boolean?}?
 ---@return fun(size: integer?): string?, "closed"|"timeout"?, string?
@@ -238,77 +167,61 @@ function ExtendedSocket:receiveuntil(pattern, options)
 	local state = 0
 
 	return function(size)
-		local rem = self.remainder
-
 		if size then
 			if state == -1 then
 				state = 0
 				return
 			end
 
-			local i, j = rem:find(pattern, 1, true)
-			if i then
-				if i <= size then
-					state = -1
-					self.remainder = rem:sub(j + 1)
-					if not inclusive then
-						return rem:sub(1, i - 1)
-					else
-						return rem:sub(1, j)
-					end
-				end
-				self.remainder = rem:sub(size + 1)
-				return rem:sub(1, size)
-			end
-
-			if size <= #rem then
-				local ambig_start = find_ambiguity(rem, pattern)
-				if not ambig_start or ambig_start > 1 then
-					self.remainder = rem:sub(ambig_start or size + 1)
-					return rem:sub(1, (ambig_start and ambig_start - 1) or size)
-				end
-				if ambig_start == 1 then
-					return nil, "timeout", ""
-				end
-			end
-
 			---@type string[]
-			local buffer = {rem}
-			self.remainder = ""
+			local buffer = {}
+
+			local ambig_offset = 0
+			local ready = false
 
 			while true do
-				local line, err, partial = self.soc:receive(self.chunk_size)
-
-				if err == "closed" then
-					self.closed = true
-				end
+				local line, err, partial = self.soc:receive(1)
 
 				local data = line or partial
 				---@cast data string
 
-				table.insert(buffer, data)
-
-				local ret = table.concat(buffer)
-
-				i, j = ret:find(pattern, 1, true)
-
-				if i and j then
-					if i <= size then
-						self.remainder = ret:sub(j + 1)
-						if not inclusive then
-							return ret:sub(1, i - 1)
+				if not err then
+					if data == pattern:sub(ambig_offset + 1, ambig_offset + 1) then
+						ambig_offset = ambig_offset + 1
+						if ambig_offset == #pattern then
+							data = pattern
+							ready = true
+							ambig_offset = 0
+						elseif not line then
+							data = pattern:sub(1, ambig_offset)
 						else
-							return ret:sub(1, j)
+							goto continue
+						end
+					elseif ambig_offset > 0 then
+						if ambig_offset < #pattern then
+							data = pattern:sub(1, ambig_offset) .. data
+						end
+						ambig_offset = 0
+						if data:sub(#data) == pattern:sub(1, 1) then
+							ambig_offset = 1
+							data = data:sub(1, #data - 1)
 						end
 					end
-					self.remainder = ret:sub(size + 1)
-					return ret:sub(1, size)
 				end
 
+				if ready then
+					state = -1
+					if inclusive then
+						table.insert(buffer, data)
+					end
+					return table.concat(buffer)
+				end
+
+				table.insert(buffer, data)
+				local ret = table.concat(buffer)
+
 				if size <= #ret then
-					local ambig_start = find_ambiguity(ret, pattern)
-					if not ambig_start or size < ambig_start then
-						self.remainder = ret:sub(size + 1)
+					if ambig_offset == 0 then
 						return ret:sub(1, size)
 					end
 				end
@@ -316,53 +229,80 @@ function ExtendedSocket:receiveuntil(pattern, options)
 				if not line then
 					return nil, err, table.concat(buffer)
 				end
+
+				::continue::
 			end
 
 			return
 		end
 
-		local i, j = rem:find(pattern, 1, true)
-		if i then
-			self.remainder = rem:sub(j + 1)
-			if not inclusive then
-				return rem:sub(1, i - 1)
-			else
-				return rem:sub(1, j)
-			end
-		end
-
 		---@type string[]
-		local buffer = {rem}
-		self.remainder = ""
+		local buffer = {}
+
+		local ambig_offset = 0
+		local ready = false
 
 		while true do
-			local line, err, partial = self.soc:receive(self.chunk_size)
-
-			if err == "closed" then
-				self.closed = true
-			end
+			local line, err, partial = self.soc:receive(1)
 
 			local data = line or partial
 			---@cast data string
 
-			table.insert(buffer, data)
-
-			local ret = table.concat(buffer)
-
-			i, j = ret:find(pattern, 1, true)
-
-			if i and j then
-				self.remainder = ret:sub(j + 1)
-				if not inclusive then
-					return ret:sub(1, i - 1)
+			if data == pattern:sub(ambig_offset + 1, ambig_offset + 1) then
+				ambig_offset = ambig_offset + 1
+				if ambig_offset == #pattern then
+					data = pattern
+					ready = true
+					ambig_offset = 0
+				elseif not line then
+					data = pattern:sub(1, ambig_offset)
 				else
-					return ret:sub(1, j)
+					goto continue
+				end
+			elseif ambig_offset > 0 then
+
+				local ambig_start = reverse_find_ambiguity(pattern:sub(2, ambig_offset), pattern)
+				if not ambig_start then
+					data = pattern:sub(1, ambig_offset) .. data
+
+					ambig_start = ambig_start or 1
+					ambig_offset = ambig_start - 1
+					if data:sub(#data) == pattern:sub(ambig_start, ambig_start) then
+						data = data:sub(1, #data - 1)
+						ambig_offset = ambig_start
+					end
+				else
+
+					ambig_start = ambig_start + 1
+					if data == pattern:sub(ambig_start, ambig_start) then
+						data = pattern:sub(1, 1)
+					else
+						if data == pattern:sub(ambig_start - 1, ambig_start - 1) then
+							data = pattern:sub(1, ambig_start - 1)
+							ambig_offset = ambig_start - 1
+						else
+							data = pattern:sub(1, ambig_start) .. data
+							ambig_offset = 0
+						end
+					end
 				end
 			end
 
-			if not line then
-				return nil, err, table.concat(buffer)
+			if ready then
+				if inclusive then
+					table.insert(buffer, data)
+				end
+				return table.concat(buffer)
 			end
+
+			table.insert(buffer, data)
+			local ret = table.concat(buffer)
+
+			if not line then
+				return nil, err, ret
+			end
+
+			::continue::
 		end
 	end
 end

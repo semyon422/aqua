@@ -90,8 +90,7 @@ function test.receiveuntil_size_ambiguous_incomplete(t, rsoc, ssoc)
 	local reader = rsoc:receiveuntil("rtyuio")
 
 	t:tdeq({reader(2)}, {"qw"})
-	t:tdeq({reader(2)}, {"e"})
-	t:tdeq({reader(2)}, {nil, "timeout", ""})
+	t:tdeq({reader(2)}, {nil, "timeout", "e"})
 
 	ssoc:close()
 end
