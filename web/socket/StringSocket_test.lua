@@ -3,10 +3,10 @@ local StringSocket = require("web.socket.StringSocket")
 local test = {}
 
 ---@param t testing.T
-function test.receive_size_exact(t)
+function test.receive_exact(t)
 	local soc = StringSocket()
 
-	soc:send("qwe")
+	t:tdeq({soc:send("qwe")}, {3})
 
 	t:tdeq({soc:receive(3)}, {"qwe"})
 	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})
@@ -19,10 +19,11 @@ function test.receive_size_exact(t)
 end
 
 ---@param t testing.T
-function test.receive_size_more_closed(t)
+function test.receive_more_closed(t)
 	local soc = StringSocket()
 
-	soc:send("qwe")
+	t:tdeq({soc:send("qwe")}, {3})
+
 	soc:close()
 
 	t:tdeq({soc:receive(4)}, {nil, "closed", "qwe"})
@@ -31,10 +32,10 @@ function test.receive_size_more_closed(t)
 end
 
 ---@param t testing.T
-function test.receive_size_more_timeout(t)
+function test.receive_more_timeout(t)
 	local soc = StringSocket()
 
-	soc:send("qwe")
+	t:tdeq({soc:send("qwe")}, {3})
 
 	t:tdeq({soc:receive(4)}, {nil, "timeout", "qwe"})
 	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})
@@ -47,41 +48,25 @@ function test.receive_size_more_timeout(t)
 end
 
 ---@param t testing.T
-function test.receive_prefix(t)
-	local soc = StringSocket()
+function test.send_limited_closed(t)
+	local soc = StringSocket(nil, 4)
 
-	soc:send("qwerty")
-
-	t:tdeq({soc:receive(2, "asd")}, {"asd"})
-	t:tdeq({soc:receive(3, "asd")}, {"asd"})
-	t:tdeq({soc:receive(4, "asd")}, {"asdq"})
-	t:tdeq({soc:receive(5, "asd")}, {"asdwe"})
-
-	soc:close()
-end
-
----@param t testing.T
-function test.send_size_closed(t)
-	local soc = StringSocket(nil, 6)
-
-	t:tdeq({soc:send("qwerty", 1, 2)}, {2})
+	t:tdeq({soc:send("qwe")}, {3})
 
 	soc:close()
 
-	t:tdeq({soc:send("qwerty", 3, 4)}, {nil, "closed", 0})
+	t:tdeq({soc:send("rty")}, {nil, "closed", 0})
 
-	t:tdeq({soc:receive(100)}, {nil, "closed", "qw"})
+	t:tdeq({soc:receive(100)}, {nil, "closed", "qwe"})
 	t:tdeq({soc:receive(100)}, {nil, "closed", ""})
 	t:tdeq({soc:receive(100)}, {nil, "closed", ""})
 end
 
 ---@param t testing.T
-function test.send_size_exact(t)
+function test.send_limited_exact(t)
 	local soc = StringSocket(nil, 6)
 
-	t:tdeq({soc:send("qwerty", 1, 2)}, {2})
-	t:tdeq({soc:send("qwerty", 3, 4)}, {4})
-	t:tdeq({soc:send("qwerty", 5, 6)}, {6})
+	t:tdeq({soc:send("qwerty")}, {6})
 
 	t:tdeq({soc:receive(100)}, {nil, "timeout", "qwerty"})
 	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})
@@ -89,11 +74,10 @@ function test.send_size_exact(t)
 end
 
 ---@param t testing.T
-function test.send_size_more(t)
+function test.send_limited_more(t)
 	local soc = StringSocket(nil, 4)
 
-	t:tdeq({soc:send("qwerty", 1, 2)}, {2})
-	t:tdeq({soc:send("qwerty", 3, 6)}, {nil, "timeout", 4})
+	t:tdeq({soc:send("qwerty")}, {nil, "timeout", 4})
 
 	t:tdeq({soc:receive(100)}, {nil, "timeout", "qwer"})
 	t:tdeq({soc:receive(100)}, {nil, "timeout", ""})

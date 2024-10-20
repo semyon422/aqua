@@ -4,7 +4,7 @@ local IAsyncSocket = require("web.socket.IAsyncSocket")
 ---@operator call: web.AsyncSocket
 local AsyncSocket = IAsyncSocket + {}
 
----@param soc web.ISocket
+---@param soc web.IExtendedSocket
 function AsyncSocket:new(soc)
 	self.soc = soc
 end

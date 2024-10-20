@@ -17,60 +17,46 @@ function StringSocket:close()
 	return 1
 end
 
----@param size integer?
----@param prefix string?
+---@param size integer
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function StringSocket:receive(size, prefix)
+function StringSocket:receive(size)
 	assert(type(size) == "number", "invalid size type")
 
-	prefix = prefix or ""
 	local rem = self.remainder
-
-	size = size - #prefix
-	if prefix and size <= 0 then
-		return prefix
-	end
 
 	if size <= #rem then
 		self.remainder = rem:sub(size + 1)
-		return prefix .. rem:sub(1, size)
+		return rem:sub(1, size)
 	end
 
 	self.remainder = ""
-
 	local err = self.closed and "closed" or "timeout"
 
-	return nil, err, prefix .. rem
+	return nil, err, rem
 end
 
 ---@param data string
----@param i integer?
----@param j integer?
 ---@return integer?
 ---@return "closed"|"timeout"?
 ---@return integer?
-function StringSocket:send(data, i, j)
+function StringSocket:send(data)
 	if self.closed then
 		return nil, "closed", 0
 	end
 
-	i = i or 1
-	j = j or #data
-
-	local data_size = j - i + 1
+	local data_size = #data
 	local avail_size = self.max_size - #self.remainder
 
 	if avail_size >= data_size then
-		self.remainder = self.remainder .. data:sub(i, j)
-		return j
+		self.remainder = self.remainder .. data:sub(1, data_size)
+		return data_size
 	end
 
-	local last_byte = i + avail_size - 1
-	self.remainder = self.remainder .. data:sub(i, last_byte)
+	self.remainder = self.remainder .. data:sub(1, avail_size)
 
-	return nil, "timeout", last_byte
+	return nil, "timeout", avail_size
 end
 
 return StringSocket
