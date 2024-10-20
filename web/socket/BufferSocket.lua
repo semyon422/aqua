@@ -53,6 +53,8 @@ function BufferSocket:receive(size)
 		return rem:sub(1, size)
 	end
 
+	self.remainder = ""
+
 	return nil, err, rem
 end
 

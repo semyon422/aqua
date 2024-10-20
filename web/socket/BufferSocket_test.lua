@@ -31,6 +31,7 @@ function test.basic(t)
 	t:eq(str_soc.remainder, "")
 
 	t:tdeq({soc:receive(6)}, {nil, "timeout", "f"})
+	t:tdeq({soc:receive(6)}, {nil, "timeout", ""})
 end
 
 return test
