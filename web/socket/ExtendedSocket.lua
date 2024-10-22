@@ -168,6 +168,7 @@ function ExtendedSocket:receiveuntil(pattern, options)
 
 	return function(size)
 		if size then
+			error("not implemented")
 			if state == -1 then
 				state = 0
 				return
@@ -260,7 +261,6 @@ function ExtendedSocket:receiveuntil(pattern, options)
 					goto continue
 				end
 			elseif ambig_offset > 0 then
-
 				local ambig_start = reverse_find_ambiguity(pattern:sub(2, ambig_offset), pattern)
 				if not ambig_start then
 					data = pattern:sub(1, ambig_offset) .. data
@@ -272,7 +272,6 @@ function ExtendedSocket:receiveuntil(pattern, options)
 						ambig_offset = ambig_start
 					end
 				else
-
 					ambig_start = ambig_start + 1
 					if data == pattern:sub(ambig_start, ambig_start) then
 						data = pattern:sub(1, 1)
