@@ -11,22 +11,18 @@ end
 
 ---@param data string
 ---@param cp ngx_http_lua.socket_compiled_pattern_t
----@return integer
 local function socket_compile_pattern(data, cp)
 	local len = #data
 
 	local prefix_len  ---@type integer
-	local size  ---@type integer
 	local found  ---@type integer
 	local cur_state, new_state  ---@type integer, integer
 
 	local edge  ---@type ngx_http_lua.dfa_edge_t t*
-	local last_offset = 0
-
-	-- cp->pattern.len = len
+	local last_t, last_k = {}, 0  ---@type table, integer|"next"
 
 	if len <= 2 then
-		return 0  -- NGX_OK
+		return
 	end
 
 	for i = 1, len - 1 do
@@ -43,10 +39,7 @@ local function socket_compile_pattern(data, cp)
 				new_state = prefix_len + 1
 
 				if not cp.recovering then
-					cp.recovering = {}
-					for j = 0, len - 2 - 1 do
-						cp.recovering[j] = nil  -- NULL
-					end
+					cp.recovering = {}  -- 0-indexed, size of (len - 2)
 				end
 
 				edge = cp.recovering[cur_state - 2]
@@ -54,15 +47,15 @@ local function socket_compile_pattern(data, cp)
 				found = false
 
 				if not edge then
-					last_offset = cur_state - 2
+					last_t, last_k = cp.recovering, cur_state - 2
 				else
 					while edge do
-						last_offset = edge
+						last_t, last_k = edge, "next"
 
 						if edge.chr == subchar(data, prefix_len + 1) then
 							found = true
 							if edge.new_state < new_state then
-								edge.new_state = new_state
+								edge.new_state = new_state  -- idk how to cover his line
 							end
 							break
 						end
@@ -92,11 +85,7 @@ local function socket_compile_pattern(data, cp)
 					edge.new_state = new_state
 					edge.next = nil
 
-					if type(last_offset) == "number" then
-						cp.recovering[last_offset] = edge
-					elseif type(last_offset) == "table" then
-						last_offset.next = edge
-					end
+					last_t[last_k] = edge
 				end
 
 				break
@@ -107,8 +96,6 @@ local function socket_compile_pattern(data, cp)
 			::continue::
 		end
 	end
-
-	return 0  -- NGX_OK
 end
 
 return socket_compile_pattern
