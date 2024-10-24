@@ -63,7 +63,7 @@ function encoders.table(t, tables)
 	for k in pairs(t) do
 		if type(k) == "number" then
 			if k > 0 and k % 1 == 0 then
-				max_int_key = k
+				max_int_key = math.max(max_int_key, k)
 			else
 				table.insert(float_keys, k)
 			end
