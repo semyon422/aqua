@@ -9,8 +9,4 @@ local class = require("class")
 ---@field inclusive integer unsigned
 local socket_compiled_pattern_t = class()
 
-function socket_compiled_pattern_t:new()
-	self.recovering = {}
-end
-
 return socket_compiled_pattern_t
