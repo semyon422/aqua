@@ -5,8 +5,8 @@ local print_debug = false
 ---@param s string
 ---@param i integer
 ---@return string
-local function subchar(s, i)
-	return s:sub(i, i)
+local function subchar0(s, i)
+	return s:sub(i + 1, i + 1)
 end
 
 ---@param data string
@@ -30,7 +30,7 @@ local function socket_compile_pattern(data, cp)
 
 		while prefix_len <= len - i - 1 do
 			if data:sub(1, prefix_len) == data:sub(i + 1, i + prefix_len) then
-				if subchar(data, prefix_len + 1) == subchar(data, prefix_len + 1 + i) then
+				if subchar0(data, prefix_len) == subchar0(data, prefix_len + i) then
 					prefix_len = prefix_len + 1
 					goto continue
 				end
@@ -52,7 +52,7 @@ local function socket_compile_pattern(data, cp)
 					while edge do
 						last_t, last_k = edge, "next"
 
-						if edge.chr == subchar(data, prefix_len + 1) then
+						if edge.chr == subchar0(data, prefix_len) then
 							found = true
 							if edge.new_state < new_state then
 								edge.new_state = new_state  -- idk how to cover his line
@@ -71,17 +71,15 @@ local function socket_compile_pattern(data, cp)
 							" on state %d (%s), if next is '%s', then " ..
 							"recover to state %d (%s)"
 						):format(
-							cur_state,
-							data:sub(cur_state + 1, cur_state + 1),
-							data:sub(prefix_len + 1, prefix_len + 1),
-							new_state,
-							data:sub(new_state + 1, new_state + 1)
+							cur_state, subchar0(data, cur_state),
+							subchar0(data, prefix_len),
+							new_state, subchar0(data, new_state)
 						))
 					end
 
 					edge = dfa_edge_t()
 
-					edge.chr = subchar(data, prefix_len + 1)
+					edge.chr = subchar0(data, prefix_len)
 					edge.new_state = new_state
 					edge.next = nil
 
