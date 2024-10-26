@@ -1,4 +1,13 @@
 local IExtendedSocket = require("web.socket.IExtendedSocket")
+local socket_compile_pattern = require("web.nginx.socket_compile_pattern")
+local socket_compiled_pattern_t = require("web.nginx.socket_compiled_pattern_t")
+
+---@param s string
+---@param i integer
+---@return string
+local function subchar0(s, i)
+	return s:sub(i + 1, i + 1)
+end
 
 ---@class web.ExtendedSocket: web.IExtendedSocket
 ---@operator call: web.ExtendedSocket
@@ -157,6 +166,14 @@ local function reverse_find_ambiguity(s, pattern)
 	end
 end
 
+--[[
+	Reference:
+	lua-nginx-module/src/ngx_http_lua_socket_tcp.c
+	- ngx_http_lua_socket_tcp_receiveuntil
+	- ngx_http_lua_socket_receiveuntil_iterator
+	- ngx_http_lua_socket_read_until
+]]
+
 ---@param pattern string
 ---@param options {inclusive: boolean?}?
 ---@return fun(size: integer?): string?, "closed"|"timeout"?, string?
@@ -164,145 +181,152 @@ function ExtendedSocket:receiveuntil(pattern, options)
 	assert(#pattern > 0, "pattern is empty")
 	local inclusive = options and options.inclusive
 
+	local cp = socket_compiled_pattern_t()
+	socket_compile_pattern(pattern, cp)
+
 	local state = 0
 
 	return function(size)
-		if size then
-			error("not implemented")
-			if state == -1 then
-				state = 0
-				return
-			end
-
-			---@type string[]
-			local buffer = {}
-
-			local ambig_offset = 0
-			local ready = false
-
-			while true do
-				local line, err, partial = self.soc:receive(1)
-
-				local data = line or partial
-				---@cast data string
-
-				if not err then
-					if data == pattern:sub(ambig_offset + 1, ambig_offset + 1) then
-						ambig_offset = ambig_offset + 1
-						if ambig_offset == #pattern then
-							data = pattern
-							ready = true
-							ambig_offset = 0
-						elseif not line then
-							data = pattern:sub(1, ambig_offset)
-						else
-							goto continue
-						end
-					elseif ambig_offset > 0 then
-						if ambig_offset < #pattern then
-							data = pattern:sub(1, ambig_offset) .. data
-						end
-						ambig_offset = 0
-						if data:sub(#data) == pattern:sub(1, 1) then
-							ambig_offset = 1
-							data = data:sub(1, #data - 1)
-						end
-					end
-				end
-
-				if ready then
-					state = -1
-					if inclusive then
-						table.insert(buffer, data)
-					end
-					return table.concat(buffer)
-				end
-
-				table.insert(buffer, data)
-				local ret = table.concat(buffer)
-
-				if size <= #ret then
-					if ambig_offset == 0 then
-						return ret:sub(1, size)
-					end
-				end
-
-				if not line then
-					return nil, err, table.concat(buffer)
-				end
-
-				::continue::
-			end
-
-			return
-		end
+		local rest = size
 
 		---@type string[]
 		local buffer = {}
 
-		local ambig_offset = 0
-		local ready = false
+		::again::
 
-		while true do
-			local line, err, partial = self.soc:receive(1)
+		local soc = self.soc
+		---@cast soc web.StringSocket
 
-			local data = line or partial
-			---@cast data string
+		local buf = soc.remainder
 
-			if data == pattern:sub(ambig_offset + 1, ambig_offset + 1) then
-				ambig_offset = ambig_offset + 1
-				if ambig_offset == #pattern then
-					data = pattern
-					ready = true
-					ambig_offset = 0
-				elseif not line then
-					data = pattern:sub(1, ambig_offset)
-				else
-					goto continue
-				end
-			elseif ambig_offset > 0 then
-				local ambig_start = reverse_find_ambiguity(pattern:sub(2, ambig_offset), pattern)
-				if not ambig_start then
-					data = pattern:sub(1, ambig_offset) .. data
+		local old_state = 0
 
-					ambig_start = ambig_start or 1
-					ambig_offset = ambig_start - 1
-					if data:sub(#data) == pattern:sub(ambig_start, ambig_start) then
-						data = data:sub(1, #data - 1)
-						ambig_offset = ambig_start
-					end
-				else
-					ambig_start = ambig_start + 1
-					if data == pattern:sub(ambig_start, ambig_start) then
-						data = pattern:sub(1, 1)
-					else
-						if data == pattern:sub(ambig_start - 1, ambig_start - 1) then
-							data = pattern:sub(1, ambig_start - 1)
-							ambig_offset = ambig_start - 1
-						else
-							data = pattern:sub(1, ambig_start) .. data
-							ambig_offset = 0
-						end
-					end
-				end
-			end
+		local pat = cp.pattern
+		local pat_len = #pat
+		state = cp.state
+		local matched = false
+		local pending_len = 0
 
-			if ready then
-				if inclusive then
-					table.insert(buffer, data)
-				end
-				return table.concat(buffer)
-			end
+		if state == -1 then
+			cp.state = 0
+			return
+		end
 
-			table.insert(buffer, data)
+		if buf == "" then
 			local ret = table.concat(buffer)
+			buffer = {}
+			local err = soc.closed and "closed" or "timeout"
+			return nil, err, ret .. buf
+		end
 
-			if not line then
-				return nil, err, ret
+		local i = 0
+		while i < #buf do
+			local c = subchar0(buf, i)
+
+			if c == subchar0(pat, state) then
+				i = i + 1
+				state = state + 1
+
+				if state == pat_len then
+					self.soc:receive(i)
+
+					if size then
+						cp.state = -1
+					else
+						cp.state = 0
+					end
+
+					if inclusive then
+						table.insert(buffer, pat)
+					end
+
+					local ret = table.concat(buffer)
+					buffer = {}
+					return ret
+				end
+
+				goto continue
+			end
+
+			if state == 0 then
+				table.insert(buffer, c)
+				i = i + 1
+
+				if size then
+					rest = rest - 1
+					if rest == 0 then
+						cp.state = state
+						self.soc:receive(i)
+						local ret = table.concat(buffer)
+						buffer = {}
+						return ret
+					end
+				end
+
+				goto continue
+			end
+
+			matched = false
+
+			if cp.recovering and state >= 2 then
+				local edge = cp.recovering[state - 2]
+				while edge do
+					if edge.chr == c then
+						old_state = state
+						state = edge.new_state
+						matched = true
+						break
+					end
+
+					edge = edge.next
+				end
+			end
+
+			if not matched then
+				table.insert(buffer, pat:sub(1, state))
+
+				if size then
+					if rest <= state then
+						rest = 0
+						cp.state = 0
+						self.soc:receive(i)
+						local ret = table.concat(buffer)
+						buffer = {}
+						return ret
+					else
+						rest = rest - state
+					end
+				end
+
+				state = 0
+				goto continue
+			end
+
+			pending_len = old_state + 1 - state
+			table.insert(buffer, pat:sub(1, pending_len))
+
+			i = i + 1
+
+			if size then
+				if rest <= pending_len then
+					rest = 0
+					cp.state = state
+					self.soc:receive(i)
+					local ret = table.concat(buffer)
+					buffer = {}
+					return ret
+				else
+					rest = rest - pending_len
+				end
 			end
 
 			::continue::
 		end
+
+		self.soc:receive(i)
+		cp.state = state
+
+		goto again
 	end
 end
 

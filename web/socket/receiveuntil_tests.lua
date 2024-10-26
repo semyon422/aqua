@@ -48,51 +48,51 @@ function test.receiveuntil_ambiguous_closed(t, rsoc, ssoc)
 	t:tdeq({read()}, {nil, "closed", ""})
 end
 
--- ---@param t testing.T
--- ---@param rsoc web.IExtendedSocket
--- ---@param ssoc web.IExtendedSocket
--- function test.receiveuntil_size_timeout(t, rsoc, ssoc)
--- 	ssoc:send("qwertyasdfgh")
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_size_timeout(t, rsoc, ssoc)
+	ssoc:send("qwertyasdfgh")
 
--- 	local read = rsoc:receiveuntil("asd")
+	local read = rsoc:receiveuntil("asd")
 
--- 	t:tdeq({read(4)}, {"qwer"})
--- 	t:tdeq({read(4)}, {"ty"})
--- 	t:tdeq({read(4)}, {})
--- 	t:tdeq({read(4)}, {nil, "timeout", "fgh"})
--- 	t:tdeq({read(4)}, {nil, "timeout", ""})
--- 	t:tdeq({read(4)}, {nil, "timeout", ""})
--- end
+	t:tdeq({read(4)}, {"qwer"})
+	t:tdeq({read(4)}, {"ty"})
+	t:tdeq({read(4)}, {})
+	t:tdeq({read(4)}, {nil, "timeout", "fgh"})
+	t:tdeq({read(4)}, {nil, "timeout", ""})
+	t:tdeq({read(4)}, {nil, "timeout", ""})
+end
 
--- ---@param t testing.T
--- ---@param rsoc web.IExtendedSocket
--- ---@param ssoc web.IExtendedSocket
--- function test.receiveuntil_size_full_incomplete(t, rsoc, ssoc)
--- 	ssoc:send("qwerty")
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_size_full_incomplete(t, rsoc, ssoc)
+	ssoc:send("qwerty")
 
--- 	local reader = rsoc:receiveuntil("zxc")
+	local reader = rsoc:receiveuntil("zxc")
 
--- 	t:tdeq({reader(2)}, {"qw"})
--- 	t:tdeq({reader(2)}, {"er"})
--- 	t:tdeq({reader(2)}, {"ty"})
--- 	t:tdeq({reader(2)}, {nil, "timeout", ""})
+	t:tdeq({reader(2)}, {"qw"})
+	t:tdeq({reader(2)}, {"er"})
+	t:tdeq({reader(2)}, {"ty"})
+	t:tdeq({reader(2)}, {nil, "timeout", ""})
 
--- 	ssoc:close()
--- end
+	ssoc:close()
+end
 
--- ---@param t testing.T
--- ---@param rsoc web.IExtendedSocket
--- ---@param ssoc web.IExtendedSocket
--- function test.receiveuntil_size_ambiguous_incomplete(t, rsoc, ssoc)
--- 	ssoc:send("qwerty")
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_size_ambiguous_incomplete(t, rsoc, ssoc)
+	ssoc:send("qwerty")
 
--- 	local reader = rsoc:receiveuntil("rtyuio")
+	local reader = rsoc:receiveuntil("rtyuio")
 
--- 	t:tdeq({reader(2)}, {"qw"})
--- 	t:tdeq({reader(2)}, {nil, "timeout", "e"})
+	t:tdeq({reader(2)}, {"qw"})
+	t:tdeq({reader(2)}, {nil, "timeout", "e"})
 
--- 	ssoc:close()
--- end
+	ssoc:close()
+end
 
 -- === TEST 4: ambiguous boundary patterns (abcabd)
 
@@ -144,26 +144,26 @@ end
 
 -- === TEST 17: ambiguous boundary patterns (--abc), small buffer, mixed by other reading calls
 
--- ---@param t testing.T
--- ---@param rsoc web.IExtendedSocket
--- ---@param ssoc web.IExtendedSocket
--- function test.receiveuntil_test_17(t, rsoc, ssoc)
--- 	ssoc:send("hello, world ----abc\n")
--- 	ssoc:close()
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_test_17(t, rsoc, ssoc)
+	ssoc:send("hello, world ----abc\n")
+	ssoc:close()
 
--- 	local reader = rsoc:receiveuntil("--abc")
+	local reader = rsoc:receiveuntil("--abc")
 
--- 	t:tdeq({reader(4)}, {"hell"})
--- 	t:tdeq({rsoc:receive(1)}, {"o"})
--- 	t:tdeq({reader(4)}, {", wo"})
--- 	t:tdeq({rsoc:receive(1)}, {"r"})
--- 	t:tdeq({reader(4)}, {"ld -"})
--- 	t:tdeq({rsoc:receive(1)}, {"-"})
--- 	t:tdeq({reader(4)}, {""})
--- 	t:tdeq({rsoc:receive(1)}, {"\n"})
--- 	t:tdeq({reader(4)}, {})
--- 	t:tdeq({rsoc:receive(1)}, {nil, "closed", ""})
--- end
+	t:tdeq({reader(4)}, {"hell"})
+	t:tdeq({rsoc:receive(1)}, {"o"})
+	t:tdeq({reader(4)}, {", wo"})
+	t:tdeq({rsoc:receive(1)}, {"r"})
+	t:tdeq({reader(4)}, {"ld -"})
+	t:tdeq({rsoc:receive(1)}, {"-"})
+	t:tdeq({reader(4)}, {""})
+	t:tdeq({rsoc:receive(1)}, {"\n"})
+	t:tdeq({reader(4)}, {})
+	t:tdeq({rsoc:receive(1)}, {nil, "closed", ""})
+end
 
 -- === TEST 21: ambiguous boundary patterns (--abc), mixed by other reading calls consume boundary
 
@@ -212,19 +212,21 @@ end
 
 -- === TEST 25: ambiguous boundary patterns (ab1ab2), ends half way
 
--- ---@param t testing.T
--- ---@param rsoc web.IExtendedSocket
--- ---@param ssoc web.IExtendedSocket
--- function test.receiveuntil_test_25(t, rsoc, ssoc)
--- 	ssoc:send("ab1ab1\n")
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_test_25(t, rsoc, ssoc)
+	ssoc:send("ab1ab1\n")
 
--- 	local reader = rsoc:receiveuntil("ab1ab2")
+	local reader = rsoc:receiveuntil("ab1ab2")
 
--- 	t:tdeq({reader(2)}, {"ab1"})
--- 	t:tdeq({rsoc:receive(3)}, {"ab2"})
+	print('--------------------------')
+	t:tdeq({reader(2)}, {"ab1"})
+	t:tdeq({rsoc:receive(3)}, {"ab1"})
+	print('++++++++++++++++++++++++++')
 
--- 	ssoc:close()
--- end
+	ssoc:close()
+end
 
 -- === TEST 1: ambiguous boundary patterns (abcabd) - inclusive mode
 
@@ -245,23 +247,23 @@ end
 
 -- === TEST 9: ambiguous boundary patterns (--abc), small buffer
 
--- ---@param t testing.T
--- ---@param rsoc web.IExtendedSocket
--- ---@param ssoc web.IExtendedSocket
--- function test.receiveuntil_inclusive_test_9(t, rsoc, ssoc)
--- 	ssoc:send("hello, world ----abc\n")
--- 	ssoc:close()
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_inclusive_test_9(t, rsoc, ssoc)
+	ssoc:send("hello, world ----abc\n")
+	ssoc:close()
 
--- 	local reader = rsoc:receiveuntil("--abc", {inclusive = true})
+	local reader = rsoc:receiveuntil("--abc", {inclusive = true})
 
--- 	t:tdeq({reader(4)}, {"hell"})
--- 	t:tdeq({reader(4)}, {"o, w"})
--- 	t:tdeq({reader(4)}, {"orld"})
--- 	t:tdeq({reader(4)}, {" ----abc"})
--- 	t:tdeq({reader(4)}, {})
--- 	t:tdeq({reader(4)}, {nil, "closed", "\n"})
--- 	t:tdeq({reader(4)}, {nil, "closed", ""})
--- end
+	t:tdeq({reader(4)}, {"hell"})
+	t:tdeq({reader(4)}, {"o, w"})
+	t:tdeq({reader(4)}, {"orld"})
+	t:tdeq({reader(4)}, {" ----abc"})
+	t:tdeq({reader(4)}, {})
+	t:tdeq({reader(4)}, {nil, "closed", "\n"})
+	t:tdeq({reader(4)}, {nil, "closed", ""})
+end
 
 -- === TEST 10: ambiguous boundary patterns (--abc), small buffer, mixed by other reading calls
 
