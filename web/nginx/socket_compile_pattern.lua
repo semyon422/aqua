@@ -21,6 +21,9 @@ local function socket_compile_pattern(data, cp)
 	local edge  ---@type ngx_http_lua.dfa_edge_t t*
 	local last_t, last_k = {}, 0  ---@type table, integer|"next"
 
+	cp.pattern = data
+	cp.state = 0
+
 	if len <= 2 then
 		return
 	end
