@@ -196,6 +196,8 @@ end
 --- WIP streamning functions
 --------------------------------------------------------------------------------
 
+---@param s string
+---@return string
 function l7z.compress_stream_s(s)
 	local src_p = ffi.cast("const unsigned char *", s)
 	local src_size = #s
@@ -265,6 +267,8 @@ function l7z.compress_stream_s(s)
 	return table.concat(out)
 end
 
+---@param s string
+---@return string
 function l7z.uncompress_stream_s(s)
 	local src_p = ffi.cast("const unsigned char *", s)
 	local src_size = #s
@@ -319,6 +323,10 @@ end
 --- single call functions for pointers
 --------------------------------------------------------------------------------
 
+---@param src_p ffi.cdata*
+---@param src_size integer
+---@return ffi.cdata*
+---@return integer
 function l7z.encode(src_p, src_size)
 	local lzma_dst_size = src_size + bit.rshift(src_size, 3) + 16384
 
@@ -336,6 +344,10 @@ function l7z.encode(src_p, src_size)
 	return dst_p, lzma_size_p[0] + HEADER_SIZE
 end
 
+---@param src_p ffi.cdata*
+---@param src_size integer
+---@return ffi.cdata*
+---@return integer
 function l7z.decode(src_p, src_size)
 	local data_size = ffi.cast("uint64_t*", src_p + LZMA_PROPS_SIZE)[0]
 
@@ -357,11 +369,13 @@ end
 --------------------------------------------------------------------------------
 
 ---@param s string
+---@return string
 function l7z.encode_s(s)
 	return ffi.string(l7z.encode(ffi.cast("const unsigned char *", s), #s))
 end
 
 ---@param s string
+---@return string
 function l7z.decode_s(s)
 	return ffi.string(l7z.decode(ffi.cast("const unsigned char *", s), #s))
 end
