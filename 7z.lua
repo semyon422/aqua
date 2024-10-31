@@ -1,6 +1,8 @@
 local ffi = require("ffi")
 
-local _7z = ffi.load("/usr/lib/p7zip/7z.so")
+local c7z = ffi.load("/usr/lib/p7zip/7z.so")
+
+local l7z = {}
 
 ffi.cdef[[
 	void * malloc(size_t size);
@@ -163,68 +165,60 @@ local res_codes = {
 	SZ_ERROR_NO_ARCHIVE = 17,
 }
 
-local g_Alloc = ffi.new("ISzAlloc[1]")
+local LZMA_PROPS_SIZE = 5
+local HEADER_SIZE = LZMA_PROPS_SIZE + 8
 
-g_Alloc[0].Alloc = function(p, size)
+local g_alloc_p = ffi.new("ISzAlloc[1]")
+local g_alloc = g_alloc_p[0]
+function g_alloc.Alloc(p, size)
 	return ffi.C.malloc(size)
 end
-g_Alloc[0].Free = function(p, address)
+function g_alloc.Free(p, address)
 	return ffi.C.free(address)
 end
 
-local LZMA_PROPS_SIZE = 5
-
-local function get_default_props()
-	local props = ffi.new("CLzmaEncProps[1]")
-	_7z.LzmaEncProps_Init(props)
-	props[0].level = -1
-	props[0].dictSize = 0
-	props[0].lc = -1
-	props[0].lp = -1
-	props[0].pb = -1
-	props[0].fb = -1
-	props[0].numThreads = -1
-	_7z.LzmaEncProps_Normalize(props)
-	return props
+local function get_default_props_p()
+	local props_p = ffi.new("CLzmaEncProps[1]")
+	c7z.LzmaEncProps_Init(props_p)
+	local props = props_p[0]
+	props.level = -1
+	props.dictSize = 0
+	props.lc = -1
+	props.lp = -1
+	props.pb = -1
+	props.fb = -1
+	props.numThreads = -1
+	c7z.LzmaEncProps_Normalize(props_p)
+	return props_p
 end
 
-local function Encode(enc_handle, read, write)
-	local in_stream = ffi.new('ISeqInStream[1]')
+--------------------------------------------------------------------------------
+--- WIP streamning functions
+--------------------------------------------------------------------------------
 
-	in_stream[0].Read = function(p, buf, size)  -- ISeqInStreamPtr p, void *buf, size_t *size
-		if read(buf, size) then
-			return 0
-		end
-		return res_codes.SZ_ERROR_INPUT_EOF
-	end
+function l7z.compress_stream_s(s)
+	local src_p = ffi.cast("const unsigned char *", s)
+	local src_size = #s
 
-	local out_stream = ffi.new('ISeqOutStream[1]')
+	local enc_handle = c7z.LzmaEnc_Create(g_alloc_p)
 
-	out_stream[0].Write = function(p, buf, size)  -- ISeqOutStreamPtr p, const void *buf, size_t size
-		return write(buf, size)  -- the number of actually written bytes, (result < size) means error
-	end
-
-	local res = _7z.LzmaEnc_Encode(enc_handle, out_stream, in_stream, nil, g_Alloc, g_Alloc)
-	assert(res == res_codes.SZ_OK, res)
-
-	_7z.LzmaEnc_Destroy(enc_handle, g_Alloc, g_Alloc)
-end
-
-local function Compress(src, src_size)
-	local enc_handle = _7z.LzmaEnc_Create(g_Alloc)
-
-	local props = get_default_props()
+	local props = get_default_props_p()
 	props[0].writeEndMark = 1
 
-	assert(_7z.LzmaEnc_SetProps(enc_handle, props) == res_codes.SZ_OK)
+	assert(c7z.LzmaEnc_SetProps(enc_handle, props) == res_codes.SZ_OK)
 
-	local outPropsSize = ffi.new("size_t[1]", LZMA_PROPS_SIZE)
-	local outProps = ffi.new("unsigned char[?]", LZMA_PROPS_SIZE)
-	local res = _7z.LzmaEnc_WriteProperties(enc_handle, outProps, outPropsSize)
-	assert(res == res_codes.SZ_OK and outPropsSize[0] == LZMA_PROPS_SIZE)
+	local out_props_size = ffi.new("size_t[1]", LZMA_PROPS_SIZE)
+	local out_props = ffi.new("unsigned char[?]", LZMA_PROPS_SIZE)
+	local res = c7z.LzmaEnc_WriteProperties(enc_handle, out_props, out_props_size)
+	assert(res == res_codes.SZ_OK and out_props_size[0] == LZMA_PROPS_SIZE)
 
 	local out = {}
-	table.insert(out, ffi.string(outProps, outPropsSize[0]))
+	table.insert(out, ffi.string(out_props, out_props_size[0]))
+
+	local data_size_s_p = ffi.new("uint8_t[8]")
+	local data_size_i_p = ffi.cast("uint64_t*", data_size_s_p)
+	data_size_i_p[0] = src_size
+	table.insert(out, ffi.string(data_size_s_p, 8))
 
 	local function read(buf, size)
 		if src_size == 0 then
@@ -237,10 +231,10 @@ local function Compress(src, src_size)
 			copy_size = size[0]
 		end
 
-		ffi.copy(buf, src, copy_size)
+		ffi.copy(buf, src_p, copy_size)
 		size[0] = copy_size
 		src_size = src_size - copy_size
-		src = src + copy_size
+		src_p = src_p + copy_size
 
 		return true
 	end
@@ -250,119 +244,145 @@ local function Compress(src, src_size)
 		return size
 	end
 
-	Encode(enc_handle, read, write)
+	local in_stream_p = ffi.new('ISeqInStream[1]')
+	in_stream_p[0].Read = function(p, buf, size)  -- ISeqInStreamPtr p, void *buf, size_t *size
+		if read(buf, size) then
+			return 0
+		end
+		return res_codes.SZ_ERROR_INPUT_EOF
+	end
+
+	local out_stream = ffi.new('ISeqOutStream[1]')
+	out_stream[0].Write = function(p, buf, size)  -- ISeqOutStreamPtr p, const void *buf, size_t size
+		return write(buf, size)  -- the number of actually written bytes, (result < size) means error
+	end
+
+	local res = c7z.LzmaEnc_Encode(enc_handle, out_stream, in_stream_p, nil, g_alloc_p, g_alloc_p)
+	assert(res == res_codes.SZ_OK, res)
+
+	c7z.LzmaEnc_Destroy(enc_handle, g_alloc_p, g_alloc_p)
 
 	return table.concat(out)
 end
 
-local data = ("test"):rep(100)
-local src = ffi.cast("const unsigned char *", data)
-local srcLen = ffi.new("size_t[1]", #data)
+function l7z.uncompress_stream_s(s)
+	local src_p = ffi.cast("const unsigned char *", s)
+	local src_size = #s
 
--- local p, size = Compress(src, #data)
+	local dec_handle = ffi.new("CLzmaDec[1]")
 
-local comp_data = Compress(src, #data)
-print(comp_data, #comp_data)
-
-
-local function LzmaCompress(dest, destLen, src, srcLen, outProps, outPropsSize)
-	local props = get_default_props()
-	return _7z.LzmaEncode(dest, destLen, src, srcLen, props, outProps, outPropsSize, 0, nil, g_Alloc, g_Alloc)
-end
-
--- local dstLen = ffi.new("size_t[1]", 100)
--- local dst = ffi.new("unsigned char[?]", dstLen[0])
-
--- local outPropsSize = ffi.new("size_t[1]", LZMA_PROPS_SIZE)
--- local outProps = ffi.new("unsigned char[?]", LZMA_PROPS_SIZE)
--- local res = LzmaCompress(dst, dstLen, src, srcLen[0], outProps, outPropsSize)
--- print(res, dstLen[0], ffi.string(dst, dstLen[0]))
--- print(ffi.string(dst, dstLen[0]) == comp_data)
-
--- do return end
-
-local src = ffi.cast("const unsigned char *", comp_data)
-local srcSize = ffi.new("size_t[1]", #comp_data)
-
---------------------------------------------------------------------------------
-
-local function Uncompress(in_buf, in_len)
-	local dec = ffi.new("CLzmaDec[1]")
-
-	local res = _7z.LzmaDec_Allocate(dec, in_buf, LZMA_PROPS_SIZE, g_Alloc)  -- read pointer to props
+	local res = c7z.LzmaDec_Allocate(dec_handle, src_p, LZMA_PROPS_SIZE, g_alloc_p)  -- read pointer to props
 	assert(res == res_codes.SZ_OK)
 
-	in_buf = in_buf + LZMA_PROPS_SIZE
-	in_len = in_len - LZMA_PROPS_SIZE
+	local data_size = ffi.cast("uint64_t*", src_p + LZMA_PROPS_SIZE)[0]
 
-	_7z.LzmaDec_Init(dec)
+	src_p = src_p + HEADER_SIZE
+	src_size = src_size - HEADER_SIZE
 
-	local inPos = 0
+	c7z.LzmaDec_Init(dec_handle)
+
+	local src_pos = 0
 	local status = ffi.new("ELzmaStatus[1]")
 
 	local BUF_SIZE = 128
 	local out_buf = ffi.new("unsigned char[?]", BUF_SIZE)
 	local dst_len = ffi.new("size_t[1]", BUF_SIZE)
 
-	local src_len = ffi.new("size_t[1]", in_len)
+	local src_size_p = ffi.new("size_t[1]", src_size)
 
 	local out = {}
 
 	while true do
-		print("decode",
-			inPos,
-			src_len[0],
-			inPos == in_len and "LZMA_FINISH_END" or "LZMA_FINISH_ANY",
-			status[0])
-		local res = _7z.LzmaDec_DecodeToBuf(
-			dec,
-			out_buf,
-			dst_len,
-			in_buf + inPos,
-			src_len,
-			inPos == in_len and "LZMA_FINISH_END" or "LZMA_FINISH_ANY",
-			status
-		)
+		local finish_mode = src_pos == src_size and "LZMA_FINISH_END" or "LZMA_FINISH_ANY"
+		local res = c7z.LzmaDec_DecodeToBuf(dec_handle, out_buf, dst_len, src_p + src_pos, src_size_p, finish_mode, status)
 		assert(res == res_codes.SZ_OK, res)
 		table.insert(out, ffi.string(out_buf, dst_len[0]))
-		print(status[0], src_len[0], #table.concat(out))
 
-		if inPos == in_len then
+		if src_pos == src_size then
 			break
 		end
 
 		dst_len[0] = BUF_SIZE
-		inPos = inPos + src_len[0]
-		src_len[0] = in_len - inPos
-		-- src_len[0] = src_len[0] -
-		if status[0] == 1 then
-		-- if status == LZMA_STATUS_FINISHED_WITH_MARK then
+		src_pos = src_pos + src_size_p[0]
+		src_size_p[0] = src_size - src_pos
+		if status[0] == 1 then  -- LZMA_STATUS_FINISHED_WITH_MARK
 			break
 		end
 	end
 
-	_7z.LzmaDec_Free(dec, g_Alloc)
+	c7z.LzmaDec_Free(dec_handle, g_alloc_p)
 
 	return table.concat(out)
 end
 
-local res = Uncompress(src, srcSize[0])
--- print(res, #res)
--- print(data, #data)
-assert(res == data)
+--------------------------------------------------------------------------------
+--- single call functions for pointers
+--------------------------------------------------------------------------------
 
--- local function LzmaUncompress(dest, destLen, src, srcLen, props, propsSize)
--- 	local status = ffi.new("ELzmaStatus[1]")
--- 	return _7z.LzmaDecode(dest, destLen, src, srcLen, props, propsSize, "LZMA_FINISH_ANY", status, g_Alloc)
--- end
+function l7z.encode(src_p, src_size)
+	local lzma_dst_size = src_size + bit.rshift(src_size, 3) + 16384
 
--- local dstLen2 = ffi.new("size_t[1]", #data * 2)
--- local dst2 = ffi.new("unsigned char[?]", dstLen2[0])
+	local dst_p = ffi.new("unsigned char[?]", lzma_dst_size + HEADER_SIZE)
+	ffi.cast("uint64_t*", dst_p + LZMA_PROPS_SIZE)[0] = src_size
 
--- local res = LzmaUncompress(dst2, dstLen2, src, srcSize, outProps, outPropsSize[0])
--- print(res, dstLen2[0], ffi.string(dst2, dstLen2[0]))
+	local lzma_p = dst_p + HEADER_SIZE
+	local lzma_size_p = ffi.new("size_t[1]", lzma_dst_size)
 
-return {
-	Uncompress = Uncompress,
-	Compress = Compress,
-}
+	local props_size_p = ffi.new("size_t[1]", LZMA_PROPS_SIZE)
+	local props_p = get_default_props_p()
+	local res = c7z.LzmaEncode(lzma_p, lzma_size_p, src_p, src_size, props_p, dst_p, props_size_p, 0, nil, g_alloc_p, g_alloc_p)
+	assert(res == res_codes.SZ_OK, res)
+
+	return dst_p, lzma_size_p[0] + HEADER_SIZE
+end
+
+function l7z.decode(src_p, src_size)
+	local data_size = ffi.cast("uint64_t*", src_p + LZMA_PROPS_SIZE)[0]
+
+	local dst_p = ffi.new("unsigned char[?]", data_size)
+	local dst_size_p = ffi.new("size_t[1]", data_size)
+
+	local lzma_p = src_p + HEADER_SIZE
+	local lzma_size_p = ffi.new("size_t[1]", src_size - HEADER_SIZE)
+
+	local status = ffi.new("ELzmaStatus[1]")
+	local res = c7z.LzmaDecode(dst_p, dst_size_p, lzma_p, lzma_size_p, src_p, LZMA_PROPS_SIZE, "LZMA_FINISH_ANY", status, g_alloc_p)
+	assert(res == res_codes.SZ_OK, res)
+
+	return dst_p, dst_size_p[0]
+end
+
+--------------------------------------------------------------------------------
+--- single call functions for string
+--------------------------------------------------------------------------------
+
+---@param s string
+function l7z.encode_s(s)
+	return ffi.string(l7z.encode(ffi.cast("const unsigned char *", s), #s))
+end
+
+---@param s string
+function l7z.decode_s(s)
+	return ffi.string(l7z.decode(ffi.cast("const unsigned char *", s), #s))
+end
+
+--------------------------------------------------------------------------------
+--- tests
+--------------------------------------------------------------------------------
+
+local data = ("test"):rep(100)
+
+local comp_data_1 = l7z.encode_s(data)
+local comp_data_2 = l7z.compress_stream_s(data)
+assert(#comp_data_1 == #comp_data_2, #comp_data_1 .. " " .. #comp_data_2)
+assert(comp_data_1 == comp_data_2)
+
+local comp_data = comp_data_2
+
+local uncomp_data_1 = l7z.decode_s(comp_data)
+local uncomp_data_2 = l7z.uncompress_stream_s(comp_data)
+assert(#uncomp_data_1 == #uncomp_data_2)
+assert(uncomp_data_1 == uncomp_data_2)
+assert(uncomp_data_2 == data)
+
+return l7z
