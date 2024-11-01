@@ -55,9 +55,9 @@ function leb128.sdec(p)
 	return i, ffi.cast("int64_t", result)  ---@type integer, integer
 end
 
----@param value integer
 ---@param p ffi.cdata*
-function leb128.uenc(value, p)
+---@param value integer
+function leb128.uenc(p, value)
 	p = ffi.cast("unsigned char *", p)  ---@type integer[]
 	value = value + 0ull
 
@@ -79,9 +79,9 @@ function leb128.uenc(value, p)
 	return i
 end
 
----@param value integer
 ---@param p ffi.cdata*
-function leb128.senc(value, p)
+---@param value integer
+function leb128.senc(p, value)
 	p = ffi.cast("unsigned char *", p)  ---@type integer[]
 	value = value + 0ll
 
@@ -111,7 +111,7 @@ do  -- from wikipedia
 	local n = 624485
 	local s = string.char(0xE5, 0x8E, 0x26)  -- LSB to MSB
 
-	local size = leb128.uenc(n, p)
+	local size = leb128.uenc(p, n)
 	assert(size == #s)
 	assert(ffi.string(p, size) == s)
 
@@ -124,7 +124,7 @@ do  -- from wikipedia
 	local n = -123456
 	local s = string.char(0xC0, 0xBB, 0x78)  -- LSB to MSB
 
-	local size = leb128.senc(n, p)
+	local size = leb128.senc(p, n)
 	assert(size == 3)
 	assert(ffi.string(p, size) == s)
 
@@ -137,7 +137,7 @@ do
 	local n = 0ull
 	assert(tostring(n) == "0ULL")
 
-	local size = leb128.uenc(n, p)
+	local size = leb128.uenc(p, n)
 	assert(size == 1)
 
 	local size, result = leb128.udec(p)
@@ -149,7 +149,7 @@ do
 	local n = -1ull
 	assert(tostring(n) == "18446744073709551615ULL")
 
-	local size = leb128.uenc(n, p)
+	local size = leb128.uenc(p, n)
 	assert(size == 10)
 
 	local size, result = leb128.udec(p)
@@ -161,7 +161,7 @@ do
 	local n = bit.ror(0ll, 1)
 	assert(tostring(n) == "0LL")
 
-	local size = leb128.uenc(n, p)
+	local size = leb128.uenc(p, n)
 	assert(size == 1)
 
 	local size, result = leb128.udec(p)
@@ -173,7 +173,7 @@ do
 	local n = bit.ror(1ll, 1)
 	assert(tostring(n) == "-9223372036854775808LL")
 
-	local size = leb128.uenc(n, p)
+	local size = leb128.uenc(p, n)
 	assert(size == 10)
 
 	local size, result = leb128.udec(p)
@@ -185,7 +185,7 @@ do
 	local n = bit.bnot(bit.ror(1ll, 1))
 	assert(tostring(n) == "9223372036854775807LL")
 
-	local size = leb128.uenc(n, p)
+	local size = leb128.uenc(p, n)
 	assert(size == 9)
 
 	local size, result = leb128.udec(p)
