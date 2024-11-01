@@ -115,6 +115,8 @@ ffi.cdef[[
 		UInt32 dicSize;
 	} CLzmaProps;
 
+	SRes LzmaProps_Decode(CLzmaProps *p, const Byte *data, unsigned size);
+
 	typedef struct {
 		CLzmaProps prop;
 		CLzmaProb *probs;
@@ -165,6 +167,7 @@ local res_codes = {
 	SZ_ERROR_NO_ARCHIVE = 17,
 }
 
+local LZMA_DIC_MIN = bit.lshift(1, 12)
 local LZMA_PROPS_SIZE = 5
 local HEADER_SIZE = LZMA_PROPS_SIZE + 8
 
@@ -180,16 +183,38 @@ end
 local function get_default_props_p()
 	local props_p = ffi.new("CLzmaEncProps[1]")
 	c7z.LzmaEncProps_Init(props_p)
-	local props = props_p[0]
-	props.level = -1
-	props.dictSize = 0
-	props.lc = -1
-	props.lp = -1
-	props.pb = -1
-	props.fb = -1
-	props.numThreads = -1
 	c7z.LzmaEncProps_Normalize(props_p)
 	return props_p
+end
+
+--- for some reason LzmaProps_Decode does not work
+--- also write to CLzmaEncProps instead of CLzmaProps
+---@param p ffi.cdata*
+---@param data_p ffi.cdata*
+---@param size integer
+---@return integer
+local function props_decode(p, data_p, size)
+	if size < LZMA_PROPS_SIZE then
+		return res_codes.SZ_ERROR_UNSUPPORTED
+	end
+
+	local dicSize = bit.bor(data_p[1], bit.lshift(data_p[2], 8), bit.lshift(data_p[3], 16), bit.lshift(data_p[4], 24))
+	if dicSize < LZMA_DIC_MIN then
+		dicSize = LZMA_DIC_MIN
+	end
+	p.dictSize = dicSize
+
+	local d = data_p[0]
+	if d >= 9 * 5 * 5 then
+		return res_codes.SZ_ERROR_UNSUPPORTED
+	end
+
+	p.lc = d % 9
+	d = math.floor(d / 9)
+	p.pb = d / 5
+	p.lp = d % 5
+
+	return res_codes.SZ_OK
 end
 
 --------------------------------------------------------------------------------
@@ -325,9 +350,10 @@ end
 
 ---@param src_p ffi.cdata*
 ---@param src_size integer
+---@param props_data_p ffi.cdata*?
 ---@return ffi.cdata*
 ---@return integer
-function l7z.encode(src_p, src_size)
+function l7z.encode(src_p, src_size, props_data_p)
 	local lzma_dst_size = src_size + bit.rshift(src_size, 3) + 16384
 
 	local dst_p = ffi.new("unsigned char[?]", lzma_dst_size + HEADER_SIZE)
@@ -337,8 +363,14 @@ function l7z.encode(src_p, src_size)
 	local lzma_size_p = ffi.new("size_t[1]", lzma_dst_size)
 
 	local props_size_p = ffi.new("size_t[1]", LZMA_PROPS_SIZE)
-	local props_p = get_default_props_p()
-	local res = c7z.LzmaEncode(lzma_p, lzma_size_p, src_p, src_size, props_p, dst_p, props_size_p, 0, nil, g_alloc_p, g_alloc_p)
+
+	local enc_props = get_default_props_p()
+	if props_data_p then
+		local res = props_decode(enc_props[0], props_data_p, LZMA_PROPS_SIZE)
+		assert(res == res_codes.SZ_OK, res)
+	end
+
+	local res = c7z.LzmaEncode(lzma_p, lzma_size_p, src_p, src_size, enc_props, dst_p, props_size_p, 0, nil, g_alloc_p, g_alloc_p)
 	assert(res == res_codes.SZ_OK, res)
 
 	return dst_p, lzma_size_p[0] + HEADER_SIZE
@@ -369,34 +401,56 @@ end
 --------------------------------------------------------------------------------
 
 ---@param s string
+---@param props string?
 ---@return string
-function l7z.encode_s(s)
-	return ffi.string(l7z.encode(ffi.cast("const unsigned char *", s), #s))
+function l7z.encode_s(s, props)
+	local props_p  ---@type ffi.cdata*
+	if props then
+		assert(#props == 5)
+		props_p = ffi.cast("const unsigned char *", props)
+	end
+	local src_p, src_size = ffi.cast("const unsigned char *", s), #s
+	return ffi.string(l7z.encode(src_p, src_size, props_p))
 end
 
 ---@param s string
 ---@return string
+---@return string
 function l7z.decode_s(s)
-	return ffi.string(l7z.decode(ffi.cast("const unsigned char *", s), #s))
+	local src_p, src_size = ffi.cast("const unsigned char *", s), #s
+	return ffi.string(l7z.decode(src_p, src_size)), ffi.string(src_p, LZMA_PROPS_SIZE)
 end
 
 --------------------------------------------------------------------------------
 --- tests
 --------------------------------------------------------------------------------
 
-local data = ("test"):rep(100)
+do
+	local data = ("test"):rep(100)
 
-local comp_data_1 = l7z.encode_s(data)
-local comp_data_2 = l7z.compress_stream_s(data)
-assert(#comp_data_1 == #comp_data_2, #comp_data_1 .. " " .. #comp_data_2)
-assert(comp_data_1 == comp_data_2)
+	local comp_data_1 = l7z.encode_s(data)
+	local comp_data_2 = l7z.compress_stream_s(data)
+	assert(#comp_data_1 == #comp_data_2, #comp_data_1 .. " " .. #comp_data_2)
+	assert(comp_data_1 == comp_data_2)
 
-local comp_data = comp_data_2
+	local comp_data = comp_data_2
 
-local uncomp_data_1 = l7z.decode_s(comp_data)
-local uncomp_data_2 = l7z.uncompress_stream_s(comp_data)
-assert(#uncomp_data_1 == #uncomp_data_2)
-assert(uncomp_data_1 == uncomp_data_2)
-assert(uncomp_data_2 == data)
+	local uncomp_data_1 = l7z.decode_s(comp_data)
+	local uncomp_data_2 = l7z.uncompress_stream_s(comp_data)
+	assert(#uncomp_data_1 == #uncomp_data_2)
+	assert(uncomp_data_1 == uncomp_data_2)
+	assert(uncomp_data_2 == data)
+end
+
+do
+	local data = ("test"):rep(100)
+	local props = string.char(93, 0, 0, 32, 0)
+
+	local comp_data = l7z.encode_s(data, props)
+
+	local _data, _props = l7z.decode_s(comp_data)
+	assert(_data == data)
+	assert(_props == props)
+end
 
 return l7z
