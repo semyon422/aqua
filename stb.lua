@@ -10,61 +10,141 @@ ffi.cdef[[
 
 local NULL = ffi.new("void *")
 
-local buffers = {}
-
----@class util.Stb: ffi.cdata*
-local Stb = {}
-
----@param p util.Stb
+---@param p ffi.cdata*?
 ---@return integer
-local function stb_id(p)
+local function ptr_to_int(p)
 	---@type integer
 	return tonumber(ffi.cast("size_t", p))
 end
 
----@param a util.Stb?
+---@type {[integer]: integer}
+local buffers = {}
+
+---@param _p ffi.cdata*?
+---@param size integer
 ---@return ffi.cdata*
-local function raw(a)
-	if not a or not buffers[stb_id(a)] then
-		return NULL
-	end
-	return ffi.cast("size_t*", a) - 1
+local function realloc(_p, size)
+	buffers[ptr_to_int(_p)] = nil
+	---@type ffi.cdata*
+	local p = ffi.C.realloc(_p, size)
+	assert(p ~= NULL)
+	buffers[ptr_to_int(p)] = size
+	return p
 end
 
+---@param _p ffi.cdata*?
+local function free(_p)
+	buffers[ptr_to_int(_p)] = nil
+	ffi.C.free(_p)
+end
+
+---@param _p ffi.cdata*?
+---@return integer?
+local function get_size(_p)
+	return buffers[ptr_to_int(_p)]
+end
+
+--------------------------------------------------------------------------------
+
+local PREFIX_SIZE = 2  -- * ffi.sizeof("size_t")
+---@alias util.StbHeader {[0]: integer, [1]: integer}
+
+---@param a util.Stb
+---@return ffi.cdata*
+local function to_raw(a)
+	assert(a, "invalid buffer")
+	---@type ffi.cdata*
+	local p = ffi.cast("size_t*", a) - PREFIX_SIZE
+	assert(get_size(p), "invalid buffer")
+	return p
+end
+
+---@param a ffi.cdata*
+---@return util.Stb
+local function to_stb(a)
+	assert(a, "invalid buffer")
+	---@type ffi.cdata*
+	local p = ffi.cast("size_t*", a) + PREFIX_SIZE
+	---@type util.Stb
+	return ffi.cast("stb_t*", p)
+end
+
+---@param _p ffi.cdata*?
+---@param size integer
+---@return ffi.cdata*
+local function grow_raw(_p, size)
+	local p = realloc(_p, size + ffi.sizeof("size_t"))
+	---@type util.StbHeader
+	p = ffi.cast("size_t*", p)
+	p[0] = size
+	return p
+end
+
+---@param _p ffi.cdata*
+---@return integer
+local function size_raw(_p)
+	assert(_p, "invalid buffer")
+	---@type util.StbHeader
+	local p = ffi.cast("size_t*", _p)
+	return p[0]
+end
+
+---@param _p ffi.cdata*
+---@param offset integer
+local function seek_raw(_p, offset)
+	assert(_p, "invalid buffer")
+	---@type util.StbHeader
+	local p = ffi.cast("size_t*", _p)
+	assert(offset >= 0 and offset <= p[0])
+	p[1] = offset
+end
+
+---@param _p ffi.cdata*
+---@return integer
+local function tell_raw(_p)
+	assert(_p, "invalid buffer")
+	---@type util.StbHeader
+	local p = ffi.cast("size_t*", _p)
+	return p[1]
+end
+
+--------------------------------------------------------------------------------
+
+---@class util.Stb: ffi.cdata*
+local Stb = {}
+
 function Stb:free()
-	buffers[stb_id(self)] = nil
-	ffi.C.free(raw(self))
+	free(to_raw(self))
 	ffi.gc(self, nil)
+end
+
+---@param offset integer
+function Stb:seek(offset)
+	seek_raw(to_raw(self), offset)
+end
+
+---@param offset integer
+function Stb:step(offset)
+	local raw = to_raw(self)
+	seek_raw(raw, tell_raw(raw) + offset)
+end
+
+---@return integer
+function Stb:tell()
+	return tell_raw(to_raw(self))
 end
 
 ---@return integer
 function Stb:size()
-	local p = raw(self)
-	if p == NULL then
-		return 0
-	end
-	---@type integer
-	return tonumber(p[0])
-end
-
----@param _p ffi.cdata*
----@param size integer
----@return ffi.cdata*
-local function grow_raw(_p, size)
-	local p = ffi.C.realloc(_p, size + ffi.sizeof("size_t"))
-	assert(p ~= NULL)
-	p = ffi.cast("size_t*", p)
-	p[0] = size
-	return p
+	return size_raw(to_raw(self))
 end
 
 ---@param a util.Stb?
 ---@param size integer
 ---@return util.Stb
 local function grow_stb(a, size)
-	local _a = ffi.cast("stb_t*", grow_raw(raw(a), size) + 1)
-	---@cast _a util.Stb
-	buffers[stb_id(_a)] = true
+	if a then ffi.gc(a, nil) end
+	local _a = to_stb(grow_raw(a and to_raw(a), size))
 	ffi.gc(_a, Stb.free)
 	return _a
 end
@@ -76,8 +156,6 @@ function Stb:grow(size)
 	if self:size() >= size then
 		return self
 	end
-	buffers[stb_id(self)] = nil
-	ffi.gc(self, nil)
 	return grow_stb(self, size)
 end
 
@@ -93,8 +171,17 @@ end
 
 local buf = stb.new(100)
 assert(buf:size() == 100)
-buf = buf:grow(200)
-assert(buf:size() == 200)
-buf:free()
+assert(buf:tell() == 0)
+
+buf:seek(10)
+assert(buf:tell() == 10)
+
+buf:step(20)
+assert(buf:tell() == 30)
+
+local _buf = buf:grow(1000)
+assert(_buf:size() == 1000)
+-- buf:free()
+_buf:free()
 
 return stb
