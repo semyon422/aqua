@@ -179,9 +179,14 @@ assert(buf:tell() == 10)
 buf:step(20)
 assert(buf:tell() == 30)
 
-local _buf = buf:grow(1000)
+local _buf = buf:grow(1000)  -- realloc may return same pointer
 assert(_buf:size() == 1000)
--- buf:free()
 _buf:free()
+
+assert(not pcall(buf.grow, buf, 1))
+assert(not pcall(buf.size, buf))
+assert(not pcall(buf.tell, buf))
+assert(not pcall(buf.seek, buf, 0))
+assert(not pcall(buf.free, buf))
 
 return stb
