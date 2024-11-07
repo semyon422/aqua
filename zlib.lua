@@ -47,50 +47,6 @@ int inflate(z_streamp strm, int flush);
 int inflateEnd(z_streamp strm);
 ]]
 
-local zlib = {}
-
----@param dst_p ffi.cdata*
----@param dst_size number
----@param src_p string|ffi.cdata*
----@param src_size number
----@return number
-function zlib.uncompress(dst_p, dst_size, src_p, src_size)
-	local out_size = ffi.new("unsigned long[1]", dst_size)
-	assert(_zlib.uncompress(dst_p, out_size, src_p, src_size) == 0)
-	return tonumber(out_size[0])  --[[@as integer]]
-end
-
----@param dst_p ffi.cdata*
----@param dst_size number
----@param src_p string|ffi.cdata*
----@param src_size number
----@param level number?
----@return integer
-function zlib.compress(dst_p, dst_size, src_p, src_size, level)
-	local out_size = ffi.new("unsigned long[1]", dst_size)
-	assert(_zlib.compress2(dst_p, out_size, src_p, src_size, level or -1) == 0)
-	return tonumber(out_size[0])  --[[@as integer]]
-end
-
----@param s string
----@param size number
----@return string
-function zlib.uncompress_s(s, size)
-	local out = ffi.new("uint8_t[?]", size)
-	size = zlib.uncompress(out, size, s, #s)
-	return ffi.string(out, size)
-end
-
----@param s string
----@return string
-function zlib.compress_s(s)
-	local size = tonumber(_zlib.compressBound(#s))
-	---@cast size integer
-	local out = ffi.new("uint8_t[?]", size)
-	size = zlib.compress(out, size, s, #s)
-	return ffi.string(out, size)
-end
-
 local flush_values = {
 	Z_NO_FLUSH = 0,
 	Z_PARTIAL_FLUSH = 1,
@@ -113,39 +69,111 @@ local ret_codes = {
 	Z_VERSION_ERROR = -6,
 }
 
+---@class zlib.z_stream
+---@field avail_in integer
+---@field avail_out integer
+---@field next_in ffi.cdata*
+---@field next_out ffi.cdata*
+local z_stream = {}
+
+local zlib = {}
+
 ---@return string
 function zlib.version()
 	return ffi.string(_zlib.zlibVersion())
 end
 
+---@param size integer
+---@return integer
+function zlib.compress_bound(size)
+	---@type integer
+	return tonumber(_zlib.compressBound(size))
+end
+
+---@param dst_p ffi.cdata*
+---@param dst_size integer
+---@param src_p string|ffi.cdata*
+---@param src_size integer
+---@param level integer?
+---@return integer
+function zlib.compress_ex(dst_p, dst_size, src_p, src_size, level)
+	local out_size = ffi.new("unsigned long[1]", dst_size)
+
+	---@type integer
+	local ret = _zlib.compress2(dst_p, out_size, src_p, src_size, level or -1)
+	assert(ret == ret_codes.Z_OK)
+
+	---@type integer
+	return tonumber(out_size[0])
+end
+
+---@param dst_p ffi.cdata*
+---@param dst_size integer
+---@param src_p string|ffi.cdata*
+---@param src_size integer
+---@return integer
+function zlib.uncompress_ex(dst_p, dst_size, src_p, src_size)
+	local out_size = ffi.new("unsigned long[1]", dst_size)
+
+	---@type integer
+	local ret = _zlib.uncompress(dst_p, out_size, src_p, src_size)
+	assert(ret == ret_codes.Z_OK)
+
+	---@type integer
+	return tonumber(out_size[0])
+end
+
+---@param s string
+---@return string
+function zlib.compress(s)
+	local size = zlib.compress_bound(#s)
+	local out = ffi.new("char[?]", size)
+	size = zlib.compress_ex(out, size, s, #s)
+	return ffi.string(out, size)
+end
+
+---@param s string
+---@param size integer
+---@return string
+function zlib.uncompress(s, size)
+	local out = ffi.new("char[?]", size)
+	size = zlib.uncompress_ex(out, size, s, #s)
+	return ffi.string(out, size)
+end
+
 ---@param stream_p ffi.cdata*
 ---@return true?
 local function update_stream(stream_p)
-	if stream_p[0].avail_in == 0 then
+	---@type zlib.z_stream
+	local stream = stream_p[0]
+	if stream.avail_in == 0 then
 		local next_in, avail_in = coroutine.yield("read")
 		if not next_in then
 			return
 		end
-		stream_p[0].next_in = next_in
-		stream_p[0].avail_in = avail_in
+		stream.next_in = next_in
+		stream.avail_in = avail_in
 	end
-	if stream_p[0].avail_out == 0 then
+	if stream.avail_out == 0 then
 		local next_out, avail_out = coroutine.yield("write")
 		if not next_out then
 			return
 		end
-		stream_p[0].next_out = next_out
-		stream_p[0].avail_out = avail_out
+		stream.next_out = next_out
+		stream.avail_out = avail_out
 	end
-	assert(stream_p[0].avail_out > 0)
+	assert(stream.avail_out > 0)
 	return true
 end
 
----@param level integer
+---@param level integer?
 function zlib.deflate_async(level)
+	level = level or -1
+
 	local finish = false
 	local stream_p = ffi.new("z_stream[1]")
 
+	---@type integer
 	local ret = _zlib.deflateInit_(stream_p, level, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
 	assert(ret == ret_codes.Z_OK)
 
@@ -160,6 +188,7 @@ function zlib.deflate_async(level)
 			finish = true
 		end
 
+		---@type integer
 		ret = _zlib.deflate(stream_p, finish and flush_values.Z_FINISH or flush_values.Z_NO_FLUSH)
 		assert(ret ~= ret_codes.Z_STREAM_ERROR)
 		-- Z_BUF_ERROR is ok
@@ -172,6 +201,7 @@ end
 function zlib.inflate_async()
 	local stream_p = ffi.new("z_stream[1]")
 
+	---@type integer
 	local ret = _zlib.inflateInit_(stream_p, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
 	assert(ret == ret_codes.Z_OK)
 
@@ -182,9 +212,11 @@ function zlib.inflate_async()
 			return
 		end
 
+		---@type integer
 		ret = _zlib.inflate(stream_p, flush_values.Z_NO_FLUSH)
 		assert(ret ~= ret_codes.Z_STREAM_ERROR)
 		-- Z_BUF_ERROR is ok
+
 		if
 			ret == ret_codes.Z_NEED_DICT or
 			ret == ret_codes.Z_DATA_ERROR or
@@ -200,67 +232,65 @@ function zlib.inflate_async()
 	coroutine.yield("write", stream_p[0].avail_out)
 end
 
----@param chunk_size integer
+---@param s string
 ---@param filter function
----@param file_in file*
----@param file_out file*
-function zlib.process_file(chunk_size, filter, file_in, file_out)
-	local _in = ffi.new("unsigned char[?]", chunk_size)
-	local out = ffi.new("unsigned char[?]", chunk_size)
+---@param chunk_size integer?
+---@return string
+function zlib.apply_filter(s, filter, chunk_size)
+	chunk_size = chunk_size or 8192
+
+	local src_p = ffi.cast("const unsigned char *", s)
+	local src_size = #s
+
+	local dst_p = ffi.new("unsigned char[?]", chunk_size)
+
+	---@type string[]
+	local out = {}
 
 	local has_data = false
 
 	local co = coroutine.create(filter)
 
+	---@type ffi.cdata*, integer
 	local buf, buf_size
 	while coroutine.status(co) ~= "dead" do
 		local _, action, avail_out = assert(coroutine.resume(co, buf, buf_size))
 		if action == "read" then
-			local data = file_in:read(chunk_size)
-			if data then
-				ffi.copy(_in, data, #data)
-				buf, buf_size = _in, #data
-			else
-				buf, buf_size = _in, 0
-			end
+			buf, buf_size = src_p, src_size
+			---@type ffi.cdata*, integer
+			src_p, src_size = src_p + src_size, 0
 		elseif action == "write" then
 			if has_data then
-				file_out:write(ffi.string(out, chunk_size - (avail_out or 0)))
+				table.insert(out, ffi.string(dst_p, chunk_size - (avail_out or 0)))
 			end
-			buf, buf_size = out, chunk_size
+			buf, buf_size = dst_p, chunk_size
 			has_data = true
 		elseif action == "error" then
 			error(avail_out)
 		end
 	end
+
+	return table.concat(out)
 end
 
-local chunk_size = 4096
-
----@param level integer
----@param path_in string
----@param path_out string
-function zlib.deflate_file(level, path_in, path_out)
-	local file_in = assert(io.open(path_in, "rb"))
-	local file_out = assert(io.open(path_out, "wb"))
-	zlib.process_file(chunk_size, function() zlib.deflate_async(level) end, file_in, file_out)
-	file_in:close()
-	file_out:close()
+---@param s string
+---@param chunk_size integer?
+---@return string
+function zlib.deflate(s, chunk_size)
+	return zlib.apply_filter(s, zlib.deflate_async, chunk_size)
 end
 
----@param path_in string
----@param path_out string
-function zlib.inflate_file(path_in, path_out)
-	local file_in = assert(io.open(path_in, "rb"))
-	local file_out = assert(io.open(path_out, "wb"))
-	zlib.process_file(chunk_size, zlib.inflate_async, file_in, file_out)
-	file_in:close()
-	file_out:close()
+---@param s string
+---@param chunk_size integer?
+---@return string
+function zlib.inflate(s, chunk_size)
+	return zlib.apply_filter(s, zlib.inflate_async, chunk_size)
 end
 
--- zlib.deflate_file(6, "zlib.lua", "zlib.lua.z")
--- zlib.inflate_file("zlib.lua.z", "zlib.lua.dz")
+local test_string = ("test"):rep(1000)
 
--- print(zlib.version())
+assert(zlib.uncompress(zlib.compress(test_string), #test_string) == test_string)
+assert(zlib.inflate(zlib.deflate(test_string, 10), 10) == test_string)
+assert(zlib.inflate(zlib.deflate(test_string)) == test_string)
 
 return zlib
