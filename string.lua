@@ -23,7 +23,7 @@ function string.split(s, div)
 end
 
 ---@param d string
----@return function
+---@return fun(s: string, p: string?): integer?, string?
 local function next_split(d)
 	---@param s string
 	---@param p integer
@@ -33,7 +33,7 @@ local function next_split(d)
 		end
 		local a, b = s:find(d, p, true)
 		if not a then
-			return false, s:sub(p)
+			return nil, s:sub(p)
 		end
 		return b + 1, s:sub(p, a - 1)
 	end
@@ -42,7 +42,7 @@ next_split = table_util.cache(next_split)
 
 ---@param s string
 ---@param d string
----@return function
+---@return fun(s: string, p: string?): integer?, string?
 ---@return string
 ---@return number
 function string.isplit(s, d)
