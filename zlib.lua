@@ -69,12 +69,28 @@ local ret_codes = {
 	Z_VERSION_ERROR = -6,
 }
 
+local function z_assert(ok, ret)
+	if ok then
+		return
+	end
+	local code = ""
+	for k, v in pairs(ret_codes) do
+		if v == ret then
+			code = k
+			break
+		end
+	end
+	error(code)
+end
+
 ---@class zlib.z_stream
 ---@field avail_in integer
 ---@field avail_out integer
 ---@field next_in ffi.cdata*
 ---@field next_out ffi.cdata*
 local z_stream = {}
+
+---@alias zlib.level -1|0|1|2|3|4|5|6|7|8|9
 
 local zlib = {}
 
@@ -94,14 +110,15 @@ end
 ---@param dst_size integer
 ---@param src_p string|ffi.cdata*
 ---@param src_size integer
----@param level integer?
+---@param level zlib.level?
 ---@return integer
 function zlib.compress_ex(dst_p, dst_size, src_p, src_size, level)
+	level = level or -1
 	local out_size = ffi.new("unsigned long[1]", dst_size)
 
 	---@type integer
-	local ret = _zlib.compress2(dst_p, out_size, src_p, src_size, level or -1)
-	assert(ret == ret_codes.Z_OK)
+	local ret = _zlib.compress2(dst_p, out_size, src_p, src_size, level)
+	z_assert(ret == ret_codes.Z_OK, ret)
 
 	---@type integer
 	return tonumber(out_size[0])
@@ -117,18 +134,19 @@ function zlib.uncompress_ex(dst_p, dst_size, src_p, src_size)
 
 	---@type integer
 	local ret = _zlib.uncompress(dst_p, out_size, src_p, src_size)
-	assert(ret == ret_codes.Z_OK)
+	z_assert(ret == ret_codes.Z_OK, ret)
 
 	---@type integer
 	return tonumber(out_size[0])
 end
 
 ---@param s string
+---@param level zlib.level?
 ---@return string
-function zlib.compress(s)
+function zlib.compress(s, level)
 	local size = zlib.compress_bound(#s)
 	local out = ffi.new("char[?]", size)
-	size = zlib.compress_ex(out, size, s, #s)
+	size = zlib.compress_ex(out, size, s, #s, level)
 	return ffi.string(out, size)
 end
 
@@ -166,7 +184,7 @@ local function update_stream(stream_p)
 	return true
 end
 
----@param level integer?
+---@param level zlib.level?
 function zlib.deflate_async(level)
 	level = level or -1
 
@@ -175,7 +193,7 @@ function zlib.deflate_async(level)
 
 	---@type integer
 	local ret = _zlib.deflateInit_(stream_p, level, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
-	assert(ret == ret_codes.Z_OK)
+	z_assert(ret == ret_codes.Z_OK, ret)
 
 	-- Z_OK, Z_STREAM_END, Z_STREAM_ERROR, Z_BUF_ERROR
 	while ret ~= ret_codes.Z_STREAM_END do
@@ -190,7 +208,7 @@ function zlib.deflate_async(level)
 
 		---@type integer
 		ret = _zlib.deflate(stream_p, finish and flush_values.Z_FINISH or flush_values.Z_NO_FLUSH)
-		assert(ret ~= ret_codes.Z_STREAM_ERROR)
+		z_assert(ret ~= ret_codes.Z_STREAM_ERROR, ret)
 		-- Z_BUF_ERROR is ok
 	end
 
@@ -203,7 +221,7 @@ function zlib.inflate_async()
 
 	---@type integer
 	local ret = _zlib.inflateInit_(stream_p, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
-	assert(ret == ret_codes.Z_OK)
+	z_assert(ret == ret_codes.Z_OK, ret)
 
 	-- Z_OK, Z_STREAM_END, Z_NEED_DICT, Z_DATA_ERROR, Z_STREAM_ERROR, Z_MEM_ERROR, Z_BUF_ERROR
 	while ret ~= ret_codes.Z_STREAM_END do
@@ -214,7 +232,7 @@ function zlib.inflate_async()
 
 		---@type integer
 		ret = _zlib.inflate(stream_p, flush_values.Z_NO_FLUSH)
-		assert(ret ~= ret_codes.Z_STREAM_ERROR)
+		z_assert(ret ~= ret_codes.Z_STREAM_ERROR, ret)
 		-- Z_BUF_ERROR is ok
 
 		if
@@ -275,9 +293,11 @@ end
 
 ---@param s string
 ---@param chunk_size integer?
+---@param level zlib.level?
 ---@return string
-function zlib.deflate(s, chunk_size)
-	return zlib.apply_filter(s, zlib.deflate_async, chunk_size)
+function zlib.deflate(s, chunk_size, level)
+	local function filter() return zlib.deflate_async(level) end
+	return zlib.apply_filter(s, filter, chunk_size)
 end
 
 ---@param s string
@@ -291,6 +311,8 @@ local test_string = ("test"):rep(1000)
 
 assert(zlib.uncompress(zlib.compress(test_string), #test_string) == test_string)
 assert(zlib.inflate(zlib.deflate(test_string, 10), 10) == test_string)
+assert(zlib.inflate(zlib.deflate(test_string, 10, 0), 10) == test_string)
+assert(zlib.inflate(zlib.deflate(test_string, 10, 9), 10) == test_string)
 assert(zlib.inflate(zlib.deflate(test_string)) == test_string)
 
 return zlib
