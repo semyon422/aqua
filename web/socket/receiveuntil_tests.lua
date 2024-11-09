@@ -167,48 +167,48 @@ end
 
 -- === TEST 21: ambiguous boundary patterns (--abc), mixed by other reading calls consume boundary
 
--- ---@param t testing.T
--- ---@param rsoc web.IExtendedSocket
--- ---@param ssoc web.IExtendedSocket
--- function test.receiveuntil_test_21(t, rsoc, ssoc)
--- 	ssoc:send("----abc----abc-\n")
--- 	ssoc:close()
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_test_21(t, rsoc, ssoc)
+	ssoc:send("----abc----abc-\n")
+	ssoc:close()
 
--- 	local reader = rsoc:receiveuntil("--abc")
+	local reader = rsoc:receiveuntil("--abc")
 
--- 	t:tdeq({reader(2)}, {"--"})
--- 	t:tdeq({rsoc:receive(1)}, {"-"})
--- 	t:tdeq({reader(2)}, {"-a"})
--- 	t:tdeq({rsoc:receive(1)}, {"b"})
--- 	t:tdeq({reader(2)}, {"c-"})
--- 	t:tdeq({rsoc:receive(1)}, {"-"})
--- 	t:tdeq({reader(2)}, {""})
--- 	t:tdeq({rsoc:receive(1)}, {"-"})
--- 	t:tdeq({reader(2)}, {})
--- 	t:tdeq({reader(2)}, {nil, "closed", "\n"})
--- 	t:tdeq({reader(2)}, {nil, "closed", ""})
--- end
+	t:tdeq({reader(2)}, {"--"})
+	t:tdeq({rsoc:receive(1)}, {"-"})
+	t:tdeq({reader(2)}, {"-a"})
+	t:tdeq({rsoc:receive(1)}, {"b"})
+	t:tdeq({reader(2)}, {"c-"})
+	t:tdeq({rsoc:receive(1)}, {"-"})
+	t:tdeq({reader(2)}, {""})
+	t:tdeq({rsoc:receive(1)}, {"-"})
+	t:tdeq({reader(2)}, {})
+	t:tdeq({reader(2)}, {nil, "closed", "\n"})
+	t:tdeq({reader(2)}, {nil, "closed", ""})
+end
 
 -- === TEST 22: ambiguous boundary patterns (--abc), mixed by other reading calls (including receiveuntil) consume boundary
 
--- ---@param t testing.T
--- ---@param rsoc web.IExtendedSocket
--- ---@param ssoc web.IExtendedSocket
--- function test.receiveuntil_test_22(t, rsoc, ssoc)
--- 	ssoc:send("------abd----abc\n")
--- 	ssoc:close()
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_test_22(t, rsoc, ssoc)
+	ssoc:send("------abd----abc\n")
+	ssoc:close()
 
--- 	local reader1 = rsoc:receiveuntil("--abc")
--- 	local reader2 = rsoc:receiveuntil("-ab")
+	local reader1 = rsoc:receiveuntil("--abc")
+	local reader2 = rsoc:receiveuntil("-ab")
 
--- 	t:tdeq({reader1(2)}, {"--"})
--- 	t:tdeq({rsoc:receive(1)}, {"-"})
--- 	t:tdeq({reader1(1)}, {"-"})
--- 	t:tdeq({reader2(2)}, {"-"})
--- 	t:tdeq({reader1()}, {"d--"})
--- 	t:tdeq({reader1()}, {nil, "closed", "\n"})
--- 	t:tdeq({reader1()}, {nil, "closed", ""})
--- end
+	t:tdeq({reader1(2)}, {"--"})
+	t:tdeq({rsoc:receive(1)}, {"-"})
+	t:tdeq({reader1(1)}, {"-"})
+	t:tdeq({reader2(2)}, {"-"})
+	t:tdeq({reader1()}, {"d--"})
+	t:tdeq({reader1()}, {nil, "closed", "\n"})
+	t:tdeq({reader1()}, {nil, "closed", ""})
+end
 
 -- === TEST 25: ambiguous boundary patterns (ab1ab2), ends half way
 
@@ -220,10 +220,8 @@ function test.receiveuntil_test_25(t, rsoc, ssoc)
 
 	local reader = rsoc:receiveuntil("ab1ab2")
 
-	print('--------------------------')
 	t:tdeq({reader(2)}, {"ab1"})
 	t:tdeq({rsoc:receive(3)}, {"ab1"})
-	print('++++++++++++++++++++++++++')
 
 	ssoc:close()
 end
@@ -267,25 +265,25 @@ end
 
 -- === TEST 10: ambiguous boundary patterns (--abc), small buffer, mixed by other reading calls
 
--- ---@param t testing.T
--- ---@param rsoc web.IExtendedSocket
--- ---@param ssoc web.IExtendedSocket
--- function test.receiveuntil_inclusive_test_10(t, rsoc, ssoc)
--- 	ssoc:send("hello, world ----abc\n")
--- 	ssoc:close()
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.receiveuntil_inclusive_test_10(t, rsoc, ssoc)
+	ssoc:send("hello, world ----abc\n")
+	ssoc:close()
 
--- 	local reader = rsoc:receiveuntil("--abc", {inclusive = true})
+	local reader = rsoc:receiveuntil("--abc", {inclusive = true})
 
--- 	t:tdeq({reader(4)}, {"hell"})
--- 	t:tdeq({rsoc:receive(1)}, {"o"})
--- 	t:tdeq({reader(4)}, {", wo"})
--- 	t:tdeq({rsoc:receive(1)}, {"r"})
--- 	t:tdeq({reader(4)}, {"ld -"})
--- 	t:tdeq({rsoc:receive(1)}, {"-"})
--- 	t:tdeq({reader(4)}, {"--abc"})
--- 	t:tdeq({rsoc:receive(1)}, {"\n"})
--- 	t:tdeq({reader(4)}, {})
--- 	t:tdeq({rsoc:receive(4)}, {nil, "closed", ""})
--- end
+	t:tdeq({reader(4)}, {"hell"})
+	t:tdeq({rsoc:receive(1)}, {"o"})
+	t:tdeq({reader(4)}, {", wo"})
+	t:tdeq({rsoc:receive(1)}, {"r"})
+	t:tdeq({reader(4)}, {"ld -"})
+	t:tdeq({rsoc:receive(1)}, {"-"})
+	t:tdeq({reader(4)}, {"--abc"})
+	t:tdeq({rsoc:receive(1)}, {"\n"})
+	t:tdeq({reader(4)}, {})
+	t:tdeq({rsoc:receive(4)}, {nil, "closed", ""})
+end
 
 return test
