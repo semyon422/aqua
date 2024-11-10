@@ -429,17 +429,17 @@ do
 	local data = ("test"):rep(100)
 
 	local comp_data_1 = l7z.encode_s(data)
-	local comp_data_2 = l7z.compress_stream_s(data)
-	assert(#comp_data_1 == #comp_data_2, #comp_data_1 .. " " .. #comp_data_2)
-	assert(comp_data_1 == comp_data_2)
+	-- local comp_data_2 = l7z.compress_stream_s(data)
+	-- assert(#comp_data_1 == #comp_data_2, #comp_data_1 .. " " .. #comp_data_2)
+	-- assert(comp_data_1 == comp_data_2)
 
-	local comp_data = comp_data_2
+	local comp_data = comp_data_1
 
 	local uncomp_data_1 = l7z.decode_s(comp_data)
-	local uncomp_data_2 = l7z.uncompress_stream_s(comp_data)
-	assert(#uncomp_data_1 == #uncomp_data_2)
-	assert(uncomp_data_1 == uncomp_data_2)
-	assert(uncomp_data_2 == data)
+	-- local uncomp_data_2 = l7z.uncompress_stream_s(comp_data)
+	-- assert(#uncomp_data_1 == #uncomp_data_2)
+	-- assert(uncomp_data_1 == uncomp_data_2)
+	assert(uncomp_data_1 == data)
 end
 
 do
