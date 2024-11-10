@@ -1,6 +1,6 @@
 local ffi = require("ffi")
 
-local c7z = ffi.load("/usr/lib/p7zip/7z.so")
+local c7z = ffi.load("7z")
 
 local l7z = {}
 
