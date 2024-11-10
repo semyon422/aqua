@@ -10,3 +10,4 @@
 
 // https://www.7-zip.org/sdk.html
 // gcc -IC -shared -fPIC -o 7z.dll 7z.c
+// gcc -D_GNU_SOURCE -IC -shared -fPIC -o lib7z.so 7z.c
