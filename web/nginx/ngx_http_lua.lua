@@ -8,6 +8,8 @@
 
 local socket_compile_pattern = require("web.nginx.socket_compile_pattern")
 local socket_compiled_pattern_t = require("web.nginx.socket_compiled_pattern_t")
+local ngx_chain_t = require("web.nginx.ngx_chain_t")
+local ngx_buf_t = require("web.nginx.ngx_buf_t")
 
 ---@param s string
 ---@param i integer
@@ -18,8 +20,19 @@ end
 
 local ngx_http_lua = {}
 
+---@param len integer
+---@return ngx.chain_t
+function ngx_http_lua.chain_get_free_buf(len)
+	local cl = ngx_chain_t()
+	cl.buf = ngx_buf_t(len)
+	return cl
+end
+
+--------------------------------------------------------------------------------
+
+--- ngx_http_lua_read_bytes
 ---@param src ngx.buf_t
----@param buf_in ngx.buf_t
+---@param buf_in ngx.chain_t
 ---@param rest_p {[1]: integer}
 ---@param bytes integer
 ---@return "ok"|"again"|"error"
@@ -29,22 +42,23 @@ function ngx_http_lua.read_bytes(src, buf_in, rest_p, bytes)
 	end
 
 	if bytes >= rest_p[1] then
-		buf_in.last = buf_in.last + rest_p[1]
+		buf_in.buf.last = buf_in.buf.last + rest_p[1]
 		src.pos = src.pos + rest_p[1]
 		rest_p[1] = 0
 
 		return "ok"
 	end
 
-	buf_in.last = buf_in.last + bytes
+	buf_in.buf.last = buf_in.buf.last + bytes
 	src.pos = src.pos + bytes
 	rest_p[1] = rest_p[1] - bytes
 
 	return "again"
 end
 
+--- ngx_http_lua_read_all
 ---@param src ngx.buf_t
----@param buf_in ngx.buf_t
+---@param buf_in ngx.chain_t
 ---@param bytes integer
 ---@return "ok"|"again"
 function ngx_http_lua.read_all(src, buf_in, bytes)
@@ -52,14 +66,15 @@ function ngx_http_lua.read_all(src, buf_in, bytes)
 		return "ok"
 	end
 
-	buf_in.last = buf_in.last + bytes
+	buf_in.buf.last = buf_in.buf.last + bytes
 	src.pos = src.pos + bytes
 
 	return "again"
 end
 
+--- ngx_http_lua_read_any
 ---@param src ngx.buf_t
----@param buf_in ngx.buf_t
+---@param buf_in ngx.chain_t
 ---@param max integer
 ---@param bytes integer
 ---@return "ok"|"error"
@@ -72,14 +87,15 @@ function ngx_http_lua.read_any(src, buf_in, max, bytes)
 		bytes = max
 	end
 
-	buf_in.last = buf_in.last + bytes
+	buf_in.buf.last = buf_in.buf.last + bytes
 	src.pos = src.pos + bytes
 
 	return "ok"
 end
 
+--- ngx_http_lua_read_line
 ---@param src ngx.buf_t
----@param buf_in ngx.buf_t
+---@param buf_in ngx.chain_t
 ---@param bytes integer
 ---@return "ok"|"again"|"error"
 function ngx_http_lua.read_line(src, buf_in, bytes)
@@ -87,7 +103,7 @@ function ngx_http_lua.read_line(src, buf_in, bytes)
 		return "error"
 	end
 
-	local dst = buf_in.last
+	local dst = buf_in.buf.last
 
 	while bytes > 0 do
 		bytes = bytes - 1
@@ -95,22 +111,24 @@ function ngx_http_lua.read_line(src, buf_in, bytes)
 		src.pos = src.pos + 1
 
 		if c == "\n" then
-			buf_in.last = dst
+			buf_in.buf.last = dst
 			return "ok"
 		elseif c == "\r" then
 		else
-			buf_in:set(dst, c)
+			-- *dst++ = c;
+			buf_in.buf:set(dst, c)
 			dst = dst + 1
 		end
 	end
 
-	buf_in.last = dst
+	buf_in.buf.last = dst
 
 	return "again"
 end
 
 --------------------------------------------------------------------------------
 
+--- ngx_http_lua_socket_read_chunk
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@param bytes integer
 ---@return "ok"|"again"|"error"
@@ -124,6 +142,7 @@ function ngx_http_lua.socket_read_chunk(u, bytes)
 	return rc
 end
 
+--- ngx_http_lua_socket_read_all
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@param bytes integer
 ---@return "ok"|"again"
@@ -131,6 +150,7 @@ function ngx_http_lua.socket_read_all(u, bytes)
 	return ngx_http_lua.read_all(u.buffer, u.buf_in, bytes)
 end
 
+--- ngx_http_lua_socket_read_line
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@param bytes integer
 ---@return "ok"|"again"|"error"
@@ -142,6 +162,7 @@ function ngx_http_lua.socket_read_line(u, bytes)
 	return rc
 end
 
+--- ngx_http_lua_socket_read_any
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@param bytes integer
 ---@return "ok"|"again"|"error"
@@ -164,6 +185,8 @@ function ngx_http_lua.socket_tcp_receiveany(u, bytes)
 	if u.read_closed then
 		return nil, "closed", ""
 	end
+
+	assert(type(bytes) == "number" and bytes > 0, "bad max argument")
 
 	u.input_filter = ngx_http_lua.socket_read_any
 	u.rest = bytes
@@ -199,7 +222,6 @@ function ngx_http_lua.socket_tcp_receive(u, pattern)
 		if bytes == 0 then
 			return ""
 		end
-
 		u.input_filter = ngx_http_lua.socket_read_chunk
 		u.length = bytes
 		u.rest = u.length
@@ -239,8 +261,8 @@ function ngx_http_lua.socket_tcp_read_prepare(u, data)
 
 	if b.pos - b.start >= cp.state then
 		b.pos = b.pos - cp.state
-		u.buf_in.pos = b.pos
-		u.buf_in.last = b.pos
+		u.buf_in.buf.pos = b.pos
+		u.buf_in.buf.last = b.pos
 		cp.state = 0
 		return
 	end
@@ -249,16 +271,30 @@ function ngx_http_lua.socket_tcp_read_prepare(u, data)
 	error("pending data in multiple buffers")
 end
 
+local buffer_size = 1024
+
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@return "ok"|"error"?
 function ngx_http_lua.socket_tcp_receive_helper(u)
-	if not u.buf_in then
-		error("not implemented")
+	if not u.bufs_in then
+		u.bufs_in = ngx_http_lua.chain_get_free_buf(buffer_size)
+		u.buf_in = u.bufs_in
+		u.buffer = u.buf_in.buf
 	end
 
 	ngx_http_lua.socket_tcp_read_prepare(u, u)
 
 	local rc = ngx_http_lua.socket_tcp_read(u)
+
+	if rc == "error" then
+		return ngx_http_lua.socket_tcp_receive_retval_handler(u)
+	end
+
+	if rc == "ok" then
+		return ngx_http_lua.socket_tcp_receive_retval_handler(u)
+	end
+
+	-- !!!!!!!!!!!!!!
 
 	if u.buf_in.pos == u.buf_in.last then
 		u.ft_type.NGX_HTTP_LUA_SOCKET_FT_CLOSED = true
@@ -267,6 +303,7 @@ function ngx_http_lua.socket_tcp_receive_helper(u)
 	return ngx_http_lua.socket_tcp_receive_retval_handler(u)
 end
 
+--- ngx_http_lua_socket_prepare_error_retvals
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@param ft_type {[string]: true}
 ---@return nil
@@ -280,11 +317,13 @@ function ngx_http_lua.socket_prepare_error_retvals(u, ft_type)
 	return nil, "error"
 end
 
+--- ngx_http_lua_socket_tcp_finalize_read_part
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 function ngx_http_lua.socket_tcp_finalize_read_part(u)
 	u.read_closed = true
 end
 
+--- ngx_http_lua_socket_read_error_retval_handler
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 function ngx_http_lua.socket_read_error_retval_handler(u)
 	local ft_type = u.ft_type
@@ -299,6 +338,7 @@ function ngx_http_lua.socket_read_error_retval_handler(u)
 	return ngx_http_lua.socket_prepare_error_retvals(u, ft_type)
 end
 
+--- ngx_http_lua_socket_tcp_receive_retval_handler
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 function ngx_http_lua.socket_tcp_receive_retval_handler(u)
 	if next(u.ft_type) then
@@ -306,22 +346,48 @@ function ngx_http_lua.socket_tcp_receive_retval_handler(u)
 			u.no_close = true
 		end
 
-		if u.buf_in then
+		if u.bufs_in then
 			local data = ngx_http_lua.socket_push_input_data(u)
 			local _, err = ngx_http_lua.socket_read_error_retval_handler(u)
 			return nil, err, data
 		end
 
-		return ngx_http_lua.socket_read_error_retval_handler(u)
+		local n, err = ngx_http_lua.socket_read_error_retval_handler(u)
+		return n, err, ""
 	end
 
 	return ngx_http_lua.socket_push_input_data(u)
 end
 
+--- ngx_http_lua_socket_push_input_data
 ---@param u ngx_http_lua.socket_tcp_upstream_t
+---@return string
 function ngx_http_lua.socket_push_input_data(u)
-	local b = u.buf_in
-	local res = b:sub()
+	---@type ngx.buf_t
+	local b
+	local nbufs = 0
+	---@type table, string
+	local ll_t, ll_k
+	---@type string[]
+	local luabuf = {}
+
+	local cl = u.bufs_in
+	while cl do
+		b = cl.buf
+		luabuf[nbufs + 1] = b:sub()
+		if cl.next then
+			ll_t, ll_k = cl, "next"
+		end
+		nbufs = nbufs + 1
+		cl = cl.next
+	end
+
+	local res = table.concat(luabuf)
+
+	if nbufs > 1 and ll_t then
+		-- ll_t[ll_k] =
+		u.bufs_in = u.buf_in
+	end
 
 	if u.buffer.pos == u.buffer.last then
 		u.buffer.pos = u.buffer.start
@@ -329,17 +395,20 @@ function ngx_http_lua.socket_push_input_data(u)
 	end
 
 	if u.buf_in then
-		u.buf_in.last = u.buffer.pos
-		u.buf_in.pos = u.buffer.pos
+		u.buf_in.buf.last = u.buffer.pos
+		u.buf_in.buf.pos = u.buffer.pos
 	end
 
 	return res
 end
 
+--- ngx_http_lua_socket_add_input_buffer
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 function ngx_http_lua.socket_add_input_buffer(u)
-	u.buf_in._end = 1024
-	u.buffer._end = 1024
+	local cl = ngx_http_lua.chain_get_free_buf(buffer_size)
+	u.buf_in.next = cl
+	u.buf_in = cl
+	u.buffer = cl.buf
 end
 
 ---@param u ngx_http_lua.socket_tcp_upstream_t
@@ -396,7 +465,7 @@ function ngx_http_lua.socket_tcp_read(u)
 		data = data or partial
 		local n = #data
 		b.data = b.data:sub(1, b.last) .. data
-		u.buf_in.data = u.buf_in.data:sub(1, u.buf_in.last) .. data
+		-- u.buf_in.data = u.buf_in.data:sub(1, u.buf_in.last) .. data
 
 		if n == 0 and err == "timeout" then
 			n = "again"
@@ -427,22 +496,56 @@ function ngx_http_lua.socket_tcp_read(u)
 	return rc
 end
 
+--- ngx_http_lua_socket_add_pending_data
 ---@param u ngx_http_lua.socket_tcp_upstream_t
+---@param pos integer
 ---@param len integer
+---@param pat string
 ---@param prefix integer
 ---@param old_state integer
-function ngx_http_lua.socket_add_pending_data(u, len, prefix, old_state)
-	local pos = u.buffer.pos
+function ngx_http_lua.socket_add_pending_data(u, pos, len, pat, prefix, old_state)
 	local last = pos + len
-	local b = u.buf_in
+	local b = u.buf_in.buf
 
 	if last - b.last == old_state then
 		b.last = b.last + prefix
 		return
 	end
 
+	ngx_http_lua.socket_insert_buffer(u, pat, prefix)
+
 	b.pos = last
 	b.last = last
+end
+
+--- ngx_http_lua_socket_insert_buffer
+---@param u ngx_http_lua.socket_tcp_upstream_t
+---@param pat string
+---@param prefix integer
+function ngx_http_lua.socket_insert_buffer(u, pat, prefix)
+	---@type table, string
+	local ll_t, ll_k
+
+	local size = prefix
+	if size <= buffer_size then
+		size = buffer_size
+	end
+
+	local new_cl = ngx_http_lua.chain_get_free_buf(size)
+
+	local b = new_cl.buf
+
+	b.last = b:ngx_copy(b.last, pat, prefix)
+
+	ll_t, ll_k = u, "bufs_in"
+	local cl = u.bufs_in
+	while cl.next do
+		ll_t, ll_k = cl, "next"
+		cl = cl.next
+	end
+
+	ll_t[ll_k] = new_cl
+	new_cl.next = u.buf_in
 end
 
 ---@param cp ngx_http_lua.socket_compiled_pattern_t
@@ -481,7 +584,7 @@ function ngx_http_lua.socket_read_until(cp, bytes)
 				end
 
 				if cp.inclusive then
-					ngx_http_lua.socket_add_pending_data(u, 0, state, state)
+					ngx_http_lua.socket_add_pending_data(u, b.pos, 0, pat, state, state)
 				end
 
 				return "ok"
@@ -491,7 +594,7 @@ function ngx_http_lua.socket_read_until(cp, bytes)
 		end
 
 		if state == 0 then
-			u.buf_in.last = u.buf_in.last + 1
+			u.buf_in.buf.last = u.buf_in.buf.last + 1
 			i = i + 1
 
 			if u.length > 0 then
@@ -522,7 +625,7 @@ function ngx_http_lua.socket_read_until(cp, bytes)
 		end
 
 		if not matched then
-			ngx_http_lua.socket_add_pending_data(u, i, state, state)
+			ngx_http_lua.socket_add_pending_data(u, b.pos, i, pat, state, state)
 
 			if u.length > 0 then
 				if u.rest <= state then
@@ -540,7 +643,7 @@ function ngx_http_lua.socket_read_until(cp, bytes)
 		end
 
 		local pending_len = old_state + 1 - state
-		ngx_http_lua.socket_add_pending_data(u, i, pending_len, old_state)
+		ngx_http_lua.socket_add_pending_data(u, b.pos, i, pat, pending_len, old_state)
 
 		i = i + 1
 
@@ -604,12 +707,26 @@ function ngx_http_lua.socket_receiveuntil_iterator(u, cp, size)
 	cp.upstream = u
 	-- cp.pattern = pattern
 
+	if not u.bufs_in then
+		u.bufs_in = ngx_http_lua.chain_get_free_buf(buffer_size)
+		u.buf_in = u.bufs_in
+		u.buffer = u.buf_in.buf
+	end
+
 	u.length = bytes
 	u.rest = u.length
 
 	ngx_http_lua.socket_tcp_read_prepare(u, cp)
 
 	local rc = ngx_http_lua.socket_tcp_read(u)
+
+	if rc == "error" then
+		return ngx_http_lua.socket_tcp_receive_retval_handler(u)
+	end
+
+	if rc == "ok" then
+		return ngx_http_lua.socket_tcp_receive_retval_handler(u)
+	end
 
 	return ngx_http_lua.socket_tcp_receive_retval_handler(u)
 end

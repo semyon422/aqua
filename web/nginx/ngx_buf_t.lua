@@ -1,15 +1,15 @@
 local class = require("class")
+local ffi = require("ffi")
 
 ---@class ngx.buf_t
 ---@operator call: ngx.buf_t
 local ngx_buf_t = class()
 
----@param data string
-function ngx_buf_t:new(data)
-	data = data or ""
-	self.data = data
+---@param size integer
+function ngx_buf_t:new(size)
+	self.data = (" "):rep(size)
 	self.start = 0
-	self._end = #data
+	self._end = size
 	self.pos = 0
 	self.last = 0
 end
@@ -36,6 +36,16 @@ end
 function ngx_buf_t:set(offset, c)
 	local data = self.data
 	self.data = data:sub(1, offset) .. c .. data:sub(offset + 2)
+end
+
+---@param s string
+---@param size integer
+---@return integer
+function ngx_buf_t:ngx_copy(offset, s, size)
+	local b = ffi.new("uint8_t[?]", #self.data, self.data)
+	ffi.copy(b + offset, s, size)
+	self.data = ffi.string(b, #self.data)
+	return offset + size
 end
 
 return ngx_buf_t
