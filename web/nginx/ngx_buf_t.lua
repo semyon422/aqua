@@ -7,23 +7,48 @@ local ngx_buf_t = class()
 
 ---@param size integer
 function ngx_buf_t:new(size)
-	self.data = (" "):rep(size)
+	self.data = ffi.new("uint8_t[?]", size)
 	self.start = 0
 	self._end = size
 	self.pos = 0
 	self.last = 0
 end
 
+---@param b ngx.buf_t
+function ngx_buf_t:clone_from(b)
+	for k, v in pairs(b) do
+		self[k] = v
+	end
+end
+
+---@return ngx.buf_t
+function ngx_buf_t:clone()
+	return setmetatable({
+		data = self.data,
+		start = self.start,
+		_end = self._end,
+		pos = self.pos,
+		last = self.last,
+	}, ngx_buf_t)
+end
+
 ---@param i integer?
 ---@return string
 function ngx_buf_t:charAtPos0(i)
-	local j = self.pos + (i or 0) + 1
-	return self.data:sub(j, j)
+	local j = self.pos + (i or 0)
+	return string.char(self.data[j])
+end
+
+---@param offset integer
+---@return ffi.cdata*
+function ngx_buf_t:get_ptr(offset)
+	return self.data + offset
 end
 
 ---@return string
 function ngx_buf_t:sub()
-	return self.data:sub(self.pos + 1, self.last)
+	local chunk_size = self.last - self.pos
+	return ffi.string(self.data + self.pos, chunk_size)
 end
 
 ---@return integer
@@ -34,18 +59,22 @@ end
 ---@param offset integer
 ---@param c string
 function ngx_buf_t:set(offset, c)
-	local data = self.data
-	self.data = data:sub(1, offset) .. c .. data:sub(offset + 2)
+	self.data[offset] = c:byte()
 end
 
----@param s string
+---@param s string|ffi.cdata*
 ---@param size integer
 ---@return integer
 function ngx_buf_t:ngx_copy(offset, s, size)
-	local b = ffi.new("uint8_t[?]", #self.data, self.data)
-	ffi.copy(b + offset, s, size)
-	self.data = ffi.string(b, #self.data)
+	ffi.copy(self.data + offset, s, size)
 	return offset + size
+end
+
+---@param size integer
+---@return integer
+function ngx_buf_t:ngx_palloc(size)
+	self.data = ffi.new("uint8_t[?]", size)
+	return 0
 end
 
 return ngx_buf_t

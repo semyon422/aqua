@@ -11,6 +11,11 @@ local socket_compiled_pattern_t = require("web.nginx.socket_compiled_pattern_t")
 local ngx_chain_t = require("web.nginx.ngx_chain_t")
 local ngx_buf_t = require("web.nginx.ngx_buf_t")
 
+local buffer_size = 1
+
+---@type ngx.chain_t
+local free_recv_bufs = nil
+
 ---@param s string
 ---@param i integer
 ---@return string
@@ -23,8 +28,48 @@ local ngx_http_lua = {}
 ---@param len integer
 ---@return ngx.chain_t
 function ngx_http_lua.chain_get_free_buf(len)
+	local free = free_recv_bufs
+
+	---@type ngx.buf_t
+	local b
+	---@type ngx.chain_t
+	local cl
+
+	if free then
+		cl = free
+		free = cl.next
+		cl.next = nil
+
+		b = cl.buf
+		local start = b.start
+		local _end = b._end
+		if _end - start >= len then
+			b.start = start
+			b.pos = start
+			b.last = start
+			b._end = _end
+
+			return cl
+		end
+
+		if len == 0 then
+			return cl
+		end
+
+		b.start = b:ngx_palloc(len)
+
+		b._end = b.start + len
+
+		b.pos = b.start
+		b.last = b.start
+
+		return cl
+	end
+
 	local cl = ngx_chain_t()
 	cl.buf = ngx_buf_t(len)
+	cl.next = nil
+
 	return cl
 end
 
@@ -267,11 +312,23 @@ function ngx_http_lua.socket_tcp_read_prepare(u, data)
 		return
 	end
 
-	-- not implemented
-	error("pending data in multiple buffers")
-end
+	local size = b:size()
 
-local buffer_size = 1024
+	local new_cl = ngx_http_lua.chain_get_free_buf(cp.state + size)
+
+	b:clone_from(new_cl.buf)
+
+	b.last = b:ngx_copy(b.last, cp.pattern, cp.state)
+	b.last = b:ngx_copy(b.last, u.buf_in.buf:get_ptr(u.buf_in.buf.pos), size)
+
+	u.buf_in.next = free_recv_bufs
+	free_recv_bufs = u.buf_in
+
+	u.bufs_in = new_cl
+	u.buf_in = new_cl
+
+	cp.state = 0
+end
 
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@return "ok"|"error"?
@@ -279,7 +336,7 @@ function ngx_http_lua.socket_tcp_receive_helper(u)
 	if not u.bufs_in then
 		u.bufs_in = ngx_http_lua.chain_get_free_buf(buffer_size)
 		u.buf_in = u.bufs_in
-		u.buffer = u.buf_in.buf
+		u.buffer = u.buf_in.buf:clone()
 	end
 
 	ngx_http_lua.socket_tcp_read_prepare(u, u)
@@ -385,7 +442,8 @@ function ngx_http_lua.socket_push_input_data(u)
 	local res = table.concat(luabuf)
 
 	if nbufs > 1 and ll_t then
-		-- ll_t[ll_k] =
+		-- ll_t[ll_k] = free_recv_bufs
+		-- free_recv_bufs = u.bufs_in
 		u.bufs_in = u.buf_in
 	end
 
@@ -408,7 +466,7 @@ function ngx_http_lua.socket_add_input_buffer(u)
 	local cl = ngx_http_lua.chain_get_free_buf(buffer_size)
 	u.buf_in.next = cl
 	u.buf_in = cl
-	u.buffer = cl.buf
+	u.buffer = cl.buf:clone()
 end
 
 ---@param u ngx_http_lua.socket_tcp_upstream_t
@@ -464,8 +522,7 @@ function ngx_http_lua.socket_tcp_read(u)
 		local data, err, partial = ngx_http_lua.socket_read_handler(u, size)
 		data = data or partial
 		local n = #data
-		b.data = b.data:sub(1, b.last) .. data
-		-- u.buf_in.data = u.buf_in.data:sub(1, u.buf_in.last) .. data
+		b:ngx_copy(b.last, data, n)
 
 		if n == 0 and err == "timeout" then
 			n = "again"
@@ -710,7 +767,7 @@ function ngx_http_lua.socket_receiveuntil_iterator(u, cp, size)
 	if not u.bufs_in then
 		u.bufs_in = ngx_http_lua.chain_get_free_buf(buffer_size)
 		u.buf_in = u.bufs_in
-		u.buffer = u.buf_in.buf
+		u.buffer = u.buf_in.buf:clone()
 	end
 
 	u.length = bytes
