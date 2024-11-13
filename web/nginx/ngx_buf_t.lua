@@ -61,7 +61,7 @@ end
 
 ---@return integer
 function ngx_buf_t:size()
-	return self._end - self.start
+	return self.last - self.pos
 end
 
 ---@param offset integer
