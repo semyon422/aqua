@@ -16,9 +16,11 @@ end
 
 ---@param b ngx.buf_t
 function ngx_buf_t:clone_from(b)
-	for k, v in pairs(b) do
-		self[k] = v
-	end
+	self.data = b.data
+	self.start = b.start
+	self._end = b._end
+	self.pos = b.pos
+	self.last = b.last
 end
 
 ---@return ngx.buf_t
@@ -51,6 +53,12 @@ function ngx_buf_t:sub()
 	return ffi.string(self.data + self.pos, chunk_size)
 end
 
+---@return string
+function ngx_buf_t:sub_full()
+	local chunk_size = self._end - self.start
+	return ffi.string(self.data, chunk_size)
+end
+
 ---@return integer
 function ngx_buf_t:size()
 	return self._end - self.start
@@ -75,6 +83,14 @@ end
 function ngx_buf_t:ngx_palloc(size)
 	self.data = ffi.new("uint8_t[?]", size)
 	return 0
+end
+
+---@return string
+function ngx_buf_t:__tostring()
+	return ("%q:%s-%s"):format(
+		ffi.string(self.data, self:size()),
+		self.pos, self.last
+	)
 end
 
 return ngx_buf_t
