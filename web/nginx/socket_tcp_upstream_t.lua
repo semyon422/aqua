@@ -20,9 +20,17 @@ function socket_tcp_upstream_t:new()
 	self.eof = false
 	self.no_close = false
 	self.read_closed = false
+	self.buffer_size = 8192
 	-- self.bufs_in = ngx_chain_t()  -- input data buffers
 	-- self.buf_in = ngx_chain_t()  -- last input data buffer
 	-- self.buffer = ngx_buf_t()  -- receive buffer
+end
+
+---@param b ngx.buf_t
+---@param offset integer
+---@param size integer
+function socket_tcp_upstream_t:recv(b, offset, size)  -- n = c->recv(c, b->last, size);
+	error("not implemented")
 end
 
 return socket_tcp_upstream_t

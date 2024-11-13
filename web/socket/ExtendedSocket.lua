@@ -11,7 +11,23 @@ local ExtendedSocket = IExtendedSocket + {}
 function ExtendedSocket:new(soc)
 	self.soc = soc
 	self.upstream = socket_tcp_upstream_t()
-	self.upstream.soc = soc
+
+	---@param b ngx.buf_t
+	---@param offset integer
+	---@param size integer
+	function self.upstream:recv(b, offset, size)
+		local data, err, partial = soc:receive(size)
+		data = data or partial
+		local n = #data
+		b:ngx_copy(offset, data, n)
+		if n == 0 and err == "timeout" then
+			n = "again"
+		end
+
+		self.err = err
+
+		return n
+	end
 end
 
 ---@param pattern "*a"|"*l"|integer?
@@ -21,21 +37,48 @@ end
 ---@return string?
 function ExtendedSocket:receive(pattern, prefix)
 	assert(not prefix, "not implemented")
-	return ngx_http_lua.socket_tcp_receive(self.upstream, pattern)
+	local rc, data = ngx_http_lua.socket_tcp_receive(self.upstream, pattern)
+	if pattern == "*a" then
+		if data ~= "" and self.upstream.err ~= "timeout" then
+			return data
+		end
+		return nil, self.upstream.err, data
+	end
+	if rc == "ok" then
+		return data
+	else
+		return nil, self.upstream.err, data
+	end
 end
 
 ---@param max integer
 ---@return string?
 ---@return "closed"|"timeout"?
 function ExtendedSocket:receiveany(max)
-	return ngx_http_lua.socket_tcp_receiveany(self.upstream, max)
+	local rc, data = ngx_http_lua.socket_tcp_receiveany(self.upstream, max)
+	if rc == "ok" then
+		return data
+	else
+		return nil, self.upstream.err, data
+	end
 end
 
 ---@param pattern string
 ---@param options {inclusive: boolean?}?
 ---@return fun(size: integer?): string?, "closed"|"timeout"?, string?
 function ExtendedSocket:receiveuntil(pattern, options)
-	return ngx_http_lua.socket_tcp_receiveuntil(self.upstream, pattern, options)
+	local iterator = ngx_http_lua.socket_tcp_receiveuntil(self.upstream, pattern, options)
+	return function(max)
+		local rc, data = iterator(max)
+		if not data then
+			return data
+		end
+		if rc == "ok" then
+			return data
+		else
+			return nil, self.upstream.err, data
+		end
+	end
 end
 
 ---@param data string

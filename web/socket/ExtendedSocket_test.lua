@@ -27,19 +27,21 @@ function test.receiveuntil_all(t)
 	end
 end
 
--- ---@param t testing.T
--- function test.receiveuntil_small_chunk_size(t)
--- 	---@type {[string]: function}
--- 	local tpl = require("web.socket.receiveuntil_tests")
+---@param t testing.T
+function test.receiveuntil_small_buffer_size(t)
+	---@type {[string]: function}
+	local tpl = require("web.socket.receiveuntil_tests")
 
--- 	for chunk_size = 1, 8 do
--- 		for _, f in pairs(tpl) do
--- 			local soc = ExtendedSocket(StringSocket())
--- 			soc.chunk_size = chunk_size
--- 			f(t, soc, soc)
--- 		end
--- 	end
--- end
+	for buffer_size = 1, 8 do
+		for _, f in pairs(tpl) do
+			local soc = ExtendedSocket(StringSocket())
+			soc.upstream.buffer_size = buffer_size
+			f(t, soc, soc)
+		end
+	end
+end
+
+-- receiveany will return smaller strings on smaller buffers
 
 ---@param t testing.T
 function test.receiveany_timeout(t)

@@ -11,8 +11,6 @@ local socket_compiled_pattern_t = require("web.nginx.socket_compiled_pattern_t")
 local ngx_chain_t = require("web.nginx.ngx_chain_t")
 local ngx_buf_t = require("web.nginx.ngx_buf_t")
 
-local buffer_size = 1
-
 ---@type ngx.chain_t
 local free_recv_bufs = nil
 
@@ -28,16 +26,14 @@ local ngx_http_lua = {}
 ---@param len integer
 ---@return ngx.chain_t
 function ngx_http_lua.chain_get_free_buf(len)
-	local free = free_recv_bufs
-
 	---@type ngx.buf_t
 	local b
 	---@type ngx.chain_t
 	local cl
 
-	if free then
-		cl = free
-		free = cl.next
+	if free_recv_bufs then
+		cl = free_recv_bufs
+		free_recv_bufs = cl.next
 		cl.next = nil
 
 		b = cl.buf
@@ -334,7 +330,7 @@ end
 ---@return "ok"|"error"?
 function ngx_http_lua.socket_tcp_receive_helper(u)
 	if not u.bufs_in then
-		u.bufs_in = ngx_http_lua.chain_get_free_buf(buffer_size)
+		u.bufs_in = ngx_http_lua.chain_get_free_buf(u.buffer_size)
 		u.buf_in = u.bufs_in
 		u.buffer = u.buf_in.buf:clone()
 	end
@@ -343,21 +339,7 @@ function ngx_http_lua.socket_tcp_receive_helper(u)
 
 	local rc = ngx_http_lua.socket_tcp_read(u)
 
-	if rc == "error" then
-		return ngx_http_lua.socket_tcp_receive_retval_handler(u)
-	end
-
-	if rc == "ok" then
-		return ngx_http_lua.socket_tcp_receive_retval_handler(u)
-	end
-
-	-- !!!!!!!!!!!!!!
-
-	if u.buf_in.pos == u.buf_in.last then
-		u.ft_type.NGX_HTTP_LUA_SOCKET_FT_CLOSED = true
-	end
-
-	return ngx_http_lua.socket_tcp_receive_retval_handler(u)
+	return rc, ngx_http_lua.socket_tcp_receive_retval_handler(u)
 end
 
 --- ngx_http_lua_socket_prepare_error_retvals
@@ -398,20 +380,20 @@ end
 --- ngx_http_lua_socket_tcp_receive_retval_handler
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 function ngx_http_lua.socket_tcp_receive_retval_handler(u)
-	if next(u.ft_type) then
-		if u.ft_type.NGX_HTTP_LUA_SOCKET_FT_TIMEOUT then
-			u.no_close = true
-		end
+	-- if next(u.ft_type) then
+	-- 	if u.ft_type.NGX_HTTP_LUA_SOCKET_FT_TIMEOUT then
+	-- 		u.no_close = true
+	-- 	end
 
-		if u.bufs_in then
-			local data = ngx_http_lua.socket_push_input_data(u)
-			local _, err = ngx_http_lua.socket_read_error_retval_handler(u)
-			return nil, err, data
-		end
+	-- 	if u.bufs_in then
+	-- 		local data = ngx_http_lua.socket_push_input_data(u)
+	-- 		local _, err = ngx_http_lua.socket_read_error_retval_handler(u)
+	-- 		return nil, err, data
+	-- 	end
 
-		local n, err = ngx_http_lua.socket_read_error_retval_handler(u)
-		return n, err, ""
-	end
+	-- 	local n, err = ngx_http_lua.socket_read_error_retval_handler(u)
+	-- 	return n, err, ""
+	-- end
 
 	return ngx_http_lua.socket_push_input_data(u)
 end
@@ -442,8 +424,8 @@ function ngx_http_lua.socket_push_input_data(u)
 	local res = table.concat(luabuf)
 
 	if nbufs > 1 and ll_t then
-		-- ll_t[ll_k] = free_recv_bufs
-		-- free_recv_bufs = u.bufs_in
+		ll_t[ll_k] = free_recv_bufs
+		free_recv_bufs = u.bufs_in
 		u.bufs_in = u.buf_in
 	end
 
@@ -452,7 +434,7 @@ function ngx_http_lua.socket_push_input_data(u)
 		u.buffer.last = u.buffer.start
 	end
 
-	if u.buf_in then
+	if u.bufs_in then
 		u.buf_in.buf.last = u.buffer.pos
 		u.buf_in.buf.pos = u.buffer.pos
 	end
@@ -463,21 +445,10 @@ end
 --- ngx_http_lua_socket_add_input_buffer
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 function ngx_http_lua.socket_add_input_buffer(u)
-	local cl = ngx_http_lua.chain_get_free_buf(buffer_size)
+	local cl = ngx_http_lua.chain_get_free_buf(u.buffer_size)
 	u.buf_in.next = cl
 	u.buf_in = cl
 	u.buffer = cl.buf:clone()
-end
-
----@param u ngx_http_lua.socket_tcp_upstream_t
-function ngx_http_lua.socket_read_handler(u, size)
-	local data, err, partial = u.soc:receive(size)
-
-	if (data or partial) == "" and err == "timeout" then
-		u.ft_type.NGX_HTTP_LUA_SOCKET_FT_TIMEOUT = true
-	end
-
-	return data, err, partial
 end
 
 ---@param u ngx_http_lua.socket_tcp_upstream_t
@@ -519,21 +490,14 @@ function ngx_http_lua.socket_tcp_read(u)
 			size = b._end - b.last
 		end
 
-		local data, err, partial = ngx_http_lua.socket_read_handler(u, size)
-		data = data or partial
-		local n = #data
-		b:ngx_copy(b.last, data, n)
+		local n = u:recv(b, b.last, size)
 
-		if n == 0 and err == "timeout" then
-			n = "again"
-		end
+		read = 1
 
 		if n == "again" then
 			rc = "again"
 			break
 		end
-
-		read = 1
 
 		if n == 0 then
 			u.eof = true
@@ -584,8 +548,8 @@ function ngx_http_lua.socket_insert_buffer(u, pat, prefix)
 	local ll_t, ll_k
 
 	local size = prefix
-	if size <= buffer_size then
-		size = buffer_size
+	if size <= u.buffer_size then
+		size = u.buffer_size
 	end
 
 	local new_cl = ngx_http_lua.chain_get_free_buf(size)
@@ -765,7 +729,7 @@ function ngx_http_lua.socket_receiveuntil_iterator(u, cp, size)
 	-- cp.pattern = pattern
 
 	if not u.bufs_in then
-		u.bufs_in = ngx_http_lua.chain_get_free_buf(buffer_size)
+		u.bufs_in = ngx_http_lua.chain_get_free_buf(u.buffer_size)
 		u.buf_in = u.bufs_in
 		u.buffer = u.buf_in.buf:clone()
 	end
@@ -777,15 +741,7 @@ function ngx_http_lua.socket_receiveuntil_iterator(u, cp, size)
 
 	local rc = ngx_http_lua.socket_tcp_read(u)
 
-	if rc == "error" then
-		return ngx_http_lua.socket_tcp_receive_retval_handler(u)
-	end
-
-	if rc == "ok" then
-		return ngx_http_lua.socket_tcp_receive_retval_handler(u)
-	end
-
-	return ngx_http_lua.socket_tcp_receive_retval_handler(u)
+	return rc, ngx_http_lua.socket_tcp_receive_retval_handler(u)
 end
 
 return ngx_http_lua
