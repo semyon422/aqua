@@ -27,29 +27,17 @@ local ngx_http_lua = {}
 ---@param len integer
 ---@return ngx.chain_t
 function ngx_http_lua.chain_get_free_buf(len)
-	---@type ngx.buf_t
-	local b
-	---@type ngx.chain_t
-	local cl
-
 	if free_recv_bufs then
-		cl = free_recv_bufs
+		local cl = free_recv_bufs
 		free_recv_bufs = cl.next
 		cl.next = nil
 
-		b = cl.buf
+		local b = cl.buf
 		local start = b.start
-		local _end = b._end
-		if _end - start >= len then
-			b.start = start
+		if b._end - start >= len then
 			b.pos = start
 			b.last = start
-			b._end = _end
 
-			return cl
-		end
-
-		if len == 0 then
 			return cl
 		end
 
@@ -164,17 +152,17 @@ end
 
 --------------------------------------------------------------------------------
 
+---@type {[1]: integer}
+local rest_p = {}
+
 --- ngx_http_lua_socket_read_chunk
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@param bytes integer
 ---@return ngx.return_code
 function ngx_http_lua.socket_read_chunk(u, bytes)
-	local rest_p = {u.rest}
+	rest_p[1] = u.rest
 	local rc = ngx_http_lua.read_bytes(u.buffer, u.buf_in, rest_p, bytes)
 	u.rest = rest_p[1]
-	if rc == "error" then
-		u.ft_type.NGX_HTTP_LUA_SOCKET_FT_CLOSED = true
-	end
 	return rc
 end
 
@@ -191,11 +179,7 @@ end
 ---@param bytes integer
 ---@return ngx.return_code
 function ngx_http_lua.socket_read_line(u, bytes)
-	local rc = ngx_http_lua.read_line(u.buffer, u.buf_in, bytes)
-	if rc == "error" then
-		u.ft_type.NGX_HTTP_LUA_SOCKET_FT_CLOSED = true
-	end
-	return rc
+	return ngx_http_lua.read_line(u.buffer, u.buf_in, bytes)
 end
 
 --- ngx_http_lua_socket_read_any
@@ -203,11 +187,7 @@ end
 ---@param bytes integer
 ---@return ngx.return_code
 function ngx_http_lua.socket_read_any(u, bytes)
-	local rc = ngx_http_lua.read_any(u.buffer, u.buf_in, u.rest, bytes)
-	if rc == "error" then
-		u.ft_type.NGX_HTTP_LUA_SOCKET_FT_CLOSED = true
-	end
-	return rc
+	return ngx_http_lua.read_any(u.buffer, u.buf_in, u.rest, bytes)
 end
 
 --------------------------------------------------------------------------------
@@ -215,14 +195,9 @@ end
 --- ngx_http_lua_socket_tcp_receiveany
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@param bytes integer
----@return string?
----@return "closed"|"timeout"?
----@return string?
+---@return ngx.return_code
+---@return string
 function ngx_http_lua.socket_tcp_receiveany(u, bytes)
-	if u.read_closed then
-		return nil, "closed", ""
-	end
-
 	assert(type(bytes) == "number" and bytes > 0, "bad max argument")
 
 	u.input_filter = ngx_http_lua.socket_read_any
@@ -235,14 +210,9 @@ end
 --- ngx_http_lua_socket_tcp_receive
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@param pattern "*a"|"*l"|integer?
----@return string?
----@return "closed"|"timeout"?
----@return string?
+---@return ngx.return_code
+---@return string
 function ngx_http_lua.socket_tcp_receive(u, pattern)
-	if u.read_closed then
-		return nil, "closed", ""
-	end
-
 	pattern = pattern or "*l"
 	if type(pattern) == "string" then
 		if pattern == "*l" then
@@ -258,7 +228,7 @@ function ngx_http_lua.socket_tcp_receive(u, pattern)
 		local bytes = pattern
 		assert(bytes >= 0, "bad number argument")
 		if bytes == 0 then
-			return ""
+			return "ok", ""
 		end
 		u.input_filter = ngx_http_lua.socket_read_chunk
 		u.length = bytes
@@ -339,63 +309,7 @@ function ngx_http_lua.socket_tcp_receive_helper(u)
 
 	local rc = ngx_http_lua.socket_tcp_read(u)
 
-	return rc, ngx_http_lua.socket_tcp_receive_retval_handler(u)
-end
-
---- ngx_http_lua_socket_prepare_error_retvals
----@param u ngx_http_lua.socket_tcp_upstream_t
----@param ft_type {[string]: true}
----@return nil
----@return "timeout"|"closed"|"error"
-function ngx_http_lua.socket_prepare_error_retvals(u, ft_type)
-	if ft_type.NGX_HTTP_LUA_SOCKET_FT_TIMEOUT then
-		return nil, "timeout"
-	elseif ft_type.NGX_HTTP_LUA_SOCKET_FT_CLOSED then
-		return nil, "closed"
-	end
-	return nil, "error"
-end
-
---- ngx_http_lua_socket_tcp_finalize_read_part
----@param u ngx_http_lua.socket_tcp_upstream_t
-function ngx_http_lua.socket_tcp_finalize_read_part(u)
-	u.read_closed = true
-end
-
---- ngx_http_lua_socket_read_error_retval_handler
----@param u ngx_http_lua.socket_tcp_upstream_t
-function ngx_http_lua.socket_read_error_retval_handler(u)
-	local ft_type = u.ft_type
-	u.ft_type = {}
-
-	if u.no_close then
-		u.no_close = false
-	else
-		ngx_http_lua.socket_tcp_finalize_read_part(u)
-	end
-
-	return ngx_http_lua.socket_prepare_error_retvals(u, ft_type)
-end
-
---- ngx_http_lua_socket_tcp_receive_retval_handler
----@param u ngx_http_lua.socket_tcp_upstream_t
-function ngx_http_lua.socket_tcp_receive_retval_handler(u)
-	-- if next(u.ft_type) then
-	-- 	if u.ft_type.NGX_HTTP_LUA_SOCKET_FT_TIMEOUT then
-	-- 		u.no_close = true
-	-- 	end
-
-	-- 	if u.bufs_in then
-	-- 		local data = ngx_http_lua.socket_push_input_data(u)
-	-- 		local _, err = ngx_http_lua.socket_read_error_retval_handler(u)
-	-- 		return nil, err, data
-	-- 	end
-
-	-- 	local n, err = ngx_http_lua.socket_read_error_retval_handler(u)
-	-- 	return n, err, ""
-	-- end
-
-	return ngx_http_lua.socket_push_input_data(u)
+	return rc, ngx_http_lua.socket_push_input_data(u)
 end
 
 --- ngx_http_lua_socket_push_input_data
@@ -583,7 +497,6 @@ function ngx_http_lua.socket_read_until(cp, bytes)
 	local matched = false
 
 	if bytes == 0 then
-		u.ft_type.NGX_HTTP_LUA_SOCKET_FT_CLOSED = true
 		return "error"
 	end
 
@@ -698,7 +611,7 @@ end
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@param pattern string
 ---@param options {inclusive: boolean?}?
----@return (fun(size: integer?): string?, "closed"|"timeout"?, string?)?
+---@return (fun(size: integer?): ngx.return_code, string?)?
 ---@return string?
 function ngx_http_lua.socket_tcp_receiveuntil(u, pattern, options)
 	local inclusive = options and options.inclusive or false
@@ -720,21 +633,19 @@ end
 ---@param u ngx_http_lua.socket_tcp_upstream_t
 ---@param cp ngx_http_lua.socket_compiled_pattern_t
 ---@param size integer?
+---@return ngx.return_code
+---@return string?
 function ngx_http_lua.socket_receiveuntil_iterator(u, cp, size)
 	local bytes = 0
 	if size and size > 0 then
 		bytes = size
 	end
 
-	if u.read_closed then
-		return nil, "closed", ""
-	end
-
 	u.input_filter = ngx_http_lua.socket_read_until
 
 	if cp.state == -1 then
 		cp.state = 0
-		return nil, nil, nil
+		return "ok"
 	end
 
 	cp.upstream = u
@@ -752,7 +663,7 @@ function ngx_http_lua.socket_receiveuntil_iterator(u, cp, size)
 
 	local rc = ngx_http_lua.socket_tcp_read(u)
 
-	return rc, ngx_http_lua.socket_tcp_receive_retval_handler(u)
+	return rc, ngx_http_lua.socket_push_input_data(u)
 end
 
 return ngx_http_lua

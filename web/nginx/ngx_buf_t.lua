@@ -26,6 +26,7 @@ end
 ---@param i integer
 ---@param c integer
 function ngx_buf_t:set(i, c)
+	---@type integer
 	self.data[i] = c
 end
 

@@ -4,7 +4,7 @@ local ngx_http_lua = require("web.nginx.ngx_http_lua")
 
 ---@class web.ExtendedSocket: web.IExtendedSocket
 ---@operator call: web.ExtendedSocket
----@field remainder string
+---@field err "closed"|"timeout"?
 local ExtendedSocket = IExtendedSocket + {}
 
 ---@param soc web.ISocket
@@ -12,22 +12,41 @@ function ExtendedSocket:new(soc)
 	self.soc = soc
 	self.upstream = socket_tcp_upstream_t()
 
+	local _self = self
+
 	---@param b ngx.buf_t
 	---@param offset integer
 	---@param size integer
+	---@return integer|"again"
 	function self.upstream:recv(b, offset, size)
 		local data, err, partial = soc:receive(size)
 		data = data or partial
+		---@cast data string
+
 		local n = #data
 		b:copy(offset, data, n)
-		if n == 0 and err == "timeout" then
-			n = "again"
-		end
 
-		self.err = err
+		_self.err = err
+
+		if n == 0 and err == "timeout" then
+			return "again"
+		end
 
 		return n
 	end
+end
+
+---@private
+---@param rc ngx.return_code
+---@param data string?
+---@return string?
+---@return "closed"|"timeout"?
+---@return string?
+function ExtendedSocket:handle_return(rc, data)
+	if rc == "ok" then
+		return data
+	end
+	return nil, self.err, data
 end
 
 ---@param pattern "*a"|"*l"|integer?
@@ -38,46 +57,27 @@ end
 function ExtendedSocket:receive(pattern, prefix)
 	assert(not prefix, "not implemented")
 	local rc, data = ngx_http_lua.socket_tcp_receive(self.upstream, pattern)
-	if pattern == "*a" then
-		if data ~= "" and self.upstream.err ~= "timeout" then
-			return data
-		end
-		return nil, self.upstream.err, data
+	if pattern == "*a" and (data == "" or self.upstream.err == "timeout") then
+		rc = "error"
 	end
-	if rc == "ok" then
-		return data
-	else
-		return nil, self.upstream.err, data
-	end
+	return self:handle_return(rc, data)
 end
 
 ---@param max integer
 ---@return string?
 ---@return "closed"|"timeout"?
+---@return string?
 function ExtendedSocket:receiveany(max)
-	local rc, data = ngx_http_lua.socket_tcp_receiveany(self.upstream, max)
-	if rc == "ok" then
-		return data
-	else
-		return nil, self.upstream.err, data
-	end
+	return self:handle_return(ngx_http_lua.socket_tcp_receiveany(self.upstream, max))
 end
 
 ---@param pattern string
 ---@param options {inclusive: boolean?}?
 ---@return fun(size: integer?): string?, "closed"|"timeout"?, string?
 function ExtendedSocket:receiveuntil(pattern, options)
-	local iterator = ngx_http_lua.socket_tcp_receiveuntil(self.upstream, pattern, options)
+	local iterator = assert(ngx_http_lua.socket_tcp_receiveuntil(self.upstream, pattern, options))
 	return function(max)
-		local rc, data = iterator(max)
-		if not data then
-			return data
-		end
-		if rc == "ok" then
-			return data
-		else
-			return nil, self.upstream.err, data
-		end
+		return self:handle_return(iterator(max))
 	end
 end
 
