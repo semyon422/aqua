@@ -19,7 +19,7 @@ function ExtendedSocket:new(soc)
 		local data, err, partial = soc:receive(size)
 		data = data or partial
 		local n = #data
-		b:ngx_copy(offset, data, n)
+		b:copy(offset, data, n)
 		if n == 0 and err == "timeout" then
 			n = "again"
 		end
