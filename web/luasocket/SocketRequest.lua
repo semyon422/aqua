@@ -6,7 +6,7 @@ local RequestLine = require("web.http.RequestLine")
 ---@operator call: web.SocketRequest
 local SocketRequest = IRequest + {}
 
----@param soc web.AsyncSocket
+---@param soc web.IExtendedSocket
 function SocketRequest:new(soc)
 	self.soc = soc
 	self.headers = Headers()

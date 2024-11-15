@@ -7,14 +7,14 @@ local class = require("class")
 ---@operator call: web.ChunkedEncoding
 local ChunkedEncoding = class()
 
----@param soc web.IAsyncSocket
+---@param soc web.IExtendedSocket
 function ChunkedEncoding:new(soc)
 	self.soc = soc
 end
 
 ---@param headers web.Headers?
 ---@return string?
----@return "closed"|"invalid chunk size"|"malformed headers"?
+---@return "closed"|"timeout"|"invalid chunk size"|"malformed headers"?
 ---@return string?
 function ChunkedEncoding:receive(headers)
 	local data, err, partial = self.soc:receive("*l")
@@ -47,7 +47,7 @@ end
 
 ---@param chunk string?
 ---@return integer?
----@return "closed"?
+---@return "closed"|"timeout"?
 ---@return integer?
 function ChunkedEncoding:send(chunk)
 	return self.soc:send(("%X\r\n%s\r\n"):format(#chunk, chunk))
@@ -55,7 +55,7 @@ end
 
 ---@param headers web.Headers?
 ---@return integer?
----@return "closed"?
+---@return "closed"|"timeout"?
 ---@return integer?
 function ChunkedEncoding:close(headers)
 	if not headers then

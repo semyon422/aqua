@@ -20,9 +20,9 @@ function StatusLine:new(status, reason)
 	self.reason = reason
 end
 
----@param soc web.AsyncSocket
+---@param soc web.IExtendedSocket
 ---@return web.StatusLine?
----@return "closed"?
+---@return "closed"|"timeout"?
 ---@return string?
 function StatusLine:receive(soc)
 	local data, err, partial = soc:receive("*l")
@@ -35,9 +35,9 @@ function StatusLine:receive(soc)
 	return self
 end
 
----@param soc web.AsyncSocket
+---@param soc web.IExtendedSocket
 ---@return integer?
----@return "closed"?
+---@return "closed"|"timeout"?
 ---@return integer?
 function StatusLine:send(soc)
 	local reason = self.reason or codes[tonumber(self.status)] or "Not Implemented"

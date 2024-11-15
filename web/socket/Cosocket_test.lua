@@ -1,4 +1,4 @@
-local AsyncSocket = require("web.socket.AsyncSocket")
+local Cosocket = require("web.socket.Cosocket")
 local FakeSocket = require("web.socket.FakeSocket")
 
 local test = {}
@@ -13,7 +13,7 @@ local DATA_2 = "qwerty"
 
 function test.read_success(t)
 	local soc = FakeSocket({{DATA_1}})
-	local asoc = AsyncSocket(soc)
+	local asoc = Cosocket(soc)
 	local data = asoc:receive(FAKE_SIZE)
 	t:eq(data, DATA_1)
 end
@@ -23,7 +23,7 @@ function test.read_timeout(t)
 		{DATA_1, "timeout"},
 		{DATA_2},
 	})
-	local asoc = AsyncSocket(soc)
+	local asoc = Cosocket(soc)
 
 	local data, err, partial = nil, nil, nil
 	local co = coroutine.create(function()
@@ -47,7 +47,7 @@ function test.read_closed(t)
 		{DATA_1, "timeout"},
 		{DATA_2, "closed"},
 	})
-	local asoc = AsyncSocket(soc)
+	local asoc = Cosocket(soc)
 
 	local data, err, partial = nil, nil, nil
 	local co = coroutine.create(function()
@@ -68,7 +68,7 @@ end
 
 function test.write_success(t)
 	local soc = FakeSocket({{SIZE_1}})
-	local asoc = AsyncSocket(soc)
+	local asoc = Cosocket(soc)
 	local size = asoc:send(FAKE_DATA)
 	t:eq(size, SIZE_1)
 end
@@ -78,7 +78,7 @@ function test.write_timeout(t)
 		{SIZE_1, "timeout"},
 		{SIZE_2},
 	})
-	local asoc = AsyncSocket(soc)
+	local asoc = Cosocket(soc)
 
 	local size, err, partial = 0, nil, nil
 	local co = coroutine.create(function()
@@ -102,7 +102,7 @@ function test.write_closed(t)
 		{SIZE_1, "timeout"},
 		{SIZE_2, "closed"},
 	})
-	local asoc = AsyncSocket(soc)
+	local asoc = Cosocket(soc)
 
 	local size, err, partial = 0, nil, nil
 	local co = coroutine.create(function()

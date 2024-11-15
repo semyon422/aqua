@@ -8,7 +8,7 @@ local SocketResponse = IResponse + {}
 
 SocketResponse.status = 200
 
----@param soc web.AsyncSocket
+---@param soc web.IExtendedSocket
 function SocketResponse:new(soc)
 	self.soc = soc
 	self.headers = Headers()

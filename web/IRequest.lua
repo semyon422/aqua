@@ -2,7 +2,7 @@ local class = require("class")
 
 ---@class web.IRequest
 ---@operator call: web.IRequest
----@field soc web.AsyncSocket
+---@field soc web.IExtendedSocket
 ---@field method string
 ---@field uri string
 ---@field headers web.Headers

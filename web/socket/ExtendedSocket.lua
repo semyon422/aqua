@@ -88,7 +88,7 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function ExtendedSocket:send(data, i, j)
-	return self.soc:send(data:sub(i or 1, j))
+	return self.soc:send(data, i, j)
 end
 
 ---@return 1

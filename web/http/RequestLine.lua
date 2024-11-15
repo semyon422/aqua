@@ -20,9 +20,9 @@ function RequestLine:new(method, uri)
 	self.uri = uri
 end
 
----@param soc web.AsyncSocket
+---@param soc web.IExtendedSocket
 ---@return web.RequestLine?
----@return "closed"?
+---@return "closed"|"timeout"?
 ---@return string?
 function RequestLine:receive(soc)
 	local data, err, partial = soc:receive("*l")
@@ -35,9 +35,9 @@ function RequestLine:receive(soc)
 	return self
 end
 
----@param soc web.AsyncSocket
+---@param soc web.IExtendedSocket
 ---@return integer?
----@return "closed"?
+---@return "closed"|"timeout"?
 ---@return integer?
 function RequestLine:send(soc)
 	local status_line = ("%s %s %s\r\n"):format(self.method, self.uri, self.version)

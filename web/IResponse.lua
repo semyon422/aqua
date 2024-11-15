@@ -2,7 +2,7 @@ local class = require("class")
 
 ---@class web.IResponse
 ---@operator call: web.IResponse
----@field soc web.AsyncSocket
+---@field soc web.IExtendedSocket
 ---@field status integer
 ---@field headers web.Headers
 local IResponse = class()

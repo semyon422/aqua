@@ -11,10 +11,12 @@ local ISocket = class()
 function ISocket:receive(size) end
 
 ---@param data string
+---@param i integer?
+---@param j integer?
 ---@return integer?
 ---@return "closed"|"timeout"?
 ---@return integer?
-function ISocket:send(data) end
+function ISocket:send(data, i, j) end
 
 ---@return 1
 function ISocket:close() return 1 end

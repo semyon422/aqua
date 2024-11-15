@@ -47,9 +47,9 @@ function Headers:get(name)
 	end
 end
 
----@param soc web.IAsyncSocket
+---@param soc web.IExtendedSocket
 ---@return true?
----@return "closed"|"malformed headers"?
+---@return "closed"|"timeout"|"malformed headers"?
 ---@return string?
 function Headers:receive(soc)
 	local line, err, partial = soc:receive("*l")
@@ -96,9 +96,9 @@ function Headers:getKeys()
 	return keys
 end
 
----@param soc web.IAsyncSocket
+---@param soc web.IExtendedSocket
 ---@return integer?
----@return "closed"?
+---@return "closed"|"timeout"?
 ---@return integer?
 function Headers:send(soc)
 	local headers = self.headers
