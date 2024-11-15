@@ -1,6 +1,6 @@
 local IExtendedSocket = require("web.socket.IExtendedSocket")
-local socket_tcp_upstream_t = require("web.nginx.socket_tcp_upstream_t")
-local ngx_http_lua = require("web.nginx.ngx_http_lua")
+local socket_tcp_upstream_t = require("web.ngx.socket_tcp_upstream_t")
+local ngx_http_lua = require("web.ngx.ngx_http_lua")
 
 ---@class web.ExtendedSocket: web.IExtendedSocket
 ---@operator call: web.ExtendedSocket

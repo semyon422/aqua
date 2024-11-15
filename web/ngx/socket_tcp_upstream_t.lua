@@ -1,6 +1,6 @@
 local class = require("class")
-local ngx_buf_t = require("web.nginx.ngx_buf_t")
-local ngx_chain_t = require("web.nginx.ngx_chain_t")
+local ngx_buf_t = require("web.ngx.ngx_buf_t")
+local ngx_chain_t = require("web.ngx.ngx_chain_t")
 
 ---@class ngx_http_lua.socket_tcp_upstream_t
 ---@operator call: ngx_http_lua.socket_tcp_upstream_t

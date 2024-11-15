@@ -1,5 +1,5 @@
 local class = require("class")
-local ngx_str_t = require("web.nginx.ngx_str_t")
+local ngx_str_t = require("web.ngx.ngx_str_t")
 
 ---@class ngx_http_lua.socket_compiled_pattern_t
 ---@operator call: ngx_http_lua.socket_compiled_pattern_t
