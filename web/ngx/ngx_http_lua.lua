@@ -614,7 +614,7 @@ function ngx_http_lua.socket_read_until(cp, bytes)
 			ngx_http_lua.socket_add_pending_data(u, b.pos, i, pat, state, state)
 
 			if u.length > 0 then
-				if u.rest <= state then
+				if u.rest <= state then  -- idk how to cover his block
 					u.rest = 0
 					cp.state = 0
 					b.pos = b.pos + i
