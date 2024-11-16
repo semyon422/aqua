@@ -17,6 +17,7 @@ function IExtendedSocket:receive(pattern, prefix) end
 ---@param max integer
 ---@return string?
 ---@return "closed"|"timeout"?
+---@return string?
 function IExtendedSocket:receiveany(max) end
 
 ---@param pattern string

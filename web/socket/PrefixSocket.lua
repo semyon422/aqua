@@ -48,6 +48,7 @@ end
 ---@param max integer
 ---@return string?
 ---@return "closed"|"timeout"?
+---@return string?
 function PrefixSocket:receiveany(max)
 	return self.soc:receiveany(max)
 end
@@ -60,11 +61,13 @@ function PrefixSocket:receiveuntil(pattern, options)
 end
 
 ---@param data string
+---@param i integer?
+---@param j integer?
 ---@return integer?
 ---@return "closed"|"timeout"?
 ---@return integer?
-function PrefixSocket:send(data)
-	return self.soc:send(data)
+function PrefixSocket:send(data, i, j)
+	return self.soc:send(data, i, j)
 end
 
 ---@return 1

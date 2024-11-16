@@ -38,10 +38,14 @@ function StringSocket:receive(size)
 end
 
 ---@param data string
+---@param i integer?
+---@param j integer?
 ---@return integer?
 ---@return "closed"|"timeout"?
 ---@return integer?
-function StringSocket:send(data)
+function StringSocket:send(data, i, j)
+	assert(not i and not j, "not implemented")
+
 	if self.closed then
 		return nil, "closed", 0
 	end

@@ -39,11 +39,13 @@ function Cosocket:receive(size)
 end
 
 ---@param data string
+---@param i integer?
+---@param j integer?
 ---@return integer?
 ---@return "closed"|"timeout"?
 ---@return integer?
-function Cosocket:send(data)
-	local i, j = 1, #data
+function Cosocket:send(data, i, j)
+	i, j = i or 1, j or #data
 
 	while true do
 		local last_byte, err, _last_byte = self.soc:send(data, i, j)
