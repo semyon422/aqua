@@ -5,6 +5,7 @@ local stbl = require("stbl")
 ---@class testing.T
 ---@operator call: testing.T
 ---@field [integer] string?
+---@field name string?
 local Test = class()
 
 ---@param cond any?
@@ -60,6 +61,9 @@ function Test:expected_assert(cond, got, expected)
 
 	local out = {}
 	table.insert(out, ("%s:%s:"):format(line.short_src, line.currentline))
+	if self.name then
+		out[1] = ("%s (%s)"):format(out[1], self.name)
+	end
 	table.insert(out, "---- expected")
 	table.insert(out, tostring(expected))
 	table.insert(out, "---- got")

@@ -24,9 +24,11 @@ Testing.blacklist = {}
 ---@param method_pattern string?
 function Testing:testMod(tmod, method_pattern)
 	local t = self.t
+	t.name = nil
 	local errors = #t
 	for method, tf in pairs(tmod) do
 		if not method_pattern or method:match(method_pattern) then
+			t.name = method
 			tf(t)
 			if errors ~= #t then
 				errors = #t
