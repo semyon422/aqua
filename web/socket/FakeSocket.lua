@@ -1,8 +1,8 @@
-local ILuaSocket = require("web.socket.ILuaSocket")
+local ISocket = require("web.socket.ISocket")
 
----@class web.FakeSocket: web.ILuaSocket
+---@class web.FakeSocket: web.ISocket
 ---@operator call: web.FakeSocket
-local FakeSocket = ILuaSocket + {}
+local FakeSocket = ISocket + {}
 
 ---@param results {[1]: string|integer, [2]: "closed"|"timeout"}[]
 function FakeSocket:new(results)
