@@ -27,6 +27,7 @@ function ExtendedSocket:new(soc)
 		b:copy(offset, data, n)
 
 		_self.err = err
+		_self.last_bytes = n
 
 		if n == 0 and err == "timeout" then
 			return "again"
@@ -38,11 +39,34 @@ end
 
 ---@private
 ---@param rc ngx.return_code
----@param data string?
+---@param should_not_push boolean
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function ExtendedSocket:handle_return(rc, data)
+function ExtendedSocket:handle_return(rc, should_not_push)
+	---@type string
+	local data
+
+	if rc == "ok" and not should_not_push then
+		data = ngx_http_lua.socket_push_input_data(self.upstream)
+	end
+
+	if rc == "ok" then
+		if data ~= "" or self.last_bytes ~= 0 then
+			return data
+		end
+		return nil, self.err, ""
+	end
+
+	while rc == "again" do
+		rc = ngx_http_lua.socket_tcp_read(self.upstream)
+		if self.last_bytes == 0 then
+			break
+		end
+	end
+
+	data = data or ngx_http_lua.socket_push_input_data(self.upstream)
+
 	if rc == "ok" then
 		return data
 	end
@@ -56,11 +80,7 @@ end
 ---@return string?
 function ExtendedSocket:receive(pattern, prefix)
 	assert(not prefix, "not implemented")
-	local rc, data = ngx_http_lua.socket_tcp_receive(self.upstream, pattern)
-	if pattern == "*a" and (data == "" or self.upstream.err == "timeout") then
-		rc = "error"
-	end
-	return self:handle_return(rc, data)
+	return self:handle_return(ngx_http_lua.socket_tcp_receive(self.upstream, pattern))
 end
 
 ---@param max integer

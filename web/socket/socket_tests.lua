@@ -74,6 +74,26 @@ end
 ---@param t testing.T
 ---@param rsoc web.IExtendedSocket
 ---@param ssoc web.IExtendedSocket
+function test.receive_empty_line(t, rsoc, ssoc)
+	ssoc:send("\r\n\r\n")
+
+	t:tdeq({rsoc:receive("*l")}, {""})
+	t:tdeq({rsoc:receive("*l")}, {""})
+	t:tdeq({rsoc:receive("*l")}, {nil, "timeout", ""})
+	t:tdeq({rsoc:receive("*l")}, {nil, "timeout", ""})
+
+	ssoc:send("\r\n\r\n")
+	ssoc:close()
+
+	t:tdeq({rsoc:receive("*l")}, {""})
+	t:tdeq({rsoc:receive("*l")}, {""})
+	t:tdeq({rsoc:receive("*l")}, {nil, "closed", ""})
+	t:tdeq({rsoc:receive("*l")}, {nil, "closed", ""})
+end
+
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_line_multiple_close(t, rsoc, ssoc)
 	ssoc:send("qwe\r\nrty\r\nuio")
 	ssoc:close()

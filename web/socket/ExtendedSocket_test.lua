@@ -9,10 +9,27 @@ function test.socket_all(t)
 	---@type {[string]: function}
 	local tpl = require("web.socket.socket_tests")
 
-	for _, f in pairs(tpl) do
+	for k, f in pairs(tpl) do
+		t.name = k
 		local ext_soc = ExtendedSocket(StringSocket())
 		local soc = PrefixSocket(ext_soc)
 		f(t, soc, soc)
+	end
+end
+
+---@param t testing.T
+function test.socket_small_buffer_size(t)
+	---@type {[string]: function}
+	local tpl = require("web.socket.socket_tests")
+
+	for buffer_size = 1, 16 do
+		for k, f in pairs(tpl) do
+			t.name = k
+			local ext_soc = ExtendedSocket(StringSocket())
+			local soc = PrefixSocket(ext_soc)
+			ext_soc.upstream.buffer_size = buffer_size
+			f(t, soc, soc)
+		end
 	end
 end
 
@@ -21,7 +38,8 @@ function test.receiveuntil_all(t)
 	---@type {[string]: function}
 	local tpl = require("web.socket.receiveuntil_tests")
 
-	for _, f in pairs(tpl) do
+	for k, f in pairs(tpl) do
+		t.name = k
 		local soc = ExtendedSocket(StringSocket())
 		f(t, soc, soc)
 	end
@@ -32,8 +50,9 @@ function test.receiveuntil_small_buffer_size(t)
 	---@type {[string]: function}
 	local tpl = require("web.socket.receiveuntil_tests")
 
-	for buffer_size = 1, 8 do
-		for _, f in pairs(tpl) do
+	for buffer_size = 1, 16 do
+		for k, f in pairs(tpl) do
+			t.name = k
 			local soc = ExtendedSocket(StringSocket())
 			soc.upstream.buffer_size = buffer_size
 			f(t, soc, soc)
