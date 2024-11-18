@@ -76,6 +76,17 @@ function test.receiveany_timeout(t)
 end
 
 ---@param t testing.T
+function test.receiveany_more_timeout(t)
+	local soc = ExtendedSocket(StringSocket())
+
+	soc:send("qwerty")
+
+	t:tdeq({soc:receiveany(10)}, {"qwerty"})
+	t:tdeq({soc:receiveany(10)}, {nil, "timeout", ""})
+	t:tdeq({soc:receiveany(10)}, {nil, "timeout", ""})
+end
+
+---@param t testing.T
 function test.receiveany_closed(t)
 	local soc = ExtendedSocket(StringSocket())
 
@@ -87,6 +98,18 @@ function test.receiveany_closed(t)
 	t:tdeq({soc:receiveany(3)}, {"ty"})
 	t:tdeq({soc:receiveany(3)}, {nil, "closed", ""})
 	t:tdeq({soc:receiveany(3)}, {nil, "closed", ""})
+end
+
+---@param t testing.T
+function test.receiveany_more_closed(t)
+	local soc = ExtendedSocket(StringSocket())
+
+	soc:send("qwerty")
+	soc:close()
+
+	t:tdeq({soc:receiveany(10)}, {"qwerty"})
+	t:tdeq({soc:receiveany(10)}, {nil, "closed", ""})
+	t:tdeq({soc:receiveany(10)}, {nil, "closed", ""})
 end
 
 return test
