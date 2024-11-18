@@ -7,6 +7,9 @@ local ngx_http_lua = require("web.ngx.ngx_http_lua")
 ---@field err "closed"|"timeout"?
 local ExtendedSocket = IExtendedSocket + {}
 
+-- cosocket mode
+ExtendedSocket.cosocket = false
+
 ---@param soc web.ISocket
 function ExtendedSocket:new(soc)
 	self.soc = soc
@@ -59,6 +62,9 @@ function ExtendedSocket:handle_return(rc, should_not_push)
 	end
 
 	while rc == "again" do
+		if self.cosocket then
+			coroutine.yield("read")
+		end
 		rc = ngx_http_lua.socket_tcp_read(self.upstream)
 		if self.last_bytes == 0 then
 			break
@@ -108,7 +114,28 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function ExtendedSocket:send(data, i, j)
-	return self.soc:send(data, i, j)
+	if not self.cosocket then
+		return self.soc:send(data, i, j)
+	end
+
+	i, j = i or 1, j or #data
+
+	while true do
+		local last_byte, err, _last_byte = self.soc:send(data, i, j)
+		if err == "closed" then
+			return nil, "closed", _last_byte
+		end
+
+		local byte = last_byte or _last_byte
+		---@cast byte integer
+
+		i = byte + 1
+		if last_byte then
+			return last_byte
+		elseif err == "timeout" then
+			coroutine.yield("write")
+		end
+	end
 end
 
 ---@return 1
