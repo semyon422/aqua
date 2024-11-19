@@ -44,23 +44,23 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function StringSocket:send(data, i, j)
-	assert(not i and not j, "not implemented")
-
 	if self.closed then
 		return nil, "closed", 0
 	end
 
-	local data_size = #data
+	i = i or 1
+	j = j or #data
+	local data_size = j - i + 1
 	local avail_size = self.max_size - #self.remainder
-
 	if avail_size >= data_size then
-		self.remainder = self.remainder .. data:sub(1, data_size)
-		return data_size
+		self.remainder = self.remainder .. data:sub(i, j)
+		return j
 	end
 
-	self.remainder = self.remainder .. data:sub(1, avail_size)
+	local last_byte = i + avail_size - 1
+	self.remainder = self.remainder .. data:sub(i, last_byte)
 
-	return nil, "timeout", avail_size
+	return nil, "timeout", last_byte
 end
 
 return StringSocket
