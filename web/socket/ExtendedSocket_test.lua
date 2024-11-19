@@ -60,6 +60,19 @@ function test.receiveuntil_small_buffer_size(t)
 	end
 end
 
+---@param t testing.T
+function test.cosocket(t)
+	---@type {[string]: function}
+	local tpl = require("web.socket.cosocket_tests")
+
+	for k, f in pairs(tpl) do
+		t.name = k
+		local soc = ExtendedSocket(StringSocket())
+		soc.cosocket = true
+		f(t, soc, soc)
+	end
+end
+
 -- receiveany will return smaller strings on smaller buffers
 
 ---@param t testing.T
