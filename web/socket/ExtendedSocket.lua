@@ -23,6 +23,8 @@ function ExtendedSocket:new(soc)
 	---@return integer|"again"
 	function self.upstream:recv(b, offset, size)
 		local data, err, partial = soc:receive(size)
+		assert(not err or err == "closed" or err == "timeout", err)
+
 		data = data or partial
 		---@cast data string
 
