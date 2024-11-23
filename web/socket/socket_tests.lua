@@ -273,4 +273,18 @@ function test.remainder_size(t, rsoc, ssoc)
 	t:tdeq({rsoc:receive("*a")}, {nil, "closed", ""})
 end
 
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.send_range(t, rsoc, ssoc)
+	local s = "qwertyuiop"
+
+	t:tdeq({ssoc:send(s, 1, 3)}, {3})
+	t:tdeq({ssoc:send(s, 4, 5)}, {5})
+
+	ssoc:close()
+
+	t:tdeq({ssoc:send(s, 6, 7)}, {nil, "closed", 5})
+end
+
 return test

@@ -7,6 +7,7 @@ local ExtendedSocket = require("web.socket.ExtendedSocket")
 local SocketRequest = require("web.luasocket.SocketRequest")
 local SocketResponse = require("web.luasocket.SocketResponse")
 local SslSocket = require("web.luasocket.SslSocket")
+local SocketFilter = require("web.filter.SocketFilter")
 
 ---@class web.LuasocketServer
 ---@operator call: web.LuasocketServer
@@ -29,7 +30,7 @@ function LuasocketServer:server(ip, port, handler)
 	assert(soc:settimeout(0))
 
 	self.tcp_updater:addServer(soc, function(client)
-		local soc = ExtendedSocket(client)
+		local soc = ExtendedSocket(SocketFilter(client))
 		soc.cosocket = true
 		local req = SocketRequest(soc)
 		local res = SocketResponse(soc)
@@ -57,7 +58,7 @@ function LuasocketServer:client(ip, port, handler)
 	assert(soc:settimeout(0))
 
 	self.tcp_updater:addClient(soc, function(client)
-		local soc = ExtendedSocket(SslSocket(client))
+		local soc = ExtendedSocket(SocketFilter(SslSocket(client)))
 		soc.cosocket = true
 		local req = SocketRequest(soc)
 		local res = SocketResponse(soc)

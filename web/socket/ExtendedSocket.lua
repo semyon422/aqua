@@ -10,10 +10,10 @@ local ExtendedSocket = IExtendedSocket + {}
 -- cosocket mode
 ExtendedSocket.cosocket = false
 
----@param soc web.ISocket
-function ExtendedSocket:new(soc)
-	self.soc = soc
+---@param fil web.IFilter
+function ExtendedSocket:new(fil)
 	self.upstream = socket_tcp_upstream_t()
+	self.fil = fil
 
 	local _self = self
 
@@ -22,19 +22,22 @@ function ExtendedSocket:new(soc)
 	---@param size integer
 	---@return integer|"again"
 	function self.upstream:recv(b, offset, size)
-		local data, err, partial = soc:receive(size)
-		assert(not err or err == "closed" or err == "timeout", err)
+		local data, err = _self.fil:receive(size)
+		assert(not err or err == "closed", err)
 
-		data = data or partial
-		---@cast data string
+		if not data then
+			_self.err = "closed"
+			_self.last_bytes = 0
+			return 0
+		end
 
 		local n = #data
 		b:copy(offset, data, n)
 
-		_self.err = err
+		_self.err = "timeout"
 		_self.last_bytes = n
 
-		if n == 0 and err == "timeout" then
+		if n == 0 then
 			return "again"
 		end
 
@@ -116,25 +119,31 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function ExtendedSocket:send(data, i, j)
-	if not self.cosocket then
-		return self.soc:send(data, i, j)
-	end
-
 	i, j = i or 1, j or #data
 
+	if not self.cosocket then
+		local last_byte, err = self.fil:send(data:sub(i, j))
+		if not last_byte then
+			return nil, "closed", i - 1
+		end
+		last_byte = last_byte + i - 1
+		if last_byte < j then
+			return nil, "timeout", last_byte
+		end
+		return last_byte
+	end
+
 	while true do
-		local last_byte, err, _last_byte = self.soc:send(data, i, j)
-		if err == "closed" then
-			return nil, "closed", _last_byte
+		local last_byte, err = self.fil:send(data:sub(i, j))
+
+		if not last_byte then
+			return nil, "closed", i - 1
 		end
 
-		local byte = last_byte or _last_byte
-		---@cast byte integer
-
-		i = byte + 1
+		i = i + last_byte
 		if last_byte then
 			return last_byte
-		elseif err == "timeout" then
+		elseif not err then
 			coroutine.yield("write")
 		end
 	end
@@ -142,7 +151,8 @@ end
 
 ---@return 1
 function ExtendedSocket:close()
-	return self.soc:close()
+	self.fil:close()
+	return 1
 end
 
 return ExtendedSocket

@@ -22,8 +22,6 @@ end
 ---@return "closed"|"timeout"?
 ---@return string?
 function StringSocket:receive(size)
-	assert(type(size) == "number", "invalid size type")
-
 	local rem = self.remainder
 
 	if size <= #rem then

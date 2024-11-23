@@ -1,6 +1,7 @@
 local Headers = require("web.http.Headers")
 local StringSocket = require("web.socket.StringSocket")
 local ExtendedSocket = require("web.socket.ExtendedSocket")
+local SocketFilter = require("web.filter.SocketFilter")
 
 local test = {}
 
@@ -12,7 +13,7 @@ function test.basic(t)
 	headers:add("Name2", "value2")
 
 	local str_soc = StringSocket()
-	local soc = ExtendedSocket(str_soc)
+	local soc = ExtendedSocket(SocketFilter(str_soc))
 	headers:send(soc)
 
 	t:eq(str_soc.remainder, "Name1: value1\r\nName1: value2\r\nName2: value2\r\n\r\n")
@@ -29,7 +30,7 @@ function test.empty(t)
 	local headers = Headers()
 
 	local str_soc = StringSocket()
-	local soc = ExtendedSocket(str_soc)
+	local soc = ExtendedSocket(SocketFilter(str_soc))
 	headers:send(soc)
 
 	t:eq(str_soc.remainder, "\r\n")
