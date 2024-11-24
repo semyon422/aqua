@@ -1,11 +1,11 @@
-local class = require("class")
+local ISocket = require("web.socket.ISocket")
 
 -- https://lunarmodules.github.io/luasocket/tcp.html
 -- https://github.com/openresty/lua-nginx-module?tab=readme-ov-file#tcpsockreceive
 
----@class web.IExtendedSocket
+---@class web.IExtendedSocket: web.ISocket
 ---@operator call: web.IExtendedSocket
-local IExtendedSocket = class()
+local IExtendedSocket = ISocket + {}
 
 ---@param pattern "*a"|"*l"|integer?
 ---@param prefix string?

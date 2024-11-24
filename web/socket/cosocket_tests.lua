@@ -16,8 +16,11 @@ function test.receive_timeout(t, rsoc, ssoc)
 
 	ssoc:send("rty")
 
-	t:tdeq({coroutine.resume(co)}, {true, "read"})
-	t:tdeq({coroutine.resume(co)}, {true})
+	local ok, reason = coroutine.resume(co)
+	t:tdeq({ok, reason}, {true, "read"})
+	while ok and reason do
+		ok, reason = coroutine.resume(co)
+	end
 
 	t:eq(data, nil)
 	t:eq(err, "timeout")

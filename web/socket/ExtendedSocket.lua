@@ -14,6 +14,7 @@ ExtendedSocket.cosocket = false
 function ExtendedSocket:new(fil)
 	self.upstream = socket_tcp_upstream_t()
 	self.fil = fil
+	self.last_bytes = 0
 
 	local _self = self
 
