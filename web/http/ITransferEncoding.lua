@@ -18,15 +18,10 @@ end
 ---@return string?
 function ITransferEncoding:receive() end
 
----@param chunk string
+---@param data string?
 ---@return integer?
 ---@return "closed"|"timeout"?
 ---@return integer?
-function ITransferEncoding:send(chunk) end
-
----@return integer?
----@return "closed"|"timeout"?
----@return integer?
-function ITransferEncoding:close() end
+function ITransferEncoding:send(data) end
 
 return ITransferEncoding
