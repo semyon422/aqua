@@ -1,16 +1,16 @@
 local SocketResponse = require("web.luasocket.SocketResponse")
 local StringSocket = require("web.socket.StringSocket")
 local ExtendedSocket = require("web.socket.ExtendedSocket")
-local SocketFilter = require("web.filter.SocketFilter")
 
 local test = {}
 
 local response_full = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"
+local response_chunked = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"
 
 ---@param t testing.T
 function test.receive_length(t)
 	local str_soc = StringSocket(response_full)
-	local soc = ExtendedSocket(SocketFilter(str_soc))
+	local soc = ExtendedSocket(str_soc)
 	soc:close()
 	local res = SocketResponse(soc)
 
@@ -22,7 +22,7 @@ end
 ---@param t testing.T
 function test.send_length(t)
 	local str_soc = StringSocket()
-	local soc = ExtendedSocket(SocketFilter(str_soc))
+	local soc = ExtendedSocket(str_soc)
 	local res = SocketResponse(soc)
 
 	res.status = 200

@@ -10,10 +10,10 @@ local ExtendedSocket = IExtendedSocket + {}
 -- cosocket mode
 ExtendedSocket.cosocket = false
 
----@param fil web.IFilter
-function ExtendedSocket:new(fil)
+---@param soc web.ISocket
+function ExtendedSocket:new(soc)
+	self.soc = soc
 	self.upstream = socket_tcp_upstream_t()
-	self.fil = fil
 	self.last_bytes = 0
 
 	local _self = self
@@ -23,8 +23,12 @@ function ExtendedSocket:new(fil)
 	---@param size integer
 	---@return integer|"again"
 	function self.upstream:recv(b, offset, size)
-		local data, err = _self.fil:receive(size)
-		assert(not err or err == "closed", err)
+		local data, err = _self.soc:receiveany(size)
+		assert(not err or err == "closed" or err == "timeout", err)
+
+		if err == "timeout" then
+			data = ""
+		end
 
 		if not data then
 			_self.err = "closed"
@@ -120,31 +124,25 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function ExtendedSocket:send(data, i, j)
-	i, j = i or 1, j or #data
-
 	if not self.cosocket then
-		local last_byte, err = self.fil:send(data:sub(i, j))
-		if not last_byte then
-			return nil, "closed", i - 1
-		end
-		last_byte = last_byte + i - 1
-		if last_byte < j then
-			return nil, "timeout", last_byte
-		end
-		return last_byte
+		return self.soc:send(data, i, j)
 	end
 
-	while true do
-		local last_byte, err = self.fil:send(data:sub(i, j))
+	i, j = i or 1, j or #data
 
-		if not last_byte then
-			return nil, "closed", i - 1
+	while true do
+		local last_byte, err, _last_byte = self.soc:send(data, i, j)
+		if err == "closed" then
+			return nil, "closed", _last_byte
 		end
 
-		i = i + last_byte
+		local byte = last_byte or _last_byte
+		---@cast byte integer
+
+		i = byte + 1
 		if last_byte then
 			return last_byte
-		elseif not err then
+		elseif err == "timeout" then
 			coroutine.yield("write")
 		end
 	end
@@ -152,8 +150,7 @@ end
 
 ---@return 1
 function ExtendedSocket:close()
-	self.fil:close()
-	return 1
+	return self.soc:close()
 end
 
 return ExtendedSocket

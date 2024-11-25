@@ -42,12 +42,13 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function StringSocket:send(data, i, j)
-	if self.closed then
-		return nil, "closed", 0
-	end
-
 	i = i or 1
 	j = j or #data
+
+	if self.closed then
+		return nil, "closed", i - 1
+	end
+
 	local data_size = j - i + 1
 	local avail_size = self.max_size - #self.remainder
 	if avail_size >= data_size then

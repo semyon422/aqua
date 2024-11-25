@@ -1,7 +1,6 @@
 local ExtendedSocket = require("web.socket.ExtendedSocket")
 local StringSocket = require("web.socket.StringSocket")
 local PrefixSocket = require("web.socket.PrefixSocket")
-local SocketFilter = require("web.filter.SocketFilter")
 
 local test = {}
 
@@ -12,15 +11,15 @@ function test.socket_all(t)
 
 	for k, f in pairs(tpl) do
 		t.name = k
-		local ext_soc = ExtendedSocket(SocketFilter(StringSocket()))
+		local ext_soc = ExtendedSocket(StringSocket())
 		local soc = PrefixSocket(ext_soc)
 		f(t, soc, soc)
 	end
 
 	for k, f in pairs(tpl) do
 		t.name = k
-		local ext_soc = ExtendedSocket(SocketFilter(StringSocket()))
-		ext_soc = ExtendedSocket(SocketFilter(ext_soc))
+		local ext_soc = ExtendedSocket(StringSocket())
+		ext_soc = ExtendedSocket(ext_soc)
 		local soc = PrefixSocket(ext_soc)
 		f(t, soc, soc)
 	end
@@ -34,7 +33,7 @@ function test.socket_small_buffer_size(t)
 	for buffer_size = 1, 16 do
 		for k, f in pairs(tpl) do
 			t.name = k
-			local ext_soc = ExtendedSocket(SocketFilter(StringSocket()))
+			local ext_soc = ExtendedSocket(StringSocket())
 			local soc = PrefixSocket(ext_soc)
 			ext_soc.upstream.buffer_size = buffer_size
 			f(t, soc, soc)
@@ -44,8 +43,8 @@ function test.socket_small_buffer_size(t)
 	for buffer_size = 1, 16 do
 		for k, f in pairs(tpl) do
 			t.name = k
-			local ext_soc = ExtendedSocket(SocketFilter(StringSocket()))
-			ext_soc = ExtendedSocket(SocketFilter(ext_soc))
+			local ext_soc = ExtendedSocket(StringSocket())
+			ext_soc = ExtendedSocket(ext_soc)
 			local soc = PrefixSocket(ext_soc)
 			ext_soc.upstream.buffer_size = buffer_size
 			f(t, soc, soc)
@@ -60,14 +59,14 @@ function test.receiveuntil_all(t)
 
 	for k, f in pairs(tpl) do
 		t.name = k
-		local soc = ExtendedSocket(SocketFilter(StringSocket()))
+		local soc = ExtendedSocket(StringSocket())
 		f(t, soc, soc)
 	end
 
 	for k, f in pairs(tpl) do
 		t.name = k
-		local soc = ExtendedSocket(SocketFilter(StringSocket()))
-		soc = ExtendedSocket(SocketFilter(soc))
+		local soc = ExtendedSocket(StringSocket())
+		soc = ExtendedSocket(soc)
 		f(t, soc, soc)
 	end
 end
@@ -80,7 +79,7 @@ function test.receiveuntil_small_buffer_size(t)
 	for buffer_size = 1, 16 do
 		for k, f in pairs(tpl) do
 			t.name = k
-			local soc = ExtendedSocket(SocketFilter(StringSocket()))
+			local soc = ExtendedSocket(StringSocket())
 			soc.upstream.buffer_size = buffer_size
 			f(t, soc, soc)
 		end
@@ -89,8 +88,8 @@ function test.receiveuntil_small_buffer_size(t)
 	for buffer_size = 1, 16 do
 		for k, f in pairs(tpl) do
 			t.name = k
-			local soc = ExtendedSocket(SocketFilter(StringSocket()))
-			soc = ExtendedSocket(SocketFilter(soc))
+			local soc = ExtendedSocket(StringSocket())
+			soc = ExtendedSocket(soc)
 			soc.upstream.buffer_size = buffer_size
 			f(t, soc, soc)
 		end
@@ -104,24 +103,24 @@ function test.cosocket(t)
 
 	for k, f in pairs(tpl) do
 		t.name = k
-		local soc = ExtendedSocket(SocketFilter(StringSocket()))
+		local soc = ExtendedSocket(StringSocket())
 		soc.cosocket = true
 		f(t, soc, soc)
 	end
 
 	for k, f in pairs(tpl) do
 		t.name = k
-		local soc = ExtendedSocket(SocketFilter(StringSocket()))
-		soc = ExtendedSocket(SocketFilter(soc))
+		local soc = ExtendedSocket(StringSocket())
+		soc = ExtendedSocket(soc)
 		soc.cosocket = true
 		f(t, soc, soc)
 	end
 
 	for k, f in pairs(tpl) do
 		t.name = k
-		local soc = ExtendedSocket(SocketFilter(StringSocket()))
+		local soc = ExtendedSocket(StringSocket())
 		soc.cosocket = true
-		soc = ExtendedSocket(SocketFilter(soc))
+		soc = ExtendedSocket(soc)
 		f(t, soc, soc)
 	end
 end
@@ -135,14 +134,14 @@ function test.receiveany_all(t)
 
 	for k, f in pairs(tpl) do
 		t.name = k
-		local soc = ExtendedSocket(SocketFilter(StringSocket()))
+		local soc = ExtendedSocket(StringSocket())
 		f(t, soc, soc)
 	end
 
 	for k, f in pairs(tpl) do
 		t.name = k
-		local soc = ExtendedSocket(SocketFilter(StringSocket()))
-		soc = ExtendedSocket(SocketFilter(soc))
+		local soc = ExtendedSocket(StringSocket())
+		soc = ExtendedSocket(soc)
 		f(t, soc, soc)
 	end
 end

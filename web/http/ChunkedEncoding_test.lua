@@ -2,7 +2,6 @@ local ChunkedEncoding = require("web.http.ChunkedEncoding")
 local StringSocket = require("web.socket.StringSocket")
 local ExtendedSocket = require("web.socket.ExtendedSocket")
 local PrefixSocket = require("web.socket.PrefixSocket")
-local SocketFilter = require("web.filter.SocketFilter")
 local Headers = require("web.http.Headers")
 
 local test = {}
@@ -10,7 +9,7 @@ local test = {}
 ---@param t testing.T
 function test.basic_no_trailing(t)
 	local str_soc = StringSocket()
-	local soc = PrefixSocket(ExtendedSocket(SocketFilter(str_soc)))
+	local soc = PrefixSocket(ExtendedSocket(str_soc))
 
 	local enc = ChunkedEncoding(soc)
 	enc:send("qwe")
@@ -28,7 +27,7 @@ end
 ---@param t testing.T
 function test.basic_trailing(t)
 	local str_soc = StringSocket()
-	local soc = PrefixSocket(ExtendedSocket(SocketFilter(str_soc)))
+	local soc = PrefixSocket(ExtendedSocket(str_soc))
 
 	local enc = ChunkedEncoding(soc)
 	enc.headers:add("Name", "value")
@@ -48,7 +47,7 @@ end
 ---@param t testing.T
 function test.multiple_incomplete_timeout(t)
 	local str_soc = StringSocket()
-	local soc = PrefixSocket(ExtendedSocket(SocketFilter(str_soc)))
+	local soc = PrefixSocket(ExtendedSocket(str_soc))
 
 	local enc = ChunkedEncoding(soc)
 	enc:send("qwert")
@@ -68,7 +67,7 @@ end
 ---@param t testing.T
 function test.size_line_incomplete_timeout(t)
 	local str_soc = StringSocket()
-	local soc = PrefixSocket(ExtendedSocket(SocketFilter(str_soc)))
+	local soc = PrefixSocket(ExtendedSocket(str_soc))
 
 	local enc = ChunkedEncoding(soc)
 
