@@ -6,6 +6,24 @@ local Headers = require("web.http.Headers")
 
 local test = {}
 
+---@param enc web.ChunkedEncoding
+---@param chunked_content string
+local function test_by_byte(enc, chunked_content)
+	---@type string[]
+	local out = {}
+
+	local i = 1
+	while true do
+		local data, err = enc:receiveany(1)
+		if not data then
+			table.insert(out, data)
+		else
+
+		end
+
+	end
+end
+
 ---@param t testing.T
 function test.basic_no_trailing(t)
 	local str_soc = StringSocket()

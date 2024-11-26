@@ -1,14 +1,12 @@
-local ITransferEncoding = require("web.http.ITransferEncoding")
+local ISocket = require("web.socket.ISocket")
 local Headers = require("web.http.Headers")
 
 -- https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Transfer-Encoding
 -- https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Trailer
 
----@class web.ChunkedEncoding: web.ITransferEncoding
+---@class web.ChunkedEncoding: web.ISocket
 ---@operator call: web.ChunkedEncoding
-local ChunkedEncoding = ITransferEncoding + {}
-
-ChunkedEncoding.name = "chunked"
+local ChunkedEncoding = ISocket + {}
 
 ---@param soc web.IExtendedSocket
 function ChunkedEncoding:new(soc)
@@ -16,7 +14,7 @@ function ChunkedEncoding:new(soc)
 	self.headers = Headers()
 	self.remainder = ""
 
-	---@type "size"|"data"|"trailer"
+	---@type "size"|"data"|"endline"|"trailer"
 	self.state = "size"
 end
 
