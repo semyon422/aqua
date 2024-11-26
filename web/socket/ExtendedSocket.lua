@@ -102,9 +102,9 @@ end
 ---@param max integer
 ---@return string?
 ---@return "closed"|"timeout"?
----@return string?
 function ExtendedSocket:receiveany(max)
-	return self:handle_return(ngx_http_lua.socket_tcp_receiveany(self.upstream, max))
+	local data, err = self:handle_return(ngx_http_lua.socket_tcp_receiveany(self.upstream, max))
+	return data, err
 end
 
 ---@param pattern string
