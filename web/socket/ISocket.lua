@@ -23,11 +23,13 @@ function ISocket:send(data, i, j) end
 ---@return "closed"|"timeout"?
 function ISocket:receiveany(size)
 	local data, err, partial = self:receive(size)
-	data = data or partial
-	if #data == 0 then
+	if data then
+		return data
+	end
+	if #partial == 0 then
 		return nil, err
 	end
-	return data
+	return partial
 end
 
 ---@param data string
@@ -37,11 +39,13 @@ end
 ---@return "closed"|"timeout"?
 function ISocket:sendany(data, i, j)
 	local last_byte, err, _last_byte = self:send(data, i, j)
-	last_byte = last_byte or _last_byte
-	if last_byte == 0 then
+	if last_byte then
+		return last_byte
+	end
+	if _last_byte == 0 then
 		return nil, err
 	end
-	return last_byte
+	return _last_byte
 end
 
 ---@return 1
