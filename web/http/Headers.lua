@@ -6,7 +6,9 @@ local class = require("class")
 ---@field header_names {[string]: string}
 local Headers = class()
 
-function Headers:new()
+---@param soc web.IExtendedSocket
+function Headers:new(soc)
+	self.soc = soc
 	self.headers = {}
 	self.header_names = {}
 end
@@ -47,14 +49,12 @@ function Headers:get(name)
 	end
 end
 
----@param soc web.IExtendedSocket
 ---@return true?
 ---@return "closed"|"timeout"|"malformed headers"?
----@return string?
-function Headers:receive(soc)
-	local line, err, partial = soc:receive("*l")
+function Headers:receive()
+	local line, err, partial = self.soc:receive("*l")
 	if not line then
-		return nil, err, partial
+		return nil, err
 	end
 
 	while line ~= "" do
@@ -66,16 +66,16 @@ function Headers:receive(soc)
 		---@cast value string
 
 		-- folded values
-		line, err, partial = soc:receive("*l")
+		line, err, partial = self.soc:receive("*l")
 		if not line then
-			return nil, err, partial
+			return nil, err
 		end
 
 		while line:find("^%s") do
 			value = value .. line
-			line, err, partial = soc:receive("*l")
+			line, err, partial = self.soc:receive("*l")
 			if not line then
-				return nil, err, partial
+				return nil, err
 			end
 		end
 
@@ -96,32 +96,27 @@ function Headers:getKeys()
 	return keys
 end
 
----@param soc web.IExtendedSocket
----@return integer?
+---@return true?
 ---@return "closed"|"timeout"?
----@return integer?
-function Headers:send(soc)
+function Headers:send()
 	local headers = self.headers
 	local header_names = self.header_names
 
-	local total = 0
-
 	for _, k in ipairs(self:getKeys()) do
 		for _, v in ipairs(headers[k]) do
-			local last_byte, err, _last_byte = soc:send(("%s: %s\r\n"):format(header_names[k], v))
+			local last_byte, err, _last_byte = self.soc:send(("%s: %s\r\n"):format(header_names[k], v))
 			if not last_byte then
-				return nil, err, total + _last_byte
+				return nil, err
 			end
-			total = total + last_byte
 		end
 	end
 
-	local last_byte, err, _last_byte = soc:send("\r\n")
+	local last_byte, err, _last_byte = self.soc:send("\r\n")
 	if not last_byte then
-		return nil, err, total + _last_byte
+		return nil, err
 	end
 
-	return total
+	return true
 end
 
 return Headers

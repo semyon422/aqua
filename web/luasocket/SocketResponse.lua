@@ -11,7 +11,7 @@ SocketResponse.status = 200
 ---@param soc web.IExtendedSocket
 function SocketResponse:new(soc)
 	self.soc = soc
-	self.headers = Headers()
+	self.headers = Headers(soc)
 end
 
 function SocketResponse:receiveInfo()
@@ -31,14 +31,14 @@ function SocketResponse:receiveInfo()
 	end
 
 	self.status = status
-	self.headers:receive(self.soc)
+	self.headers:receive()
 end
 
 function SocketResponse:sendInfo()
 	if self.info_sent then return end
 	self.info_sent = true
 	StatusLine(self.status):send(self.soc)
-	self.headers:send(self.soc)
+	self.headers:send()
 end
 
 ---@param pattern "*a"|"*l"|integer?

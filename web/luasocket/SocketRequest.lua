@@ -9,7 +9,7 @@ local SocketRequest = IRequest + {}
 ---@param soc web.IExtendedSocket
 function SocketRequest:new(soc)
 	self.soc = soc
-	self.headers = Headers()
+	self.headers = Headers(soc)
 end
 
 function SocketRequest:receiveInfo()
@@ -25,14 +25,14 @@ function SocketRequest:receiveInfo()
 
 	self.method = rline.method
 	self.uri = rline.uri
-	self.headers:receive(self.soc)
+	self.headers:receive()
 end
 
 function SocketRequest:sendInfo()
 	if self.info_sent then return end
 	self.info_sent = true
 	RequestLine(self.method, self.uri):send(self.soc)
-	self.headers:send(self.soc)
+	self.headers:send()
 end
 
 ---@param pattern "*a"|"*l"|integer?
