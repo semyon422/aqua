@@ -11,24 +11,19 @@ local ChunkedEncoding = ISocket + {}
 ---@param soc web.IExtendedSocket
 function ChunkedEncoding:new(soc)
 	self.soc = soc
-	self.headers = Headers()
-	self.remainder = ""
+	self.headers = Headers(soc)
 
-	---@type "size"|"data"|"endline"|"trailer"
+	---@type "size"|"data"|"trailer"
 	self.state = "size"
 end
 
 ---@private
----@return string?
+---@return true?
 ---@return "closed"|"timeout"|"invalid chunk size"?
----@return string?
 function ChunkedEncoding:receive_size()
-	local rem = self.remainder
-
-	local data, err, partial = self.soc:receive("*l", rem)
+	local data, err, _ = self.soc:receive("*l")
 	if not data then
-		self.remainder = partial
-		return nil, err, ""
+		return nil, err
 	end
 
 	local size = tonumber(data:gsub(";.*", ""), 16)
@@ -36,11 +31,10 @@ function ChunkedEncoding:receive_size()
 		return nil, "invalid chunk size"
 	end
 	self.chunk_size = size
-	self.remainder = ""
 
 	self.state = size > 0 and "data" or "trailer"
 
-	return ""
+	return true
 end
 
 ---@private
@@ -57,7 +51,10 @@ function ChunkedEncoding:receive_data(_size)
 	end
 
 	if #data == self.chunk_size then
-		self.soc:receive("*l")
+		local line, _err, _ = self.soc:receive("*l")
+		if not line then
+			return nil, _err, ""
+		end
 		self.state = "size"
 	end
 
@@ -72,35 +69,47 @@ end
 ---@return string?
 function ChunkedEncoding:receive(size)
 	if self.state == "size" then
-		local data, err, partial = self:receive_size()
-		if not data then
-			return nil, err, partial
+		local ok, err = self:receive_size()
+		if not ok then
+			return nil, err, ""
 		end
 	end
 	if self.state == "data" then
 		return self:receive_data(size)
 	end
 	if self.state == "trailer" then
-		local data, err, partial = self.headers:receive(self.soc)
-		if not data then
-			return nil, err, partial
+		local ok, err = self.headers:receive()
+		if not ok then
+			return nil, err, ""
 		end
+		return ""
 	end
 end
 
 ---@param chunk string?
+---@param i integer?
+---@param j integer?
 ---@return integer?
 ---@return "closed"|"timeout"?
 ---@return integer?
-function ChunkedEncoding:send(chunk)
+function ChunkedEncoding:send(chunk, i, j)
+	assert(not i and not j, "not implemented")
 	if chunk then
-		return self.soc:send(("%X\r\n%s\r\n"):format(#chunk, chunk))
+		local last_byte, err, _ = self.soc:send(("%X\r\n%s\r\n"):format(#chunk, chunk))
+		if last_byte then
+			return #chunk
+		end
+		return nil, err, 0
 	end
-	local last_byte, err, _last_byte = self.soc:send("0\r\n")
+	local last_byte, err, _ = self.soc:send("0\r\n")
 	if not last_byte then
-		return nil, err, _last_byte
+		return nil, err, 0
 	end
-	return self.headers:send(self.soc)
+	local ok, err = self.headers:send()
+	if not ok then
+		return nil, err, 0
+	end
+	return 0
 end
 
 return ChunkedEncoding
