@@ -66,12 +66,11 @@ end
 ---@param size integer
 ---@return string?
 ---@return "closed"|"timeout"|"invalid chunk size"|"malformed headers"?
----@return string?
-function ChunkedEncoding:receive(size)
+function ChunkedEncoding:receiveany(size)
 	if self.state == "size" then
 		local ok, err = self:receive_size()
 		if not ok then
-			return nil, err, ""
+			return nil, err
 		end
 	end
 	if self.state == "data" then
@@ -80,13 +79,22 @@ function ChunkedEncoding:receive(size)
 	if self.state == "trailer" then
 		local ok, err = self.headers:receive()
 		if not ok then
-			return nil, err, ""
+			return nil, err
 		end
 		return ""
 	end
 end
 
----@param chunk string?
+---@param size integer
+---@return string?
+---@return "closed"|"timeout"|"invalid chunk size"|"malformed headers"?
+---@return string?
+function ChunkedEncoding:receive(size)
+	-- ExtendedSocket should be used for this
+	error("not implemented")
+end
+
+---@param chunk string
 ---@param i integer?
 ---@param j integer?
 ---@return integer?
@@ -94,7 +102,7 @@ end
 ---@return integer?
 function ChunkedEncoding:send(chunk, i, j)
 	assert(not i and not j, "not implemented")
-	if chunk then
+	if #chunk > 0 then
 		local last_byte, err, _ = self.soc:send(("%X\r\n%s\r\n"):format(#chunk, chunk))
 		if last_byte then
 			return #chunk
