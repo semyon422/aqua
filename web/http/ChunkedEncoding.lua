@@ -13,7 +13,10 @@ function ChunkedEncoding:new(soc)
 	self.soc = soc
 	self.headers = Headers(soc)
 
-	---@type "size"|"data"|"trailer"
+	self.receive_closed = false
+	self.send_closed = false
+
+	---@type "size"|"data"|"trailer"|"closed"
 	self.state = "size"
 end
 
@@ -67,6 +70,9 @@ end
 ---@return string?
 ---@return "closed"|"timeout"|"invalid chunk size"|"malformed headers"?
 function ChunkedEncoding:receiveany(size)
+	if self.receive_closed then
+		return nil, "closed"
+	end
 	if self.state == "size" then
 		local ok, err = self:receive_size()
 		if not ok then
@@ -81,7 +87,8 @@ function ChunkedEncoding:receiveany(size)
 		if not ok then
 			return nil, err
 		end
-		return ""
+		self.receive_closed = true
+		return nil, "closed"
 	end
 end
 
@@ -102,6 +109,9 @@ end
 ---@return integer?
 function ChunkedEncoding:send(chunk, i, j)
 	assert(not i and not j, "not implemented")
+	if self.send_closed then
+		return nil, "closed", 0
+	end
 	if #chunk > 0 then
 		local last_byte, err, _ = self.soc:send(("%X\r\n%s\r\n"):format(#chunk, chunk))
 		if last_byte then
@@ -117,6 +127,7 @@ function ChunkedEncoding:send(chunk, i, j)
 	if not ok then
 		return nil, err, 0
 	end
+	self.send_closed = true
 	return 0
 end
 
