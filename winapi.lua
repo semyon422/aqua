@@ -19,6 +19,7 @@ ffi.cdef[[
 	typedef __int64 LONGLONG;  // ?
 	typedef void * LPVOID;
 	typedef const WCHAR * LPCWSTR;
+	typedef const void *LPCVOID;
 
 	struct HKEY__ { int unused; };
 	typedef struct HKEY__ *HKEY;
@@ -26,6 +27,10 @@ ffi.cdef[[
 	typedef DWORD *LPDWORD;
 	typedef void *PVOID;
 	typedef LONG LSTATUS;
+
+	typedef void * HMODULE;
+
+	DWORD GetLastError();
 
 	int MultiByteToWideChar(
 		UINT CodePage,
@@ -116,6 +121,20 @@ ffi.cdef[[
 		PVOID   pvData,
 		LPDWORD pcbData
 	);
+
+	HMODULE LoadLibraryW(
+		LPCWSTR lpLibFileName
+	);
+
+	DWORD FormatMessageW(
+		DWORD   dwFlags,
+		LPCVOID lpSource,
+		DWORD   dwMessageId,
+		DWORD   dwLanguageId,
+		LPWSTR  lpBuffer,
+		DWORD   nSize,
+		va_list *Arguments
+	);
 ]]
 
 local winapi = {}
@@ -146,6 +165,42 @@ function winapi.to_string(w)
 	assert(ffi.C.WideCharToMultiByte(65001, 0x80, w, -1, buf, size, nil, nil) ~= 0, "conversion error")
 
 	return ffi.string(buf, size - 1)
+end
+
+-- https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror
+
+---@return integer
+function winapi.get_last_error()
+	return ffi.C.GetLastError()
+end
+
+-- https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessagew
+
+local error_buf_size = 1024
+local error_buf = ffi.new("wchar_t[?]", error_buf_size)
+
+---@param msg integer
+---@return string
+function winapi.format_message_from_system(msg)
+	-- FORMAT_MESSAGE_FROM_SYSTEM
+	local wchars = ffi.C.FormatMessageW(0x00001000, nil, msg, 0, error_buf, error_buf_size, nil)
+
+	if wchars == 0 then
+		return winapi.format_message_from_system(winapi.get_last_error())
+	end
+
+	return winapi.to_string(error_buf)
+end
+
+-- https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadlibraryw
+
+---@param path string
+function winapi.load_library(path)
+	local h = ffi.C.LoadLibraryW(winapi.to_wchar_t(path))
+	if h == nil then
+		local err = winapi.get_last_error()
+		error(("cannot load module '%s': %s"):format(path, winapi.format_message_from_system(err)))
+	end
 end
 
 -- https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getenv-s-wgetenv-s?view=msvc-170
