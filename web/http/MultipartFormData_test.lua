@@ -45,22 +45,25 @@ world
 --abcdef--
 ]]):gsub("\n", "\r\n"))
 
-	t:tdeq({fd.receive_until_boundary()}, {"preamble"})
-	t:eq(soc:receive("*l"), "")
+	t:tdeq({fd:receive_preamble()}, {"preamble"})
 
-	local headers = Headers(soc)
-	headers:receive()
+	local headers, bsoc = fd:receive()
+	---@cast headers web.Headers
+	t:assert(headers)
 	t:tdeq(headers.headers, {name = {"value"}})
+	bsoc = ExtendedSocket(bsoc)
+	t:tdeq({bsoc:receive("*a")}, {"hello"})
 
-	t:eq(fd.receive_until_boundary(), "hello")
-	t:eq(soc:receive("*l"), "")
-
-	local headers = Headers(soc)
-	headers:receive()
+	local headers, bsoc = fd:receive()
+	---@cast headers web.Headers
+	t:assert(headers)
 	t:tdeq(headers.headers, {name = {"value"}})
+	bsoc = ExtendedSocket(bsoc)
+	t:tdeq({bsoc:receive("*a")}, {"world"})
 
-	t:eq(fd.receive_until_boundary(), "world")
-	t:eq(soc:receive("*l"), "--")
+	local headers, bsoc = fd:receive()
+	t:assert(not headers)
+	t:eq(bsoc, "closed")
 end
 
 return test
