@@ -1,4 +1,4 @@
-local MultipartFormData = require("web.http.MultipartFormData")
+local Multipart = require("web.http.Multipart")
 local StringSocket = require("web.socket.StringSocket")
 local ExtendedSocket = require("web.socket.ExtendedSocket")
 local Headers = require("web.http.Headers")
@@ -10,17 +10,17 @@ function test.basic(t)
 	local str_soc = StringSocket()
 	local soc = ExtendedSocket(str_soc)
 
-	local fd = MultipartFormData(soc, "abcdef")
+	local mp = Multipart(soc, "abcdef")
 
 	soc:send("preamble")
 
-	fd:next_part(Headers():add("Name", "value1"))
+	mp:next_part(Headers():add("Name", "value1"))
 	soc:send("hello")
 
-	fd:next_part(Headers():add("Name", "value2"))
+	mp:next_part(Headers():add("Name", "value2"))
 	soc:send("world")
 
-	fd:next_part()
+	mp:next_part()
 	soc:send("epilogue")
 
 	soc:close()
@@ -38,21 +38,21 @@ world
 --abcdef--
 epilogue]]):gsub("\n", "\r\n"))
 
-	t:tdeq({fd:receive_preamble()}, {"preamble"})
+	t:tdeq({mp:receive_preamble()}, {"preamble"})
 
-	local headers = assert(fd:receive())
+	local headers = assert(mp:receive())
 	t:tdeq(headers.headers, {name = {"value1"}})
-	t:tdeq({ExtendedSocket(fd.bsoc):receive("*a")}, {"hello"})
+	t:tdeq({ExtendedSocket(mp.bsoc):receive("*a")}, {"hello"})
 
-	local headers = assert(fd:receive())
+	local headers = assert(mp:receive())
 	t:tdeq(headers.headers, {name = {"value2"}})
-	t:tdeq({ExtendedSocket(fd.bsoc):receive("*a")}, {"world"})
+	t:tdeq({ExtendedSocket(mp.bsoc):receive("*a")}, {"world"})
 
-	local headers, err = fd:receive()
+	local headers, err = mp:receive()
 	t:assert(not headers)
 	t:eq(err, "no parts")
 
-	t:tdeq({fd:receive_epilogue()}, {"epilogue"})
+	t:tdeq({mp:receive_epilogue()}, {"epilogue"})
 end
 
 return test

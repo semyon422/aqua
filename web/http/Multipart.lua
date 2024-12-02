@@ -4,15 +4,15 @@ local BoundarySocket = require("web.socket.BoundarySocket")
 
 -- https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html
 
----@class web.MultipartFormData
----@operator call: web.MultipartFormData
-local MultipartFormData = class()
+---@class web.Multipart
+---@operator call: web.Multipart
+local Multipart = class()
 
-MultipartFormData.boundary = "------------------------d67fe448c18233b3"
+Multipart.boundary = "------------------------d67fe448c18233b3"
 
 ---@param soc web.IExtendedSocket
 ---@param boundary string?
-function MultipartFormData:new(soc, boundary)
+function Multipart:new(soc, boundary)
 	self.soc = soc
 	self.boundary = boundary
 
@@ -23,20 +23,20 @@ end
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function MultipartFormData:receive_preamble()
+function Multipart:receive_preamble()
 	return self.receive_until_boundary()
 end
 
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function MultipartFormData:receive_epilogue()
+function Multipart:receive_epilogue()
 	return self.soc:receive("*a")
 end
 
 ---@return web.Headers?
 ---@return "closed"|"timeout"|"no parts"|"invalid boundary line ending"|"malformed headers"?
-function MultipartFormData:receive()
+function Multipart:receive()
 	local data, err, partial = self.soc:receive("*l")
 	if not data then
 		return nil, err
@@ -64,7 +64,7 @@ end
 ---@param headers web.Headers?
 ---@return true?
 ---@return "closed"|"timeout"?
-function MultipartFormData:next_part(headers)
+function Multipart:next_part(headers)
 	if not headers then
 		local data, err, partial = self.soc:send(("\r\n--%s--\r\n"):format(self.boundary))
 		if not data then
@@ -84,4 +84,4 @@ function MultipartFormData:next_part(headers)
 	return true
 end
 
-return MultipartFormData
+return Multipart
