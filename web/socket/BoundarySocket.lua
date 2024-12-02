@@ -7,6 +7,11 @@ local BoundarySocket = ISocket + {}
 ---@param iterator fun(size?: integer): string?, "closed"|"timeout"?, string?
 function BoundarySocket:new(iterator)
 	self.iterator = iterator
+	self:reset()
+end
+
+function BoundarySocket:reset()
+	self.closed = false
 	self.remainder = ""
 end
 
