@@ -2,6 +2,8 @@ local class = require("class")
 local Headers = require("web.http.Headers")
 local BoundarySocket = require("web.socket.BoundarySocket")
 
+-- https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html
+
 ---@class web.MultipartFormData
 ---@operator call: web.MultipartFormData
 local MultipartFormData = class()
@@ -25,8 +27,15 @@ function MultipartFormData:receive_preamble()
 	return self.receive_until_boundary()
 end
 
+---@return string?
+---@return "closed"|"timeout"?
+---@return string?
+function MultipartFormData:receive_epilogue()
+	return self.soc:receive("*a")
+end
+
 ---@return web.Headers?
----@return "closed"|"timeout"|"invalid boundary line ending"|"malformed headers"?
+---@return "closed"|"timeout"|"no parts"|"invalid boundary line ending"|"malformed headers"?
 function MultipartFormData:receive()
 	local data, err, partial = self.soc:receive("*l")
 	if not data then
@@ -38,7 +47,7 @@ function MultipartFormData:receive()
 	end
 
 	if data == "--" then
-		return nil, "closed"
+		return nil, "no parts"
 	end
 
 	local headers = Headers(self.soc)

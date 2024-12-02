@@ -21,6 +21,9 @@ function test.basic(t)
 	soc:send("world")
 
 	fd:next_part()
+	soc:send("epilogue")
+
+	soc:close()
 
 	t:eq(str_soc.remainder, ([[
 preamble
@@ -33,7 +36,7 @@ Name: value2
 
 world
 --abcdef--
-]]):gsub("\n", "\r\n"))
+epilogue]]):gsub("\n", "\r\n"))
 
 	t:tdeq({fd:receive_preamble()}, {"preamble"})
 
@@ -47,7 +50,9 @@ world
 
 	local headers, err = fd:receive()
 	t:assert(not headers)
-	t:eq(err, "closed")
+	t:eq(err, "no parts")
+
+	t:tdeq({fd:receive_epilogue()}, {"epilogue"})
 end
 
 return test
