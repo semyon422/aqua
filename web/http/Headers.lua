@@ -15,6 +15,7 @@ end
 
 ---@param name string
 ---@param value string|number
+---@return web.Headers
 function Headers:add(name, value)
 	local headers = self.headers
 	local lower_name = name:lower()
@@ -23,10 +24,13 @@ function Headers:add(name, value)
 
 	headers[lower_name] = headers[lower_name] or {}
 	table.insert(headers[lower_name], tostring(value))
+
+	return self
 end
 
 ---@param name string
 ---@param value string|string[]
+---@return web.Headers
 function Headers:set(name, value)
 	local headers = self.headers
 	local lower_name = name:lower()
@@ -38,6 +42,8 @@ function Headers:set(name, value)
 	elseif type(value) == "table" then
 		headers[lower_name] = value
 	end
+
+	return self
 end
 
 ---@param name string
