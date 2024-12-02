@@ -12,34 +12,24 @@ function test.basic(t)
 
 	local fd = MultipartFormData(soc, "abcdef")
 
-	soc:send("preamble\r\n")
+	soc:send("preamble")
 
-	fd:send_boundary()
-
-	local headers = Headers(soc)
-	headers:add("Name", "value")
-	headers:send()
+	fd:next_part(Headers():add("Name", "value1"))
 	soc:send("hello")
-	soc:send("\r\n")
 
-	fd:send_boundary()
-
-	local headers = Headers(soc)
-	headers:add("Name", "value")
-	headers:send()
+	fd:next_part(Headers():add("Name", "value2"))
 	soc:send("world")
-	soc:send("\r\n")
 
-	fd:send_boundary(true)
+	fd:next_part()
 
 	t:eq(str_soc.remainder, ([[
 preamble
 --abcdef
-Name: value
+Name: value1
 
 hello
 --abcdef
-Name: value
+Name: value2
 
 world
 --abcdef--
@@ -47,23 +37,17 @@ world
 
 	t:tdeq({fd:receive_preamble()}, {"preamble"})
 
-	local headers, bsoc = fd:receive()
-	---@cast headers web.Headers
-	t:assert(headers)
-	t:tdeq(headers.headers, {name = {"value"}})
-	bsoc = ExtendedSocket(bsoc)
-	t:tdeq({bsoc:receive("*a")}, {"hello"})
+	local headers = assert(fd:receive())
+	t:tdeq(headers.headers, {name = {"value1"}})
+	t:tdeq({ExtendedSocket(fd.bsoc):receive("*a")}, {"hello"})
 
-	local headers, bsoc = fd:receive()
-	---@cast headers web.Headers
-	t:assert(headers)
-	t:tdeq(headers.headers, {name = {"value"}})
-	bsoc = ExtendedSocket(bsoc)
-	t:tdeq({bsoc:receive("*a")}, {"world"})
+	local headers = assert(fd:receive())
+	t:tdeq(headers.headers, {name = {"value2"}})
+	t:tdeq({ExtendedSocket(fd.bsoc):receive("*a")}, {"world"})
 
-	local headers, bsoc = fd:receive()
+	local headers, err = fd:receive()
 	t:assert(not headers)
-	t:eq(bsoc, "closed")
+	t:eq(err, "closed")
 end
 
 return test

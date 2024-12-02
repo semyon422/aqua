@@ -15,6 +15,7 @@ function MultipartFormData:new(soc, boundary)
 	self.boundary = boundary
 
 	self.receive_until_boundary = soc:receiveuntil("\r\n--" .. self.boundary)
+	self.bsoc = BoundarySocket(self.receive_until_boundary)
 end
 
 ---@return string?
@@ -25,7 +26,7 @@ function MultipartFormData:receive_preamble()
 end
 
 ---@return web.Headers?
----@return web.ISocket|"closed"|"timeout"|"invalid boundary line ending"|"malformed headers"?
+---@return "closed"|"timeout"|"invalid boundary line ending"|"malformed headers"?
 function MultipartFormData:receive()
 	local data, err, partial = self.soc:receive("*l")
 	if not data then
@@ -46,14 +47,32 @@ function MultipartFormData:receive()
 		return nil, err
 	end
 
-	local soc = BoundarySocket(self.receive_until_boundary)
+	self.bsoc:reset()
 
-	return headers, soc
+	return headers
 end
 
----@param last true?
-function MultipartFormData:send_boundary(last)
-	self.soc:send(("--%s%s\r\n"):format(self.boundary, last and "--" or ""))
+---@param headers web.Headers?
+---@return true?
+---@return "closed"|"timeout"?
+function MultipartFormData:next_part(headers)
+	if not headers then
+		local data, err, partial = self.soc:send(("\r\n--%s--\r\n"):format(self.boundary))
+		if not data then
+			return nil, err
+		end
+		return
+	end
+
+	local data, err, partial = self.soc:send(("\r\n--%s\r\n"):format(self.boundary))
+	if not data then
+		return nil, err
+	end
+
+	headers.soc = self.soc
+	headers:send()
+
+	return true
 end
 
 return MultipartFormData
