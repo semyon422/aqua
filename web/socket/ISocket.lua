@@ -40,22 +40,6 @@ function ISocket:receiveany(size)
 	return partial
 end
 
----@param data string
----@param i integer?
----@param j integer?
----@return integer?
----@return "closed"|"timeout"?
-function ISocket:sendany(data, i, j)
-	local last_byte, err, _last_byte = self:send(data, i, j)
-	if last_byte then
-		return last_byte
-	end
-	if _last_byte == 0 then
-		return nil, err
-	end
-	return _last_byte
-end
-
 ---@return 1
 function ISocket:close()
 	error("not implemented")
