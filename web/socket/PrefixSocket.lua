@@ -29,8 +29,6 @@ end
 ---@return "closed"|"timeout"?
 ---@return string?
 function PrefixSocket:receive(pattern, prefix)
-	assert(pattern == "*a" or pattern == "*l" or type(pattern) == "number", "invalid pattern")
-
 	if not prefix or prefix == "" then
 		return self.soc:receive(pattern)
 	end

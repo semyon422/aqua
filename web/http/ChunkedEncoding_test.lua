@@ -37,7 +37,7 @@ function test.basic_trailing(t)
 
 	t:eq(str_soc.remainder, "3\r\nqwe\r\n0\r\nName: value\r\n\r\n")
 
-	enc.headers = Headers(enc.soc)
+	enc.headers = Headers()
 	t:tdeq({enc:receiveany(100)}, {"qwe"})
 	t:tdeq({enc:receiveany(100)}, {nil, "closed"})
 	t:tdeq({enc:receiveany(100)}, {nil, "closed"})

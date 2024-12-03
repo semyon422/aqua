@@ -50,8 +50,8 @@ function Multipart:receive()
 		return nil, "no parts"
 	end
 
-	local headers = Headers(self.soc)
-	local ok, err = headers:receive()
+	local headers = Headers()
+	local ok, err = headers:receive(self.soc)
 	if not ok then
 		return nil, err
 	end
@@ -79,7 +79,7 @@ function Multipart:next_part(headers)
 	end
 
 	headers.soc = self.soc
-	headers:send()
+	headers:send(self.soc)
 
 	return true
 end

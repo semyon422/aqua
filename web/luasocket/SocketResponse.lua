@@ -11,12 +11,14 @@ SocketResponse.status = 200
 ---@param soc web.IExtendedSocket
 function SocketResponse:new(soc)
 	self.soc = soc
-	self.headers = Headers(soc)
+	self.headers = Headers()
 end
 
+---@return true?
+---@return "closed"|"timeout"|"unknown status"|"malformed headers"?
 function SocketResponse:receiveInfo()
 	if self.info_received then
-		return
+		return true
 	end
 	self.info_received = true
 
@@ -27,32 +29,64 @@ function SocketResponse:receiveInfo()
 
 	local status = tonumber(sline.status)
 	if not status then
-		return nil, "unknown status", sline.status
+		return nil, "unknown status"
+	end
+	self.status = status
+
+	local headers, err = self.headers:receive(self.soc)
+	if not headers then
+		return nil, err
 	end
 
-	self.status = status
-	self.headers:receive()
+	return true
 end
 
+---@return true?
+---@return "closed"|"timeout"?
 function SocketResponse:sendInfo()
-	if self.info_sent then return end
+	if self.info_sent then
+		return true
+	end
 	self.info_sent = true
-	StatusLine(self.status):send(self.soc)
-	self.headers:send()
+
+	local sline, err = StatusLine(self.status):send(self.soc)
+	if not sline then
+		return nil, err
+	end
+
+	local headers, err = self.headers:send(self.soc)
+	if not headers then
+		return nil, err
+	end
+
+	return true
 end
 
 ---@param pattern "*a"|"*l"|integer?
-function SocketResponse:receive(pattern)
-	self:receiveInfo()
-	if not pattern or pattern == 0 then return end
-	return self.soc:receive(pattern)
+---@param prefix string?
+---@return string?
+---@return "closed"|"timeout"|"unknown status"|"malformed headers"?
+---@return string?
+function SocketResponse:receive(pattern, prefix)
+	local ok, err = self:receiveInfo()
+	if not ok then
+		return nil, err, ""
+	end
+	return self.soc:receive(pattern, prefix)
 end
 
----@param data string?
-function SocketResponse:send(data)
-	self:sendInfo()
-	if not data or data == "" then return end
-	return self.soc:send(data)
+---@param data string
+---@param i integer?
+---@param j integer?
+---@return integer?
+---@return "closed"|"timeout"?
+---@return integer?
+function SocketResponse:send(data, i, j)
+	local ok, err = self:sendInfo()
+	if not ok then
+		return nil, err, (i or 1) - 1
+	end
+	return self.soc:send(data, i, j)
 end
 
 return SocketResponse

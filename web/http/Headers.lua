@@ -55,10 +55,11 @@ function Headers:get(name)
 	end
 end
 
----@return true?
+---@param soc web.IExtendedSocket
+---@return web.Headers?
 ---@return "closed"|"timeout"|"malformed headers"?
-function Headers:receive()
-	local line, err, partial = self.soc:receive("*l")
+function Headers:receive(soc)
+	local line, err, partial = soc:receive("*l")
 	if not line then
 		return nil, err
 	end
@@ -72,14 +73,14 @@ function Headers:receive()
 		---@cast value string
 
 		-- folded values
-		line, err, partial = self.soc:receive("*l")
+		line, err, partial = soc:receive("*l")
 		if not line then
 			return nil, err
 		end
 
 		while line:find("^%s") do
 			value = value .. line
-			line, err, partial = self.soc:receive("*l")
+			line, err, partial = soc:receive("*l")
 			if not line then
 				return nil, err
 			end
@@ -88,7 +89,7 @@ function Headers:receive()
 		self:add(name, value)
 	end
 
-	return true
+	return self
 end
 
 ---@return string[]
@@ -102,27 +103,28 @@ function Headers:getKeys()
 	return keys
 end
 
----@return true?
+---@param soc web.IExtendedSocket
+---@return web.Headers?
 ---@return "closed"|"timeout"?
-function Headers:send()
+function Headers:send(soc)
 	local headers = self.headers
 	local header_names = self.header_names
 
 	for _, k in ipairs(self:getKeys()) do
 		for _, v in ipairs(headers[k]) do
-			local last_byte, err, _last_byte = self.soc:send(("%s: %s\r\n"):format(header_names[k], v))
+			local last_byte, err, _last_byte = soc:send(("%s: %s\r\n"):format(header_names[k], v))
 			if not last_byte then
 				return nil, err
 			end
 		end
 	end
 
-	local last_byte, err, _last_byte = self.soc:send("\r\n")
+	local last_byte, err, _last_byte = soc:send("\r\n")
 	if not last_byte then
 		return nil, err
 	end
 
-	return true
+	return self
 end
 
 return Headers

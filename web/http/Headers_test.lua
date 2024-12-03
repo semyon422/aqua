@@ -27,16 +27,16 @@ function test.multiple(t)
 	local str_soc = StringSocket()
 	local soc = ExtendedSocket(str_soc)
 
-	local headers = Headers(soc)
+	local headers = Headers()
 	headers:add("Name1", "value1")
 	headers:add("Name1", "value2")
 	headers:add("Name2", "value2")
-	headers:send()
+	headers:send(soc)
 
 	t:eq(str_soc.remainder, "Name1: value1\r\nName1: value2\r\nName2: value2\r\n\r\n")
 
-	headers = Headers(soc)
-	t:tdeq({headers:receive()}, {true})
+	headers = Headers()
+	t:eq(headers:receive(soc), headers)
 	t:tdeq({headers:get("Name1")}, {"value1", "value2"})
 	t:tdeq({headers:get("Name2")}, {"value2"})
 end
@@ -46,13 +46,13 @@ function test.empty(t)
 	local str_soc = StringSocket()
 	local soc = ExtendedSocket(str_soc)
 
-	local headers = Headers(soc)
-	headers:send()
+	local headers = Headers()
+	headers:send(soc)
 
 	t:eq(str_soc.remainder, "\r\n")
 
-	headers = Headers(soc)
-	t:tdeq({headers:receive()}, {true})
+	headers = Headers()
+	t:eq(headers:receive(soc), headers)
 	t:tdeq(headers.headers, {})
 end
 
@@ -63,8 +63,8 @@ function test.folded_space(t)
 
 	str_soc:send("Name: value1\r\n value2\r\n\r\n")
 
-	local headers = Headers(soc)
-	t:tdeq({headers:receive()}, {true})
+	local headers = Headers()
+	t:eq(headers:receive(soc), headers)
 	t:tdeq(headers.headers, {name = {"value1 value2"}})
 end
 
@@ -75,8 +75,8 @@ function test.folded_tab(t)
 
 	str_soc:send("Name: value1\r\n\tvalue2\r\n\r\n")
 
-	local headers = Headers(soc)
-	t:tdeq({headers:receive()}, {true})
+	local headers = Headers()
+	t:eq(headers:receive(soc), headers)
 	t:tdeq(headers.headers, {name = {"value1\tvalue2"}})
 end
 
@@ -87,8 +87,8 @@ function test.timeout(t)
 
 	str_soc:send("Name: value")
 
-	local headers = Headers(soc)
-	t:tdeq({headers:receive()}, {nil, "timeout"})
+	local headers = Headers()
+	t:tdeq({headers:receive(soc)}, {nil, "timeout"})
 	t:tdeq(headers.headers, {})
 end
 
@@ -99,8 +99,8 @@ function test.malformed(t)
 
 	str_soc:send("Name value\r\n\r\n")
 
-	local headers = Headers(soc)
-	t:tdeq({headers:receive()}, {nil, "malformed headers"})
+	local headers = Headers()
+	t:tdeq({headers:receive(soc)}, {nil, "malformed headers"})
 	t:tdeq(headers.headers, {})
 end
 
@@ -111,8 +111,8 @@ function test.no_end_line_timeout(t)
 
 	str_soc:send("Name: value\r\n")
 
-	local headers = Headers(soc)
-	t:tdeq({headers:receive()}, {nil, "timeout"})
+	local headers = Headers()
+	t:tdeq({headers:receive(soc)}, {nil, "timeout"})
 	t:tdeq(headers.headers, {})
 end
 
@@ -123,8 +123,8 @@ function test.no_end_line_folded_timeout(t)
 
 	str_soc:send("Name: value1\r\n value2\r\n")
 
-	local headers = Headers(soc)
-	t:tdeq({headers:receive()}, {nil, "timeout"})
+	local headers = Headers()
+	t:tdeq({headers:receive(soc)}, {nil, "timeout"})
 	t:tdeq(headers.headers, {})
 end
 

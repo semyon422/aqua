@@ -11,7 +11,7 @@ local ChunkedEncoding = ISocket + {}
 ---@param soc web.IExtendedSocket
 function ChunkedEncoding:new(soc)
 	self.soc = soc
-	self.headers = Headers(soc)
+	self.headers = Headers()
 
 	self.receive_closed = false
 	self.send_closed = false
@@ -83,7 +83,7 @@ function ChunkedEncoding:receiveany(size)
 		return self:receive_data(size)
 	end
 	if self.state == "trailer" then
-		local ok, err = self.headers:receive()
+		local ok, err = self.headers:receive(self.soc)
 		if not ok then
 			return nil, err
 		end
@@ -123,7 +123,7 @@ function ChunkedEncoding:send(chunk, i, j)
 	if not last_byte then
 		return nil, err, 0
 	end
-	local ok, err = self.headers:send()
+	local ok, err = self.headers:send(self.soc)
 	if not ok then
 		return nil, err, 0
 	end

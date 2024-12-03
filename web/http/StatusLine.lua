@@ -23,26 +23,26 @@ end
 ---@param soc web.IExtendedSocket
 ---@return web.StatusLine?
 ---@return "closed"|"timeout"?
----@return string?
 function StatusLine:receive(soc)
-	local data, err, partial = soc:receive("*l")
+	local data, err = soc:receive("*l")
 	if not data then
-		return nil, err, partial
+		return nil, err
 	end
-
 	self.version, self.status, self.reason = data:match("^(%S+)%s+(%S+)%s+(%S+)")
-
 	return self
 end
 
 ---@param soc web.IExtendedSocket
----@return integer?
+---@return web.StatusLine?
 ---@return "closed"|"timeout"?
----@return integer?
 function StatusLine:send(soc)
 	local reason = self.reason or codes[tonumber(self.status)] or "Not Implemented"
 	local status_line = ("%s %s %s\r\n"):format(self.version, self.status, reason)
-	return soc:send(status_line)
+	local bytes_sent, err = soc:send(status_line)
+	if not bytes_sent then
+		return nil, err
+	end
+	return self
 end
 
 return StatusLine

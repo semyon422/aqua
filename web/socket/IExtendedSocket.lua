@@ -12,7 +12,9 @@ local IExtendedSocket = ISocket + {}
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function IExtendedSocket:receive(pattern, prefix) end
+function IExtendedSocket:receive(pattern, prefix)
+	error("not implemented")
+end
 
 ---@param max integer
 ---@return string?
@@ -22,7 +24,9 @@ function IExtendedSocket:receiveany(max) end
 ---@param pattern string
 ---@param options {inclusive: boolean?}?
 ---@return fun(size: integer?): string?, "closed"|"timeout"?, string?
-function IExtendedSocket:receiveuntil(pattern, options) return function() end end
+function IExtendedSocket:receiveuntil(pattern, options)
+	error("not implemented")
+end
 
 ---@param data string
 ---@param i integer?
@@ -30,9 +34,13 @@ function IExtendedSocket:receiveuntil(pattern, options) return function() end en
 ---@return integer?
 ---@return "closed"|"timeout"?
 ---@return integer?
-function IExtendedSocket:send(data, i, j) end
+function IExtendedSocket:send(data, i, j)
+	error("not implemented")
+end
 
 ---@return 1
-function IExtendedSocket:close() return 1 end
+function IExtendedSocket:close()
+	error("not implemented")
+end
 
 return IExtendedSocket
