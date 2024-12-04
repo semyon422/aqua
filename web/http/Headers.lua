@@ -29,7 +29,7 @@ function Headers:add(name, value)
 end
 
 ---@param name string
----@param value string|string[]
+---@param value any|string[]
 ---@return web.Headers
 function Headers:set(name, value)
 	local headers = self.headers
@@ -37,10 +37,10 @@ function Headers:set(name, value)
 
 	self.header_names[lower_name] = name
 
-	if type(value) == "string" then
-		headers[lower_name] = {value}
-	elseif type(value) == "table" then
+	if type(value) == "table" then
 		headers[lower_name] = value
+	else
+		headers[lower_name] = {tostring(value)}
 	end
 
 	return self
