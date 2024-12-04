@@ -1,6 +1,8 @@
 local IResponse = require("web.IResponse")
 local Headers = require("web.http.Headers")
 local StatusLine = require("web.http.StatusLine")
+local LengthSocket = require("web.socket.LengthSocket")
+local ExtendedSocket = require("web.socket.ExtendedSocket")
 
 ---@class web.SocketResponse: web.IResponse
 ---@operator call: web.SocketResponse
@@ -14,6 +16,7 @@ function SocketResponse:new(soc)
 	self.headers = Headers()
 end
 
+---@private
 ---@return true?
 ---@return "closed"|"timeout"|"unknown status"|"malformed headers"?
 function SocketResponse:receiveInfo()
@@ -38,9 +41,15 @@ function SocketResponse:receiveInfo()
 		return nil, err
 	end
 
+	local length = tonumber(headers:get("Content-Length"))
+	if length then
+		self.soc = ExtendedSocket(LengthSocket(self.soc, length))
+	end
+
 	return true
 end
 
+---@private
 ---@return true?
 ---@return "closed"|"timeout"?
 function SocketResponse:sendInfo()
@@ -57,6 +66,11 @@ function SocketResponse:sendInfo()
 	local headers, err = self.headers:send(self.soc)
 	if not headers then
 		return nil, err
+	end
+
+	local length = tonumber(headers:get("Content-Length"))
+	if length then
+		self.soc = ExtendedSocket(LengthSocket(self.soc, length))
 	end
 
 	return true

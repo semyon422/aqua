@@ -4,32 +4,31 @@ local ExtendedSocket = require("web.socket.ExtendedSocket")
 
 local test = {}
 
-local response_full = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"
-local response_chunked = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"
-
 ---@param t testing.T
-function test.receive_length(t)
-	local str_soc = StringSocket(response_full)
-	local soc = ExtendedSocket(str_soc)
-	soc:close()
-	local res = SocketResponse(soc)
-
-	t:tdeq({res:receive("*a")}, {"hello"})
-	t:eq(res.status, 200)
-	t:eq(res.headers:get("Content-Length"), "5")
-end
-
----@param t testing.T
-function test.send_length(t)
+function test.content_length(t)
 	local str_soc = StringSocket()
-	local soc = ExtendedSocket(str_soc)
-	local res = SocketResponse(soc)
+
+	local res = SocketResponse(ExtendedSocket(str_soc))
 
 	res.status = 200
-	res.headers:add("Content-Length", 5)
-	res:send("hello")
+	res.headers:set("Content-Length", 10)
 
-	t:eq(str_soc.remainder, response_full)
+	t:tdeq({res:send("helloworldqwerty")}, {nil, "closed", 10})
+
+	t:eq(str_soc.remainder, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nhelloworld")
+	str_soc:send("qwerty")
+
+	local soc = ExtendedSocket(str_soc)
+	local res = SocketResponse(soc)
+
+	t:tdeq({res:receive("*a")}, {"helloworld"})
+	t:tdeq({res:receive("*a")}, {nil, "closed", ""})
+	t:tdeq({res:receive("*a")}, {nil, "closed", ""})
+
+	t:eq(res.status, 200)
+	t:eq(res.headers:get("Content-Length"), "10")
+
+	t:tdeq({soc:receive(100)}, {nil, "timeout", "qwerty"})
 end
 
 return test

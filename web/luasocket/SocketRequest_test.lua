@@ -4,33 +4,33 @@ local ExtendedSocket = require("web.socket.ExtendedSocket")
 
 local test = {}
 
-local request = "POST /users HTTP/1.1\r\nContent-Length: 4\r\n\r\nuser"
-
 ---@param t testing.T
-function test.receive(t)
-	local str_soc = StringSocket(request)
-	local soc = ExtendedSocket(str_soc)
-	soc:close()
-	local req = SocketRequest(soc)
-
-	t:tdeq({req:receive("*a")}, {"user"})
-	t:eq(req.method, "POST")
-	t:eq(req.uri, "/users")
-	t:eq(req.headers:get("Content-Length"), "4")
-end
-
----@param t testing.T
-function test.send(t)
+function test.content_length(t)
 	local str_soc = StringSocket()
-	local soc = ExtendedSocket(str_soc)
-	local req = SocketRequest(soc)
+
+	local req = SocketRequest(ExtendedSocket(str_soc))
 
 	req.method = "POST"
-	req.uri = "/users"
-	req.headers:add("Content-Length", 4)
-	req:send("user")
+	req.uri = "/"
+	req.headers:set("Content-Length", 10)
 
-	t:eq(str_soc.remainder, request)
+	t:tdeq({req:send("helloworldqwerty")}, {nil, "closed", 10})
+
+	t:eq(str_soc.remainder, "POST / HTTP/1.1\r\nContent-Length: 10\r\n\r\nhelloworld")
+	str_soc:send("qwerty")
+
+	local soc = ExtendedSocket(str_soc)
+	local req = SocketRequest(soc)
+
+	t:tdeq({req:receive("*a")}, {"helloworld"})
+	t:tdeq({req:receive("*a")}, {nil, "closed", ""})
+	t:tdeq({req:receive("*a")}, {nil, "closed", ""})
+
+	t:eq(req.method, "POST")
+	t:eq(req.uri, "/")
+	t:eq(req.headers:get("Content-Length"), "10")
+
+	t:tdeq({soc:receive(100)}, {nil, "timeout", "qwerty"})
 end
 
 return test
