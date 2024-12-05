@@ -3,6 +3,7 @@ local Headers = require("web.http.Headers")
 
 -- https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Transfer-Encoding
 -- https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Trailer
+-- https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/TE
 
 ---@class web.ChunkedEncoding: web.ISocket
 ---@operator call: web.ChunkedEncoding

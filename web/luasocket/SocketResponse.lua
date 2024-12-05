@@ -1,12 +1,11 @@
 local IResponse = require("web.IResponse")
 local Headers = require("web.http.Headers")
 local StatusLine = require("web.http.StatusLine")
-local LengthSocket = require("web.socket.LengthSocket")
-local ExtendedSocket = require("web.socket.ExtendedSocket")
+local RequestResponse = require("web.luasocket.RequestResponse")
 
----@class web.SocketResponse: web.IResponse
+---@class web.SocketResponse: web.IResponse, web.RequestResponse
 ---@operator call: web.SocketResponse
-local SocketResponse = IResponse + {}
+local SocketResponse = IResponse + RequestResponse
 
 SocketResponse.status = 200
 
@@ -41,10 +40,7 @@ function SocketResponse:receiveInfo()
 		return nil, err
 	end
 
-	local length = tonumber(headers:get("Content-Length"))
-	if length then
-		self.soc = ExtendedSocket(LengthSocket(self.soc, length))
-	end
+	self:processHeaders()
 
 	return true
 end
@@ -68,39 +64,9 @@ function SocketResponse:sendInfo()
 		return nil, err
 	end
 
-	local length = tonumber(headers:get("Content-Length"))
-	if length then
-		self.soc = ExtendedSocket(LengthSocket(self.soc, length))
-	end
+	self:processHeaders()
 
 	return true
-end
-
----@param pattern "*a"|"*l"|integer?
----@param prefix string?
----@return string?
----@return "closed"|"timeout"|"unknown status"|"malformed headers"?
----@return string?
-function SocketResponse:receive(pattern, prefix)
-	local ok, err = self:receiveInfo()
-	if not ok then
-		return nil, err, ""
-	end
-	return self.soc:receive(pattern, prefix)
-end
-
----@param data string
----@param i integer?
----@param j integer?
----@return integer?
----@return "closed"|"timeout"?
----@return integer?
-function SocketResponse:send(data, i, j)
-	local ok, err = self:sendInfo()
-	if not ok then
-		return nil, err, (i or 1) - 1
-	end
-	return self.soc:send(data, i, j)
 end
 
 return SocketResponse
