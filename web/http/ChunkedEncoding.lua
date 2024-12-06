@@ -109,7 +109,7 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function ChunkedEncoding:send(chunk, i, j)
-	assert(not i and not j, "not implemented")
+	assert((not i or i == 1) and (not j or j == #chunk), "not implemented")
 	if self.send_closed then
 		return nil, "closed", 0
 	end

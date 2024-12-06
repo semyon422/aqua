@@ -1,12 +1,12 @@
-local IRequest = require("web.IRequest")
+local ISocket = require("web.socket.ISocket")
 local LengthSocket = require("web.socket.LengthSocket")
 local ChunkedEncoding = require("web.http.ChunkedEncoding")
 local ExtendedSocket = require("web.socket.ExtendedSocket")
 
----@class web.RequestResponse
+---@class web.RequestResponse: web.ISocket
 ---@operator call: web.RequestResponse
 ---@field headers web.Headers
-local RequestResponse = IRequest + {}
+local RequestResponse = ISocket + {}
 
 ---@private
 ---@return true?
@@ -54,9 +54,10 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function RequestResponse:send(data, i, j)
+	i, j = self:normalize_bounds(data, i, j)
 	local ok, err = self:sendInfo()
 	if not ok then
-		return nil, err, (i or 1) - 1
+		return nil, err, i - 1
 	end
 	return self.soc:send(data, i, j)
 end

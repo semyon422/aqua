@@ -42,8 +42,7 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function StringSocket:send(data, i, j)
-	i = i or 1
-	j = j or #data
+	i, j = self:normalize_bounds(data, i, j)
 
 	if self.closed then
 		return nil, "closed", i - 1

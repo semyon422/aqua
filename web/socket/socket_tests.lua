@@ -296,6 +296,42 @@ end
 ---@param t testing.T
 ---@param rsoc web.IExtendedSocket
 ---@param ssoc web.IExtendedSocket
+function test.send_empty(t, rsoc, ssoc)
+	t:tdeq({ssoc:send("")}, {0})
+	t:tdeq({ssoc:send("")}, {0})
+	t:tdeq({ssoc:send("", 3, 4)}, {2})
+
+	ssoc:close()
+
+	-- t:tdeq({ssoc:send("")}, {0})
+	-- t:tdeq({ssoc:send("")}, {0})
+
+	t:tdeq({rsoc:receive("*a")}, {nil, "closed", ""})
+end
+
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
+function test.send_oob(t, rsoc, ssoc)
+	t:tdeq({ssoc:send("hello", 10, 15)}, {9})
+	t:tdeq({ssoc:send("world", -15, -10)}, {0})
+	t:tdeq({ssoc:send("qwert", -4, -2)}, {4})
+	t:tdeq({ssoc:send("yuiop", -4, 4)}, {4})
+	t:tdeq({ssoc:send("asdfg", -2, 2)}, {3})  -- nothing sent
+	t:tdeq({ssoc:send("hjkl;", -10, 2)}, {2})
+	t:tdeq({ssoc:send("zxcvb", 4, 10)}, {5})
+
+	ssoc:close()
+
+	-- t:tdeq({ssoc:send("")}, {0})
+	-- t:tdeq({ssoc:send("")}, {0})
+
+	t:tdeq({rsoc:receive("*a")}, {"weruiohjvb"})
+end
+
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.send_range(t, rsoc, ssoc)
 	local s = "qwertyuiop"
 
