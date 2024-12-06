@@ -40,21 +40,26 @@ function test.content_length(t)
 	req.uri = "/"
 	req.headers:set("Content-Length", 10)
 
-	t:tdeq({req:send("helloworldqwerty")}, {nil, "closed", 10})
+	t:tdeq({req:send("")}, {0})
+	t:eq(str_soc.remainder, "POST / HTTP/1.1\r\nContent-Length: 10\r\n\r\n")
 
+	t:tdeq({req:send("helloworldqwerty")}, {nil, "closed", 10})
 	t:eq(str_soc.remainder, "POST / HTTP/1.1\r\nContent-Length: 10\r\n\r\nhelloworld")
+
 	str_soc:send("qwerty")
 
 	local soc = ExtendedSocket(str_soc)
 	local req = SocketRequest(soc)
 
-	t:tdeq({req:receive("*a")}, {"helloworld"})
-	t:tdeq({req:receive("*a")}, {nil, "closed", ""})
-	t:tdeq({req:receive("*a")}, {nil, "closed", ""})
+	t:tdeq({req:receive(0)}, {""})
 
 	t:eq(req.method, "POST")
 	t:eq(req.uri, "/")
 	t:eq(req.headers:get("Content-Length"), "10")
+
+	t:tdeq({req:receive("*a")}, {"helloworld"})
+	t:tdeq({req:receive("*a")}, {nil, "closed", ""})
+	t:tdeq({req:receive("*a")}, {nil, "closed", ""})
 
 	t:tdeq({soc:receive(100)}, {nil, "timeout", "qwerty"})
 end
@@ -81,13 +86,15 @@ function test.chunked(t)
 	local soc = ExtendedSocket(str_soc)
 	local req = SocketRequest(soc)
 
-	t:tdeq({req:receive("*a")}, {"helloworld"})
-	t:tdeq({req:receive("*a")}, {nil, "closed", ""})
-	t:tdeq({req:receive("*a")}, {nil, "closed", ""})
+	t:tdeq({req:receive(0)}, {""})
 
 	t:eq(req.method, "POST")
 	t:eq(req.uri, "/")
 	t:eq(req.headers:get("Transfer-Encoding"), "chunked")
+
+	t:tdeq({req:receive("*a")}, {"helloworld"})
+	t:tdeq({req:receive("*a")}, {nil, "closed", ""})
+	t:tdeq({req:receive("*a")}, {nil, "closed", ""})
 
 	t:tdeq({soc:receive(100)}, {nil, "timeout", "qwerty"})
 end
