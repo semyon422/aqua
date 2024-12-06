@@ -52,11 +52,12 @@ end
 
 ---@private
 ---@param rc ngx.return_code
----@param should_not_push boolean
+---@param should_not_push boolean?
+---@param not_nil boolean?
 ---@return string?
 ---@return "closed"|"timeout"?
 ---@return string?
-function ExtendedSocket:handle_return(rc, should_not_push)
+function ExtendedSocket:handle_return(rc, should_not_push, not_nil)
 	---@type string
 	local data
 
@@ -66,6 +67,9 @@ function ExtendedSocket:handle_return(rc, should_not_push)
 
 	if rc == "ok" then
 		if data ~= "" or self.last_bytes ~= 0 then
+			if not_nil then
+				return data or ""
+			end
 			return data
 		end
 		return nil, self.err, ""
@@ -96,7 +100,8 @@ end
 ---@return string?
 function ExtendedSocket:receive(pattern, prefix)
 	assert(not prefix, "not implemented")
-	return self:handle_return(ngx_http_lua.socket_tcp_receive(self.upstream, pattern))
+	local rc, should_not_push = ngx_http_lua.socket_tcp_receive(self.upstream, pattern)
+	return self:handle_return(rc, should_not_push, true)
 end
 
 ---@param max integer
@@ -128,7 +133,7 @@ function ExtendedSocket:send(data, i, j)
 		return self.soc:send(data, i, j)
 	end
 
-	i, j = i or 1, j or #data
+	i, j = self:normalize_bounds(data, i, j)
 
 	while true do
 		local last_byte, err, _last_byte = self.soc:send(data, i, j)

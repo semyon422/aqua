@@ -201,7 +201,7 @@ function ngx_http_lua.socket_tcp_receive(u, pattern)
 		local bytes = pattern
 		assert(bytes >= 0, "bad number argument")
 		if bytes == 0 then
-			return "ok", true
+			-- return "ok", true
 		end
 		u.input_filter = ngx_http_lua.socket_read_chunk
 		u.length = bytes

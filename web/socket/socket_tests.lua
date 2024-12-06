@@ -3,6 +3,26 @@ local test = {}
 ---@param t testing.T
 ---@param rsoc web.IExtendedSocket
 ---@param ssoc web.IExtendedSocket
+function test.receive_0(t, rsoc, ssoc)
+	ssoc:send("qw")
+	ssoc:close()
+
+	t:tdeq({rsoc:receive(0)}, {""})
+	t:tdeq({rsoc:receive(0)}, {""})
+
+	t:tdeq({rsoc:receive(1)}, {"q"})
+	t:tdeq({rsoc:receive(0)}, {""})
+	t:tdeq({rsoc:receive(0)}, {""})
+
+	t:tdeq({rsoc:receive(1)}, {"w"})
+
+	t:tdeq({rsoc:receive(0)}, {nil, "closed", ""})
+	t:tdeq({rsoc:receive(0)}, {nil, "closed", ""})
+end
+
+---@param t testing.T
+---@param rsoc web.IExtendedSocket
+---@param ssoc web.IExtendedSocket
 function test.receive_size_exact(t, rsoc, ssoc)
 	ssoc:send("qwe")
 	ssoc:close()
