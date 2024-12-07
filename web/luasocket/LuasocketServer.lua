@@ -29,7 +29,7 @@ function LuasocketServer:server(ip, port, handler)
 	assert(soc:settimeout(0))
 
 	self.tcp_updater:addServer(soc, function(client)
-		local soc = ExtendedSocket(client)
+		local soc = ExtendedSocket(SslSocket(client))
 		soc.cosocket = true
 		local req = SocketRequest(soc)
 		local res = SocketResponse(soc)

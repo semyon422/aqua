@@ -2,7 +2,6 @@ local socket_url = require("socket.url")
 local table_util = require("table_util")
 local http_util = require("http_util")
 local IHandler = require("web.IHandler")
-local BodyReader = require("web.body.BodyReader")
 
 ---@class web.ParamsContext: web.HandlerContext
 ---@field ip string
@@ -19,12 +18,14 @@ function ParamsHandler:new(body_handlers)
 	self.body_handlers = body_handlers
 end
 
+---@param req web.IRequest
+---@param body_handler_name string
 function ParamsHandler:get_body_params(req, body_handler_name)
-	local reader = BodyReader(req)
 	local body_params = {}
 	if body_handler_name then
 		local body_handler = self.body_handlers[body_handler_name]
-		body_params = body_handler(reader, req.headers["Content-Type"])
+		body_params = body_handler(req)
+		-- body_params = body_handler(reader, req.headers["Content-Type"])
 	end
 	return body_params
 end
