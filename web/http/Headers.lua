@@ -13,6 +13,27 @@ function Headers:new(soc)
 	self.header_names = {}
 end
 
+---@param src web.Headers
+---@return web.Headers
+function Headers:copy(src)
+	local headers = self.headers
+	local header_names = self.header_names
+
+	for lower_name, name in pairs(src.header_names) do
+		header_names[lower_name] = name
+	end
+
+	for lower_name, src_values in pairs(src.headers) do
+		headers[lower_name] = headers[lower_name] or {}
+		local values = headers[lower_name]
+		for _, value in ipairs(src_values) do
+			table.insert(values, value)
+		end
+	end
+
+	return self
+end
+
 ---@param name string
 ---@param value string|number
 ---@return web.Headers
