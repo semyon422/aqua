@@ -5,8 +5,6 @@ local Headers = require("web.http.Headers")
 local ExtendedSocket = require("web.socket.ExtendedSocket")
 local SocketRequest = require("web.luasocket.SocketRequest")
 local SocketResponse = require("web.luasocket.SocketResponse")
-local TcpSocket = require("web.luasocket.TcpSocket")
-local SslTcpSocket = require("web.luasocket.SslTcpSocket")
 
 local default = {
 	path = "/",
@@ -24,7 +22,9 @@ local SocketHttpClient = class()
 
 SocketHttpClient.user_agent = "aqua.web/1.0"
 
-function SocketHttpClient:new()
+---@param tcp_soc web.ITcpSocket
+function SocketHttpClient:new(tcp_soc)
+	self.tcp_soc = tcp_soc
 	self.headers = Headers()
 end
 
@@ -34,14 +34,12 @@ end
 function SocketHttpClient:connect(url)
 	local parsed_url = socket_url.parse(url, default)
 
-	local tcp_soc
-	if parsed_url.scheme == "https" then
-		tcp_soc = SslTcpSocket()
-	else
-		tcp_soc = TcpSocket()
-	end
-
+	local tcp_soc = self.tcp_soc
 	assert(tcp_soc:connect(parsed_url.host, parsed_url.port or scheme_ports[parsed_url.scheme]))
+
+	if parsed_url.scheme == "https" then
+		tcp_soc:sslhandshake()
+	end
 
 	local soc = ExtendedSocket(tcp_soc)
 
