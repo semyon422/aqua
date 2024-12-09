@@ -46,7 +46,11 @@ end
 ---@return "closed"|"timeout"?
 ---@return string?
 function LsTcpSocket:receive(size)
-	return self.soc:receive(size)
+	local data, err, partial = self.soc:receive(size)
+	if err == "wantread" then  -- SSL error
+		err = "timeout"
+	end
+	return data, err, partial
 end
 
 ---@param data string
