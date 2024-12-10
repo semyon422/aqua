@@ -1,4 +1,4 @@
-local IResponse = require("web.IResponse")
+local IResponse = require("web.http.IResponse")
 
 ---@class web.NginxResponse: web.IResponse
 ---@operator call: web.NginxResponse
