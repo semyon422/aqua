@@ -18,11 +18,11 @@ end
 ---@private
 ---@return true?
 ---@return "closed"|"timeout"|"unknown status"|"malformed headers"?
-function Response:receiveInfo()
-	if self.info_received then
+function Response:receive_headers()
+	if self.headers_received then
 		return true
 	end
-	self.info_received = true
+	self.headers_received = true
 
 	local sline, err = StatusLine():receive(self.soc)
 	if not sline then
@@ -40,7 +40,7 @@ function Response:receiveInfo()
 		return nil, err
 	end
 
-	self:processHeaders()
+	self:process_headers()
 
 	return true
 end
@@ -48,11 +48,11 @@ end
 ---@private
 ---@return true?
 ---@return "closed"|"timeout"?
-function Response:sendInfo()
-	if self.info_sent then
+function Response:send_headers()
+	if self.headers_sent then
 		return true
 	end
-	self.info_sent = true
+	self.headers_sent = true
 
 	local sline, err = StatusLine(self.status):send(self.soc)
 	if not sline then
@@ -64,7 +64,7 @@ function Response:sendInfo()
 		return nil, err
 	end
 
-	self:processHeaders()
+	self:process_headers()
 
 	return true
 end

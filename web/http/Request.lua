@@ -16,11 +16,11 @@ end
 ---@private
 ---@return true?
 ---@return "closed"|"timeout"|"malformed headers"?
-function Request:receiveInfo()
-	if self.info_received then
+function Request:receive_headers()
+	if self.headers_received then
 		return true
 	end
-	self.info_received = true
+	self.headers_received = true
 
 	local rline, err = RequestLine():receive(self.soc)
 	if not rline then
@@ -35,7 +35,7 @@ function Request:receiveInfo()
 		return nil, err
 	end
 
-	self:processHeaders()
+	self:process_headers()
 
 	return true
 end
@@ -43,11 +43,11 @@ end
 ---@private
 ---@return true?
 ---@return "closed"|"timeout"?
-function Request:sendInfo()
-	if self.info_sent then
+function Request:send_headers()
+	if self.headers_sent then
 		return true
 	end
-	self.info_sent = true
+	self.headers_sent = true
 
 	local rline, err = RequestLine(self.method, self.uri):send(self.soc)
 	if not rline then
@@ -59,7 +59,7 @@ function Request:sendInfo()
 		return nil, err
 	end
 
-	self:processHeaders()
+	self:process_headers()
 
 	return true
 end
