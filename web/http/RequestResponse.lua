@@ -8,15 +8,13 @@ local ChunkedEncoding = require("web.http.ChunkedEncoding")
 ---@field headers web.Headers
 local RequestResponse = IRequestResponse + {}
 
----@private
----@return true?
+---@return 1?
 ---@return "closed"|"timeout"|"malformed headers"?
 function RequestResponse:receive_headers()
 	error("not implemented")
 end
 
----@private
----@return true?
+---@return 1?
 ---@return "closed"|"timeout"?
 function RequestResponse:send_headers()
 	error("not implemented")
@@ -60,30 +58,6 @@ function RequestResponse:send(data, i, j)
 		return nil, err, i - 1
 	end
 	return self.soc:send(data, i, j)
-end
-
----@param data string
----@return 1?
----@return "closed"|"timeout"?
-function RequestResponse:print(data)
-	local bytes, err = self:send(data)
-	if not bytes then
-		return nil, err
-	end
-	return 1
-end
-
----@param wait boolean?
----@return 1?
----@return "closed"|"timeout"?
-function RequestResponse:flush(wait)
-	-- buffering is not implemented yet
-end
-
----@return 1?
----@return "closed"|"timeout"?
-function RequestResponse:eof()
-	return self:print("")
 end
 
 return RequestResponse

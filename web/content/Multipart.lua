@@ -62,7 +62,7 @@ function Multipart:receive()
 end
 
 ---@param headers web.Headers?
----@return true?
+---@return 1?
 ---@return "closed"|"timeout"?
 function Multipart:next_part(headers)
 	if not headers then
@@ -81,7 +81,7 @@ function Multipart:next_part(headers)
 	headers.soc = self.soc
 	headers:send(self.soc)
 
-	return true
+	return 1
 end
 
 return Multipart

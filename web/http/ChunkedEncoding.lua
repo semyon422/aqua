@@ -22,7 +22,7 @@ function ChunkedEncoding:new(soc)
 end
 
 ---@private
----@return true?
+---@return 1?
 ---@return "closed"|"timeout"|"invalid chunk size"?
 function ChunkedEncoding:receive_size()
 	local data, err, _ = self.soc:receive("*l")
@@ -38,7 +38,7 @@ function ChunkedEncoding:receive_size()
 
 	self.state = size > 0 and "data" or "trailer"
 
-	return true
+	return 1
 end
 
 ---@private

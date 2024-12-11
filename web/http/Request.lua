@@ -13,12 +13,11 @@ function Request:new(soc)
 	self.headers = Headers()
 end
 
----@private
----@return true?
+---@return 1?
 ---@return "closed"|"timeout"|"malformed headers"?
 function Request:receive_headers()
 	if self.headers_received then
-		return true
+		return 1
 	end
 	self.headers_received = true
 
@@ -37,15 +36,14 @@ function Request:receive_headers()
 
 	self:process_headers()
 
-	return true
+	return 1
 end
 
----@private
----@return true?
+---@return 1?
 ---@return "closed"|"timeout"?
 function Request:send_headers()
 	if self.headers_sent then
-		return true
+		return 1
 	end
 	self.headers_sent = true
 
@@ -61,7 +59,7 @@ function Request:send_headers()
 
 	self:process_headers()
 
-	return true
+	return 1
 end
 
 return Request
