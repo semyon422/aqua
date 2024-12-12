@@ -20,6 +20,11 @@ function RequestResponse:send_headers()
 	error("not implemented")
 end
 
+function RequestResponse:set_chunked_encoding()
+	self.headers:unset("Content-Length")
+	self.headers:set("Transfer-Encoding", "chunked")
+end
+
 function RequestResponse:process_headers()
 	local length = self.headers:get("Content-Length")
 	local encoding = self.headers:get("Transfer-Encoding")
