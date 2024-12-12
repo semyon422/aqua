@@ -68,6 +68,17 @@ function Headers:set(name, value)
 end
 
 ---@param name string
+---@return web.Headers
+function Headers:unset(name)
+	local lower_name = name:lower()
+
+	self.header_names[lower_name] = nil
+	self.headers[lower_name] = nil
+
+	return self
+end
+
+---@param name string
 ---@return string ...
 function Headers:get(name)
 	local header = self.headers[name:lower()]
