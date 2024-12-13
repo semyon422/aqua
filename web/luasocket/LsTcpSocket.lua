@@ -29,12 +29,20 @@ function LsTcpSocket:connect(host, port)
 	return 1
 end
 
+---@return 1?
+---@return string?
 function LsTcpSocket:sslhandshake()
 	local ssl = require("ssl")
-	self.soc = ssl.wrap(self.soc, self.ssl_params)
-	self.soc:dohandshake()
+	local soc, err = ssl.wrap(self.soc, self.ssl_params)
+	if not soc then
+		return nil, err
+	end
+	local ok, err = soc:dohandshake()
+	if not ok then
+		return nil, err
+	end
+	self.soc = soc
 end
-
 
 ---@param value integer?
 function LsTcpSocket:settimeout(value)
