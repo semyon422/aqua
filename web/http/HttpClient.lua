@@ -38,7 +38,7 @@ function HttpClient:connect(url)
 	assert(tcp_soc:connect(parsed_url.host, parsed_url.port or scheme_ports[parsed_url.scheme]))
 
 	if parsed_url.scheme == "https" then
-		tcp_soc:sslhandshake()
+		assert(tcp_soc:sslhandshake())
 	end
 
 	local soc = ExtendedSocket(tcp_soc)
