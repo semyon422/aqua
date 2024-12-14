@@ -12,21 +12,25 @@ LsTcpSocket.ssl_params = {
 	verify = "none",
 }
 
+---@param ver 4|6?
+function LsTcpSocket:new(ver)
+	if ver == nil then
+		self.soc = socket.tcp()
+	elseif ver == 4 then
+		self.soc = socket.tcp4()
+	elseif ver == 6 then
+		self.soc = socket.tcp6()
+	else
+		error("invalid IP version: " .. tostring(ver))
+	end
+end
+
 ---@param host string
 ---@param port integer
 ---@return 1?
 ---@return string?
 function LsTcpSocket:connect(host, port)
-	local soc = socket.tcp()
-
-	local ok, err = soc:connect(host, port)
-	if not ok then
-		return nil, err
-	end
-
-	self.soc = soc
-
-	return 1
+	return self.soc:connect(host, port)
 end
 
 ---@return 1?
@@ -42,6 +46,7 @@ function LsTcpSocket:sslhandshake()
 		return nil, err
 	end
 	self.soc = soc
+	return 1
 end
 
 ---@param value integer?
