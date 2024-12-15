@@ -17,4 +17,8 @@ function IRequestResponse:send_headers()
 	error("not implemented")
 end
 
+function IRequestResponse:set_chunked_encoding()
+	error("not implemented")
+end
+
 return IRequestResponse
