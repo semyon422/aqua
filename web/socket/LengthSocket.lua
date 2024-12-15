@@ -47,24 +47,21 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function LengthSocket:send(data, i, j)
-	i, j = self:normalize_bounds(data, i, j)
+	assert(not i and not j, "not implemented")
 
-	if self.length == 0 then
-		return nil, "closed", i - 1
+	local length = self.length
+	if length == 0 then
+		return nil, "closed", 0
 	end
 
-	local data_size = j - i + 1
-	local avail_size = self.length
-	if avail_size >= data_size then
-		local bytes, err, _bytes = self.soc:send(data, i, j)
-		self.length = avail_size - (bytes or _bytes) + i - 1
+	if length >= #data then
+		local bytes, err, _bytes = self.soc:send(data)
+		self.length = length - (bytes or _bytes)
 		return bytes, err, _bytes
 	end
 
-	local last_byte = i + avail_size - 1
-
-	local bytes, err, _bytes = self.soc:send(data, i, last_byte)
-	self.length = avail_size - (bytes or _bytes) + i - 1
+	local bytes, err, _bytes = self.soc:send(data:sub(1, length))
+	self.length = length - (bytes or _bytes)
 
 	if not bytes then
 		return bytes, err, _bytes

@@ -57,10 +57,10 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function RequestResponse:send(data, i, j)
-	i, j = self:normalize_bounds(data, i, j)
+	assert(not i and not j, "not implemented")
 	local ok, err = self:send_headers()
 	if not ok then
-		return nil, err, i - 1
+		return nil, err, 0
 	end
 	return self.soc:send(data, i, j)
 end

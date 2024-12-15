@@ -1,4 +1,5 @@
 local LengthSocket = require("web.socket.LengthSocket")
+local RangeSocket = require("web.socket.RangeSocket")
 local StringSocket = require("web.socket.StringSocket")
 
 local test = {}
@@ -33,15 +34,16 @@ end
 ---@param t testing.T
 function test.send(t)
 	local str_soc = StringSocket()
-	local soc = LengthSocket(str_soc, 6)
+	local len_soc = LengthSocket(str_soc, 6)
+	local soc = RangeSocket(len_soc)
 
 	t:tdeq({soc:send("qwertyuiop", 2, 3)}, {3})
 	t:eq(str_soc.remainder, "we")
-	t:eq(soc.length, 4)
+	t:eq(len_soc.length, 4)
 
 	t:tdeq({soc:send("qwertyuiop", 5, 10)}, {nil, "closed", 8})
 	t:eq(str_soc.remainder, "wetyui")
-	t:eq(soc.length, 0)
+	t:eq(len_soc.length, 0)
 
 	t:tdeq({soc:send("qwertyuiop", 3, 8)}, {nil, "closed", 2})
 	t:tdeq({soc:send("qwertyuiop", 3, 8)}, {nil, "closed", 2})

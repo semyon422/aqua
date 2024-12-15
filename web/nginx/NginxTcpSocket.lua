@@ -58,8 +58,8 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function NginxTcpSocket:send(data, i, j)
-	i, j = self:normalize_bounds(data, i, j)
-	return self.soc:send(data:sub(i, j))
+	assert(not i and not j, "not implemented")
+	return self.soc:send(data)
 end
 
 ---@return 1

@@ -1,36 +1,29 @@
-local IExtendedSocket = require("web.socket.IExtendedSocket")
+local DecoratorSocket = require("web.socket.DecoratorSocket")
 
----@class web.RangeSocket: web.IExtendedSocket
+---@class web.RangeSocket: web.DecoratorSocket
 ---@operator call: web.RangeSocket
-local RangeSocket = IExtendedSocket + {}
+local RangeSocket = DecoratorSocket + {}
 
----@param soc web.IExtendedSocket
-function RangeSocket:new(soc)
-	self.soc = soc
-end
+---@param data string
+---@param i integer?
+---@param j integer?
+---@return integer
+---@return integer
+local function normalize_bounds(data, i, j)
+	i = i or 1
+	j = j or #data
 
----@param pattern "*a"|"*l"|integer?
----@param prefix string?
----@return string?
----@return "closed"|"timeout"?
----@return string?
-function RangeSocket:receive(pattern, prefix)
-	return self.soc:receive(pattern, prefix)
-end
+	if i < 0 then
+		i = i + #data + 1
+	end
+	if j < 0 then
+		j = j + #data + 1
+	end
 
----@param max integer
----@return string?
----@return "closed"|"timeout"?
----@return string?
-function RangeSocket:receiveany(max)
-	return self.soc:receiveany(max)
-end
+	i = math.max(i, 1)
+	j = math.max(math.min(j, #data), i - 1)
 
----@param pattern string
----@param options {inclusive: boolean?}?
----@return fun(size: integer?): string?, "closed"|"timeout"?, string?
-function RangeSocket:receiveuntil(pattern, options)
-	return self.soc:receiveuntil(pattern, options)
+	return i, j
 end
 
 ---@param data string
@@ -40,7 +33,7 @@ end
 ---@return "closed"|"timeout"?
 ---@return integer?
 function RangeSocket:send(data, i, j)
-	i, j = self:normalize_bounds(data, i, j)
+	i, j = normalize_bounds(data, i, j)
 
 	local bytes, err, _bytes = self.soc:send(data:sub(i, j))
 
@@ -51,11 +44,6 @@ function RangeSocket:send(data, i, j)
 	end
 
 	return nil, err, n
-end
-
----@return 1
-function RangeSocket:close()
-	return self.soc:close()
 end
 
 return RangeSocket

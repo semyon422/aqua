@@ -1,6 +1,7 @@
 local ExtendedSocket = require("web.socket.ExtendedSocket")
 local StringSocket = require("web.socket.StringSocket")
 local PrefixSocket = require("web.socket.PrefixSocket")
+local RangeSocket = require("web.socket.RangeSocket")
 
 local test = {}
 
@@ -12,7 +13,7 @@ function test.socket_all(t)
 	for k, f in pairs(tpl) do
 		t.name = k
 		local ext_soc = ExtendedSocket(StringSocket())
-		local soc = PrefixSocket(ext_soc)
+		local soc = RangeSocket(PrefixSocket(ext_soc))
 		f(t, soc, soc)
 	end
 
@@ -20,7 +21,7 @@ function test.socket_all(t)
 		t.name = k
 		local ext_soc = ExtendedSocket(StringSocket())
 		ext_soc = ExtendedSocket(ext_soc)
-		local soc = PrefixSocket(ext_soc)
+		local soc = RangeSocket(PrefixSocket(ext_soc))
 		f(t, soc, soc)
 	end
 end
@@ -34,7 +35,7 @@ function test.socket_small_buffer_size(t)
 		for k, f in pairs(tpl) do
 			t.name = k
 			local ext_soc = ExtendedSocket(StringSocket())
-			local soc = PrefixSocket(ext_soc)
+			local soc = RangeSocket(PrefixSocket(ext_soc))
 			ext_soc.upstream.buffer_size = buffer_size
 			f(t, soc, soc)
 		end
@@ -45,7 +46,7 @@ function test.socket_small_buffer_size(t)
 			t.name = k
 			local ext_soc = ExtendedSocket(StringSocket())
 			ext_soc = ExtendedSocket(ext_soc)
-			local soc = PrefixSocket(ext_soc)
+			local soc = RangeSocket(PrefixSocket(ext_soc))
 			ext_soc.upstream.buffer_size = buffer_size
 			f(t, soc, soc)
 		end

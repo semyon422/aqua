@@ -133,10 +133,12 @@ function ExtendedSocket:send(data, i, j)
 		return self.soc:send(data, i, j)
 	end
 
-	i, j = self:normalize_bounds(data, i, j)
+	assert(not i and not j, "not implemented")
+
+	i, j = 1, #data
 
 	while true do
-		local last_byte, err, _last_byte = self.soc:send(data, i, j)
+		local last_byte, err, _last_byte = self.soc:send(data:sub(i, j))
 		if err == "closed" then
 			return nil, "closed", _last_byte
 		end
