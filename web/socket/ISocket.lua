@@ -29,8 +29,8 @@ end
 ---@param data string
 ---@param i integer?
 ---@param j integer?
----@return integer?
----@return integer?
+---@return integer
+---@return integer
 function ISocket:normalize_bounds(data, i, j)
 	i = i or 1
 	j = j or #data
