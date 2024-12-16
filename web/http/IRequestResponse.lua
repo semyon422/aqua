@@ -21,4 +21,9 @@ function IRequestResponse:set_chunked_encoding()
 	error("not implemented")
 end
 
+---@param mode "r"|"w"|"rw"
+function IRequestResponse:assert_mode(mode)
+	error("not implemented")
+end
+
 return IRequestResponse

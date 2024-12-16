@@ -1,5 +1,4 @@
 local IResponse = require("web.http.IResponse")
-local Headers = require("web.http.Headers")
 local StatusLine = require("web.http.StatusLine")
 local RequestResponse = require("web.http.RequestResponse")
 
@@ -9,15 +8,11 @@ local Response = IResponse + RequestResponse
 
 Response.status = 200
 
----@param soc web.IExtendedSocket
-function Response:new(soc)
-	self.soc = soc
-	self.headers = Headers()
-end
-
 ---@return 1?
 ---@return "closed"|"timeout"|"unknown status"|"malformed headers"?
 function Response:receive_headers()
+	self:assert_mode("r")
+
 	if self.headers_received then
 		return 1
 	end
@@ -47,6 +42,8 @@ end
 ---@return 1?
 ---@return "closed"|"timeout"?
 function Response:send_headers()
+	self:assert_mode("w")
+
 	if self.headers_sent then
 		return 1
 	end
