@@ -24,6 +24,41 @@ function MimeType:new(str)
 	end
 end
 
+function MimeType:get_type_subtype()
+	return ("%s/%s"):format(self.type, self.subtype)
+end
+
+function MimeType:match(s, exact)
+	local mime_type = MimeType(s)
+	if not mime_type then
+		return false
+	end
+
+	if self.type ~= mime_type.type or self.subtype ~= mime_type.type then
+		return false
+	end
+
+	local params = self.params
+	for k, v in pairs(mime_type.params) do
+		if params[k] ~= v then
+			return false
+		end
+	end
+
+	if not exact then
+		return true
+	end
+
+	params = mime_type.params
+	for k, v in pairs(self.params) do
+		if params[k] ~= v then
+			return false
+		end
+	end
+
+	return true
+end
+
 function MimeType:__tostring()
 	local out = {}
 
