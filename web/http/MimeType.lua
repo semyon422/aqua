@@ -28,13 +28,16 @@ function MimeType:get_type_subtype()
 	return ("%s/%s"):format(self.type, self.subtype)
 end
 
-function MimeType:match(s, exact)
-	local mime_type = MimeType(s)
+---@param str string
+---@param exact boolean?
+---@return boolean
+function MimeType:match(str, exact)
+	local mime_type = MimeType(str)
 	if not mime_type then
 		return false
 	end
 
-	if self.type ~= mime_type.type or self.subtype ~= mime_type.type then
+	if self.type ~= mime_type.type or self.subtype ~= mime_type.subtype then
 		return false
 	end
 
