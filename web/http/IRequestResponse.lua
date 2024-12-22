@@ -17,6 +17,11 @@ function IRequestResponse:send_headers()
 	error("not implemented")
 end
 
+---@param length integer
+function IRequestResponse:set_length(length)
+	error("not implemented")
+end
+
 function IRequestResponse:set_chunked_encoding()
 	error("not implemented")
 end

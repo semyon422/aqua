@@ -26,6 +26,13 @@ function RequestResponse:assert_mode(mode)
 	error("can't be called in mode '" .. tostring(_mode) .. "'", 3)
 end
 
+---@param length integer
+function RequestResponse:set_length(length)
+	self:assert_mode("w")
+	self.headers:unset("Transfer-Encoding")
+	self.headers:set("Content-Length", length)
+end
+
 function RequestResponse:set_chunked_encoding()
 	self:assert_mode("w")
 	self.headers:unset("Content-Length")
