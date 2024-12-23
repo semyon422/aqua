@@ -2,6 +2,8 @@ local class = require("class")
 local table_util = require("table_util")
 local socket_url = require("socket.url")
 
+-- Cookie header
+
 ---@class web.RequestCookie
 ---@operator call: web.RequestCookie
 ---@field cookie {[string]: string}
@@ -16,46 +18,45 @@ function RequestCookie:new(s)
 		return
 	end
 
-	local cookie, keys = self.cookie, self.keys
-
 	for k, v in s:gmatch("([^=%s]*)=([^;]*)") do
 		self:set(socket_url.unescape(k), socket_url.unescape(v))
 	end
 end
 
----@param k string
----@param v any?
-function RequestCookie:set(k, v)
+---@param name string
+---@param value any?
+function RequestCookie:set(name, value)
 	local cookie, keys = self.cookie, self.keys
-	if not cookie[k] then
-		table.insert(keys, k)
+	if not cookie[name] then
+		table.insert(keys, name)
 	end
-	cookie[k] = tostring(v)
+	cookie[name] = tostring(value)
 end
 
----@param k string
-function RequestCookie:unset(k)
+---@param name string
+function RequestCookie:unset(name)
 	local cookie, keys = self.cookie, self.keys
-	local index = table_util.indexof(keys, k)
+	local index = table_util.indexof(keys, name)
 	if not index then
 		return
 	end
 	table.remove(keys, index)
-	cookie[k] = nil
+	cookie[name] = nil
 end
 
----@param k string
-function RequestCookie:get(k)
-	return self.cookie[k]
+---@param name string
+---@return string?
+function RequestCookie:get(name)
+	return self.cookie[name]
 end
 
 ---@return string
 function RequestCookie:__tostring()
 	local cookie, keys = self.cookie, self.keys
 	local out = {}
-	for _, k in ipairs(keys) do
-		local k, v = socket_url.escape(k), socket_url.escape(cookie[k])
-		local kv = ("%s=%s"):format(k, v)
+	for _, key in ipairs(keys) do
+		local name, value = socket_url.escape(key), socket_url.escape(cookie[key])
+		local kv = ("%s=%s"):format(name, value)
 		table.insert(out, kv)
 	end
 	return table.concat(out, "; ")
