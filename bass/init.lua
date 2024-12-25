@@ -80,7 +80,7 @@ QWORD BASS_ChannelSeconds2Bytes(DWORD handle, double pos);
 QWORD BASS_ChannelGetPosition(DWORD handle, DWORD mode);
 BOOL BASS_ChannelGetInfo(DWORD handle, BASS_CHANNELINFO *info);
 QWORD BASS_ChannelGetLength(DWORD handle, DWORD mode);
-DWORD BASS_ChannelGetData(DWORD handle, const void *buffer, DWORD length);
+DWORD BASS_ChannelGetData(DWORD handle, const void *buffer, QWORD length);
 HSAMPLE BASS_SampleLoad(BOOL mem, const void *file, QWORD offset, DWORD length, DWORD max, DWORD flags);
 BOOL BASS_SampleFree(HSAMPLE handle);
 BOOL BASS_ChannelFree(DWORD handle);
