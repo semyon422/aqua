@@ -17,8 +17,8 @@ function Router:route(pattern, resource)
 end
 
 ---@param path string
----@return {[string]: string}?
 ---@return any?
+---@return {[string]: string}?
 function Router:getResource(path)
 	for _, route_resource in ipairs(self.routes) do
 		local route, resource = unpack(route_resource)
