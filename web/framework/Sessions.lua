@@ -5,20 +5,20 @@ local openssl_hmac = require("openssl.hmac")
 local RequestCookie = require("web.http.RequestCookie")
 local SetCookieString = require("web.http.SetCookieString")
 
----@class web.Session
----@operator call: web.Session
-local Session = class()
+---@class web.Sessions
+---@operator call: web.Sessions
+local Sessions = class()
 
 ---@param cookie_name string
 ---@param secret string
-function Session:new(cookie_name, secret)
+function Sessions:new(cookie_name, secret)
 	self.cookie_name = cookie_name
 	self.secret = secret
 end
 
 ---@param s string
 ---@return string
-function Session:hmac(s)
+function Sessions:hmac(s)
 	local hmac = openssl_hmac.new(self.secret, "sha256")
 	return hmac:final(s)
 end
@@ -26,7 +26,7 @@ end
 ---@param headers web.Headers
 ---@return table?
 ---@return string?
-function Session:get(headers)
+function Sessions:get(headers)
 	local cookie_string = headers:get("Cookie")
 	if not cookie_string then
 		return nil, "missing cookie"
@@ -63,7 +63,7 @@ end
 
 ---@param headers web.Headers
 ---@param session table
-function Session:set(headers, session)
+function Sessions:set(headers, session)
 	local message = mime.b64(json.encode(session))
 	local signature = mime.b64(self:hmac(message))
 
@@ -76,4 +76,4 @@ function Session:set(headers, session)
 	headers:add("Set-Cookie", tostring(set_cookie))
 end
 
-return Session
+return Sessions
