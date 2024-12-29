@@ -6,6 +6,9 @@ local RequestResponse = require("web.http.RequestResponse")
 ---@operator call: web.Request
 local Request = IRequest + RequestResponse
 
+Request.method = "GET"
+Request.uri = "/"
+
 ---@return 1?
 ---@return "closed"|"timeout"|"malformed headers"?
 function Request:receive_headers()
