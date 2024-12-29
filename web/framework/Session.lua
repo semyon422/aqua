@@ -5,20 +5,20 @@ local openssl_hmac = require("openssl.hmac")
 local RequestCookie = require("web.http.RequestCookie")
 local SetCookieString = require("web.http.SetCookieString")
 
----@class web.SessionFactory
----@operator call: web.SessionFactory
-local SessionFactory = class()
+---@class web.Session
+---@operator call: web.Session
+local Session = class()
 
 ---@param cookie_name string
 ---@param secret string
-function SessionFactory:new(cookie_name, secret)
+function Session:new(cookie_name, secret)
 	self.cookie_name = cookie_name
 	self.secret = secret
 end
 
 ---@param s string
 ---@return string
-function SessionFactory:hmac(s)
+function Session:hmac(s)
 	local hmac = openssl_hmac.new(self.secret, "sha256")
 	return hmac:final(s)
 end
@@ -26,7 +26,7 @@ end
 ---@param headers web.Headers
 ---@return table?
 ---@return string?
-function SessionFactory:get(headers)
+function Session:get(headers)
 	local cookie_string = headers:get("Cookie")
 	if not cookie_string then
 		return nil, "missing cookie"
@@ -48,8 +48,8 @@ function SessionFactory:get(headers)
 		return nil, "invalid signature"
 	end
 
-	local message, rem = mime.unb64(message_b64)
-	if rem ~= "" then
+	local message = mime.unb64(message_b64)
+	if not message then
 		return nil, "invalid message"
 	end
 
@@ -63,7 +63,7 @@ end
 
 ---@param headers web.Headers
 ---@param session table
-function SessionFactory:set(headers, session)
+function Session:set(headers, session)
 	local message = mime.b64(json.encode(session))
 	local signature = mime.b64(self:hmac(message))
 
@@ -76,4 +76,4 @@ function SessionFactory:set(headers, session)
 	headers:add("Set-Cookie", tostring(set_cookie))
 end
 
-return SessionFactory
+return Session
