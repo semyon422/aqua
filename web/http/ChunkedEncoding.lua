@@ -9,6 +9,12 @@ local Headers = require("web.http.Headers")
 ---@operator call: web.ChunkedEncoding
 local ChunkedEncoding = ISocket + {}
 
+---@param err string?
+---@return "timeout"|"closed early"
+local function closed_early_or_timeout(err)
+	return err == "timeout" and "timeout" or "closed early"
+end
+
 ---@param soc web.IExtendedSocket
 function ChunkedEncoding:new(soc)
 	self.soc = soc
@@ -23,11 +29,12 @@ end
 
 ---@private
 ---@return 1?
----@return "closed"|"timeout"|"invalid chunk size"?
+---@return "closed early"|"timeout"|"invalid chunk size"?
 function ChunkedEncoding:receive_size()
 	local data, err, _ = self.soc:receive("*l")
+
 	if not data then
-		return nil, err
+		return nil, closed_early_or_timeout(err)
 	end
 
 	local size = tonumber(data:gsub(";.*", ""), 16)
@@ -43,21 +50,20 @@ end
 
 ---@private
 ---@return string?
----@return "closed"|"timeout"?
+---@return "closed early"|"timeout"?
 ---@return string?
 function ChunkedEncoding:receive_data(_size)
 	local size = math.min(_size, self.chunk_size)
-	local data, err, partial = self.soc:receive(size)
-	data = data or partial
+	local data, err, _ = self.soc:receive(size)
 
-	if #data == 0 then
-		return nil, err, ""
+	if not data then
+		return nil, closed_early_or_timeout(err)
 	end
 
 	if #data == self.chunk_size then
 		local line, _err, _ = self.soc:receive("*l")
 		if not line then
-			return nil, _err, ""
+			return nil, closed_early_or_timeout(_err)
 		end
 		self.state = "size"
 	end
@@ -69,7 +75,7 @@ end
 
 ---@param size integer
 ---@return string?
----@return "closed"|"timeout"|"invalid chunk size"|"malformed headers"?
+---@return "closed"|"timeout"|"closed early"|"invalid chunk size"|"malformed headers"?
 function ChunkedEncoding:receiveany(size)
 	if self.receive_closed then
 		return nil, "closed"
@@ -86,7 +92,7 @@ function ChunkedEncoding:receiveany(size)
 	if self.state == "trailer" then
 		local ok, err = self.headers:receive(self.soc)
 		if not ok then
-			return nil, err
+			return nil, closed_early_or_timeout(err)
 		end
 		self.receive_closed = true
 		return nil, "closed"

@@ -117,4 +117,23 @@ function test.basic_no_trailing_extended_all_timeout(t)
 	t:tdeq({enc:receive("*a")}, {nil, "timeout", ""})
 end
 
+---@param t testing.T
+function test.receive_early_close(t)
+	local str_soc = StringSocket()
+	local soc = ExtendedSocket(str_soc)
+
+	local enc = ExtendedSocket(ChunkedEncoding(soc))
+	enc:send("qwe")
+	enc:send("rty")
+	-- enc:send("")
+
+	str_soc:close()
+
+	t:eq(str_soc.remainder, "3\r\nqwe\r\n3\r\nrty\r\n")
+
+	t:tdeq({enc:receive("*a")}, {nil, "closed early", "qwerty"})
+	t:tdeq({enc:receive("*a")}, {nil, "closed early", ""})
+	t:tdeq({enc:receive("*a")}, {nil, "closed early", ""})
+end
+
 return test

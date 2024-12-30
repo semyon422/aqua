@@ -4,6 +4,12 @@ local ISocket = require("web.socket.ISocket")
 ---@operator call: web.LengthSocket
 local LengthSocket = ISocket + {}
 
+---@param err string?
+---@return "timeout"|"closed early"
+local function closed_early_or_timeout(err)
+	return err == "timeout" and "timeout" or "closed early"
+end
+
 ---@param soc web.ISocket
 ---@param length integer
 function LengthSocket:new(soc, length)
@@ -19,7 +25,7 @@ end
 
 ---@param size integer
 ---@return string?
----@return "closed"|"timeout"?
+---@return "closed"|"timeout"|"closed early"?
 ---@return string?
 function LengthSocket:receive(size)
 	if self.length == 0 then
@@ -30,7 +36,7 @@ function LengthSocket:receive(size)
 	self.length = self.length - #(data or partial)
 
 	if not data then
-		return nil, err, partial
+		return nil, closed_early_or_timeout(err), partial
 	end
 
 	if self.length == 0 and size > #data then

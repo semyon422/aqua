@@ -24,14 +24,14 @@ function ExtendedSocket:new(soc)
 	---@return integer|"again"
 	function self.upstream:recv(b, offset, size)
 		local data, err = _self.soc:receiveany(size)
-		assert(not err or err == "closed" or err == "timeout", err)
 
-		if err == "timeout" then
-			data = ""
+		if err ~= "closed" then
+			data = data or ""
 		end
 
+		_self.err = err
+
 		if not data then
-			_self.err = "closed"
 			_self.last_bytes = 0
 			return 0
 		end
@@ -39,7 +39,6 @@ function ExtendedSocket:new(soc)
 		local n = #data
 		b:copy(offset, data, n)
 
-		_self.err = "timeout"
 		_self.last_bytes = n
 
 		if n == 0 then

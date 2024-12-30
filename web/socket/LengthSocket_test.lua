@@ -1,6 +1,7 @@
 local LengthSocket = require("web.socket.LengthSocket")
 local RangeSocket = require("web.socket.RangeSocket")
 local StringSocket = require("web.socket.StringSocket")
+local ExtendedSocket = require("web.socket.ExtendedSocket")
 
 local test = {}
 
@@ -29,6 +30,34 @@ function test.receive_timeout(t)
 	t:tdeq({soc:receive(8)}, {"ertyuiop"})
 	t:tdeq({soc:receive(8)}, {nil, "closed", ""})
 	t:tdeq({soc:receive(8)}, {nil, "closed", ""})
+end
+
+---@param t testing.T
+function test.receive_early_close(t)
+	local str_soc = StringSocket()
+
+	str_soc:send("qwe")
+	str_soc:close()
+
+	local soc = LengthSocket(str_soc, 10)
+
+	t:tdeq({soc:receive(20)}, {nil, "closed early", "qwe"})
+	t:tdeq({soc:receive(20)}, {nil, "closed early", ""})
+	t:tdeq({soc:receive(20)}, {nil, "closed early", ""})
+end
+
+---@param t testing.T
+function test.receive_early_close_ex(t)
+	local str_soc = StringSocket()
+
+	str_soc:send("qwe")
+	str_soc:close()
+
+	local soc = ExtendedSocket(LengthSocket(str_soc, 10))
+
+	t:tdeq({soc:receive("*a")}, {nil, "closed early", "qwe"})
+	t:tdeq({soc:receive("*a")}, {nil, "closed early", ""})
+	t:tdeq({soc:receive("*a")}, {nil, "closed early", ""})
 end
 
 ---@param t testing.T
