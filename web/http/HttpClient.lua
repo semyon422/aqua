@@ -28,6 +28,10 @@ function HttpClient:new(tcp_soc)
 	self.headers = Headers()
 end
 
+function HttpClient:close()
+	self.tcp_soc:close()
+end
+
 ---@param url string
 ---@return web.IRequest
 ---@return web.IResponse
