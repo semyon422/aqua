@@ -5,11 +5,22 @@ local class = require("class")
 ---@operator call: rdb.Enum
 local Enum = class()
 
+---@param t {[string]: integer}
 function Enum:new(t)
 	self.t = t
 	self._t = table_util.invert(t)
 end
 
+---@return string[]
+function Enum:list()
+	local list = table_util.copy(self._t)
+	---@cast list string[]
+	table.sort(list)
+	return list
+end
+
+---@param k string
+---@return integer
 function Enum:encode(k)
 	local v = self.t[k]
 	if v then
@@ -18,6 +29,8 @@ function Enum:encode(k)
 	error("can not encode '" .. tostring(k) .. "'")
 end
 
+---@param v integer
+---@return string
 function Enum:decode(v)
 	local k = self._t[v]
 	if k then
