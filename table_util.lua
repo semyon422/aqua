@@ -336,4 +336,18 @@ end
 
 assert(table.concat({table_util.remove_holes(nil, 1, nil, 2, nil)}) == "12")
 
+---@param graph {[any]: any[]}
+---@return {[any]: any[]}
+function table_util.invert_graph(graph)
+	---@type {[any]: any[]}
+	local _graph = {}
+	for vert, verts in pairs(graph) do
+		for _, _vert in ipairs(verts) do
+			_graph[_vert] = _graph[_vert] or {}
+			table.insert(_graph[_vert], vert)
+		end
+	end
+	return _graph
+end
+
 return table_util
