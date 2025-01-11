@@ -87,6 +87,12 @@ function Headers:get(name)
 	end
 end
 
+---@param name string
+---@return string[]
+function Headers:getTable(name)
+	return self.headers[name:lower()] or {}
+end
+
 ---@param soc web.IExtendedSocket
 ---@return web.Headers?
 ---@return "closed"|"timeout"|"malformed headers"?
