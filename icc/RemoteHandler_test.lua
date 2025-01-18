@@ -13,10 +13,10 @@ function test.basic(t)
 	end
 
 	local th = TaskHandler()
-	local rh = RemoteHandler:create(th, tbl)
+	local rh = RemoteHandler(th, tbl)
 
 	local peer = FakePeer()
-	local res = rh(peer, {"obj", "func"}, true, 1, 2)
+	local res = rh:handle(peer, {"obj", "func"}, true, 1, 2)
 
 	t:eq(res, 3)
 end
