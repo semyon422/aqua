@@ -8,17 +8,19 @@ local stbl = require("stbl")
 ---@field name string?
 local Test = class()
 
----@param cond any?
+---@param ... any?
 ---@return any?
-function Test:assert(cond)
+function Test:assert(...)
+	local cond, err = ..., select(2, ...)
 	if cond then
 		return cond
 	end
 	local line = debug.getinfo(2, "Sl")
 
-	table.insert(self, ("%s:%s: assertion failed, got %s"):format(
+	table.insert(self, ("%s:%s: assertion failed%s, got %s"):format(
 		line.short_src,
 		line.currentline,
+		err and (" with error '%s'"):format(err) or "",
 		cond
 	))
 end
