@@ -5,7 +5,7 @@ local IPeer = require("icc.IPeer")
 local FakePeer = IPeer + {}
 
 function FakePeer:new()
-	---@type any[]
+	---@type icc.Message[]
 	self.messages = {}
 end
 
@@ -19,8 +19,8 @@ function FakePeer:count()
 	return #self.messages
 end
 
----@param i any
----@return any
+---@param i integer
+---@return icc.Message
 function FakePeer:get(i)
 	return self.messages[i]
 end

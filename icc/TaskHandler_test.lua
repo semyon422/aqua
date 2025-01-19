@@ -1,11 +1,17 @@
 local TaskHandler = require("icc.TaskHandler")
+local FuncHandler = require("icc.FuncHandler")
 local FakePeer = require("icc.FakePeer")
 local Message = require("icc.Message")
 
 local test = {}
 
 function test.basic(t)
-	local th = TaskHandler()
+	---@type icc.HandlerFunc
+	local function handler(th, peer, a, b)
+		return a + b
+	end
+
+	local th = TaskHandler(FuncHandler(handler))
 	local peer = FakePeer()
 
 	local done = false
@@ -18,11 +24,7 @@ function test.basic(t)
 	t:eq(peer:count(), 1)
 	t:tdeq(peer:get(1), Message(1, nil, 1, 2))
 
-	local function handler(_peer, a, b)
-		return a + b
-	end
-
-	th:handle(peer, peer:get(1), handler)
+	th:handle(peer, peer:get(1))
 
 	t:eq(peer:count(), 2)
 	t:tdeq(peer:get(2), Message(1, true, 3))
@@ -32,7 +34,14 @@ function test.basic(t)
 end
 
 function test.basic_no_return(t)
-	local th = TaskHandler()
+	local handled = false
+	---@type icc.HandlerFunc
+	local function handler(th, peer, a, b)
+		handled = true
+		return a + b
+	end
+
+	local th = TaskHandler(FuncHandler(handler))
 	local peer = FakePeer()
 
 	local done = false
@@ -45,13 +54,7 @@ function test.basic_no_return(t)
 	t:eq(peer:count(), 1)
 	t:tdeq(peer:get(1), Message(nil, nil, 1, 2))
 
-	local handled = false
-	local function handler(_peer, a, b)
-		handled = true
-		return a + b
-	end
-
-	th:handle(peer, peer:get(1), handler)
+	th:handle(peer, peer:get(1))
 
 	t:eq(peer:count(), 1)
 	t:assert(handled)
@@ -59,8 +62,22 @@ function test.basic_no_return(t)
 end
 
 function test.multiple(t)
-	local th1 = TaskHandler()
-	local th2 = TaskHandler()
+	---@type icc.HandlerFunc
+	local function handler1(th, peer, a)
+		t:eq(a, "ab")
+		return a .. "c"
+	end
+
+	---@type icc.HandlerFunc
+	local function handler2(th, peer, a)
+		t:eq(a, "a")
+		local res = th:call(peer, a .. "b")
+		t:eq(res, "abc")
+		return res .. "d"
+	end
+
+	local th1 = TaskHandler(FuncHandler(handler1))
+	local th2 = TaskHandler(FuncHandler(handler2))
 	local peer1 = FakePeer()
 	local peer2 = FakePeer()
 
@@ -71,20 +88,8 @@ function test.multiple(t)
 		done = true
 	end)()
 
-	local function handler1(_peer, a)
-		t:eq(a, "ab")
-		return a .. "c"
-	end
-
-	local function handler2(_peer, a)
-		t:eq(a, "a")
-		local res = th2:call(_peer, a .. "b")
-		t:eq(res, "abc")
-		return res .. "d"
-	end
-
-	th2:handle(peer2, peer1:get(1), handler2)
-	th1:handle(peer1, peer2:get(1), handler1)
+	th2:handle(peer2, peer1:get(1))
+	th1:handle(peer1, peer2:get(1))
 	th2:handleReturn(peer1:get(2))
 	th1:handleReturn(peer2:get(2))
 

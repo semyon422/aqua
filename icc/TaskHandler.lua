@@ -2,7 +2,6 @@ local class = require("class")
 local Message = require("icc.Message")
 
 ---@alias icc.EventId integer
----@alias icc.Handler fun(peer: icc.IPeer, ...: any): ...: any
 
 ---@class icc.TaskHandler
 ---@operator call: icc.TaskHandler
@@ -13,7 +12,9 @@ local TaskHandler = class()
 
 TaskHandler.timeout = math.huge
 
-function TaskHandler:new()
+---@param handler icc.IHandler
+function TaskHandler:new(handler)
+	self.handler = handler
 	self.timeouts = {}
 	self.callbacks = {}
 	self.event_id = 0
@@ -81,13 +82,12 @@ end
 
 ---@param peer icc.IPeer
 ---@param msg icc.Message
----@param handler icc.Handler
-function TaskHandler:handle(peer, msg, handler)
+function TaskHandler:handle(peer, msg)
 	if not msg.id then
-		handler(peer, msg:unpack())
+		self.handler:handle(self, peer, msg:unpack())
 		return
 	end
-	self:send(peer, msg.id, true, handler(peer, msg:unpack()))
+	self:send(peer, msg.id, true, self.handler:handle(self, peer, msg:unpack()))
 end
 TaskHandler.handle = TaskHandler.wrap(TaskHandler.handle)
 

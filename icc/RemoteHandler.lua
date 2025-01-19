@@ -1,31 +1,30 @@
-local class = require("class")
+local IHandler = require("icc.IHandler")
 local Remote = require("icc.Remote")
 
 ---@alias icc.RemoteFunction fun(remote: icc.Remote, ...: any): ...: any
 ---@alias icc.RemoteMethod fun(self: table, remote: icc.Remote, ...: any): ...: any
 
----@class icc.RemoteHandler
+---@class icc.RemoteHandler: icc.IHandler
 ---@operator call: icc.RemoteHandler
-local RemoteHandler = class()
+local RemoteHandler = IHandler + {}
 
----@param th icc.TaskHandler
----@param _t {[any]: [any]}
-function RemoteHandler:new(th, _t)
-	self.th = th
-	self._t = _t
+---@param t {[any]: [any]}
+function RemoteHandler:new(t)
+	self.t = t
 end
 
+---@param th icc.TaskHandler
 ---@param peer icc.IPeer
 ---@param path string[]
 ---@param is_method boolean
 ---@param ... any
 ---@return any ...
-function RemoteHandler:handle(peer, path, is_method, ...)
-	local remote = Remote(self.th, peer)
+function RemoteHandler:handle(th, peer, path, is_method, ...)
+	local remote = Remote(th, peer)
 
 	---@type any
 	local s
-	local t = self._t
+	local t = self.t
 	for _, k in ipairs(path) do
 		s = t
 		t = t[k]
