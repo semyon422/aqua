@@ -8,10 +8,13 @@ local stbl = require("stbl")
 ---@field name string?
 local Test = class()
 
----@param ... any?
----@return any?
-function Test:assert(...)
-	local cond, err = ..., select(2, ...)
+---@generic T
+---@param cond? T
+---@param err? any
+---@param ... any
+---@return T
+---@return any ...
+function Test:assert(cond, err, ...)
 	if cond then
 		return cond
 	end
@@ -23,6 +26,8 @@ function Test:assert(...)
 		err and (" with error '%s'"):format(err) or "",
 		cond
 	))
+
+	return cond
 end
 
 local function format_got_expected(v)
