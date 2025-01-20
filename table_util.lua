@@ -194,6 +194,18 @@ function table_util.keyof(t, v, f)
 	end
 end
 
+---@param t table
+---@param k any
+---@param v any
+---@return any?
+function table_util.value_by_field(t, k, v)
+	for _, _v in pairs(t) do
+		if _v[k] == v then
+			return _v
+		end
+	end
+end
+
 ---@generic K
 ---@generic V
 ---@param t {[K]: V}
