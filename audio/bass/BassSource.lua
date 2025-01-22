@@ -106,12 +106,17 @@ function BassSource:getDuration()
 	return length
 end
 
+local uptr = ffi.new("uint32_t[1]")
+local sptr = ffi.cast("int32_t*", uptr)
+
 ---@param buffer ffi.cdata*
 ---@param length number
 ---@return ffi.cdata*
 ---@return number
 --- Use flags from aqua.bass.fft for length
 function BassSource:getFft(buffer, length)
+	uptr[0] = length
+	length = sptr[0]
 	bass.BASS_ChannelGetData(self.channel, buffer, length)
 end
 
