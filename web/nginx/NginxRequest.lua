@@ -20,6 +20,7 @@ function NginxRequest:receive_headers()
 	end
 	self.headers_received = true
 
+	---@type web.HttpMethod
 	self.method = ngx.req.get_method()
 	self.uri = ngx.var.request_uri
 

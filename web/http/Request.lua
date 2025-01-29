@@ -6,6 +6,7 @@ local RequestResponse = require("web.http.RequestResponse")
 ---@operator call: web.Request
 local Request = IRequest + RequestResponse
 
+---@type web.HttpMethod
 Request.method = "GET"
 Request.uri = "/"
 

@@ -1,0 +1,11 @@
+--- https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
+---@alias web.HttpMethod
+---| "GET"
+---| "HEAD"
+---| "OPTIONS"
+---| "TRACE"
+---| "PUT"
+---| "DELETE"
+---| "POST"
+---| "PATCH"
+---| "CONNECT"
