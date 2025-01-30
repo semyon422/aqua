@@ -23,7 +23,11 @@ local function find(tbl, conditions, from_end)
 			local row = tbl[i]
 			local eq = true
 			for k, v in pairs(conditions) do
-				eq = eq and row[k] == v
+				if type(v) == "table" then
+					eq = eq and table_util.deepequal(row[k], v)
+				else
+					eq = eq and row[k] == v
+				end
 			end
 			if eq then
 				coroutine.yield(i, row)
@@ -69,6 +73,7 @@ end
 function TestModel:create(values)
 	local row = table_util.copy(values)
 	---@cast row rdb.FakeRow
+	setmetatable(row, getmetatable(values))
 	row.id = get_next_id(self)
 	table.insert(self, row)
 	return row
