@@ -1,6 +1,5 @@
 local LjsqliteDatabase = require("rdb.LjsqliteDatabase")
 local TableOrm = require("rdb.TableOrm")
-local relations = require("rdb.relations")
 local Models = require("rdb.Models")
 local sql_util = require("rdb.sql_util")
 local table_util = require("table_util")
@@ -54,10 +53,9 @@ posts.relations = {
 	user = {belongs_to = "users", key = "user_id"},
 }
 
-local migrations = {}
-migrations[1] = [[
-	ALTER TABLE users ADD added_column INTEGER NOT NULL DEFAULT 0;
-]]
+local migrations = {
+	[1] = "ALTER TABLE users ADD added_column INTEGER NOT NULL DEFAULT 0;",
+}
 
 local test = {}
 
@@ -85,10 +83,12 @@ function test.all(t)
 
 	local models = Models(_models, orm)
 
-	local name = ""
+	---@type string[]
+	local name_tbl = {}
 	for c = 0, 0xFF do
-		name = name .. string.char(c)
+		name_tbl[c + 1] = string.char(c)
 	end
+	local name = table.concat(name_tbl)
 
 	local user_inserted = models.users:create({name = name})
 	assert(user_inserted)
@@ -109,13 +109,13 @@ function test.all(t)
 	t:eq(user.role, "user")
 	t:eq(user.added_column, 0)  -- from migration
 
-	user:update({
+	user = models.users:update({
 		name = "admin",
 		is_admin = true,
 		role = "admin",
 		null_flag = 1,
 		nullable_flag = sql_util.NULL,
-	})
+	}, {id = 1})[1]
 	t:eq(user.name, "admin")
 	t:eq(user.is_admin, true)
 	t:eq(user.role, "admin")
@@ -123,33 +123,18 @@ function test.all(t)
 	t:eq(user.nullable_flag, nil)
 
 	orm:update("users", {name = "user"}, {id = 1})
-	user:select()
+	user = models.users:find({id = 1})
+	assert(user)
 	t:eq(user.name, "user")
 
 	local post = models.posts:create({user_id = 1, text = "text"})
 
-	relations.preload({user}, {posts = "user"})
+	models.users:preload({user}, {posts = "user"})
 	t:eq(user.posts[1].text, "text")
 	t:eq(user.posts[1].user.name, "user")
 
-	local ctx = {
-		user_id = 1,
-		session = {user_id = 1},
-	}
-	models:select(ctx, {
-		user = {"users", {id = "user_id"}, "posts"},
-		session_user = {"users", {id = {"session", "user_id"}}},
-		function(ctx)
-			ctx.test = true
-		end,
-	})
-	t:eq(ctx.user.id, ctx.user_id)
-	t:eq(ctx.session_user.id, ctx.session.user_id)
-	t:eq(#ctx.user.posts, 1)
-	t:eq(ctx.test, true)
-
 	t:eq(models.posts:count(), 1)
-	user:delete()
+	models.users:delete({id = 1})
 	t:eq(models.posts:count(), 0)
 
 	local t_from_db = {

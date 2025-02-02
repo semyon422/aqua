@@ -1,12 +1,15 @@
 local class = require("class")
 local sql_util = require("rdb.sql_util")
-local ModelRow = require("rdb.ModelRow")
+local relations = require("rdb.relations")
+
+---@alias rdb.ModelRow {[string]: any}
+---@alias rdb.ModelOptions {table_name: string, types: table, relations: {[string]: rdb.Relation}, from_db: function?}
 
 ---@class rdb.Model
 ---@operator call: rdb.Model
 local Model = class()
 
----@param opts table
+---@param opts rdb.ModelOptions
 ---@param models rdb.Models
 function Model:new(opts, models)
 	self.table_name = opts.table_name
@@ -15,27 +18,24 @@ function Model:new(opts, models)
 	self.from_db = opts.from_db
 	self.models = models
 	self.orm = models._orm
-
-	local base_row = {
-		__model = self,
-		__models = models,
-		__orm = models._orm,
-	}
-	setmetatable(base_row, {__index = ModelRow})
-	self.row_mt = {__index = base_row}
 end
 
----@param rows table
+function Model:preload(rows, ...)
+	relations.preload(self, rows, ...)
+end
+
+---@param rows rdb.ModelRow[]
 ---@return rdb.ModelRow[]
 function Model:rows_from_db(rows)
 	local from_db = self.from_db
+	---@type rdb.ModelRow[]
 	local _rows = {}
 	for i, row in ipairs(rows) do
 		row = sql_util.from_db(row, self.types)
 		if from_db then
 			from_db(row)
 		end
-		_rows[i] = setmetatable(row, self.row_mt)
+		_rows[i] = row
 	end
 	return _rows
 end
@@ -62,10 +62,11 @@ function Model:count(conditions)
 	return tonumber(self.orm:count(self.table_name, conditions)) or 0
 end
 
----@param values_array table
+---@param values_array rdb.ModelRow[]
 ---@param ignore boolean?
 ---@return rdb.ModelRow[]
 function Model:insert(values_array, ignore)
+	---@type rdb.ModelRow[]
 	local new_values_array = {}
 	for i, values in ipairs(values_array) do
 		new_values_array[i] = sql_util.for_db(values, self.types)
