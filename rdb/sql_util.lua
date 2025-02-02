@@ -51,36 +51,23 @@ function sql_util.escape_identifier(s)
 	return '`' .. (s:gsub('`', '``')) .. '`'
 end
 
+local esci = sql_util.escape_identifier
+
 ---@type {[string]: string|fun(k: string, v: any): string, any[]}
 local _format_cond = {
-	contains = function(k, v)
-		return ("%s LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v .. "%"}
-	end,
-	notcontains = function(k, v)
-		return ("%s NOT LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v .. "%"}
-	end,
-	startswith = function(k, v)
-		return ("%s LIKE ?"):format(sql_util.escape_identifier(k)), {v .. "%"}
-	end,
-	notstartswith = function(k, v)
-		return ("%s NOT LIKE ?"):format(sql_util.escape_identifier(k)), {v .. "%"}
-	end,
-	endswith = function(k, v)
-		return ("%s LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v}
-	end,
-	notendswith = function(k, v)
-		return ("%s NOT LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v}
-	end,
+	contains = function(k, v) return ("%s LIKE ?"):format(esci(k)), {"%" .. v .. "%"} end,
+	notcontains = function(k, v) return ("%s NOT LIKE ?"):format(esci(k)), {"%" .. v .. "%"} end,
+	startswith = function(k, v) return ("%s LIKE ?"):format(esci(k)), {v .. "%"} end,
+	notstartswith = function(k, v) return ("%s NOT LIKE ?"):format(esci(k)), {v .. "%"} end,
+	endswith = function(k, v) return ("%s LIKE ?"):format(esci(k)), {"%" .. v} end,
+	notendswith = function(k, v) return ("%s NOT LIKE ?"):format(esci(k)), {"%" .. v} end,
 	["in"] = function(k, v)
 		---@type any[]
 		local _v = {}
 		for i = 1, #v do
 			_v[i] = "?"
 		end
-		return ("%s IN (%s)"):format(
-			sql_util.escape_identifier(k),
-			table.concat(_v, ", ")
-		), v
+		return ("%s IN (%s)"):format(esci(k), table.concat(_v, ", ")), v
 	end,
 	notin = function(k, v)
 		---@type any[]
@@ -88,10 +75,7 @@ local _format_cond = {
 		for i = 1, #v do
 			_v[i] = "?"
 		end
-		return ("%s NOT IN (%s)"):format(
-			sql_util.escape_identifier(k),
-			table.concat(_v, ", ")
-		), v
+		return ("%s NOT IN (%s)"):format(esci(k), table.concat(_v, ", ")), v
 	end,
 	isnull = "%s IS NULL",
 	isnotnull = "%s IS NOT NULL",
@@ -107,9 +91,10 @@ local _format_cond = {
 ---@param op string
 ---@param k string
 ---@param v any
+---@param ident boolean
 ---@return string?
 ---@return any[]
-local function format_cond(op, k, v)
+local function format_cond(op, k, v, ident)
 	local fmt = _format_cond[op]
 	if not fmt then
 		error(("invalid operator '%s'"):format(op))
@@ -121,11 +106,15 @@ local function format_cond(op, k, v)
 	if not has_binds and not v then  -- *__isnull = false
 		return nil, {}
 	end
-	local cond = fmt:format(sql_util.escape_identifier(k))
-	if has_binds then
-		return cond, {v}
+	local cond = fmt:format(esci(k))
+	if ident then
+		cond = cond:gsub("?", "%%s"):format(esci(v))
+		has_binds = false
 	end
-	return cond, {}
+	if not has_binds then
+		return cond, {}
+	end
+	return cond, {v}
 end
 
 ---@param cond string
@@ -152,11 +141,12 @@ function sql_util.conditions(t)
 		---@type string?, any[]?
 		local cd, vs
 		if type(k) == "string" then
-			local field, op = k:match("^(.+)__(.+)$")
+			local field, op, ident = k:match("^(.+)__([^_]+)(_?)$")
 			if not field then
-				field, op = k, "eq"
+				field, ident = k:match("^(.-)(_?)$")
+				op = "eq"
 			end
-			cd, vs = format_cond(op, field, v)
+			cd, vs = format_cond(op, field, v, ident == "_")
 		elseif type(v) == "table" then
 			cd, vs = sql_util.conditions(v)
 		end

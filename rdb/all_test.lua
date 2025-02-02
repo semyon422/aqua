@@ -109,6 +109,10 @@ function test.all(t)
 	t:eq(user.role, "user")
 	t:eq(user.added_column, 0)  -- from migration
 
+	t:assert(not models.users:find({id__eq_ = "added_column"}))
+	t:assert(not models.users:find({id_ = "added_column"}))
+	t:assert(models.users:find({id__ne_ = "added_column"}))
+
 	user = models.users:update({
 		name = "admin",
 		is_admin = true,
