@@ -2,7 +2,6 @@ local class = require("class")
 local sql_util = require("rdb.sql_util")
 local relations = require("rdb.relations")
 
----@alias rdb.ModelRow {[string]: any}
 ---@alias rdb.ModelOptions {table_name: string, types: table, relations: {[string]: rdb.Relation}, from_db: function?}
 
 ---@class rdb.Model
@@ -24,11 +23,11 @@ function Model:preload(rows, ...)
 	relations.preload(self, rows, ...)
 end
 
----@param rows rdb.ModelRow[]
----@return rdb.ModelRow[]
+---@param rows rdb.Row[]
+---@return rdb.Row[]
 function Model:rows_from_db(rows)
 	local from_db = self.from_db
-	---@type rdb.ModelRow[]
+	---@type rdb.Row[]
 	local _rows = {}
 	for i, row in ipairs(rows) do
 		row = sql_util.from_db(row, self.types)
@@ -42,15 +41,15 @@ end
 
 ---@param conditions table?
 ---@param options table?
----@return rdb.ModelRow[]
+---@return rdb.Row[]
 function Model:select(conditions, options)
-	conditions = sql_util.for_db(conditions, self.types)
+	conditions = sql_util.conditions_for_db(conditions, self.types)
 	local rows = self.orm:select(self.table_name, conditions, options)
 	return self:rows_from_db(rows)
 end
 
 ---@param conditions table
----@return rdb.ModelRow?
+---@return rdb.Row?
 function Model:find(conditions)
 	return self:select(conditions, {limit = 1})[1]
 end
@@ -58,15 +57,15 @@ end
 ---@param conditions table?
 ---@return number
 function Model:count(conditions)
-	conditions = sql_util.for_db(conditions, self.types)
+	conditions = sql_util.conditions_for_db(conditions, self.types)
 	return tonumber(self.orm:count(self.table_name, conditions)) or 0
 end
 
----@param values_array rdb.ModelRow[]
+---@param values_array rdb.Row[]
 ---@param ignore boolean?
----@return rdb.ModelRow[]
+---@return rdb.Row[]
 function Model:insert(values_array, ignore)
-	---@type rdb.ModelRow[]
+	---@type rdb.Row[]
 	local new_values_array = {}
 	for i, values in ipairs(values_array) do
 		new_values_array[i] = sql_util.for_db(values, self.types)
@@ -76,25 +75,25 @@ function Model:insert(values_array, ignore)
 end
 
 ---@param values table
----@return rdb.ModelRow
+---@return rdb.Row
 function Model:create(values)
 	return self:insert({values})[1]
 end
 
 ---@param values table
 ---@param conditions table?
----@return rdb.ModelRow[]
+---@return rdb.Row[]
 function Model:update(values, conditions)
-	conditions = sql_util.for_db(conditions, self.types)
+	conditions = sql_util.conditions_for_db(conditions, self.types)
 	values = sql_util.for_db(values, self.types)
 	local rows = self.orm:update(self.table_name, values, conditions)
 	return self:rows_from_db(rows)
 end
 
 ---@param conditions table?
----@return rdb.ModelRow[]
+---@return rdb.Row[]
 function Model:delete(conditions)
-	conditions = sql_util.for_db(conditions, self.types)
+	conditions = sql_util.conditions_for_db(conditions, self.types)
 	local rows = self.orm:delete(self.table_name, conditions)
 	return self:rows_from_db(rows)
 end

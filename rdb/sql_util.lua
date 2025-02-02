@@ -5,6 +5,8 @@ local sql_util = {}
 ---@class sql_util.NULL
 sql_util.NULL = {}
 
+---@param s string
+---@return string
 function sql_util.tohex(s)
 	local out = {}
 	for i = 1, #s do
@@ -21,6 +23,8 @@ function sql_util.toboolean(v)
 	return true
 end
 
+---@param v any
+---@return string|integer
 function sql_util.escape_literal(v)
 	local tv = type(v)
 	if v == sql_util.NULL then
@@ -37,7 +41,7 @@ function sql_util.escape_literal(v)
 	error(("unsupported type '%s'"):format(type(v)))
 end
 
----@param s string|table
+---@param s string|{[1]: string}
 ---@return string
 function sql_util.escape_identifier(s)
 	if type(s) == "table" then
@@ -47,6 +51,7 @@ function sql_util.escape_identifier(s)
 	return '`' .. (s:gsub('`', '``')) .. '`'
 end
 
+---@type {[string]: string|fun(k: string, v: any): string, any[]}
 local _format_cond = {
 	contains = function(k, v)
 		return ("%s LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v .. "%"}
@@ -67,6 +72,7 @@ local _format_cond = {
 		return ("%s NOT LIKE ?"):format(sql_util.escape_identifier(k)), {"%" .. v}
 	end,
 	["in"] = function(k, v)
+		---@type any[]
 		local _v = {}
 		for i = 1, #v do
 			_v[i] = "?"
@@ -77,6 +83,7 @@ local _format_cond = {
 		), v
 	end,
 	notin = function(k, v)
+		---@type any[]
 		local _v = {}
 		for i = 1, #v do
 			_v[i] = "?"
@@ -101,7 +108,7 @@ local _format_cond = {
 ---@param k string
 ---@param v any
 ---@return string?
----@return table
+---@return any[]
 local function format_cond(op, k, v)
 	local fmt = _format_cond[op]
 	if not fmt then
@@ -122,7 +129,7 @@ local function format_cond(op, k, v)
 end
 
 ---@param cond string
----@param vals table
+---@param vals any[]
 ---@return string
 function sql_util.bind(cond, vals)
 	local n = 0
@@ -133,14 +140,16 @@ function sql_util.bind(cond, vals)
 	return full_cond
 end
 
----@param t table
+---@param t rdb.Conditions
 ---@return string
----@return table
+---@return any[]
 function sql_util.conditions(t)
+	---@type string[]
 	local conds = {}
 	local vals = {}
 
 	for k, v in pairs(t) do
+		---@type string?, any[]?
 		local cd, vs
 		if type(k) == "string" then
 			local field, op = k:match("^(.+)__(.+)$")
@@ -151,7 +160,7 @@ function sql_util.conditions(t)
 		elseif type(v) == "table" then
 			cd, vs = sql_util.conditions(v)
 		end
-		if cd then
+		if cd and vs then
 			table.insert(conds, cd)
 			for _, _v in ipairs(vs) do
 				table.insert(vals, _v)
@@ -171,9 +180,9 @@ function sql_util.conditions(t)
 	return table.concat(conds, (" %s "):format(op)), vals
 end
 
----@param values table
+---@param values rdb.Row
 ---@return string
----@return table
+---@return any[]
 function sql_util.assigns(values)
 	local assigns = {}
 	local vals = {}
@@ -184,6 +193,9 @@ function sql_util.assigns(values)
 	return table.concat(assigns, ", "), vals
 end
 
+---@param v any
+---@param _type "boolean"|table?
+---@return any
 local function for_db(v, _type)
 	if type(v) == "cdata" then
 		v = tonumber(v)
@@ -192,18 +204,19 @@ local function for_db(v, _type)
 		v = v and 1 or 0
 	elseif type(_type) == "table" then
 		if class.is_instance(_type) then
-			v = _type:encode(v)
+			v = _type:encode(v) ---@diagnostic disable-line
 		else
-			v = _type.encode(v)
+			v = _type.encode(v) ---@diagnostic disable-line
 		end
 	end
 	return v
 end
 
----@param t table?
----@param types table?
----@return table
-function sql_util.for_db(t, types)
+---@param t rdb.Conditions?
+---@param types {[string]: "boolean"|table}?
+---@return rdb.Conditions
+function sql_util.conditions_for_db(t, types)
+	---@type {[any]: any}
 	local _t = {}
 	if not t then
 		return _t
@@ -217,6 +230,7 @@ function sql_util.for_db(t, types)
 
 			local _type = types and types[_k]
 			if op == "in" or op == "notin" then
+				---@type any[]
 				local _v = {}
 				for i = 1, #v do
 					_v[i] = for_db(v[i], _type)
@@ -226,17 +240,31 @@ function sql_util.for_db(t, types)
 				v = for_db(v, _type)
 			end
 		elseif type(v) == "table" then
-			v = sql_util.for_db(v, types)
+			v = sql_util.conditions_for_db(v, types)
 		end
 		_t[k] = v
 	end
 	return _t
 end
 
----@param t table
+---@param t rdb.Row
+---@param types {[string]: "boolean"|table}?
+---@return rdb.Row
+function sql_util.for_db(t, types)
+	---@type rdb.Row
+	local _t = {}
+	for k, v in pairs(t) do
+		local _type = types and types[k]
+		_t[k] = for_db(v, _type)
+	end
+	return _t
+end
+
+---@param t rdb.Row
 ---@param types table?
----@return table
+---@return rdb.Row
 function sql_util.from_db(t, types)
+	---@type rdb.Row
 	local _t = {}
 	for k, v in pairs(t) do
 		if type(v) == "cdata" then
@@ -247,9 +275,9 @@ function sql_util.from_db(t, types)
 			v = sql_util.toboolean(v)
 		elseif type(_type) == "table" then
 			if class.is_instance(_type) then
-				v = _type:decode(v)
+				v = _type:decode(v) ---@diagnostic disable-line
 			else
-				v = _type.decode(v)
+				v = _type.decode(v) ---@diagnostic disable-line
 			end
 		end
 		_t[k] = v

@@ -4,14 +4,14 @@ local relations = {}
 ---@alias rdb.Relation {belongs_to: string, has_many: string, key: string}
 
 ---@param model rdb.Model
----@param objects rdb.ModelRow[]
+---@param objects rdb.Row[]
 ---@param rel_name string
----@return rdb.ModelRow[]
+---@return rdb.Row[]
 ---@return rdb.Model
 local function preload_relation(model, objects, rel_name)
 	local models = model.models
 	local rel = model.relations[rel_name]
-	---@type rdb.ModelRow[], rdb.Model
+	---@type rdb.Row[], rdb.Model
 	local rel_objs, rel_model
 	if rel.belongs_to then
 		local tbl_name = rel.belongs_to
@@ -22,7 +22,7 @@ local function preload_relation(model, objects, rel_name)
 			rel_ids[i] = obj[rel.key]
 		end
 		rel_objs = rel_model:select({id__in = rel_ids})
-		---@type {[integer]: rdb.ModelRow}
+		---@type {[integer]: rdb.Row}
 		local rel_objs_map = {}
 		for _, rel_obj in ipairs(rel_objs) do
 			rel_objs_map[rel_obj.id] = rel_obj
@@ -34,7 +34,7 @@ local function preload_relation(model, objects, rel_name)
 	elseif rel.has_many then
 		local tbl_name = rel.has_many
 		rel_model = models[tbl_name]
-		---@type {[integer]: rdb.ModelRow}
+		---@type {[integer]: rdb.Row}
 		local objs_map = {}
 		for _, obj in ipairs(objects) do
 			objs_map[obj.id] = obj
@@ -57,8 +57,8 @@ local function preload_relation(model, objects, rel_name)
 end
 
 ---@param model rdb.Model
----@param sub_rels {[rdb.PreloadSpec]: rdb.ModelRow[]}
----@param objects rdb.ModelRow[]
+---@param sub_rels {[rdb.PreloadSpec]: rdb.Row[]}
+---@param objects rdb.Row[]
 ---@param spec rdb.PreloadSpec
 ---@param ... any
 local function preload_step(model, sub_rels, objects, spec, ...)
@@ -88,13 +88,13 @@ end
 -- lapis-like preload function
 
 ---@param model rdb.Model
----@param objects rdb.ModelRow[]
+---@param objects rdb.Row[]
 ---@param ... any
 function relations.preload(model, objects, ...)
 	if #objects == 0 then
 		return
 	end
-	---@type {[rdb.PreloadSpec]: rdb.ModelRow[]}
+	---@type {[rdb.PreloadSpec]: rdb.Row[]}
 	local sub_rels = {}
 	preload_step(model, sub_rels, objects, ...)
 	for sub_spec, sub_objects in pairs(sub_rels) do

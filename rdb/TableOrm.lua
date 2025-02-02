@@ -3,6 +3,11 @@ local table_util = require("table_util")
 local sql_util = require("rdb.sql_util")
 local PrintDatabase = require("rdb.PrintDatabase")
 
+---@alias rdb.Row {[string]: any}
+---@alias rdb.ColumnInfo {name: string, cid: integer, notnull: boolean, pk: boolean}
+---@alias rdb.Conditions {[string]: any?, [integer]: rdb.Conditions}
+---@alias rdb.Options {columns: string[]?, order: string[]?, group: string[]?, limit: integer?, format: string?}
+
 ---@class rdb.TableOrm
 ---@operator call: rdb.TableOrm
 local TableOrm = class()
@@ -10,6 +15,7 @@ local TableOrm = class()
 ---@param db rdb.IDatabase
 function TableOrm:new(db)
 	self.db = db
+	---@type {[string]: rdb.ColumnInfo[]}
 	self.table_infos = {}
 end
 
@@ -25,12 +31,13 @@ function TableOrm:debug(dbg)
 end
 
 ---@param table_name string
----@return table?
+---@return rdb.ColumnInfo[]
 function TableOrm:table_info(table_name)
 	local info = self.table_infos[table_name]
 	if info then
 		return info
 	end
+	---@type table[]
 	info = self.db:query("PRAGMA table_info(" .. sql_util.escape_identifier(table_name) .. ")")
 	for _, t in ipairs(info) do
 		t.cid = tonumber(t.cid)
@@ -41,8 +48,8 @@ function TableOrm:table_info(table_name)
 	return info
 end
 
----@param ver number?
----@return number?
+---@param ver integer?
+---@return integer?
 function TableOrm:user_version(ver)
 	if ver then
 		self.db:query("PRAGMA user_version = " .. ver)
@@ -60,10 +67,13 @@ function TableOrm:commit()
 	self.db:exec("COMMIT")
 end
 
+---@param path string
+---@param name string
 function TableOrm:attach(path, name)
 	self.db:query("ATTACH ? AS ?", {path, name})
 end
 
+---@param name string
 function TableOrm:detach(name)
 	self.db:query("DETACH ?", {name})
 end
@@ -77,14 +87,15 @@ local default_options = {
 }
 
 ---@param table_name string
----@param conditions table?
----@param options table?
----@return table
+---@param conditions rdb.Conditions?
+---@param options rdb.Options?
+---@return rdb.Row[]
 function TableOrm:select(table_name, conditions, options)
 	local opts = options or default_options
 	local columns = opts.columns or default_options.columns
 
 	local postfix = {}
+	---@type string, any[]
 	local conds, vals
 
 	if conditions and next(conditions) then
@@ -115,13 +126,14 @@ function TableOrm:select(table_name, conditions, options)
 end
 
 ---@param table_name string
----@param values_array table
+---@param values_array rdb.Row[]
 ---@param ignore boolean?
----@return table
+---@return rdb.Row[]
 function TableOrm:insert(table_name, values_array, ignore)
 	local table_info = assert(self:table_info(table_name), "no such table: " .. table_name)
 	assert(#values_array > 0, "missing values")
 
+	---@type {[string]: true?}
 	local keys_map = {}
 	for _, values in ipairs(values_array) do
 		for key in pairs(values) do
@@ -129,6 +141,7 @@ function TableOrm:insert(table_name, values_array, ignore)
 		end
 	end
 
+	---@type string[]
 	local keys_list = {}
 	for _, column in ipairs(table_info) do
 		local key = column.name
@@ -137,6 +150,7 @@ function TableOrm:insert(table_name, values_array, ignore)
 		end
 	end
 
+	---@type string[]
 	local query_keys = {}
 	for i, key in ipairs(keys_list) do
 		query_keys[i] = sql_util.escape_identifier(key)
@@ -147,6 +161,7 @@ function TableOrm:insert(table_name, values_array, ignore)
 	local values_q = (values_q0 .. ", "):rep(#values_array - 1) .. values_q0
 
 	local c = 0
+	---@type any[]
 	local query_values = {}
 	for _, values in ipairs(values_array) do
 		for i, key in ipairs(keys_list) do
@@ -168,12 +183,13 @@ function TableOrm:insert(table_name, values_array, ignore)
 end
 
 ---@param table_name string
----@param values table
----@param conditions table?
----@return table
+---@param values rdb.Row
+---@param conditions rdb.Conditions?
+---@return rdb.Row[]
 function TableOrm:update(table_name, values, conditions)
 	local table_info = assert(self:table_info(table_name), "no such table: " .. table_name)
 
+	---@type {[string]: any}
 	local filtered_values = {}
 	for _, column in ipairs(table_info) do
 		local key = column.name
@@ -196,6 +212,7 @@ function TableOrm:update(table_name, values, conditions)
 
 	local conds, vals_b = sql_util.conditions(conditions)
 
+	---@type any[]
 	local vals = {}
 	for _, v in ipairs(vals_a) do
 		table.insert(vals, v)
@@ -211,8 +228,8 @@ function TableOrm:update(table_name, values, conditions)
 end
 
 ---@param table_name string
----@param conditions table?
----@return table
+---@param conditions rdb.Conditions?
+---@return rdb.Row[]
 function TableOrm:delete(table_name, conditions)
 	if not conditions or not next(conditions) then
 		return self.db:query(("DELETE FROM %s RETURNING *"):format(
@@ -228,18 +245,18 @@ function TableOrm:delete(table_name, conditions)
 end
 
 ---@param table_name string
----@param conditions table?
----@param options table?
----@return number
+---@param conditions rdb.Conditions?
+---@param options rdb.Options?
+---@return integer
 function TableOrm:count(table_name, conditions, options)
 	local opts = table_util.copy(options) or {}
 	opts.format = ("SELECT COUNT(*) as c FROM (%s)"):format(opts.format or "%s")
 	return self:select(table_name, conditions, opts)[1].c
 end
 
----@param new_ver number
----@param migrations table
----@return number
+---@param new_ver integer
+---@param migrations {[integer]: string|fun(self: rdb.TableOrm)}
+---@return integer
 function TableOrm:migrate(new_ver, migrations)
 	local ver = self:user_version()
 

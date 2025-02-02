@@ -20,10 +20,11 @@ function LjsqliteDatabase:exec(query)
 	self.c:exec(query)
 end
 
----@param row table
----@param colnames table
----@return table
+---@param row any[]
+---@param colnames string[]
+---@return rdb.Row
 local function to_object(row, colnames)
+	---@type rdb.Row
 	local t = {}
 	for i, k in ipairs(colnames) do
 		t[k] = row[i]
@@ -32,8 +33,8 @@ local function to_object(row, colnames)
 end
 
 ---@param query string
----@param bind_vals table?
----@return function
+---@param bind_vals any[]?
+---@return fun(): integer?, rdb.Row?
 function LjsqliteDatabase:iter(query, bind_vals)
 	local stmt = self.c:prepare(query)
 	if bind_vals then
@@ -45,12 +46,15 @@ function LjsqliteDatabase:iter(query, bind_vals)
 		end
 	end
 
+	---@type string[]
 	local colnames = {}
 	local i = 0
+	---@type any[]
 	local row = {}
 
 	return function()
 		i = i + 1
+		---@type any[]
 		row = stmt:step(row, colnames)
 
 		if row then
@@ -62,9 +66,10 @@ function LjsqliteDatabase:iter(query, bind_vals)
 end
 
 ---@param query string
----@param bind_vals table?
----@return table
+---@param bind_vals any[]?
+---@return rdb.Row[]
 function LjsqliteDatabase:query(query, bind_vals)
+	---@type rdb.Row[]
 	local objects = {}
 	for i, obj in self:iter(query, bind_vals) do
 		objects[i] = obj

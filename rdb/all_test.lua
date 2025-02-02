@@ -149,7 +149,7 @@ function test.all(t)
 		role__isnull = true,
 		{name = "admin"},
 	}
-	t:tdeq(sql_util.for_db(t_from_db, users.types), t_for_db)
+	t:tdeq(sql_util.conditions_for_db(t_from_db, users.types), t_for_db)
 
 	t:eq(sql_util.conditions({t__isnull = true}), "(`t` IS NULL)")
 	t:eq(sql_util.conditions({t__isnull = false}), "")

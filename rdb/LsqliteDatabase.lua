@@ -23,8 +23,8 @@ function LsqliteDatabase:exec(query)
 end
 
 ---@param query string
----@param bind_vals table?
----@return function
+---@param bind_vals any[]?
+---@return fun(): integer?, rdb.Row?
 function LsqliteDatabase:iter(query, bind_vals)
 	local stmt = self.c:prepare(query)
 	if bind_vals then
@@ -47,9 +47,10 @@ function LsqliteDatabase:iter(query, bind_vals)
 end
 
 ---@param query string
----@param bind_vals table?
----@return table
+---@param bind_vals any?
+---@return rdb.Row[]
 function LsqliteDatabase:query(query, bind_vals)
+	---@type rdb.Row[]
 	local objects = {}
 	for i, obj in self:iter(query, bind_vals) do
 		objects[i] = obj
