@@ -362,4 +362,26 @@ function table_util.invert_graph(graph)
 	return _graph
 end
 
+---@param t any[]
+---@param size integer
+---@return any[][]
+function table_util.slices(t, size)
+	---@type any[][]
+	local slices = {}
+	local count = math.ceil(#t / size)
+	for i = 1, count do
+		slices[i] = table.move(t, size * (i - 1) + 1, size * i, 1, {})
+	end
+	return slices
+end
+
+assert(table_util.deepequal(
+	table_util.slices({1, 2, 3, 4, 5, 6}, 2),
+	{{1, 2}, {3, 4}, {5, 6}}
+))
+assert(table_util.deepequal(
+	table_util.slices({1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, 3),
+	{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10}}
+))
+
 return table_util
