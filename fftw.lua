@@ -10,6 +10,11 @@ ffi.cdef[[
 	extern void fftw_destroy_plan(fftw_plan p);
 ]]
 
+---@class util.Fftw
+---@operator call: util.Fftw
+---@field buffer_in {[integer]: number}
+---@field buffer_out {[integer]: number}
+---@field plan any
 local Fftw = {}
 Fftw.__index = Fftw
 
@@ -26,12 +31,14 @@ end
 local fftw = {}
 
 ---@param size number
----@return table
+---@return util.Fftw
 function fftw.new(size)
 	local f = {}
 
 	f.buffer_in = ffi.new("complex[?]", ffi.sizeof("complex") * size)
 	f.buffer_out = ffi.new("complex[?]", ffi.sizeof("complex") * size)
+
+	---@type any
 	f.plan = fftw3.fftw_plan_dft_1d(size, f.buffer_in, f.buffer_out, -1, 64)
 
 	return setmetatable(f, Fftw)
