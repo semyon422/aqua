@@ -7,6 +7,9 @@ return function(id, text, index, w, h)
 	if type(text) == "table" then
 		text, placeholder = unpack(text)
 	end
+	if text == nil then
+		text = ""
+	end
 	text = tostring(text)
 
 	local font = love.graphics.getFont()
