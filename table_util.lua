@@ -45,12 +45,13 @@ end
 
 assert(table_util.deepequal({{}}, {{}}))
 
----@param src table?
----@param dst table?
----@return table?
+---@generic T
+---@param src T?
+---@param dst T?
+---@return T
 function table_util.copy(src, dst)
 	if not src then
-		return
+		return {}
 	end
 	dst = dst or {}
 	for k, v in pairs(src) do
@@ -219,12 +220,15 @@ function table_util.invert(t)
 	return _t
 end
 
----@param t table
----@param append table
+---@generic V
+---@param t V[]
+---@param append V[]
+---@return V[]
 function table_util.append(t, append)
 	for i, v in ipairs(append) do
 		table.insert(t, v)
 	end
+	return t
 end
 
 ---@param t table
@@ -383,5 +387,16 @@ assert(table_util.deepequal(
 	table_util.slices({1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, 3),
 	{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10}}
 ))
+
+---@generic T
+---@param t {[T]: [any]}
+---@return T
+function table_util.keys(t)
+	local keys = {}
+	for k in pairs(t) do
+		table.insert(keys, k)
+	end
+	return keys
+end
 
 return table_util
