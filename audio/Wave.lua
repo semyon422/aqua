@@ -29,15 +29,29 @@ end
 ---@param i integer starting at 0
 ---@param channel integer starting at 1
 ---@param sample integer 16 bit [-32768, 32767]
-function Wave:setSample(i, channel, sample)
-	self.data_buf[i * self.channels_count + channel - 1] = sample
+function Wave:setSampleInt(i, channel, sample)
+	self.data_buf[i * self.channels_count + channel - 1] = math.min(math.max(sample, -32768), 32767)
+end
+
+---@param i integer starting at 0
+---@param channel integer starting at 1
+---@param sample number
+function Wave:setSampleFloat(i, channel, sample)
+	self:setSampleInt(i, channel, math.floor((sample + 1) / 2 * 65535 - 32768))
 end
 
 ---@param i integer starting at 0
 ---@param channel integer starting at 1
 ---@return integer sample 16 bit [-32768, 32767]
-function Wave:getSample(i, channel)
+function Wave:getSampleInt(i, channel)
 	return self.data_buf[i * self.channels_count + channel - 1]
+end
+
+---@param i integer starting at 0
+---@param channel integer starting at 1
+---@return integer sample
+function Wave:getSampleFloat(i, channel)
+	return (self:getSampleInt(i, channel) + 32768) / 65535 * 2 - 1
 end
 
 function Wave:getDataSize()
