@@ -13,9 +13,15 @@ end
 
 ---@return string[]
 function Enum:list()
-	local list = table_util.copy(self._t)
-	---@cast list string[]
-	table.sort(list)
+	local t = self.t
+	---@type string[]
+	local list = {}
+	for k in pairs(t) do
+		table.insert(list, k)
+	end
+	table.sort(list, function(a, b)
+		return t[a] < t[b]
+	end)
 	return list
 end
 
