@@ -12,8 +12,17 @@ local Models = class()
 ---@return any?
 function Models:__index(k)
 	---@type rdb.ModelOptions
-	local mod = assert(self._models[k])
-	self[k] = Model(mod, self)
+	local options = assert(self._models[k])
+	if options == true then
+		options = {}
+	end
+
+	if not options.table_name then
+		options.table_name = k
+	end
+
+	self[k] = Model(options, self)
+
 	return self[k]
 end
 
