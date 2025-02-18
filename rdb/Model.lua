@@ -2,7 +2,7 @@ local class = require("class")
 local sql_util = require("rdb.sql_util")
 local relations = require("rdb.relations")
 
----@alias rdb.ModelOptions {table_name: string, types: table, relations: {[string]: rdb.Relation}, from_db: function?}
+---@alias rdb.ModelOptions {table_name: string, types: table, relations: {[string]: rdb.Relation}, from_db: function?, metatable: table?}
 
 ---@class rdb.Model
 ---@operator call: rdb.Model
@@ -12,9 +12,10 @@ local Model = class()
 ---@param models rdb.Models
 function Model:new(opts, models)
 	self.table_name = opts.table_name
-	self.types = opts.types
-	self.relations = opts.relations
+	self.types = opts.types or {}
+	self.relations = opts.relations or {}
 	self.from_db = opts.from_db
+	self.metatable = opts.metatable
 	self.models = models
 	self.orm = models._orm
 end
@@ -27,10 +28,14 @@ end
 ---@return rdb.Row[]
 function Model:rows_from_db(rows)
 	local from_db = self.from_db
+	local metatable = self.metatable
 	---@type rdb.Row[]
 	local _rows = {}
 	for i, row in ipairs(rows) do
 		row = sql_util.from_db(row, self.types)
+		if metatable then
+			setmetatable(row, metatable)
+		end
 		if from_db then
 			from_db(row)
 		end
