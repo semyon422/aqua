@@ -60,10 +60,11 @@ function Model:find(conditions)
 end
 
 ---@param conditions table?
----@return number
-function Model:count(conditions)
+---@param options table?
+---@return integer
+function Model:count(conditions, options)
 	conditions = sql_util.conditions_for_db(conditions, self.types)
-	return tonumber(self.orm:count(self.table_name, conditions)) or 0
+	return tonumber(self.orm:count(self.table_name, conditions, options)) or 0
 end
 
 ---@param values_array rdb.Row[]
