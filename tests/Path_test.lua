@@ -163,6 +163,23 @@ function test.concat(t)
 	t:eq(p.absolute, true)
 end
 
+function test.strConcat(t)
+	local a = Path("path") .. "string"
+	t:eq(tostring(a), "path/string")
+
+	local b = "/" .. Path("home/")
+	t:eq(tostring(b), "/home/")
+
+	local c = "a/" .. Path("b") .. "c/"
+	t:eq(tostring(c), "a/b/c/")
+
+	local d = ("C:\\.." .. Path("Windows")):normalize()
+	t:eq(tostring(d), "C:/Windows")
+
+	local e = ("/a/b/" .. Path("..")):normalize()
+	t:eq(tostring(e), "/a/")
+end
+
 function test.dirOrFile(t)
 	local a = Path("file.txt")
 	t:eq(a:isFile(), true)
@@ -275,6 +292,15 @@ function test.hidden(t)
 	local f = Path("/.file.")
 	t:eq(f.parts[1].isHidden, true)
 	t:eq(f:getExtension(), "")
+end
+
+function test.chaining(t)
+	local a = ("C:\\" .. Path("Games") .. ".." .. Path("Dev") .. "soundsphere/sphere/")
+	a = a:normalize():trimLast():trimLast() .. Path("aqua/tests"):toDirectory() .. Path("Path_test.lua/"):toFile()
+	t:eq(tostring(a), "C:/Dev/aqua/tests/Path_test.lua")
+
+	a = ((a .. Path("..")) .. Path("..")):normalize():trimLast()
+	t:eq(tostring(a), "C:/Dev/")
 end
 
 return test

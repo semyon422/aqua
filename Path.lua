@@ -134,19 +134,24 @@ function Path:normalize()
 	return new
 end
 
-
+---@return aqua.Path
 function Path:toDirectory()
+	local new = self:copy()
 	if self:isEmpty() then
-		return
+		return new
 	end
-	self.parts[#self.parts].isDirectory = true
+	new.parts[#new.parts].isDirectory = true
+	return new
 end
 
+---@return aqua.Path
 function Path:toFile()
+	local new = self:copy()
 	if self:isEmpty() then
-		return
+		return new
 	end
-	self.parts[#self.parts].isDirectory = false
+	new.parts[#new.parts].isDirectory = false
+	return new
 end
 
 ---@return aqua.Path
@@ -168,12 +173,18 @@ function Path:appendPart(part)
 	table.insert(self.parts, part)
 end
 
----@param other aqua.Path
+---@param left aqua.Path | string
+---@param right aqua.Path | string
 ---@return aqua.Path
-function Path:__concat(other)
-	local new = self:copy()
+function Path.__concat(left, right)
+	left = type(left) == "string" and Path(left) or left
+	right = type(right) == "string" and Path(right) or right
+	---@cast left aqua.Path
+	---@cast right aqua.Path
 
-	if other:isEmpty() then
+	local new = left:copy()
+
+	if right:isEmpty() then
 		return new
 	end
 
@@ -181,7 +192,7 @@ function Path:__concat(other)
 		new.parts[#new.parts].isDirectory = true
 	end
 
-	for _, v in ipairs(other.parts) do
+	for _, v in ipairs(right.parts) do
 		new:appendPart(v)
 	end
 
