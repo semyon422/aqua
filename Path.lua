@@ -265,7 +265,7 @@ function Path:fromArray(array)
 			(last_part.name == ".") or
 			(last_part.name == "..")
 
-		self:determineKind(self.parts[1].name)
+		self:determineKind(array[1])
 	end
 end
 

@@ -157,6 +157,10 @@ function test.concat(t)
 
 	local o = Path({ "", "a" }) .. Path("b")
 	t:eq(tostring(o), "a/b")
+
+	local p = Path({ "/", "home", "user/" })
+	t:eq(tostring(p), "/home/user/")
+	t:eq(p.absolute, true)
 end
 
 function test.dirOrFile(t)
