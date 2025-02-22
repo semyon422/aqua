@@ -150,29 +150,6 @@ function test.concat(t)
     t:eq(tostring(o), "a/b")
 end
 
-function test.cache(t)
-	local a = Path("file.txt")
-	t:eq(a.cached, nil)
-
-	local _ = tostring(a)
-	t:eq(a.cached, "file.txt")
-
-	local b = a .. Path("")
-	t:eq(a.cached, "file.txt")
-	t:eq(b.cached, nil)
-
-	local c = Path("/")
-	t:eq(c.cached, nil)
-	local _ = tostring(c)
-	t:eq(c.cached, "/")
-	c = c .. Path("home")
-	t:eq(c.cached, nil)
-	c = c .. Path("user")
-	t:eq(c.cached, nil)
-	local _ = tostring(c)
-	t:eq(c.cached, "/home/user")
-end
-
 function test.dirOrFile(t)
 	local a = Path("file.txt")
 	t:eq(a:isFile(), true)

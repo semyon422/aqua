@@ -1,13 +1,12 @@
 local class = require("class")
 
----@alias aqua.Path.Component { name: string, isDirectory: boolean }
----
+---@alias aqua.Path.Part { name: string, isDirectory: boolean }
+
 ---@class aqua.Path
 ---@operator call: aqua.Path
----@field components aqua.Path.Component[]
+---@field parts aqua.Path.Part[]
 ---@field leadingSlash boolean
 ---@field driveLetter string?
----@field cached string?
 local Path = class()
 
 ---@param path string | string[] | nil
@@ -17,7 +16,7 @@ function Path:new(path)
 	elseif type(path) == "string" then
 		self:fromString(path)
 	elseif type(path) == "nil" then
-		self.components = {}
+		self.parts = {}
 		self:determineKind("")
 		return
 	else
@@ -25,7 +24,7 @@ function Path:new(path)
 	end
 
 	if self.driveLetter then
-		table.remove(self.components, 1)
+		table.remove(self.parts, 1)
 	end
 end
 
@@ -36,7 +35,7 @@ function Path:getFileName(without_extension)
 		return ""
 	end
 
-	local c = self.components[#self.components]
+	local c = self.parts[#self.parts]
 
 	if c.isDirectory then
 		return ""
@@ -61,7 +60,7 @@ function Path:getExtension()
 		return ""
 	end
 
-	local file_name = self.components[#self.components].name
+	local file_name = self.parts[#self.parts].name
 	if not file_name then
 		return ""
 	end
@@ -79,7 +78,7 @@ function Path:isDirectory()
 	if self:isEmpty() then
 		return false
 	end
-	return self.components[#self.components].isDirectory
+	return self.parts[#self.parts].isDirectory
 end
 
 ---@return boolean
@@ -87,36 +86,33 @@ function Path:isFile()
 	if self:isEmpty() then
 		return false
 	end
-	return not self.components[#self.components].isDirectory
+	return not self.parts[#self.parts].isDirectory
 end
 
 ---@return boolean
 function Path:isEmpty()
-	return #self.components == 0
+	return #self.parts == 0
 end
 
 function Path:trimLast()
 	if self:isEmpty() then
 		return
 	end
-	self.cached = nil
-	table.remove(self.components, #self.components)
+	table.remove(self.parts, #self.parts)
 end
 
 function Path:toDirectory()
 	if self:isEmpty() then
 		return
 	end
-	self.cached = nil
-	self.components[#self.components].isDirectory = true
+	self.parts[#self.parts].isDirectory = true
 end
 
 function Path:toFile()
 	if self:isEmpty() then
 		return
 	end
-	self.cached = nil
-	self.components[#self.components].isDirectory = false
+	self.parts[#self.parts].isDirectory = false
 end
 
 ---@return aqua.Path
@@ -125,21 +121,21 @@ function Path:copy()
 	new.leadingSlash = self.leadingSlash
 	new.driveLetter = self.driveLetter
 
-	for _, v in ipairs(self.components) do
-		table.insert(new.components, v)
+	for _, v in ipairs(self.parts) do
+		table.insert(new.parts, v)
 	end
 
 	return new
 end
 
----@param component aqua.Path.Component
+---@param component aqua.Path.Part
 ---@private
 function Path:appendComponent(component)
-	self.cached = nil
-	table.insert(self.components, component)
+	table.insert(self.parts, component)
 end
 
 ---@param other aqua.Path
+---@return aqua.Path
 function Path:__concat(other)
 	local new = self:copy()
 
@@ -148,10 +144,10 @@ function Path:__concat(other)
 	end
 
 	if not new:isEmpty() then
-		new.components[#new.components].isDirectory = true
+		new.parts[#new.parts].isDirectory = true
 	end
 
-	for _, v in ipairs(other.components) do
+	for _, v in ipairs(other.parts) do
 		new:appendComponent(v)
 	end
 
@@ -160,16 +156,12 @@ end
 
 ---@return string
 function Path:__tostring()
-	if self.cached then
-		return self.cached
-	end
-
 	-- Normalizing here so things like `Path("/home/user/") .. Path("..")` will work
 	self:normalize()
 
 	local s = ""
 
-	for _, v in ipairs(self.components) do
+	for _, v in ipairs(self.parts) do
 		if v.isDirectory then
 			s = ("%s%s/"):format(s, v.name)
 		else
@@ -185,7 +177,6 @@ function Path:__tostring()
 		s = ("%s:/%s"):format(self.driveLetter, s)
 	end
 
-	self.cached = s
 	return s
 end
 
@@ -193,12 +184,12 @@ end
 ---@private
 function Path:fromString(path)
 	path = path:gsub("\\", "/")
-	self.components = {}
+	self.parts = {}
 
 	local split = path:split("/")
 	for _, name in ipairs(split) do
 		if name ~= "" then
-			table.insert(self.components, {
+			table.insert(self.parts, {
 				name = name,
 				isDirectory = true
 			})
@@ -206,7 +197,7 @@ function Path:fromString(path)
 	end
 
 	if not self:isEmpty() then
-		self.components[#self.components].isDirectory = path:sub(#path, #path) == "/"
+		self.parts[#self.parts].isDirectory = path:sub(#path, #path) == "/"
 	end
 
 	self:determineKind(path)
@@ -215,7 +206,7 @@ end
 ---@param array string[]
 ---@private
 function Path:fromArray(array)
-	self.components = {}
+	self.parts = {}
 
 	for _, v in ipairs(array) do
 		local path = v:gsub("\\", "/")
@@ -223,7 +214,7 @@ function Path:fromArray(array)
 
 		for _, name in ipairs(split) do
 			if name ~= "" then
-				table.insert(self.components, {
+				table.insert(self.parts, {
 					name = name,
 					isDirectory = true
 				})
@@ -233,8 +224,8 @@ function Path:fromArray(array)
 
 	if not self:isEmpty() then
 		local last = array[#array]
-		self.components[#self.components].isDirectory = last:sub(#last, #last) == "/"
-		self:determineKind(self.components[1].name)
+		self.parts[#self.parts].isDirectory = last:sub(#last, #last) == "/"
+		self:determineKind(self.parts[1].name)
 	end
 end
 
@@ -259,19 +250,19 @@ function Path:determineKind(str)
 end
 
 function Path:normalize()
-	local processed_components = {}
-	for _, component in ipairs(self.components) do
-		local name = component.name
+	local processed_parts = {}
+	for _, part in ipairs(self.parts) do
+		local name = part.name
 		if name == ".." then
-			if #processed_components > 0 then
-				table.remove(processed_components)
+			if #processed_parts > 0 then
+				table.remove(processed_parts)
 			end
 		elseif name ~= "." then
-			table.insert(processed_components, component)
+			table.insert(processed_parts, part)
 		end
 	end
 
-	self.components = processed_components
+	self.parts = processed_parts
 end
 
 return Path
