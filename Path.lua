@@ -1,6 +1,6 @@
 local class = require("class")
 
----@alias aqua.Path.Part { name: string, isDirectory: boolean }
+---@alias aqua.Path.Part { name: string, isDirectory: boolean, isHidden: boolean }
 
 ---@class aqua.Path
 ---@operator call: aqua.Path
@@ -35,19 +35,25 @@ function Path:getName(without_extension)
 		return
 	end
 
-	local c = self.parts[#self.parts]
+	local last = self.parts[#self.parts]
 
-	if c.isDirectory then
-		return c.name
+	if last.isDirectory then
+		return last.name
+	end
+
+	local name = last.name
+
+	if last.isHidden and name:len() > 1 and name ~= ".." then
+		name = name:sub(2, #name)
 	end
 
 	if not without_extension then
-		return c.name
+		return name
 	end
 
-	local split = c.name:split(".")
+	local split = last.name:split(".")
 	if #split == 1 then
-		return c.name
+		return name
 	end
 
 	table.remove(split, #split)
@@ -60,12 +66,16 @@ function Path:getExtension()
 		return
 	end
 
-	local file_name = self.parts[#self.parts].name
-	if not file_name then
+	local last = self.parts[#self.parts]
+	if last.isDirectory then
 		return
 	end
 
-	local ext = file_name:match("^.+%.(.-)$")
+	if not last.name then
+		return
+	end
+
+	local ext = last.name:match("^.+%.(.-)$")
 	if ext then
 		return ext:lower()
 	end
@@ -211,12 +221,17 @@ function Path:fromString(path)
 			table.insert(self.parts, {
 				name = name,
 				isDirectory = true,
+				isHidden = name:sub(1, 1) == "."
 			})
 		end
 	end
 
 	if not self:isEmpty() then
-		self.parts[#self.parts].isDirectory = path:sub(#path, #path) == "/"
+		local last = self.parts[#self.parts]
+		last.isDirectory =
+			(path:sub(#path, #path) == "/") or
+			(last.name == ".") or
+			(last.name == "..")
 	end
 
 	self:determineKind(path)
@@ -236,14 +251,20 @@ function Path:fromArray(array)
 				table.insert(self.parts, {
 					name = name,
 					isDirectory = true,
+					isHidden = name:sub(1, 1) == "."
 				})
 			end
 		end
 	end
 
 	if not self:isEmpty() then
-		local last = array[#array]
-		self.parts[#self.parts].isDirectory = last:sub(#last, #last) == "/"
+		local last_str = array[#array]
+		local last_part = self.parts[#self.parts]
+		last_part.isDirectory =
+			(last_str:sub(#last_str, #last_str) == "/") or
+			(last_part.name == ".") or
+			(last_part.name == "..")
+
 		self:determineKind(self.parts[1].name)
 	end
 end

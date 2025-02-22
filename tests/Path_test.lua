@@ -56,9 +56,16 @@ function test.ext(t)
 
 	local d = Path(".bashrc")
 	t:eq(d:getExtension(), nil)
+	t:eq(d:getName(), "bashrc")
 
 	local e = Path("a.bashrc")
 	t:eq(e:getExtension(), "bashrc")
+
+	local f = Path("file.")
+	t:eq(f:getExtension(), "")
+
+	local g = Path("..")
+	t:eq(g:getExtension(), nil)
 end
 
 function test.norm(t)
@@ -67,7 +74,7 @@ function test.norm(t)
 	t:eq(tostring(a:normalize()), "/path/to/")
 
 	local b = Path("/path/to/something/..")
-	t:eq(tostring(b), "/path/to/something/..")
+	t:eq(tostring(b), "/path/to/something/../") -- .. is a directory
 	t:eq(tostring(b:normalize()), "/path/to/")
 
 	local c = Path("/path/to/something/."):normalize()
@@ -231,11 +238,39 @@ function test.weird(t)
 	t:eq(d:isFile(), true)
 	t:eq(d:isEmpty(), false)
 	t:eq(d:getExtension(), "")
+
+	local e = Path("~/.( ͡° ͜ʖ ͡°)./"):normalize()
+	t:eq(tostring(e), "~/.( ͡° ͜ʖ ͡°)./")
 end
 
 function test.constructor(t)
 	t:has_error(Path, 5)
 	t:has_error(Path, print)
+end
+
+function test.hidden(t)
+	local a = Path("/home/user/.homework/")
+	t:eq(a.parts[3].isHidden, true)
+
+	local b = Path("~/.bashrc")
+	t:eq(b.parts[2].isHidden, true)
+
+	local c = Path("a.bashrc")
+	t:eq(c.parts[1].isHidden, false)
+
+	local d = Path("/home/user/.local/share/.program")
+	t:eq(d.parts[1].isHidden, false)
+	t:eq(d.parts[2].isHidden, false)
+	t:eq(d.parts[3].isHidden, true)
+	t:eq(d.parts[4].isHidden, false)
+	t:eq(d.parts[5].isHidden, true)
+
+	local e = Path("/home/..")
+	t:eq(e.parts[2].isHidden, true)
+
+	local f = Path("/.file.")
+	t:eq(f.parts[1].isHidden, true)
+	t:eq(f:getExtension(), "")
 end
 
 return test
