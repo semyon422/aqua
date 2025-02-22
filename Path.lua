@@ -29,16 +29,16 @@ function Path:new(path)
 end
 
 ---@param without_extension boolean?
----@return string
-function Path:getFileName(without_extension)
+---@return string?
+function Path:getName(without_extension)
 	if self:isEmpty() then
-		return ""
+		return
 	end
 
 	local c = self.parts[#self.parts]
 
 	if c.isDirectory then
-		return ""
+		return c.name
 	end
 
 	if not without_extension then
@@ -54,23 +54,21 @@ function Path:getFileName(without_extension)
 	return table.concat(split, ".")
 end
 
----@return string
+---@return string?
 function Path:getExtension()
 	if self:isEmpty() then
-		return ""
+		return
 	end
 
 	local file_name = self.parts[#self.parts].name
 	if not file_name then
-		return ""
+		return
 	end
 
 	local ext = file_name:match("^.+%.(.-)$")
 	if ext then
 		return ext:lower()
 	end
-
-	return ""
 end
 
 ---@return boolean
@@ -212,7 +210,7 @@ function Path:fromString(path)
 		if name ~= "" then
 			table.insert(self.parts, {
 				name = name,
-				isDirectory = true
+				isDirectory = true,
 			})
 		end
 	end
@@ -237,7 +235,7 @@ function Path:fromArray(array)
 			if name ~= "" then
 				table.insert(self.parts, {
 					name = name,
-					isDirectory = true
+					isDirectory = true,
 				})
 			end
 		end
