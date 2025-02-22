@@ -94,12 +94,38 @@ function Path:isEmpty()
 	return #self.parts == 0
 end
 
+---@return aqua.Path
 function Path:trimLast()
+	local new = self:copy()
+
 	if self:isEmpty() then
-		return
+		return new
 	end
-	table.remove(self.parts, #self.parts)
+
+	table.remove(new.parts, #new.parts)
+	return new
 end
+
+---@return aqua.Path
+function Path:normalize()
+	local new = self:copy()
+
+	local processed_parts = {}
+	for _, part in ipairs(new.parts) do
+		local name = part.name
+		if name == ".." then
+			if #processed_parts > 0 then
+				table.remove(processed_parts)
+			end
+		elseif name ~= "." then
+			table.insert(processed_parts, part)
+		end
+	end
+
+	new.parts = processed_parts
+	return new
+end
+
 
 function Path:toDirectory()
 	if self:isEmpty() then
@@ -128,10 +154,10 @@ function Path:copy()
 	return new
 end
 
----@param component aqua.Path.Part
+---@param part aqua.Path.Part
 ---@private
-function Path:appendComponent(component)
-	table.insert(self.parts, component)
+function Path:appendPart(part)
+	table.insert(self.parts, part)
 end
 
 ---@param other aqua.Path
@@ -148,7 +174,7 @@ function Path:__concat(other)
 	end
 
 	for _, v in ipairs(other.parts) do
-		new:appendComponent(v)
+		new:appendPart(v)
 	end
 
 	return new
@@ -156,9 +182,6 @@ end
 
 ---@return string
 function Path:__tostring()
-	-- Normalizing here so things like `Path("/home/user/") .. Path("..")` will work
-	self:normalize()
-
 	local s = ""
 
 	for _, v in ipairs(self.parts) do
@@ -247,22 +270,6 @@ function Path:determineKind(str)
 		self.driveLetter = split[1]:sub(1, 1)
 		return
 	end
-end
-
-function Path:normalize()
-	local processed_parts = {}
-	for _, part in ipairs(self.parts) do
-		local name = part.name
-		if name == ".." then
-			if #processed_parts > 0 then
-				table.remove(processed_parts)
-			end
-		elseif name ~= "." then
-			table.insert(processed_parts, part)
-		end
-	end
-
-	self.parts = processed_parts
 end
 
 return Path

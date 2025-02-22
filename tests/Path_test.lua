@@ -63,24 +63,26 @@ end
 
 function test.norm(t)
 	local a = Path("/path/to/something/../")
-	t:eq(tostring(a), "/path/to/")
+	t:eq(tostring(a), "/path/to/something/../")
+	t:eq(tostring(a:normalize()), "/path/to/")
 
 	local b = Path("/path/to/something/..")
-	t:eq(tostring(b), "/path/to/")
+	t:eq(tostring(b), "/path/to/something/..")
+	t:eq(tostring(b:normalize()), "/path/to/")
 
-	local c = Path("/path/to/something/.")
+	local c = Path("/path/to/something/."):normalize()
 	t:eq(tostring(c), "/path/to/something/")
 
-	local d = Path("/collection/pack/chart/../bg.png")
+	local d = Path("/collection/pack/chart/../bg.png"):normalize()
 	t:eq(tostring(d), "/collection/pack/bg.png")
 
-	local f = Path("/collection/pack/chart/../../../../../..")
+	local f = Path("/collection/pack/chart/../../../../../.."):normalize()
 	t:eq(tostring(f), "/")
 
-	local g = Path("/collection/pack/chart/../..")
+	local g = Path("/collection/pack/chart/../.."):normalize()
 	t:eq(tostring(g), "/collection/")
 
-	local e = Path("/home/user/Games/game1/../game2/../../Dev")
+	local e = Path("/home/user/Games/game1/../game2/../../Dev"):normalize()
 	t:eq(tostring(e), "/home/user/Dev")
 end
 
@@ -89,7 +91,7 @@ function test.windows(t)
 	t:eq(tostring(a), "C:/collection/pack/img.png")
 	t:eq(a.driveLetter, "C")
 
-	local b = Path("C:\\collection\\pack\\..\\..\\..\\..")
+	local b = Path("C:\\collection\\pack\\..\\..\\..\\.."):normalize()
 	t:eq(tostring(b), "C:/")
 	t:eq(b.driveLetter, "C")
 end
@@ -140,10 +142,10 @@ function test.concat(t)
     t:eq(tostring(m), "C:/a/b")
     t:eq(m.driveLetter, "C")
 
-    local n = Path("a") .. Path("../b")
+    local n = (Path("a") .. Path("../b")):normalize()
     t:eq(tostring(n), "b")
 
-    local n2 = Path("/home/user/Games/soundsphere") .. Path("../../")
+    local n2 = (Path("/home/user/Games/soundsphere") .. Path("../../")):normalize()
     t:eq(tostring(n2), "/home/user/")
 
     local o = Path({ "", "a" }) .. Path("b")
@@ -178,25 +180,24 @@ function test.dirOrFile(t)
 end
 
 function test.trim(t)
-	local a = Path("path/to/file")
-	a:trimLast()
+	local a = Path("path/to/file"):trimLast()
 	t:eq(tostring(a), "path/to/")
-	a:trimLast()
+	a = a:trimLast()
 	t:eq(tostring(a), "path/")
-	a:trimLast()
+	a = a:trimLast()
 	t:eq(tostring(a), "")
-	a:trimLast()
+	a = a:trimLast()
 	t:eq(tostring(a), "")
 
-	local b = Path("/home")
-	b:trimLast()
+	local b = Path("/home"):trimLast()
+	b = b:trimLast()
 	t:eq(tostring(b), "/")
-	b:trimLast()
+	b = b:trimLast()
 	t:eq(tostring(b), "/")
 
 	-- The path is not normalized until you call tostring() or :normalize()
 	local c = Path("/home/user/..")
-	c:trimLast()
+	c = c:trimLast()
 	t:eq(tostring(c), "/home/user/")
 end
 
@@ -222,7 +223,7 @@ function test.weird(t)
 	local b = Path("//////////home/////////")
 	t:eq(tostring(b), "/home/")
 
-	local c = Path("////////") .. Path("../../../..")
+	local c = (Path("////////") .. Path("../../../..")):normalize()
 	t:eq(tostring(c), "/")
 
 	local d = Path(".lol.......")
