@@ -99,57 +99,57 @@ end
 function test.concat(t)
 	local a = Path("/") .. Path("home/user")
 	t:eq(tostring(a), "/home/user")
-	t:eq(a.leadingSlash, true)
+	t:eq(a.absolute, true)
 
 	local b = Path("userdata/skins") .. Path("manip/4key.skin.lua")
 	t:eq(tostring(b), "userdata/skins/manip/4key.skin.lua")
-	t:eq(b.leadingSlash, false)
+	t:eq(b.absolute, false)
 
 	local c = Path("C:/") .. Path("Program Files") .. Path("Program/Data/Settings.TXT")
 	t:eq(tostring(c), "C:/Program Files/Program/Data/Settings.TXT")
 	t:eq(c.driveLetter, "C")
-	t:eq(b.leadingSlash, false)
+	t:eq(c.absolute, true)
 
 	local e = Path("a") .. Path("b") .. Path("c")
-    t:eq(tostring(e), "a/b/c")
-    t:eq(e.leadingSlash, false)
+	t:eq(tostring(e), "a/b/c")
+	t:eq(e.absolute, false)
 
-    local f = Path() .. Path("file.txt")
-    t:eq(tostring(f), "file.txt")
-    t:eq(f.leadingSlash, false)
+	local f = Path() .. Path("file.txt")
+	t:eq(tostring(f), "file.txt")
+	t:eq(f.absolute, false)
 
-    local g = Path() .. Path()
-    t:eq(tostring(g), "")
-    t:eq(g:isEmpty(), true)
+	local g = Path() .. Path()
+	t:eq(tostring(g), "")
+	t:eq(g:isEmpty(), true)
 
-    local h = Path(nil) .. Path("test")
-    t:eq(tostring(h), "test")
-    t:eq(h.leadingSlash, false)
+	local h = Path(nil) .. Path("test")
+	t:eq(tostring(h), "test")
+	t:eq(h.absolute, false)
 
-    local i = Path("dir/") .. Path("file")
-    t:eq(tostring(i), "dir/file")
+	local i = Path("dir/") .. Path("file")
+	t:eq(tostring(i), "dir/file")
 
 	-- Should the second absoulute path override the first?
-    local j = Path("/a") .. Path("/b")
-    t:eq(tostring(j), "/a/b") -- meaning this should be `/b` instead
-    t:eq(j.leadingSlash, true)
+	local j = Path("/a") .. Path("/b")
+	t:eq(tostring(j), "/a/b") -- meaning this should be `/b` instead
+	t:eq(j.absolute, true)
 
 	-- ^^^ But if we override the first, this won't work
-    local l = Path("dir") .. Path("/file")
-    t:eq(tostring(l), "dir/file")
+	local l = Path("dir") .. Path("/file")
+	t:eq(tostring(l), "dir/file")
 
-    local m = Path("C:/a") .. Path("b")
-    t:eq(tostring(m), "C:/a/b")
-    t:eq(m.driveLetter, "C")
+	local m = Path("C:/a") .. Path("b")
+	t:eq(tostring(m), "C:/a/b")
+	t:eq(m.driveLetter, "C")
 
-    local n = (Path("a") .. Path("../b")):normalize()
-    t:eq(tostring(n), "b")
+	local n = (Path("a") .. Path("../b")):normalize()
+	t:eq(tostring(n), "b")
 
-    local n2 = (Path("/home/user/Games/soundsphere") .. Path("../../")):normalize()
-    t:eq(tostring(n2), "/home/user/")
+	local n2 = (Path("/home/user/Games/soundsphere") .. Path("../../")):normalize()
+	t:eq(tostring(n2), "/home/user/")
 
-    local o = Path({ "", "a" }) .. Path("b")
-    t:eq(tostring(o), "a/b")
+	local o = Path({ "", "a" }) .. Path("b")
+	t:eq(tostring(o), "a/b")
 end
 
 function test.dirOrFile(t)

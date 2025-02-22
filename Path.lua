@@ -5,7 +5,7 @@ local class = require("class")
 ---@class aqua.Path
 ---@operator call: aqua.Path
 ---@field parts aqua.Path.Part[]
----@field leadingSlash boolean
+---@field absolute boolean
 ---@field driveLetter string?
 local Path = class()
 
@@ -144,7 +144,7 @@ end
 ---@return aqua.Path
 function Path:copy()
 	local new = Path()
-	new.leadingSlash = self.leadingSlash
+	new.absolute = self.absolute
 	new.driveLetter = self.driveLetter
 
 	for _, v in ipairs(self.parts) do
@@ -192,12 +192,10 @@ function Path:__tostring()
 		end
 	end
 
-	if self.leadingSlash then
-		s = "/" .. s
-	end
-
-	if self.driveLetter then
+	if self.absolute and self.driveLetter then
 		s = ("%s:/%s"):format(self.driveLetter, s)
+	elseif self.absolute then
+		s = "/" .. s
 	end
 
 	return s
@@ -254,8 +252,8 @@ end
 
 ---@param str string
 function Path:determineKind(str)
-	self.leadingSlash = str:sub(1, 1) == "/"
-	if self.leadingSlash then
+	self.absolute = str:sub(1, 1) == "/"
+	if self.absolute then
 		return
 	end
 
@@ -267,6 +265,7 @@ function Path:determineKind(str)
 	end
 
 	if split[1]:find(":") then
+		self.absolute = true
 		self.driveLetter = split[1]:sub(1, 1)
 		return
 	end
