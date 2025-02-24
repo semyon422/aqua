@@ -30,7 +30,9 @@ end
 ---@param channel integer starting at 1
 ---@param sample integer 16 bit [-32768, 32767]
 function Wave:setSampleInt(i, channel, sample)
-	self.data_buf[i * self.channels_count + channel - 1] = math.min(math.max(sample, -32768), 32767)
+	local j = i * self.channels_count + channel - 1
+	assert(j >= 0 and j < self.samples_count * self.channels_count)
+	self.data_buf[j] = math.min(math.max(sample, -32768), 32767)
 end
 
 ---@param i integer starting at 0
@@ -44,7 +46,9 @@ end
 ---@param channel integer starting at 1
 ---@return integer sample 16 bit [-32768, 32767]
 function Wave:getSampleInt(i, channel)
-	return self.data_buf[i * self.channels_count + channel - 1]
+	local j = i * self.channels_count + channel - 1
+	assert(j >= 0 and j < self.samples_count * self.channels_count)
+	return self.data_buf[j]
 end
 
 ---@param i integer starting at 0
