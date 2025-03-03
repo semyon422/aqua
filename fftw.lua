@@ -30,16 +30,19 @@ end
 
 local fftw = {}
 
----@param size number
+---@param size integer
+---@param dir "forward"|"backward"
 ---@return util.Fftw
-function fftw.new(size)
+function fftw.new(size, dir)
 	local f = {}
 
-	f.buffer_in = ffi.new("complex[?]", ffi.sizeof("complex") * size)
-	f.buffer_out = ffi.new("complex[?]", ffi.sizeof("complex") * size)
+	f.buffer_in = ffi.new("complex[?]", size)
+	f.buffer_out = ffi.new("complex[?]", size)
+
+	local sign = dir == "forward" and -1 or 1
 
 	---@type any
-	f.plan = fftw3.fftw_plan_dft_1d(size, f.buffer_in, f.buffer_out, -1, 64)
+	f.plan = fftw3.fftw_plan_dft_1d(size, f.buffer_in, f.buffer_out, sign, 64)
 
 	return setmetatable(f, Fftw)
 end
