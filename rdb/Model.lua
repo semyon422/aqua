@@ -44,8 +44,8 @@ function Model:rows_from_db(rows)
 	return _rows
 end
 
----@param conditions table?
----@param options table?
+---@param conditions rdb.Conditions?
+---@param options rdb.Options?
 ---@return rdb.Row[]
 function Model:select(conditions, options)
 	conditions = sql_util.conditions_for_db(conditions, self.types)
@@ -53,14 +53,17 @@ function Model:select(conditions, options)
 	return self:rows_from_db(rows)
 end
 
----@param conditions table
+---@param conditions rdb.Conditions
+---@param options rdb.Options?
 ---@return rdb.Row?
-function Model:find(conditions)
-	return self:select(conditions, {limit = 1})[1]
+function Model:find(conditions, options)
+	options = options or {}
+	options.limit = 1
+	return self:select(conditions, options)[1]
 end
 
----@param conditions table?
----@param options table?
+---@param conditions rdb.Conditions?
+---@param options rdb.Options?
 ---@return integer
 function Model:count(conditions, options)
 	conditions = sql_util.conditions_for_db(conditions, self.types)
@@ -80,14 +83,14 @@ function Model:insert(values_array, ignore)
 	return self:rows_from_db(rows)
 end
 
----@param values table
+---@param values rdb.Row
 ---@return rdb.Row
 function Model:create(values)
 	return self:insert({values})[1]
 end
 
----@param values table
----@param conditions table?
+---@param values rdb.Row
+---@param conditions rdb.Conditions?
 ---@return rdb.Row[]
 function Model:update(values, conditions)
 	conditions = sql_util.conditions_for_db(conditions, self.types)
@@ -96,7 +99,7 @@ function Model:update(values, conditions)
 	return self:rows_from_db(rows)
 end
 
----@param conditions table?
+---@param conditions rdb.Conditions?
 ---@return rdb.Row[]
 function Model:delete(conditions)
 	conditions = sql_util.conditions_for_db(conditions, self.types)
