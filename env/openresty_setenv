@@ -1,0 +1,19 @@
+#!/bin/bash
+
+[ -d /usr/local/openresty ] && OR_ROOT=/usr/local/openresty
+[ -d /opt/openresty ] && OR_ROOT=/opt/openresty
+[ -d /usr/local/opt/openresty ] && OR_ROOT=/usr/local/opt/openresty
+[ -z "${OR_ROOT}" ] && echo "openresty not found" && exit 1
+
+TREE=$PWD/tree
+LJ_ROOT=$OR_ROOT/luajit
+
+PATH=$TREE/bin:$OR_ROOT/bin:$OR_ROOT/luajit/bin:$PATH
+LD_LIBRARY_PATH=$PWD:$LJ_ROOT/lib:$TREE/lib
+DYLD_LIBRARY_PATH=$PWD:$LJ_ROOT/lib:$TREE/lib
+
+export PATH
+export LD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH
+export LJ_ROOT
+export OR_ROOT

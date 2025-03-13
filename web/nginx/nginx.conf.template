@@ -1,0 +1,54 @@
+worker_processes 1;
+error_log logs/error.log notice;
+pid logs/nginx.pid;
+
+env LJ_ROOT;
+env OR_ROOT;
+
+events {
+	worker_connections 1024;
+}
+
+http {
+	resolver 8.8.8.8 8.8.4.4;
+
+	client_body_temp_path temp/client_body;
+	proxy_temp_path temp/proxy;
+	fastcgi_temp_path temp/fastcgi;
+	uwsgi_temp_path temp/uwsgi;
+	scgi_temp_path temp/scgi;
+
+	client_max_body_size <%= client_max_body_size %>;
+
+	init_by_lua_block {
+		require("aqua.env.openresty")
+		local c = require("nginx_config")
+		for _, name in ipairs(c.require) do
+			require(name)
+		end
+	}
+
+	server {
+		listen <%= listen %>;
+		lua_code_cache <%= lua_code_cache %>;
+
+		location / {
+			set $_url "";
+			allow 127.0.0.1;
+			deny all;
+			default_type text/html;
+			content_by_lua_block {
+				local c = require("nginx_config")
+				require("web.nginx.content")(require(c.handler))
+			}
+		}
+
+		location /static/ {
+			alias static/;
+		}
+
+		location /favicon.ico {
+			alias static/favicon.ico;
+		}
+	}
+}
