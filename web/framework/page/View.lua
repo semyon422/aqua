@@ -14,7 +14,7 @@ end
 ---@param name string
 ---@return string
 function View:render(name)
-	return self.views[name](self.env)
+	return self.views:template(name)(self.env)
 end
 
 ---@param env table

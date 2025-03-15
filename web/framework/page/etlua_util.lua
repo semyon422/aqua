@@ -11,6 +11,18 @@ local function html_escape(str)
 	return (str:gsub([=[["><'&]]=], html_escape_entities))
 end
 
+---@param path string
+---@return string
+local function read_file(path)
+	local f = io.open(path, "rb")
+	if not f then
+		return ("no file '%s'"):format(path)
+	end
+	local c = f:read("*a")
+	f:close()
+	return c
+end
+
 local etlua_util = {}
 
 function etlua_util.compile(template, chunkname)
@@ -45,35 +57,13 @@ function etlua_util.compile(template, chunkname)
 	end
 end
 
-local function read_file(path)
-	local f = io.open(path, "rb")
-	if not f then
-		return
-	end
-	local c = f:read("*a")
-	f:close()
-	return c
-end
-
-etlua_util.path = "?.etlua;templates/?.etlua"
-
-function etlua_util.loader(name)
-	name = name:gsub("%.", "/")
-
-	local errors = {}
-
-	for path in etlua_util.path:gsub("%?", name):gmatch("[^;]+") do
+---@return {[string]: fun(env: table): string}
+function etlua_util.autoload()
+	return setmetatable({}, {__index = function(_, path)
 		local content = read_file(path)
-		if content then
-			return function()
-				return etlua_util.compile(content, "@" .. path)
-			end
-		else
-			table.insert(errors, ("no file '%s'"):format(path))
-		end
-	end
-
-	return "\n\t" .. table.concat(errors, "\n\t")
+		local tpl = etlua_util.compile(content, "@" .. path)
+		return tpl
+	end})
 end
 
 return etlua_util

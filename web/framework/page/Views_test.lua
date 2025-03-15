@@ -3,35 +3,35 @@ local Views = require("web.framework.page.Views")
 local test = {}
 
 function test.basic(t)
-	local _views = {}
+	local tpls = {}
 
-	function _views.aaa(params)
+	function tpls.aaa(params)
 		return "a" .. params.view({text = "d"}):render("bbb")
 	end
-	function _views.bbb(params)
+	function tpls.bbb(params)
 		return "b" .. params.msg .. params.text
 	end
 
-	local views = Views(_views, {})
+	local views = Views(tpls)
 
-	local res = views.aaa({msg = "c"})
+	local res = views:render("aaa", {msg = "c"})
 	t:eq(res, "abcd")
 end
 
 function test.render(t)
-	local _views = {}
+	local tpls = {}
 
-	function _views.aaa(params)
+	function tpls.aaa(params)
 		return "[" .. params.inner .. "]"
 	end
-	function _views.bbb(params)
+	function tpls.bbb(params)
 		return "{" .. params.inner .. "}"
 	end
-	function _views.ccc(params)
+	function tpls.ccc(params)
 		return params.msg
 	end
 
-	local views = Views(_views, {})
+	local views = Views(tpls)
 
 	local res = views:render({aaa = {bbb = "ccc"}}, {msg = "a"})
 	t:eq(res, "[{a}]")

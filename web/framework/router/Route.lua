@@ -12,6 +12,7 @@ local Route = class()
 
 ---@param pattern string
 function Route:new(pattern)
+	---@type string[]
 	local keys = {}
 	pattern = pattern:gsub("([%:%+%*])([^/]+)", function(_type, key)
 		table.insert(keys, key)
