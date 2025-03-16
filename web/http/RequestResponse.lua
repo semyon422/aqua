@@ -9,6 +9,8 @@ local ChunkedEncoding = require("web.http.ChunkedEncoding")
 ---@field headers web.Headers
 local RequestResponse = IRequestResponse + {}
 
+RequestResponse.wrap = true
+
 ---@param soc web.IExtendedSocket
 ---@param mode "r"|"w"|"rw"?
 function RequestResponse:new(soc, mode)
@@ -40,6 +42,10 @@ function RequestResponse:set_chunked_encoding()
 end
 
 function RequestResponse:process_headers()
+	if not self.wrap then
+		return
+	end
+
 	local length = self.headers:get("Content-Length")
 	local encoding = self.headers:get("Transfer-Encoding")
 	if length and tonumber(length) then
