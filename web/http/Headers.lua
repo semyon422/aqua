@@ -134,8 +134,10 @@ end
 function Headers:getKeys()
 	---@type string[]
 	local keys = {}
-	for k in pairs(self.headers) do
-		table.insert(keys, k)
+	for k, v in pairs(self.headers) do
+		if v[1] then
+			table.insert(keys, k)
+		end
 	end
 	table.sort(keys)
 	return keys
