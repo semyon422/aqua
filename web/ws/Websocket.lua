@@ -6,6 +6,7 @@ local byte = require("byte")
 local table_util = require("table_util")
 local openssl_digest = require("openssl.digest")
 local openssl_rand = require("openssl.rand")
+local Subprotocol = require("web.ws.Subprotocol")
 
 -- https://25thandclement.com/~william/projects/luaossl.pdf
 -- https://datatracker.ietf.org/doc/html/rfc6455
@@ -22,6 +23,14 @@ local function gen_accept(key)
 	return (mime.b64(sha1(key .. "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")))
 end
 
+---@enum (key) web.WebsocketState
+local State = {
+	connecting = 0,
+	open = 1,
+	closing = 2,
+	closed = 3,
+}
+
 ---@enum (key) web.WebsocketOpcode
 local Opcode = {
 	continuation = 0x0,
@@ -37,15 +46,23 @@ local OpcodeName = table_util.invert(Opcode)
 
 ---@class web.Websocket
 ---@operator call: web.Websocket
+---@field state web.WebsocketState
 local Websocket = class()
 
+Websocket.max_payload_len = 2 ^ 16
+
+---@param soc web.ISocket
 ---@param req web.IRequest
 ---@param res web.IResponse
----@param role "server"|"client"
-function Websocket:new(req, res, role)
+---@param role "server"|"client"?
+---@param protocol web.Subprotocol
+function Websocket:new(soc, req, res, role, protocol)
+	self.soc = soc
 	self.req = req
 	self.res = res
 	self.role = role
+	self.state = "connecting"
+	self.protocol = protocol or Subprotocol(self)
 end
 
 ---@return {key: string, protocols: string[]}?
@@ -82,7 +99,7 @@ function Websocket:req_receive()
 end
 
 ---@param key string
----@param protocol string
+---@param protocol string?
 ---@return true?
 ---@return string?
 function Websocket:res_send(key, protocol)
@@ -90,8 +107,10 @@ function Websocket:res_send(key, protocol)
 
 	res.headers:set("Upgrade", "websocket")
 	res.headers:set("Connection", "Upgrade")
-	res.headers:set("Sec-WebSocket-Protocol", protocol)
 	res.headers:set("Sec-WebSocket-Accept", gen_accept(key))
+	if protocol then
+		res.headers:set("Sec-WebSocket-Protocol", protocol)
+	end
 
 	res.status = 101
 
@@ -99,6 +118,8 @@ function Websocket:res_send(key, protocol)
 	if not ok then
 		return nil, err
 	end
+
+	self.state = "open"
 
 	return true
 end
@@ -131,6 +152,8 @@ end
 function Websocket:res_receive(key)
 	local res = self.res
 
+	res:receive_headers()
+
 	if res.status ~= 101 then
 		return nil, "bad status"
 	end
@@ -149,6 +172,40 @@ function Websocket:res_receive(key)
 	if not ws_accept or ws_accept ~= gen_accept(key) then
 		return nil, "bad ws accept header"
 	end
+
+	self.state = "open"
+
+	return true
+end
+
+---@return true?
+---@return string?
+function Websocket:handshake()
+	local role = assert(self.role, "missing role")
+
+	if role == "server" then
+		local key_proto_t, err = self:req_receive()
+		if not key_proto_t then
+			return nil, err
+		end
+
+		local ok, err = self:res_send(key_proto_t.key, key_proto_t.protocols[1])
+		if not ok then
+			return nil, err
+		end
+	elseif role == "client" then
+		local key_t, err = self:req_send()
+		if not key_t then
+			return nil, err
+		end
+
+		local ok, err = self:res_receive(key_t.key)
+		if not ok then
+			return nil, err
+		end
+	end
+
+	self.state = "open"
 
 	return true
 end
@@ -218,13 +275,13 @@ local function build_frame(fin, opcode, payload, masking)
 	return ffi.string(buf, frame_len)
 end
 
----@param max_payload_len integer
----@param force_masking boolean?
 ---@return string?
 ---@return web.WebsocketOpcode?
----@return string|integer?
-function Websocket:receive_frame(max_payload_len, force_masking)
-	local soc = self.role == "server" and self.req or self.res
+---@return string|integer|boolean?
+function Websocket:receive()
+	local role = assert(self.role, "missing role")
+	local soc = self.soc
+	local _masked = role == "server"
 
 	local data, err = soc:receive(2)
 	if not data then
@@ -246,8 +303,8 @@ function Websocket:receive_frame(max_payload_len, force_masking)
 
 	local masked = bit.band(byte2, 0x80) ~= 0
 
-	if force_masking and not masked then
-		return nil, nil, "frame unmasked"
+	if _masked ~= masked then
+		return nil, nil, role == "server" and "frame unmasked" or "frame masked"
 	end
 
 	local payload_len = bit.band(byte2, 0x7f)
@@ -270,7 +327,7 @@ function Websocket:receive_frame(max_payload_len, force_masking)
 		return nil, nil, "too long or fragmented control frame"
 	end
 
-	if payload_len > max_payload_len then
+	if payload_len > self.max_payload_len then
 		return nil, nil, "too long"
 	end
 
@@ -319,15 +376,17 @@ function Websocket:receive_frame(max_payload_len, force_masking)
 
 	local msg = ffi.string(buf + offset, payload_len)
 
-	return msg, OpcodeName[opcode], not fin and "again" or nil
+	return msg, OpcodeName[opcode], fin
 end
 
 ---@param fin boolean
 ---@param opcode integer
----@param payload string
----@param masking boolean?
-function Websocket:send_frame(fin, opcode, payload, masking)
-	local soc = self.role == "client" and self.req or self.res
+---@param payload string?
+function Websocket:send_frame(fin, opcode, payload)
+	local role = assert(self.role, "missing role")
+	local soc = self.soc
+	local masking = role == "client"
+	payload = payload or ""
 
 	if bit.band(opcode, 0x8) ~= 0 then
 		assert(#payload <= 125 and fin)
@@ -347,24 +406,82 @@ function Websocket:send_frame(fin, opcode, payload, masking)
 end
 
 ---@param opcode web.WebsocketOpcode
----@param text string
----@param masking boolean?
-function Websocket:send(opcode, text, masking)
+---@param payload string?
+function Websocket:send(opcode, payload)
+	if self.state ~= "open" then
+		return nil, "invalid state"
+	end
 	local oc = assert(Opcode[opcode])
-	return self:send_frame(true, oc, text, masking)
+	return self:send_frame(true, oc, payload)
 end
 
 ---@param code integer?
 ---@param msg string?
----@param masking boolean?
-function Websocket:send_close(code, msg, masking)
+function Websocket:send_close(code, msg)
+	if self.close_sent then
+		return nil, "close sent"
+	end
+	self.close_sent = true
+	self.state = "closing"
 	local payload = ""
 	if code then
 		msg = msg or ""
 		assert(type(code) == "number" and code <= 0x7fff, "bad status code")
 		payload = string.char(bit.band(bit.rshift(code, 8), 0xff), bit.band(code, 0xff)) .. msg
 	end
-	return self:send("close", payload, masking)
+	return self:send_frame(true, Opcode.close, payload)
+end
+
+---@return true? clean_close
+---@return string?
+function Websocket:_loop()
+	local protocol = self.protocol
+
+	local payload, opcode, err = self:receive()
+	while payload do
+		if opcode == "continuation" then
+			---@cast err boolean
+			protocol:continuation(payload, err)
+		elseif opcode == "text" then
+			---@cast err boolean
+			protocol:text(payload, err)
+		elseif opcode == "binary" then
+			protocol:binary(payload, err)
+		elseif opcode == "close" then
+			---@cast err integer
+			local code, _payload = protocol:close(err, err and payload or nil)
+			if not self.close_sent then
+				local ok, err = self:send_close(code, _payload)
+				if not ok then
+					return nil, err
+				end
+			end
+			self.state = "closed"
+			return true
+		elseif opcode == "ping" then
+			local _payload = protocol:ping(payload)
+			local ok, err = self:send("pong", _payload)
+			if not ok then
+				return nil, err
+			end
+		elseif opcode == "pong" then
+			protocol:pong(payload)
+		end
+		payload, opcode, err = self:receive()
+	end
+
+	---@cast err string
+	return nil, err
+end
+
+---@return true? clean_close
+---@return string?
+function Websocket:loop()
+	local ok, err = self:_loop()
+	if not ok then
+		self.failed = true
+	end
+	return ok, err
 end
 
 return Websocket
