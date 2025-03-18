@@ -135,4 +135,18 @@ function test.send_yielding(t)
 	t:eq(state, 2)
 end
 
+---@param t testing.T
+function test.split(t)
+	local soc_1 = StringSocket()
+	local soc_2 = soc_1:split()
+
+	t:tdeq({soc_1:send("req")}, {3})
+	t:tdeq({soc_1:receive(3)}, {nil, "timeout", ""})
+
+	t:tdeq({soc_2:receive(3)}, {"req"})
+	t:tdeq({soc_2:send("res")}, {3})
+
+	t:tdeq({soc_1:receive(3)}, {"res"})
+end
+
 return test
