@@ -6,9 +6,11 @@ local StringSocket = ISocket + {}
 
 ---@param data string?
 ---@param max_size integer?
-function StringSocket:new(data, max_size)
+---@param yielding boolean?
+function StringSocket:new(data, max_size, yielding)
 	self.remainder = data or ""
 	self.max_size = max_size or math.huge
+	self.yielding = yielding or false
 end
 
 ---@return 1
@@ -27,6 +29,11 @@ function StringSocket:receive(size)
 	if size <= #rem then
 		self.remainder = rem:sub(size + 1)
 		return rem:sub(1, size)
+	end
+
+	if self.yielding and not self.closed then
+		coroutine.yield()
+		return self:receive(size)
 	end
 
 	self.remainder = ""
@@ -53,6 +60,11 @@ function StringSocket:send(data, i, j)
 	if avail_size >= #data then
 		self.remainder = rem .. data
 		return #data
+	end
+
+	if self.yielding then
+		coroutine.yield()
+		return self:send(data, i, j)
 	end
 
 	local last_byte = avail_size
