@@ -60,7 +60,7 @@ function Testing:test(file_pattern, method_pattern)
 	end
 
 	for _,  line in ipairs(self.t) do
-		tio:writeStdout(line)
+		tio:writeStdout(line .. "\n")
 	end
 
 	if self.fail == 0 then
