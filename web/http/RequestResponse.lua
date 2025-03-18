@@ -52,8 +52,6 @@ function RequestResponse:process_headers()
 		self.soc = ExtendedSocket(LengthSocket(self.soc, tonumber(length)))
 	elseif encoding == "chunked" then
 		self.soc = ExtendedSocket(ChunkedEncoding(self.soc))
-	else
-		self.soc = ExtendedSocket(LengthSocket(self.soc, 0))
 	end
 end
 
