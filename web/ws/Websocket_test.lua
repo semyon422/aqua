@@ -32,16 +32,11 @@ function test.client_to_server(t)
 	local str_soc_cs = StringSocket()
 	local str_soc_sc = str_soc_cs:split()
 
-	local soc_cs = ExtendedSocket(str_soc_cs)
-	local soc_sc = ExtendedSocket(str_soc_sc)
-
-	local req, res = req_res(soc_cs)
-	local client = Websocket(soc_cs, req, res, "client")
+	local client = Websocket(str_soc_cs, nil, nil, "client")
 	client.max_payload_len = 1e6
 	client.state = "open"
 
-	local req, res = req_res(soc_sc)
-	local server = Websocket(soc_sc, req, res, "server")
+	local server = Websocket(str_soc_sc, nil, nil, "server")
 	server.max_payload_len = 1e6
 	server.state = "open"
 
@@ -66,21 +61,30 @@ function test.client_to_server(t)
 	-- t:assert(client:send_close(999, "close msg", true))
 	-- t:assert(client:send_close(999, "", true))
 
-	t:tdeq({client:receive()}, {"helloworld", "text", true})
-	t:tdeq({client:receive()}, {long_msg_1, "text", true})
-	t:tdeq({client:receive()}, {long_msg_2, "text", true})
-	t:tdeq({client:receive()}, {"\0\1\2\3", "binary", true})
-	t:tdeq({client:receive()}, {"ping msg", "ping", true})
-	t:tdeq({client:receive()}, {"pong msg", "pong", true})
+	---@param ws web.Websocket
+	local function receive(ws)
+		local frame, err = ws:receive()
+		if not frame then
+			return nil, err
+		end
+		return frame.payload, frame:getOpcode(), frame.fin
+	end
+
+	t:tdeq({receive(client)}, {"helloworld", "text", true})
+	t:tdeq({receive(client)}, {long_msg_1, "text", true})
+	t:tdeq({receive(client)}, {long_msg_2, "text", true})
+	t:tdeq({receive(client)}, {"\0\1\2\3", "binary", true})
+	t:tdeq({receive(client)}, {"ping msg", "ping", true})
+	t:tdeq({receive(client)}, {"pong msg", "pong", true})
 	-- t:tdeq({client:receive()}, {"close msg", "close", 999})
 	-- t:tdeq({client:receive()}, {"", "close", 999})
 
-	t:tdeq({server:receive()}, {"helloworld", "text", true})
-	t:tdeq({server:receive()}, {long_msg_1, "text", true})
-	t:tdeq({server:receive()}, {long_msg_2, "text", true})
-	t:tdeq({server:receive()}, {"\0\1\2\3", "binary", true})
-	t:tdeq({server:receive()}, {"ping msg", "ping", true})
-	t:tdeq({server:receive()}, {"pong msg", "pong", true})
+	t:tdeq({receive(server)}, {"helloworld", "text", true})
+	t:tdeq({receive(server)}, {long_msg_1, "text", true})
+	t:tdeq({receive(server)}, {long_msg_2, "text", true})
+	t:tdeq({receive(server)}, {"\0\1\2\3", "binary", true})
+	t:tdeq({receive(server)}, {"ping msg", "ping", true})
+	t:tdeq({receive(server)}, {"pong msg", "pong", true})
 	-- t:tdeq({server:receive()}, {"close msg", "close", 999})
 	-- t:tdeq({server:receive()}, {"", "close", 999})
 end
@@ -146,6 +150,10 @@ end
 -- 	local req, res = client:connect("ws://localhost:8180/ws")
 
 -- 	local ws = Websocket(tcp_soc, req, res, "client")
+
+-- 	function ws.protocol:text(payload)
+-- 		print("received", payload)
+-- 	end
 
 -- 	t:assert(ws:handshake())
 
