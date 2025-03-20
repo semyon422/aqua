@@ -38,8 +38,7 @@ http {
 			deny all;
 			default_type text/html;
 			content_by_lua_block {
-				local c = require("nginx_config")
-				require("web.nginx.content")(require(c.handler))
+				require("web.nginx.content")()
 			}
 		}
 
