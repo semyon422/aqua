@@ -4,7 +4,7 @@ local HttpClient = require("web.http.HttpClient")
 local MimeType = require("web.http.MimeType")
 local Multipart = require("web.content.Multipart")
 local LsTcpSocket = require("web.luasocket.LsTcpSocket")
-local NginxTcpSocket = require("web.luasocket.NginxTcpSocket")
+local NginxTcpSocket = require("web.nginx.NginxTcpSocket")
 
 local util = {}
 
