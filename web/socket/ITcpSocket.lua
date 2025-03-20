@@ -23,4 +23,10 @@ function ITcpSocket:settimeout(time)
 	error("not implemented")
 end
 
+---@return string
+---@return integer
+function ITcpSocket:getpeername()
+	error("not implemented")
+end
+
 return ITcpSocket

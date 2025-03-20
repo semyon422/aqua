@@ -54,6 +54,14 @@ function LsTcpSocket:settimeout(value)
 	return self.soc:settimeout(value)
 end
 
+---@return string
+---@return integer
+function LsTcpSocket:getpeername()
+	---@type string, integer, "inet"|"inet6"
+	local ip, port, family = self.soc:getpeername()
+	return ip, port
+end
+
 ---@param size integer
 ---@return string?
 ---@return "closed"|"timeout"?
