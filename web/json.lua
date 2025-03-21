@@ -23,4 +23,16 @@ function json.decode(s)
 	return json_module.decode(s)
 end
 
+---@param s string
+---@return any?
+---@return string?
+function json.decode_safe(s)
+	---@type boolean, any
+	local ok, ret = pcall(json_module.decode, s)
+	if not ok then
+		return nil, ret
+	end
+	return ret
+end
+
 return json
