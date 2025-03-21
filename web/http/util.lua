@@ -22,9 +22,8 @@ end
 
 ---@param url string
 ---@param body table?
----@return string? body
----@return integer|string? status
----@return web.Headers? headers
+---@return {status: integer, headers: web.Headers, body: string}?
+---@return string?
 function util.request(url, body)
 	local client = util.client()
 	local req, res = client:connect(url)
@@ -51,7 +50,11 @@ function util.request(url, body)
 
 	client:close()
 
-	return _body, res.status, res.headers
+	return {
+		status = res.status,
+		headers = res.headers,
+		body = _body,
+	}
 end
 
 ---@param t table
