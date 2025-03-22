@@ -1,9 +1,11 @@
 local class = require("class")
-local json = require("cjson")
+local json = require("web.json")
 local mime = require("mime")
-local openssl_hmac = require("openssl.hmac")
 local RequestCookie = require("web.http.RequestCookie")
 local SetCookieString = require("web.http.SetCookieString")
+
+---@type {new: fun(_: string?, _: string?): {final: fun(_: any, s: string): string}}
+local openssl_hmac = require("openssl.hmac")
 
 ---@class web.Sessions
 ---@operator call: web.Sessions
@@ -11,9 +13,11 @@ local Sessions = class()
 
 ---@param cookie_name string
 ---@param secret string
-function Sessions:new(cookie_name, secret)
+---@param secure boolean?
+function Sessions:new(cookie_name, secret, secure)
 	self.cookie_name = cookie_name
 	self.secret = secret
+	self.secure = secure
 end
 
 ---@param s string
@@ -71,7 +75,11 @@ function Sessions:set(headers, session)
 	set_cookie.name = self.cookie_name
 	set_cookie.value = message .. "." .. signature
 	set_cookie:add("Path", "/")
+	set_cookie:add("SameSite", "Lax")
 	set_cookie:add("HttpOnly")
+	if self.secure then
+		set_cookie:add("Secure")
+	end
 
 	headers:add("Set-Cookie", tostring(set_cookie))
 end
