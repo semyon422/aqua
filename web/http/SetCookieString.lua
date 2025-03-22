@@ -125,6 +125,14 @@ function SetCookieString:add(name, value)
 		table.insert(self.attribute_list, {"Secure", ""})
 	elseif eq_lower(name, "HttpOnly") then
 		table.insert(self.attribute_list, {"HttpOnly", ""})
+	elseif eq_lower(name, "SameSite") then
+		if eq_lower(value, "Strict") then
+			table.insert(self.attribute_list, {"SameSite", "Strict"})
+		elseif eq_lower(value, "Lax") then
+			table.insert(self.attribute_list, {"SameSite", "Lax"})
+		elseif eq_lower(value, "None") then
+			table.insert(self.attribute_list, {"SameSite", "None"})
+		end
 	end
 end
 
