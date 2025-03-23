@@ -29,9 +29,7 @@ end
 ---@return integer
 function Enum:encode(k)
 	local v = self.t[k]
-	if v then
-		return v
-	end
+	if v then return v end
 	error("can not encode '" .. tostring(k) .. "'")
 end
 
@@ -39,10 +37,20 @@ end
 ---@return string
 function Enum:decode(v)
 	local k = self._t[v]
-	if k then
-		return k
-	end
+	if k then return k end
 	error("can not decode '" .. tostring(v) .. "'")
+end
+
+---@param k string
+---@return integer?
+function Enum:encode_safe(k)
+	return self.t[k]
+end
+
+---@param v integer
+---@return string?
+function Enum:decode_safe(v)
+	return self._t[v]
 end
 
 return Enum
