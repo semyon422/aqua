@@ -399,4 +399,38 @@ function table_util.keys(t)
 	return keys
 end
 
+---@param t table
+---@param f type|fun(v: any): boolean
+---@return boolean
+function table_util.is_array_of(t, f)
+	if type(t) ~= "table" then
+		return false
+	end
+	if type(f) == "string" then
+		local _f = f
+		f = function(v) return type(v) == _f end
+	end
+	---@cast t {[any]: [any]}
+	local max_key = 0
+	local count = 0
+	for k, v in pairs(t) do
+		if type(k) ~= "number" or k ~= math.floor(k) or k <= 0 or not f(v) then
+			return false
+		end
+		count = count + 1
+		max_key = math.max(max_key, k)
+	end
+	if count ~= max_key then
+		return false
+	end
+	return true
+end
+
+assert(table_util.is_array_of({{1}}, function(v) return not not v[1] end))
+assert(table_util.is_array_of({"q"}, "string"))
+assert(table_util.is_array_of({1, 2, 3}, "number"))
+assert(not table_util.is_array_of({[0] = 1, 2, 3}, "number"))
+assert(not table_util.is_array_of({t = 1, 2, 3}, "number"))
+assert(not table_util.is_array_of({1, nil, 3}, "number"))
+
 return table_util
