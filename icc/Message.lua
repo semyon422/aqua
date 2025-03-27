@@ -22,4 +22,15 @@ function Message:unpack()
 	return unpack(self, 1, self.n)
 end
 
+---@param value any
+---@param pos integer?
+function Message:insert(value, pos)
+	if pos then
+		table.insert(self, pos, value)
+	else
+		table.insert(self, value)
+	end
+	self.n = self.n + 1
+end
+
 return Message
