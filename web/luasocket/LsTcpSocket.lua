@@ -62,6 +62,22 @@ function LsTcpSocket:getpeername()
 	return ip, port
 end
 
+---@param timeout integer?
+---@return boolean
+function LsTcpSocket:selectreceive(timeout)
+	local recvt, _, err = socket.select({self.soc}, nil, timeout)
+	---@cast recvt {[TCPSocket]: any}
+	return not not recvt[self.soc]
+end
+
+---@param timeout integer?
+---@return boolean
+function LsTcpSocket:selectsend(timeout)
+	local _, sendt, err = socket.select(nil, {self.soc}, timeout)
+	---@cast sendt {[TCPSocket]: any}
+	return not not sendt[self.soc]
+end
+
 ---@param size integer
 ---@return string?
 ---@return "closed"|"timeout"?

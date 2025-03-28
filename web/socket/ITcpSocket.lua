@@ -29,4 +29,16 @@ function ITcpSocket:getpeername()
 	error("not implemented")
 end
 
+---@param timeout integer?
+---@return boolean
+function ITcpSocket:selectreceive(timeout)
+	error("not implemented")
+end
+
+---@param timeout integer?
+---@return boolean
+function ITcpSocket:selectsend(timeout)
+	error("not implemented")
+end
+
 return ITcpSocket

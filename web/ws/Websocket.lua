@@ -266,58 +266,65 @@ function Websocket:send_close(code, msg)
 	return frame:send(self.soc)
 end
 
----@return true? clean_close
+---@return web.WebsocketFrame|true? clean_close
 ---@return string?
-function Websocket:_loop()
+function Websocket:step()
 	local protocol = self.protocol
 
 	---@type integer
 	local ok
 
 	local frame, err = self:receive()
-	while frame do
-		local opcode = frame:getOpcode()
-		if opcode == "continuation" then
-			protocol:continuation(frame.payload, frame.fin)
-		elseif opcode == "text" then
-			protocol:text(frame.payload, frame.fin)
-		elseif opcode == "binary" then
-			protocol:binary(frame.payload, frame.fin)
-		elseif opcode == "close" then
-			local _code, _msg = frame:getClosePayload() -- no error for valid frames
-			local code, msg = protocol:close(_code, _msg)
-			if not self.close_sent then
-				ok, err = self:send_close(code, msg)
-				if not ok then
-					return nil, err
-				end
-			end
-			self.state = "closed"
-			return true
-		elseif opcode == "ping" then
-			local _payload = protocol:ping(frame.payload)
-			ok, err = self:send("pong", _payload)
+	if not frame then
+		return nil, err
+	end
+
+	local opcode = frame:getOpcode()
+	if opcode == "continuation" then
+		protocol:continuation(frame.payload, frame.fin)
+	elseif opcode == "text" then
+		protocol:text(frame.payload, frame.fin)
+	elseif opcode == "binary" then
+		protocol:binary(frame.payload, frame.fin)
+	elseif opcode == "close" then
+		local _code, _msg = frame:getClosePayload() -- no error for valid frames
+		local code, msg = protocol:close(_code, _msg)
+		if not self.close_sent then
+			ok, err = self:send_close(code, msg)
 			if not ok then
 				return nil, err
 			end
-		elseif opcode == "pong" then
-			protocol:pong(frame.payload)
 		end
-		frame, err = self:receive()
+		self.state = "closed"
+		return true
+	elseif opcode == "ping" then
+		local _payload = protocol:ping(frame.payload)
+		ok, err = self:send("pong", _payload)
+		if not ok then
+			return nil, err
+		end
+	elseif opcode == "pong" then
+		protocol:pong(frame.payload)
 	end
 
-	---@cast err string
-	return nil, err
+	return frame
 end
 
 ---@return true? clean_close
 ---@return string?
 function Websocket:loop()
-	local ok, err = self:_loop()
-	if not ok then
-		self.failed = true
+	local ret, err = self:step()
+	while ret do
+		if ret == true then
+			return true
+		end
+		ret, err = self:step()
 	end
-	return ok, err
+
+	self.failed = true
+
+	---@cast err string
+	return nil, err
 end
 
 return Websocket
