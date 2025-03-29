@@ -1,5 +1,6 @@
 local socket_url = require("socket.url")
 local path_util = require("path_util")
+local json = require("web.json")
 local HttpClient = require("web.http.HttpClient")
 local MimeType = require("web.http.MimeType")
 local Multipart = require("web.content.Multipart")
@@ -142,6 +143,32 @@ function util.get_multipart(req)
 	end
 
 	return Multipart(req, boundary)
+end
+
+---@param req web.IRequest
+---@return table?
+---@return string?
+function util.get_json(req)
+	local content_type = req.headers:get("Content-Type")
+	if not content_type then
+		return nil, "missing content type"
+	end
+
+	local mime_type, err = MimeType(content_type)
+	if not mime_type then
+		return nil, err
+	end
+
+	if not mime_type:match("application/json") then
+		return nil, "unsupported content type"
+	end
+
+	local body, err = req:receive("*a")
+	if not body then
+		return nil, err
+	end
+
+	return json.decode_safe(body)
 end
 
 ---@param headers web.Headers
