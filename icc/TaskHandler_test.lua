@@ -24,7 +24,7 @@ function test.basic(t)
 	t:eq(peer:count(), 1)
 	t:tdeq(peer:get(1), Message(1, nil, 1, 2))
 
-	th:handle(peer, peer:get(1))
+	th:handleCall(peer, peer:get(1))
 
 	t:eq(peer:count(), 2)
 	t:tdeq(peer:get(2), Message(1, true, 3))
@@ -54,7 +54,7 @@ function test.basic_no_return(t)
 	t:eq(peer:count(), 1)
 	t:tdeq(peer:get(1), Message(nil, nil, 1, 2))
 
-	th:handle(peer, peer:get(1))
+	th:handleCall(peer, peer:get(1))
 
 	t:eq(peer:count(), 1)
 	t:assert(handled)
@@ -88,8 +88,8 @@ function test.multiple(t)
 		done = true
 	end)()
 
-	th2:handle(peer2, peer1:get(1))
-	th1:handle(peer1, peer2:get(1))
+	th2:handleCall(peer2, peer1:get(1))
+	th1:handleCall(peer1, peer2:get(1))
 	th2:handleReturn(peer1:get(2))
 	th1:handleReturn(peer2:get(2))
 

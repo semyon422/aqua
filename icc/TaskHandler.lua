@@ -82,14 +82,14 @@ end
 
 ---@param peer icc.IPeer
 ---@param msg icc.Message
-function TaskHandler:handle(peer, msg)
+function TaskHandler:handleCall(peer, msg)
 	if not msg.id then
 		self.handler:handle(self, peer, msg:unpack())
 		return
 	end
 	self:send(peer, msg.id, true, self.handler:handle(self, peer, msg:unpack()))
 end
-TaskHandler.handle = TaskHandler.wrap(TaskHandler.handle)
+TaskHandler.handleCall = TaskHandler.wrap(TaskHandler.handleCall)
 
 ---@param msg icc.Message
 function TaskHandler:handleReturn(msg)

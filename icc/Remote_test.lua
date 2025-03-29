@@ -26,7 +26,7 @@ function test.basic(t)
 
 	t:tdeq(peer:get(1), Message(1, nil, {"obj1", "obj2", "func1"}, true, 1, 2))
 
-	th:handle(peer, peer:get(1))
+	th:handleCall(peer, peer:get(1))
 	th:handleReturn(peer:get(2))
 	t:assert(done)
 end

@@ -28,7 +28,7 @@ function test.all(t)
 	t:eq(peer:count(), 1)
 	t:tdeq(peer:get(1), Message(1, nil, {"obj", "func"}, true, 1, 2))
 
-	th:handle(peer, peer:get(1))
+	th:handleCall(peer, peer:get(1))
 
 	t:eq(peer:count(), 2)
 	t:tdeq(peer:get(2), Message(1, true, 3))
