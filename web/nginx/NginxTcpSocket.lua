@@ -28,18 +28,6 @@ function NginxTcpSocket:settimeout(time)
 	return self.soc:settimeout(time * 1000)  ---@diagnostic disable-line
 end
 
----@param timeout integer?
----@return boolean
-function NginxTcpSocket:selectreceive(timeout)
-	return true
-end
-
----@param timeout integer?
----@return boolean
-function NginxTcpSocket:selectsend(timeout)
-	return true
-end
-
 ---@param pattern "*a"|"*l"|integer?
 ---@param prefix string?
 ---@return string?
