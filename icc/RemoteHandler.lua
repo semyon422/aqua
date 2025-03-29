@@ -1,8 +1,8 @@
 local IHandler = require("icc.IHandler")
 local Remote = require("icc.Remote")
 
----@alias icc.RemoteFunction fun(remote: icc.Remote, ...: any): ...: any
----@alias icc.RemoteMethod fun(self: table, remote: icc.Remote, ...: any): ...: any
+---@alias icc.RemoteFunction fun(...: any): ...: any
+---@alias icc.RemoteMethod fun(self: table, ...: any): ...: any
 
 ---@class icc.RemoteHandler: icc.IHandler
 ---@operator call: icc.RemoteHandler
@@ -15,13 +15,20 @@ end
 
 ---@param th icc.TaskHandler
 ---@param peer icc.IPeer
+---@param obj table
+---@param ... any
+---@return any ...
+function RemoteHandler:transform(th, peer, obj, ...)
+	return obj, Remote(th, peer), ...
+end
+
+---@param th icc.TaskHandler
+---@param peer icc.IPeer
 ---@param path string[]
 ---@param is_method boolean
 ---@param ... any
 ---@return any ...
 function RemoteHandler:handle(th, peer, path, is_method, ...)
-	local remote = Remote(th, peer)
-
 	---@type any
 	local s
 	local t = self.t
@@ -32,11 +39,11 @@ function RemoteHandler:handle(th, peer, path, is_method, ...)
 
 	if is_method then
 		---@cast t -any, +icc.RemoteMethod
-		return t(s, remote, ...)
+		return t(self:transform(th, peer, s, ...))
 	end
 
 	---@cast t -any, +icc.RemoteFunction
-	return t(remote, ...)
+	return t(select(2, self:transform(th, peer, s, ...)))
 end
 
 return RemoteHandler
