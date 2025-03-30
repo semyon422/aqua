@@ -20,6 +20,14 @@ function TaskHandler:new(handler)
 	self.event_id = 0
 end
 
+---@param ok boolean
+---@param ... any
+---@return any ...
+local function assert_pcall(ok, ...)
+	assert(ok, ...)
+	return ...
+end
+
 ---@param f function
 ---@return function
 local function wrap(f)
@@ -68,7 +76,7 @@ function TaskHandler:call(peer, ...)
 		end
 	end
 
-	return coroutine.yield()
+	return assert_pcall(coroutine.yield())
 end
 
 function TaskHandler:update()
@@ -83,11 +91,12 @@ end
 ---@param peer icc.IPeer
 ---@param msg icc.Message
 function TaskHandler:handleCall(peer, msg)
+	local handler = self.handler
 	if not msg.id then
-		self.handler:handle(self, peer, msg:unpack())
+		xpcall(handler.handle, debug.traceback, handler, self, peer, msg:unpack())
 		return
 	end
-	self:send(peer, msg.id, true, self.handler:handle(self, peer, msg:unpack()))
+	self:send(peer, msg.id, true, xpcall(handler.handle, debug.traceback, handler, self, peer, msg:unpack()))
 end
 TaskHandler.handleCall = TaskHandler.wrap(TaskHandler.handleCall)
 

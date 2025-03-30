@@ -31,7 +31,7 @@ function test.all(t)
 	th:handleCall(peer, peer:get(1))
 
 	t:eq(peer:count(), 2)
-	t:tdeq(peer:get(2), Message(1, true, 3))
+	t:tdeq(peer:get(2), Message(1, true, true, 3))
 
 	th:handleReturn(peer:get(2))
 

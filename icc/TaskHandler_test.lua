@@ -27,7 +27,7 @@ function test.basic(t)
 	th:handleCall(peer, peer:get(1))
 
 	t:eq(peer:count(), 2)
-	t:tdeq(peer:get(2), Message(1, true, 3))
+	t:tdeq(peer:get(2), Message(1, true, true, 3))
 
 	th:handleReturn(peer:get(2))
 	t:assert(done)
@@ -93,6 +93,40 @@ function test.multiple(t)
 	th2:handleReturn(peer1:get(2))
 	th1:handleReturn(peer2:get(2))
 
+	t:assert(done)
+end
+
+function test.error(t)
+	---@type icc.HandlerFunc
+	local function handler(th, peer)
+		error("msg")
+	end
+
+	local th = TaskHandler(FuncHandler(handler))
+	local peer = FakePeer()
+
+	local done = false
+	coroutine.wrap(function()
+		local ok, err = pcall(th.call, th, peer)
+		t:eq(ok, false)
+		done = true
+	end)()
+
+	t:eq(peer:count(), 1)
+	t:tdeq(peer:get(1), Message(1, nil))
+
+	th:handleCall(peer, peer:get(1))
+
+	t:eq(peer:count(), 2)
+
+	local msg = peer:get(2)
+	t:eq(msg.id, 1)
+	t:eq(msg.n, 2)
+	t:eq(msg.ret, true)
+	t:eq(msg[1], false)
+	t:assert(msg[2]:match("_test.lua:%d+: msg"))
+
+	th:handleReturn(peer:get(2))
 	t:assert(done)
 end
 
