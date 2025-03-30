@@ -1,9 +1,6 @@
 local IHandler = require("icc.IHandler")
 local Remote = require("icc.Remote")
 
----@alias icc.RemoteFunction fun(...: any): ...: any
----@alias icc.RemoteMethod fun(self: table, ...: any): ...: any
-
 ---@class icc.RemoteHandler: icc.IHandler
 ---@operator call: icc.RemoteHandler
 local RemoteHandler = IHandler + {}
@@ -30,20 +27,13 @@ end
 ---@return any ...
 function RemoteHandler:handle(th, peer, path, is_method, ...)
 	---@type any
-	local s
-	local t = self.t
+	local s, t = nil, self.t
 	for _, k in ipairs(path) do
-		s = t
-		t = t[k]
+		s, t = t, t[k]
 	end
 
-	if is_method then
-		---@cast t -any, +icc.RemoteMethod
-		return t(self:transform(th, peer, s, ...))
-	end
-
-	---@cast t -any, +icc.RemoteFunction
-	return t(select(2, self:transform(th, peer, s, ...)))
+	---@cast t -table, +function
+	return t(select(is_method and 1 or 2, self:transform(th, peer, s, ...)))
 end
 
 return RemoteHandler
