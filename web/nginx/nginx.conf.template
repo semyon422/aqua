@@ -10,6 +10,7 @@ events {
 }
 
 http {
+	include aqua/web/nginx/mime.types;
 	resolver 8.8.8.8 8.8.4.4;
 
 	client_body_temp_path temp/client_body;
