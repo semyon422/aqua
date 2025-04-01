@@ -112,8 +112,6 @@ function Websocket:res_send(key, protocol)
 		return nil, err
 	end
 
-	self.state = "open"
-
 	return true
 end
 
@@ -166,14 +164,24 @@ function Websocket:res_receive(key)
 		return nil, "bad ws accept header"
 	end
 
-	self.state = "open"
-
 	return true
 end
 
 ---@return true?
 ---@return string?
 function Websocket:handshake()
+	local ok, err = self:_handshake()
+	if not ok then
+		self.state = "closed"
+		return nil, err
+	end
+	self.state = "open"
+	return true
+end
+
+---@return true?
+---@return string?
+function Websocket:_handshake()
 	local role = assert(self.role, "missing role")
 
 	if role == "server" then
@@ -197,8 +205,6 @@ function Websocket:handshake()
 			return nil, err
 		end
 	end
-
-	self.state = "open"
 
 	return true
 end
