@@ -43,7 +43,10 @@ function ThreadRemote:new(id, t)
 	self.thread = love.thread.newThread(getCodeString(id))
 
 	function self.remote_handler.transform(_, th, peer, obj, ...)
-		local _obj = setmetatable({}, {__index = obj})
+		local _obj = setmetatable({}, {
+			__index = obj,
+			__newindex = function(t, k, v) obj[k] = v end,
+		})
 		_obj.remote = Remote(th, peer)
 		return _obj, ...
 	end

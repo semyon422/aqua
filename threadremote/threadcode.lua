@@ -26,7 +26,10 @@ local task_handler = TaskHandler(remote_handler)
 local remote = Remote(task_handler, peer)
 
 function remote_handler.transform(_, th, peer, obj, ...)
-	local _obj = setmetatable({}, {__index = obj})
+	local _obj = setmetatable({}, {
+		__index = obj,
+		__newindex = function(t, k, v) obj[k] = v end,
+	})
 	_obj.remote = Remote(th, peer)
 	return _obj, ...
 end
