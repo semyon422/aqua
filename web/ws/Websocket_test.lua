@@ -103,11 +103,15 @@ function test.connect_and_close_by_server(t)
 	local req, res = req_res(soc_cs)
 	local client = Websocket(soc_cs, req, res, "client")
 
+	t:eq(client:getState(), "connecting")
+
 	local state_client = 0
 	local co_client = coroutine.create(function()
 		t:assert(client:handshake())
+		t:eq(client:getState(), "open")
 		state_client = 1
 		t:assert(client:loop())
+		t:eq(client:getState(), "closed")
 		state_client = 2
 	end)
 
@@ -117,11 +121,15 @@ function test.connect_and_close_by_server(t)
 	local req, res = req_res(soc_sc)
 	local server = Websocket(soc_sc, req, res, "server")
 
+	t:eq(server:getState(), "connecting")
+
 	local state_server = 0
 	local co_server = coroutine.create(function()
 		t:assert(server:handshake())
+		t:eq(server:getState(), "open")
 		state_server = 1
 		t:assert(server:loop())
+		t:eq(server:getState(), "closed")
 		state_server = 2
 	end)
 

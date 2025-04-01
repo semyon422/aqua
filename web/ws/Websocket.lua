@@ -53,6 +53,11 @@ function Websocket:new(soc, req, res, role, protocol)
 	self.protocol = protocol or Subprotocol(self)
 end
 
+---@return web.WebsocketState
+function Websocket:getState()
+	return self.state
+end
+
 ---@return {key: string, protocols: string[]}?
 ---@return string?
 function Websocket:req_receive()
@@ -269,6 +274,10 @@ end
 ---@return web.WebsocketFrame|true? clean_close
 ---@return string?
 function Websocket:step()
+	if self.state ~= "open" then
+		return nil, "invalid state"
+	end
+
 	local protocol = self.protocol
 
 	---@type integer
@@ -276,6 +285,7 @@ function Websocket:step()
 
 	local frame, err = self:receive()
 	if not frame then
+		self.state = "closed"
 		return nil, err
 	end
 
@@ -320,8 +330,6 @@ function Websocket:loop()
 		end
 		ret, err = self:step()
 	end
-
-	self.failed = true
 
 	---@cast err string
 	return nil, err
