@@ -32,7 +32,9 @@ end
 ---@return function
 local function wrap(f)
 	return function(...)
-		return coroutine.wrap(f)(...)
+		-- https://github.com/openresty/lua-nginx-module/issues/2406
+		local co = coroutine.create(f)
+		return assert(coroutine.resume(co, ...))
 	end
 end
 TaskHandler.wrap = wrap
