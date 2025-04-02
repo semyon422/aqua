@@ -28,18 +28,24 @@ function WebsocketClient:new(tcp_soc)
 end
 
 ---@param url string
----@return web.IRequest
----@return web.IResponse
+---@return {req: web.IRequest, res: web.IResponse}?
+---@return string?
 function WebsocketClient:connect(url)
 	url = url:gsub("#", "%23") -- no fragment in ws
 
 	local parsed_url = socket_url.parse(url, default)
 
 	local tcp_soc = self.tcp_soc
-	assert(tcp_soc:connect(parsed_url.host, parsed_url.port or scheme_ports[parsed_url.scheme]))
+	local ok, err = tcp_soc:connect(parsed_url.host, parsed_url.port or scheme_ports[parsed_url.scheme])
+	if not ok then
+		return nil, err
+	end
 
 	if parsed_url.scheme == "wss" then
-		assert(tcp_soc:sslhandshake())
+		ok, err = tcp_soc:sslhandshake()
+		if not ok then
+			return nil, err
+		end
 	end
 
 	local req = Request(tcp_soc)
@@ -55,7 +61,10 @@ function WebsocketClient:connect(url)
 
 	local res = Response(tcp_soc)
 
-	return req, res
+	return {
+		req = req,
+		res = res,
+	}
 end
 
 return WebsocketClient
