@@ -33,7 +33,10 @@ end
 function WebsocketClient:connect(url)
 	url = url:gsub("#", "%23") -- no fragment in ws
 
-	local parsed_url = socket_url.parse(url, default)
+	local parsed_url, err = socket_url.parse(url, default)
+	if not parsed_url then
+		return nil, err
+	end
 
 	local tcp_soc = self.tcp_soc
 	local ok, err = tcp_soc:connect(parsed_url.host, parsed_url.port or scheme_ports[parsed_url.scheme])
