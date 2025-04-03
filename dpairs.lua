@@ -15,6 +15,7 @@ end
 ---@generic T: table, K, V
 ---@param t T
 ---@return fun(table: {[K]: V}, index?: K): K, V
+---@return T
 local function dpairs(t)
 	local _t = {}
 	for k in pairs(t) do
@@ -26,7 +27,7 @@ local function dpairs(t)
 	return function()
 		i = i + 1
 		return _t[i], t[_t[i]]
-	end
+	end, t
 end
 
 return dpairs
