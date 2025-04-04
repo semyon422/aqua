@@ -192,6 +192,44 @@ function test.array(t)
 end
 
 ---@param t testing.T
+function test.map_no_err_msg(t)
+	local function is_string(v)
+		return type(v) == "string"
+	end
+	local function is_number(v)
+		return type(v) == "number"
+	end
+
+	local is_string_number_map = valid.map(is_string, is_number)
+	t:tdeq({is_string_number_map({a = 1})}, {true})
+	t:tdeq({is_string_number_map({a = "b"})}, {nil, {a = true}})
+	t:tdeq({is_string_number_map({[1] = 1})}, {nil, {false}})
+	t:tdeq({is_string_number_map({[1] = "a"})}, {nil, {false}})
+end
+
+---@param t testing.T
+function test.map(t)
+	local function is_string(v)
+		if type(v) == "string" then
+			return true
+		end
+		return nil, "not a string"
+	end
+	local function is_number(v)
+		if type(v) == "number" then
+			return true
+		end
+		return nil, "not a number"
+	end
+
+	local is_string_number_map = valid.map(is_string, is_number)
+	t:tdeq({is_string_number_map({a = 1})}, {true})
+	t:tdeq({is_string_number_map({a = "b"})}, {nil, {a = "not a number"}})
+	t:tdeq({is_string_number_map({[1] = 1})}, {nil, {"not a string"}})
+	t:tdeq({is_string_number_map({[1] = "a"})}, {nil, {"not a string"}})
+end
+
+---@param t testing.T
 function test.flatten(t)
 	local errs = {
 		user_1 = {name = true},
