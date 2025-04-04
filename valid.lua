@@ -92,6 +92,22 @@ function valid.optional(f)
 	end
 end
 
+---@param ... fun(v: any?): boolean?, string|util.Errors?
+---@return fun(v: any?): boolean?, string|util.Errors?
+function valid.compose(...)
+	local n = select("#", ...)
+	local fs = {...}
+	return function(v)
+		for i = 1, n do
+			local ok, err = fs[i](v)
+			if not ok then
+				return nil, err
+			end
+		end
+		return true
+	end
+end
+
 ---@param errs string|util.Errors?
 ---@param fmt string?
 ---@param buf string[]?
@@ -115,7 +131,7 @@ function valid.flatten(errs, fmt, buf, prefix)
 	for k, v in dpairs(errs) do
 		if v == true then
 			v = "invalid"
-		elseif v == true then
+		elseif v == false then
 			v = "not nil"
 		end
 		if type(v) == "string" then

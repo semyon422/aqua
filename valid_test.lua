@@ -38,6 +38,24 @@ function test.optional(t)
 end
 
 ---@param t testing.T
+function test.compose(t)
+	local function is_string(v)
+		return type(v) == "string"
+	end
+	local function not_empty(v)
+		return #v > 0
+	end
+
+	local is_not_empty_string = valid.compose(is_string, not_empty)
+
+	t:tdeq({is_not_empty_string("str")}, {true})
+	t:tdeq({is_not_empty_string("")}, {})
+	t:tdeq({is_not_empty_string()}, {})
+	t:tdeq({is_not_empty_string({})}, {})
+	t:tdeq({is_not_empty_string({1})}, {})
+end
+
+---@param t testing.T
 function test.flat_table(t)
 	local function is_string(v)
 		if type(v) == "string" then
@@ -178,10 +196,12 @@ function test.flatten(t)
 	local errs = {
 		user_1 = {name = true},
 		user_2 = "not a table",
+		user_3 = false,
 	}
 
 	t:tdeq(valid.flatten(errs), {
 		"user_2 is not a table",
+		"user_3 is not nil",
 		"user_1.name is invalid",
 	})
 end
