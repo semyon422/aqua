@@ -5,6 +5,8 @@ local config = {
 	client_max_body_size = "10M",
 	handler = "sea.app.handler",
 	proxied = false,
+	package_path = {},
+	package_cpath = {},
 	require = {
 		"socket",
 		"ltn12",

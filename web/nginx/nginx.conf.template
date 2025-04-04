@@ -23,7 +23,17 @@ http {
 
 	init_by_lua_block {
 		require("aqua.env.openresty")
+		local pkg = require("pkg")
 		local c = require("nginx_config")
+
+		for _, path in ipairs(c.package_path) do
+			pkg.add(path)
+		end
+		for _, path in ipairs(c.package_cpath) do
+			pkg.add(path)
+		end
+		pkg.export_lua()
+
 		for _, name in ipairs(c.require) do
 			require(name)
 		end
