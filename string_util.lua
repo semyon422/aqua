@@ -1,15 +1,17 @@
 local table_util = require("table_util")
 
+local string_util = {}
+
 ---@param s string
 ---@return string
-function string.trim(s)
+function string_util.trim(s)
 	return s:match("^%s*(.-)%s*$")
 end
 
 ---@param s string
 ---@param div string
 ---@return string[]
-function string.split(s, div)
+function string_util.split(s, div)
 	local out = {}
 
 	local pos = 0
@@ -28,12 +30,12 @@ local function next_split(d)
 	---@param s string
 	---@param p integer
 	return function(s, p)
-		if not p then
+		if not p or p <= 0 then
 			return
 		end
 		local a, b = s:find(d, p, true)
 		if not a then
-			return nil, s:sub(p)
+			return 0, s:sub(p)
 		end
 		return b + 1, s:sub(p, a - 1)
 	end
@@ -45,16 +47,29 @@ next_split = table_util.cache(next_split)
 ---@return fun(s: string, p: string?): integer?, string?
 ---@return string
 ---@return number
-function string.isplit(s, d)
+function string_util.isplit(s, d)
 	return next_split(d), s, 1
 end
+
+local function isplit_iter(s, d)
+	local t = {}
+	for _, _s in string_util.isplit(s, d) do
+		table.insert(t, _s)
+	end
+	return table.concat(t, ",")
+end
+
+assert(isplit_iter("1 2 3", " ") == "1,2,3")
+assert(isplit_iter(" 1 2 3 ", " ") == ",1,2,3,")
+assert(isplit_iter(" ", " ") == ",")
+assert(isplit_iter("  ", " ") == ",,")
 
 ---@param s string
 ---@param t table
 ---@param pattern string
 ---@return string
 ---@return table
-function string.tpreformat(s, t, pattern)
+function string_util.tpreformat(s, t, pattern)
 	---@type any[]
 	local values = {}
 	local size = 0
@@ -70,9 +85,9 @@ end
 ---@param t table
 ---@param pattern string?
 ---@return string
-function string.tformat(s, t, pattern)
-	local _s, values = string.tpreformat(s, t, pattern or "%s")
+function string_util.tformat(s, t, pattern)
+	local _s, values = string_util.tpreformat(s, t, pattern or "%s")
 	return _s:format(unpack(values))
 end
 
-return string
+return string_util

@@ -1,4 +1,5 @@
 local class = require("class")
+local string_util = require("string_util")
 
 ---@alias aqua.Path.Part { name: string, isDirectory: boolean, isHidden: boolean }
 
@@ -51,7 +52,7 @@ function Path:getName(without_extension)
 		return name
 	end
 
-	local split = last.name:split(".")
+	local split = string_util.split(last.name, ".")
 	if #split == 1 then
 		return name
 	end
@@ -226,7 +227,7 @@ function Path:fromString(path)
 	path = path:gsub("\\", "/")
 	self.parts = {}
 
-	local split = path:split("/")
+	local split = string_util.split(path, "/")
 	for _, name in ipairs(split) do
 		if name ~= "" then
 			table.insert(self.parts, {
@@ -255,7 +256,7 @@ function Path:fromArray(array)
 
 	for _, v in ipairs(array) do
 		local path = v:gsub("\\", "/")
-		local split = path:split("/")
+		local split = string_util.split(path, "/")
 
 		for _, name in ipairs(split) do
 			if name ~= "" then
@@ -288,7 +289,7 @@ function Path:determineKind(str)
 	end
 
 	---@type string[]
-	local split = str:split("/")
+	local split = string_util.split(str, "/")
 
 	if #split == 0 then
 		return
