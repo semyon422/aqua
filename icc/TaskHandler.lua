@@ -95,7 +95,7 @@ end
 function TaskHandler:handleCall(peer, msg)
 	local handler = self.handler
 	if not msg.id then
-		xpcall(handler.handle, debug.traceback, handler, self, peer, msg:unpack())
+		handler:handle(self, peer, msg:unpack())
 		return
 	end
 	self:send(peer, msg.id, true, xpcall(handler.handle, debug.traceback, handler, self, peer, msg:unpack()))

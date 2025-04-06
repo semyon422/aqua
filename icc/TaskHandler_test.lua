@@ -5,6 +5,7 @@ local Message = require("icc.Message")
 
 local test = {}
 
+---@param t testing.T
 function test.basic(t)
 	---@type icc.HandlerFunc
 	local function handler(th, peer, a, b)
@@ -33,6 +34,7 @@ function test.basic(t)
 	t:assert(done)
 end
 
+---@param t testing.T
 function test.basic_no_return(t)
 	local handled = false
 	---@type icc.HandlerFunc
@@ -61,6 +63,7 @@ function test.basic_no_return(t)
 	t:assert(done)
 end
 
+---@param t testing.T
 function test.multiple(t)
 	---@type icc.HandlerFunc
 	local function handler1(th, peer, a)
@@ -96,6 +99,7 @@ function test.multiple(t)
 	t:assert(done)
 end
 
+---@param t testing.T
 function test.error(t)
 	---@type icc.HandlerFunc
 	local function handler(th, peer)
@@ -128,6 +132,58 @@ function test.error(t)
 
 	th:handleReturn(peer:get(2))
 	t:assert(done)
+end
+
+---@param t testing.T
+function test.error_no_return(t)
+	---@type icc.HandlerFunc
+	local function handler(th, peer)
+		error("msg")
+	end
+
+	local th = TaskHandler(FuncHandler(handler))
+	local peer = FakePeer()
+
+	local done = false
+	coroutine.wrap(function()
+		th:callnr(peer)
+		done = true
+	end)()
+
+	t:eq(peer:count(), 1)
+	t:tdeq(peer:get(1), Message(nil, nil))
+
+	t:assert(done)
+
+	local ok, err = pcall(th.handleCall, th, peer, peer:get(1))
+	t:eq(ok, false)
+	t:assert(err and err:match("_test.lua:%d+: msg"))
+end
+
+---@param t testing.T
+function test.error_after_resume(t)
+	local th = TaskHandler(FuncHandler(function() end))
+	local peer = FakePeer()
+
+	local done = false
+	coroutine.wrap(function()
+		th:call(peer)
+		error("msg")
+		done = true
+	end)()
+
+	t:eq(peer:count(), 1)
+	t:tdeq(peer:get(1), Message(1, nil))
+
+	th:handleCall(peer, peer:get(1))
+
+	t:eq(peer:count(), 2)
+
+	local ok, err = pcall(th.handleReturn, th, peer:get(2))
+	t:eq(ok, false)
+	t:assert(err and err:match("_test.lua:%d+: msg"))
+
+	t:assert(not done)
 end
 
 return test
