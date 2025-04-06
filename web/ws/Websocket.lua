@@ -2,26 +2,15 @@ local class = require("class")
 local mime = require("mime")
 local Subprotocol = require("web.ws.Subprotocol")
 local WebsocketFrame = require("web.ws.WebsocketFrame")
+local digest = require("digest")
+local random = require("web.random")
 
----@type {new: fun(_: string?): {final: fun(_: any, s: string): string}}
-local openssl_digest = require("openssl.digest")
-
----@type {bytes: fun(size: integer): string}
-local openssl_rand = require("openssl.rand")
-
--- https://25thandclement.com/~william/projects/luaossl.pdf
 -- https://datatracker.ietf.org/doc/html/rfc6455
-
----@param s string
----@return string
-local function sha1(s)
-	return openssl_digest.new("sha1"):final(s)
-end
 
 ---@param key string
 ---@return string
 local function gen_accept(key)
-	return (mime.b64(sha1(key .. "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")))
+	return (mime.b64(digest.hash("sha1", key .. "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")))
 end
 
 ---@enum (key) web.WebsocketState
@@ -120,7 +109,7 @@ end
 function Websocket:req_send()
 	local req = self.req
 
-	local ws_key = mime.b64(openssl_rand.bytes(16))
+	local ws_key = mime.b64(random.bytes(16))
 
 	req.headers:set("Upgrade", "websocket")
 	req.headers:set("Connection", "Upgrade")

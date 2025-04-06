@@ -2,9 +2,7 @@ local class = require("class")
 local byte = require("byte")
 local table_util = require("table_util")
 local ffi = require("ffi")
-
----@type {bytes: fun(size: integer): string}
-local openssl_rand = require("openssl.rand")
+local random = require("web.random")
 
 ---@class web.WebsocketFrame
 ---@operator call: web.WebsocketFrame
@@ -137,7 +135,7 @@ function WebsocketFrame:build()
 
 	if self.masked then
 		buf[1] = bit.bor(buf[1], 0x80)
-		local masking_key = self.masking_key or openssl_rand.bytes(4)
+		local masking_key = self.masking_key or random.bytes(4)
 		ffi.copy(buf + offset, masking_key, 4)
 		offset = offset + 4
 	end
