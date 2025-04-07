@@ -20,8 +20,9 @@ digest.module = "digest"
 
 ---@param func digest.HashFunction
 ---@param s string
+---@param hex boolean?
 ---@return string
-function digest.hash(func, s)
+function digest.hash(func, s, hex)
 	error("not implemented")
 end
 
