@@ -200,8 +200,11 @@ function test.map_no_err_msg(t)
 		return type(v) == "number"
 	end
 
-	local is_string_number_map = valid.map(is_string, is_number)
+	local is_string_number_map = valid.map(is_string, is_number, 2)
 	t:tdeq({is_string_number_map({a = 1})}, {true})
+	t:tdeq({is_string_number_map({a = 1, b = 2})}, {true})
+	t:tdeq({is_string_number_map({a = 1, b = 2, c = 3})}, {nil, "too long"})
+	t:tdeq({is_string_number_map({a = 1, b = 2, [3] = 3})}, {nil, {[3] = false}})
 	t:tdeq({is_string_number_map({a = "b"})}, {nil, {a = true}})
 	t:tdeq({is_string_number_map({[1] = 1})}, {nil, {false}})
 	t:tdeq({is_string_number_map({[1] = "a"})}, {nil, {false}})
@@ -222,8 +225,11 @@ function test.map(t)
 		return nil, "not a number"
 	end
 
-	local is_string_number_map = valid.map(is_string, is_number)
+	local is_string_number_map = valid.map(is_string, is_number, 2)
 	t:tdeq({is_string_number_map({a = 1})}, {true})
+	t:tdeq({is_string_number_map({a = 1, b = 2})}, {true})
+	t:tdeq({is_string_number_map({a = 1, b = 2, c = 3})}, {nil, "too long"})
+	t:tdeq({is_string_number_map({a = 1, b = 2, [3] = 3})}, {nil, {[3] = "not a string"}})
 	t:tdeq({is_string_number_map({a = "b"})}, {nil, {a = "not a number"}})
 	t:tdeq({is_string_number_map({[1] = 1})}, {nil, {"not a string"}})
 	t:tdeq({is_string_number_map({[1] = "a"})}, {nil, {"not a string"}})

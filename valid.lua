@@ -10,6 +10,8 @@ local valid = {}
 ---@return util.ValidationFunc
 function valid.struct(schema, table_err)
 	---@param t any?
+	---@return true?
+	---@return string|util.Errors?
 	return function(t)
 		if type(t) ~= "table" then
 			return nil, table_err
@@ -46,6 +48,8 @@ end
 ---@return util.ValidationFunc
 function valid.array(f, max_size, table_err)
 	---@param t {[any]: any?}?
+	---@return true?
+	---@return string|util.Errors?
 	return function(t)
 		if type(t) ~= "table" then
 			return nil, table_err
@@ -84,10 +88,13 @@ end
 
 ---@param kf util.ValidationFunc
 ---@param vf util.ValidationFunc
+---@param max_size integer
 ---@param table_err string?
 ---@return util.ValidationFunc
-function valid.map(kf, vf, table_err)
+function valid.map(kf, vf, max_size, table_err)
 	---@param t any?
+	---@return true?
+	---@return string|util.Errors?
 	return function(t)
 		if type(t) ~= "table" then
 			return nil, table_err
@@ -97,6 +104,7 @@ function valid.map(kf, vf, table_err)
 		---@type util.Errors
 		local errs = {}
 
+		local count = 0
 		for k, v in pairs(t) do
 			local ok, err = kf(k)
 			if not ok then
@@ -106,10 +114,13 @@ function valid.map(kf, vf, table_err)
 				if not ok then
 					errs[k] = err or true
 				end
+				count = count + 1
 			end
 		end
 
-		if next(errs) then
+		if count > max_size then
+			return nil, "too long"
+		elseif next(errs) then
 			return nil, errs
 		end
 
@@ -133,6 +144,8 @@ end
 function valid.compose(...)
 	local n = select("#", ...)
 	local fs = {...}
+	---@return true?
+	---@return string|util.Errors?
 	return function(v)
 		for i = 1, n do
 			local ok, err = fs[i](v)
@@ -184,6 +197,22 @@ function valid.flatten(errs, fmt, buf, prefix)
 	end
 
 	return buf
+end
+
+---@generic T
+---@param ok T?
+---@param err string|util.Errors?
+---@return T?
+---@return string?
+function valid.format(ok, err)
+	if ok then
+		return ok
+	end
+	if type(err) == "table" then
+		err = table.concat(valid.flatten(err), ", ")
+	end
+	---@cast err string
+	return ok, err
 end
 
 return valid
