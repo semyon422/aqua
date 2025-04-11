@@ -2,7 +2,12 @@ local class = require("class")
 local sql_util = require("rdb.sql_util")
 local relations = require("rdb.relations")
 
----@alias rdb.ModelOptions {table_name: string, types: table, relations: {[string]: rdb.Relation}, from_db: function?, metatable: table?}
+---@class rdb.ModelOptions
+---@field table_name string?
+---@field types table?
+---@field relations {[string]: rdb.Relation}?
+---@field from_db fun(row: rdb.Row)?
+---@field metatable table?
 
 ---@class rdb.Model
 ---@operator call: rdb.Model
