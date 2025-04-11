@@ -109,9 +109,16 @@ Test.le = build_method(function(a, b) return a <= b end)
 Test.teq = build_method(table_util.equal)
 Test.tdeq = build_method(table_util.deepequal)
 
+---@param f any
+---@param ... any
+---@return string?
 function Test:has_error(f, ...)
-	local ok = pcall(f, ...)
-	return self:eq(ok, false)
+	---@type boolean, string
+	local ok, err = pcall(f, ...)
+	self:eq(ok, false)
+	if not ok then
+		return err:match("^.-:.-: (.-)\n.+$")
+	end
 end
 
 return Test
