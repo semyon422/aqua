@@ -416,8 +416,8 @@ assert(table_util.deepequal(
 ))
 
 ---@generic T
----@param t {[T]: [any]}
----@return T
+---@param t {[T]: any}
+---@return T[]
 function table_util.keys(t)
 	local keys = {}
 	for k in pairs(t) do
