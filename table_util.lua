@@ -45,6 +45,33 @@ end
 
 assert(table_util.deepequal({{}}, {{}}))
 
+---@param ta table
+---@param tb table
+---@param keys string[]
+---@param t_eq (fun(a: table, b: table): boolean)?
+---@return boolean
+function table_util.subequal(ta, tb, keys, t_eq)
+	for _, k in ipairs(keys) do
+		---@type any, any
+		local a, b = ta[k], tb[k]
+		if t_eq and type(a) == "table" and type(b) == "table" then
+			if not t_eq(a, b) then
+				return false
+			end
+		elseif a ~= b then
+			return false
+		end
+	end
+	return true
+end
+
+assert(not table_util.subequal({a = 1, b = 3, 0}, {a = 1, b = 2}, {"a", "b"}))
+assert(table_util.subequal({a = 1, b = 2, 0}, {a = 1, b = 2}, {"a", "b"}))
+
+assert(not table_util.subequal({a = {1, 2}, 0}, {a = {1, 2}}, {"a"}))
+assert(not table_util.subequal({a = {1, 2}, 0}, {a = {1, 3}}, {"a"}, table_util.deepequal))
+assert(table_util.subequal({a = {1, 2}, 0}, {a = {1, 2}}, {"a"}, table_util.deepequal))
+
 ---@generic T
 ---@param src T?
 ---@param dst T?
