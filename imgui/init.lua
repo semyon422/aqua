@@ -5,6 +5,7 @@ local math_util = require("math_util")
 local gfx_util = require("gfx_util")
 local decibel = require("decibel")
 
+---@class imgui.Imgui
 local imgui = autoload("imgui")
 
 local w, h, _w, _h
