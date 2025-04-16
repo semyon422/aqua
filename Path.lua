@@ -5,6 +5,7 @@ local string_util = require("string_util")
 
 ---@class aqua.Path
 ---@operator call: aqua.Path
+---@operator concat(aqua.Path | string): aqua.Path
 ---@field parts aqua.Path.Part[]
 ---@field absolute boolean
 ---@field driveLetter string?
