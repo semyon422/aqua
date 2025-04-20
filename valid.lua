@@ -139,6 +139,13 @@ function valid.optional(f)
 	end
 end
 
+---@return util.ValidationFunc
+function valid.any()
+	return function(v)
+		return v ~= nil
+	end
+end
+
 ---@param ... util.ValidationFunc
 ---@return util.ValidationFunc
 function valid.compose(...)
