@@ -152,7 +152,8 @@ function sql_util.conditions(t)
 		end
 		if cd and vs then
 			table.insert(conds, cd)
-			for _, _v in ipairs(vs) do
+			for i, _v in ipairs(vs) do
+				sql_util.assert_value(("%s (%d)"):format(cd, i), _v)
 				table.insert(vals, _v)
 			end
 		end
@@ -235,6 +236,18 @@ function sql_util.conditions_for_db(t, types)
 		_t[k] = v
 	end
 	return _t
+end
+
+---@generic T: any
+---@param k string
+---@param v T
+---@return T
+function sql_util.assert_value(k, v)
+	local tv = type(v)
+	if v ~= sql_util.NULL and tv ~= "number" and tv ~= "string" then
+		error(("unexpected type '%s' for key '%s'"):format(tv, k))
+	end
+	return v
 end
 
 ---@param t rdb.Row

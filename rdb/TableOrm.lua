@@ -172,6 +172,7 @@ function TableOrm:insert(table_name, values_array, ignore)
 			else
 				query_values[c] = sql_util.NULL
 			end
+			sql_util.assert_value(key, query_values[c])
 		end
 	end
 
@@ -196,6 +197,7 @@ function TableOrm:update(table_name, values, conditions)
 		local value = values[key]
 		if value ~= nil then
 			filtered_values[key] = value
+			sql_util.assert_value(key, value)
 		end
 	end
 	if not next(filtered_values) then
