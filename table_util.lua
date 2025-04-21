@@ -3,6 +3,19 @@ local table_util = {}
 table_util.new = require("table.new")
 table_util.clear = require("table.clear")
 
+---@generic T: {[any]: any}
+---@param t T
+---@param keys any[]
+---@return T
+function table_util.sub(t, keys)
+	---@type {[any]: any}
+	local _t = {}
+	for _, k in ipairs(keys) do
+		_t[k] = t[k]
+	end
+	return _t
+end
+
 ---@param a table
 ---@param b table
 ---@return boolean
