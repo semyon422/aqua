@@ -250,4 +250,21 @@ function test.flatten(t)
 	})
 end
 
+---@param t testing.T
+function test.equals(t)
+	local a = {
+		7,
+		q = "a",
+		w = {a = 2},
+	}
+	local b = {
+		nil,
+		8,
+		q = "b",
+		w = {a = 1, 1},
+	}
+
+	t:tdeq({valid.equals(a, b)}, {nil, [[missing '1', value 'q': "a", "b", value 'w.a': "2", "1", extra 'w.1', extra '2']]})
+end
+
 return test
