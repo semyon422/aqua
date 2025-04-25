@@ -5,7 +5,7 @@ local PrintDatabase = require("rdb.PrintDatabase")
 
 ---@alias rdb.Row {[string]: any}
 ---@alias rdb.ColumnInfo {name: string, cid: integer, notnull: boolean, pk: boolean}
----@alias rdb.Conditions {[string]: any?, [integer]: rdb.Conditions}
+---@alias rdb.Conditions {[string]: any?, [integer]: rdb.Conditions?, [1]: "or"?}
 ---@alias rdb.Options {columns: string[]?, order: string[]?, group: string[]?, limit: integer?, format: string?}
 
 ---@class rdb.TableOrm
