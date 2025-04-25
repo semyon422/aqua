@@ -241,6 +241,13 @@ function valid.equals(a, b, buf, prefix)
 		local _v = b[k]
 		local ta, tb = type(v), type(_v)
 
+		if ta == "number" then
+			v = ("%0.20g"):format(v)
+		end
+		if tb == "number" then
+			_v = ("%0.20g"):format(_v)
+		end
+
 		if _v == nil then
 			table.insert(buf, ("missing '%s'"):format(prefix .. k))
 		elseif ta ~= tb then
