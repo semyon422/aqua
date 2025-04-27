@@ -225,4 +225,23 @@ function math_util.permutations(a)
 	return coroutine.wrap(function() permgen(a, #a, 0) end)
 end
 
+---@param rand (fun(): number)?
+---@return number
+---@return number
+function math_util.nrandom(rand)
+	rand = rand or math.random
+
+	local u, v, s = 0, 0, 0
+	while s == 0 or s >= 1 do
+		u = rand() * 2 - 1
+		v = rand() * 2 - 1
+		s = u ^ 2 + v ^ 2
+	end
+
+	local z_0 = u * math.sqrt(-2 * math.log(s) / s)
+	local z_1 = v * math.sqrt(-2 * math.log(s) / s)
+
+	return z_0, z_1
+end
+
 return math_util
