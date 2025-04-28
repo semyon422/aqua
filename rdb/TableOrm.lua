@@ -208,8 +208,8 @@ function TableOrm:update(table_name, values, conditions)
 	if not conditions or not next(conditions) then
 		return self.db:query(("UPDATE %s SET %s RETURNING *"):format(
 			sql_util.escape_identifier(table_name),
-			assigns, vals_a
-		))
+			assigns
+		), vals_a)
 	end
 
 	local conds, vals_b = sql_util.conditions(conditions)
