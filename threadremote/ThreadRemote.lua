@@ -39,6 +39,8 @@ function ThreadRemote:new(id, t)
 	self.task_handler = TaskHandler(self.remote_handler)
 	self.remote = Remote(self.task_handler, self)
 
+	self.task_handler.timeout = 60
+
 	self.thread = love.thread.newThread(getCodeString(id))
 
 	function self.remote_handler.transform(_, th, peer, obj, ...)
@@ -76,6 +78,7 @@ end
 
 function ThreadRemote:update()
 	local task_handler = self.task_handler
+
 	local output_channel = self.output_channel
 	local event = output_channel:pop()
 	while event do
@@ -90,6 +93,8 @@ function ThreadRemote:update()
 		end
 		event = output_channel:pop()
 	end
+
+	task_handler:update()
 end
 
 return ThreadRemote

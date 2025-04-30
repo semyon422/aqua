@@ -26,6 +26,8 @@ local remote_handler = RemoteHandler({})
 local task_handler = TaskHandler(remote_handler)
 local remote = Remote(task_handler, peer)
 
+task_handler.timeout = 60
+
 function remote_handler.transform(_, th, peer, obj, ...)
 	local _obj = setmetatable({}, {
 		__index = obj,
@@ -51,6 +53,7 @@ local function handle(event)
 		else
 			task_handler:handleCall(peer, msg)
 		end
+		task_handler:update()
 	else
 		error("unknown event " .. require("inspect")(event))
 	end
