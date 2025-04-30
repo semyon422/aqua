@@ -84,7 +84,7 @@ end
 ---@return string?
 function LsTcpSocket:receive(size)
 	local data, err, partial = self.soc:receive(size)
-	if err == "wantread" then  -- SSL error
+	if err == "wantread" then -- SSL error
 		err = "timeout"
 	end
 	return data, err, partial

@@ -14,18 +14,18 @@ end
 ---@return 1?
 ---@return string?
 function NginxTcpSocket:connect(host, port)
-	return self.soc:connect(host, port)  ---@diagnostic disable-line
+	return self.soc:connect(host, port) ---@diagnostic disable-line
 end
 
 ---@return 1?
 ---@return string?
 function NginxTcpSocket:sslhandshake()
-	return self.soc:sslhandshake()  ---@diagnostic disable-line
+	return self.soc:sslhandshake() ---@diagnostic disable-line
 end
 
 ---@param time integer
 function NginxTcpSocket:settimeout(time)
-	return self.soc:settimeout(time * 1000)  ---@diagnostic disable-line
+	return self.soc:settimeout(time * 1000) ---@diagnostic disable-line
 end
 
 ---@param pattern "*a"|"*l"|integer?
@@ -64,7 +64,7 @@ end
 
 ---@return 1
 function NginxTcpSocket:close()
-	return self.soc:close()  ---@diagnostic disable-line
+	return self.soc:close() ---@diagnostic disable-line
 end
 
 return NginxTcpSocket

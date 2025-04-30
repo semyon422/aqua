@@ -42,7 +42,7 @@ local function send(peer, id, name, ...)
 		id = id,
 		name = name,
 		n = select("#", ...),
-		...
+		...,
 	}))
 end
 

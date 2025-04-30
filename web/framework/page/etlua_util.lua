@@ -34,13 +34,15 @@ function etlua_util.compile(template, chunkname)
 		if not env then
 			env = {}
 		end
-		local _env = setmetatable({}, {__index = function(self, name)
-			local val = env[name]
-			if val == nil then
-				return _G[name]
+		local _env = setmetatable({}, {
+			__index = function(self, name)
+				local val = env[name]
+				if val == nil then
+					return _G[name]
+				end
+				return val
 			end
-			return val
-		end})
+		})
 
 		setfenv(fn, _env)
 		local ok, err = pcall(fn, tostring, html_escape, {}, 0)
@@ -59,11 +61,13 @@ end
 
 ---@return {[string]: fun(env: table): string}
 function etlua_util.autoload()
-	return setmetatable({}, {__index = function(_, path)
-		local content = read_file(path)
-		local tpl = etlua_util.compile(content, "@" .. path)
-		return tpl
-	end})
+	return setmetatable({}, {
+		__index = function(_, path)
+			local content = read_file(path)
+			local tpl = etlua_util.compile(content, "@" .. path)
+			return tpl
+		end
+	})
 end
 
 return etlua_util

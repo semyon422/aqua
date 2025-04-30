@@ -4,47 +4,47 @@ local _zlib = ffi.load("z")
 -- http://zlib.net/zpipe.c
 -- /usr/include/zlib.h
 
-ffi.cdef[[
-int uncompress(char *dest, unsigned long *destLen, const char *source, unsigned long sourceLen);
-int compress2(char *dest, unsigned long *destLen, const char *source, unsigned long sourceLen, int level);
-unsigned long compressBound(unsigned long sourceLen);
+ffi.cdef [[
+	int uncompress(char *dest, unsigned long *destLen, const char *source, unsigned long sourceLen);
+	int compress2(char *dest, unsigned long *destLen, const char *source, unsigned long sourceLen, int level);
+	unsigned long compressBound(unsigned long sourceLen);
 
-typedef void *(*alloc_func)(void *opaque, unsigned int items, unsigned int size);
-typedef void (*free_func)(void *opaque, void *address);
+	typedef void *(*alloc_func)(void *opaque, unsigned int items, unsigned int size);
+	typedef void (*free_func)(void *opaque, void *address);
 
-const char *zlibVersion(void);
+	const char *zlibVersion(void);
 
-typedef struct z_stream_s {
-	const unsigned char *next_in;
-	unsigned int avail_in;
-	unsigned long total_in;
+	typedef struct z_stream_s {
+		const unsigned char *next_in;
+		unsigned int avail_in;
+		unsigned long total_in;
 
-	unsigned char *next_out;
-	unsigned int avail_out;
-	unsigned long total_out;
+		unsigned char *next_out;
+		unsigned int avail_out;
+		unsigned long total_out;
 
-	const char *msg;
-	struct internal_state *state;
+		const char *msg;
+		struct internal_state *state;
 
-	alloc_func zalloc;
-	free_func zfree;
-	void *opaque;
+		alloc_func zalloc;
+		free_func zfree;
+		void *opaque;
 
-	int data_type;
-	unsigned long adler;
-	unsigned long reserved;
-} z_stream;
+		int data_type;
+		unsigned long adler;
+		unsigned long reserved;
+	} z_stream;
 
-typedef z_stream *z_streamp;
+	typedef z_stream *z_streamp;
 
-int deflateInit_(z_streamp strm, int level, const char *version, int stream_size);
-int inflateInit_(z_streamp strm, const char *version, int stream_size);
+	int deflateInit_(z_streamp strm, int level, const char *version, int stream_size);
+	int inflateInit_(z_streamp strm, const char *version, int stream_size);
 
-int deflate(z_streamp strm, int flush);
-int deflateEnd(z_streamp strm);
+	int deflate(z_streamp strm, int flush);
+	int deflateEnd(z_streamp strm);
 
-int inflate(z_streamp strm, int flush);
-int inflateEnd(z_streamp strm);
+	int inflate(z_streamp strm, int flush);
+	int inflateEnd(z_streamp strm);
 ]]
 
 local flush_values = {

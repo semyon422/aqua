@@ -62,7 +62,7 @@ function test.receive_size_again(t)
 	t:eq(ngx_http_lua.socket_push_input_data(u), "")
 	t:eq(ngx_http_lua.socket_push_input_data(u), "")
 
-	t:eq(ngx_http_lua.socket_tcp_receive(u, 10), "again")  -- <--
+	t:eq(ngx_http_lua.socket_tcp_receive(u, 10), "again") -- <--
 	t:eq(ngx_http_lua.socket_push_input_data(u), "io")
 	t:eq(ngx_http_lua.socket_push_input_data(u), "")
 	t:eq(ngx_http_lua.socket_push_input_data(u), "")
@@ -90,7 +90,7 @@ function test.receive_line_1_again(t)
 	t:eq(ngx_http_lua.socket_tcp_receive(u, "*l"), "again")
 	t:eq(ngx_http_lua.socket_tcp_read(u), "again")
 	t:eq(ngx_http_lua.socket_tcp_read(u), "again")
-	t:eq(ngx_http_lua.socket_tcp_read(u), "again")  -- <--
+	t:eq(ngx_http_lua.socket_tcp_read(u), "again") -- <--
 	t:eq(ngx_http_lua.socket_push_input_data(u), "qwertyuio")
 	t:eq(ngx_http_lua.socket_push_input_data(u), "")
 	t:eq(ngx_http_lua.socket_push_input_data(u), "")
@@ -137,7 +137,7 @@ function test.receive_all_again(t)
 	t:eq(ngx_http_lua.socket_tcp_receive(u, "*a"), "again")
 	t:eq(ngx_http_lua.socket_tcp_read(u), "again")
 	t:eq(ngx_http_lua.socket_tcp_read(u), "again")
-	t:eq(ngx_http_lua.socket_tcp_read(u), "again")  -- <--
+	t:eq(ngx_http_lua.socket_tcp_read(u), "again") -- <--
 	t:eq(ngx_http_lua.socket_push_input_data(u), "qwertyuio")
 	t:eq(ngx_http_lua.socket_push_input_data(u), "")
 	t:eq(ngx_http_lua.socket_push_input_data(u), "")

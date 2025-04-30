@@ -38,8 +38,8 @@ for _, keyword in ipairs(keywords) do
 end
 
 local function tkey(k)
-    local plain = k:match("^[%l%u_][%w_]*$") and not keywords[k]
-    return plain and k or ("[%s]"):format(encoders.string(k))
+	local plain = k:match("^[%l%u_][%w_]*$") and not keywords[k]
+	return plain and k or ("[%s]"):format(encoders.string(k))
 end
 
 ---@param t table

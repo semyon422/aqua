@@ -16,7 +16,7 @@ end
 ---@param s string
 ---@return string
 local function tohex(s)
-    return (s:gsub('.', fhex))
+	return (s:gsub('.', fhex))
 end
 
 ---@param func digest.HashFunction

@@ -6,7 +6,7 @@ local ngx_buf_t = require("web.ngx.ngx_buf_t")
 local ngx_str_t = require("web.ngx.ngx_str_t")
 local dfa_edge_t = require("web.ngx.dfa_edge_t")
 
-ffi.cdef[[
+ffi.cdef [[
 	int memcmp(const void * p1, const void * p2, size_t n);
 ]]
 
@@ -605,7 +605,7 @@ function ngx_http_lua.socket_read_until(cp, bytes)
 			ngx_http_lua.socket_add_pending_data(u, b.pos, i, pat, state, state)
 
 			if u.length > 0 then
-				if u.rest <= state then  -- idk how to cover his block
+				if u.rest <= state then -- idk how to cover his block
 					u.rest = 0
 					cp.state = 0
 					b.pos = b.pos + i
@@ -649,7 +649,7 @@ end
 ---@param len integer
 ---@param cp ngx_http_lua.socket_compiled_pattern_t
 function ngx_http_lua.socket_compile_pattern(data, len, cp)
-	local last_t, last_k  ---@type table, integer|"next"
+	local last_t, last_k ---@type table, integer|"next"
 
 	cp.pattern.data = data
 	cp.pattern.len = len
@@ -672,7 +672,7 @@ function ngx_http_lua.socket_compile_pattern(data, len, cp)
 				local new_state = prefix_len + 1
 
 				if not cp.recovering then
-					cp.recovering = {}  -- 0-indexed, size of (len - 2)
+					cp.recovering = {} -- 0-indexed, size of (len - 2)
 				end
 
 				local edge = cp.recovering[cur_state - 2]
@@ -688,7 +688,7 @@ function ngx_http_lua.socket_compile_pattern(data, len, cp)
 						if edge.chr == data[prefix_len] then
 							found = true
 							if edge.new_state < new_state then
-								edge.new_state = new_state  -- idk how to cover his line
+								edge.new_state = new_state -- idk how to cover his line
 							end
 							break
 						end

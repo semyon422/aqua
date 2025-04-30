@@ -48,7 +48,7 @@ function test.ext(t)
 	t:eq(b:getName(true), "10key.skin")
 	t:eq(b:getExtension(), "lua")
 
-	local c = Path({ "C:/", "Program Files/Program" })
+	local c = Path({"C:/", "Program Files/Program"})
 	t:eq(tostring(c), "C:/Program Files/Program")
 	t:eq(c:getExtension(), nil)
 	t:eq(c:getName(), "Program")
@@ -155,10 +155,10 @@ function test.concat(t)
 	local n2 = (Path("/home/user/Games/soundsphere") .. Path("../../")):normalize()
 	t:eq(tostring(n2), "/home/user/")
 
-	local o = Path({ "", "a" }) .. Path("b")
+	local o = Path({"", "a"}) .. Path("b")
 	t:eq(tostring(o), "a/b")
 
-	local p = Path({ "/", "home", "user/" })
+	local p = Path({"/", "home", "user/"})
 	t:eq(tostring(p), "/home/user/")
 	t:eq(p.absolute, true)
 end

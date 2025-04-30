@@ -1,18 +1,18 @@
 local ffi = require("ffi")
 local C = ffi.os == "Windows" and ffi.load("love") or ffi.C
 
-ffi.cdef([[
-int PHYSFS_mount(const char *newDir, const char *mountPoint, int appendToPath);
-int PHYSFS_unmount(const char *oldDir);
-int PHYSFS_setWriteDir(const char *newDir);
-const char *PHYSFS_getLastError(void);
-]])
+ffi.cdef [[
+	int PHYSFS_mount(const char *newDir, const char *mountPoint, int appendToPath);
+	int PHYSFS_unmount(const char *oldDir);
+	int PHYSFS_setWriteDir(const char *newDir);
+	const char *PHYSFS_getLastError(void);
+]]
 
 local physfs = {}
 
 function physfs.getLastError()
 	local ptr = C.PHYSFS_getLastError()
-	if ptr == nil then  -- cdata<const char *>: NULL
+	if ptr == nil then -- cdata<const char *>: NULL
 		return
 	end
 	return ffi.string(ptr)

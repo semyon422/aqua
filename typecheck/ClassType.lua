@@ -18,7 +18,7 @@ function ClassType:check(value)
 	if not _type then
 		error("class " .. self.name .. " is not registered")
 	end
-	return _type * value or _type / value  -- todo: class<Class>
+	return _type * value or _type / value -- todo: class<Class>
 end
 
 function ClassType.__tostring(t)

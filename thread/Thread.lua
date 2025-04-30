@@ -101,7 +101,7 @@ function Thread:sync(...)
 	self.thread:push({
 		name = "synctable",
 		n = select("#", ...),
-		...
+		...,
 	})
 end
 

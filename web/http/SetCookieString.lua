@@ -118,7 +118,7 @@ function SetCookieString:add(name, value)
 	elseif eq_lower(name, "Path") then
 		local cookie_path = value
 		if value == "" or value:sub(1, 1) ~= "/" then
-			cookie_path = ""  -- TODO: default-path
+			cookie_path = "" -- TODO: default-path
 		end
 		table.insert(self.attribute_list, {"Path", cookie_path})
 	elseif eq_lower(name, "Secure") then

@@ -139,10 +139,10 @@ byte.write_int16_be = byte.write_uint16_be
 ---@return number
 function byte.read_int32_le(p)
 	return
-		  bit.lshift(p[3], 24)
+		bit.lshift(p[3], 24)
 		+ bit.lshift(p[2], 16)
 		+ bit.lshift(p[1], 8)
-		+            p[0]
+		+ p[0]
 end
 
 ---@param p ffi.cdata*
@@ -158,10 +158,10 @@ end
 ---@return number
 function byte.read_int32_be(p)
 	return
-		  bit.lshift(p[0], 24)
+		bit.lshift(p[0], 24)
 		+ bit.lshift(p[1], 16)
 		+ bit.lshift(p[2], 8)
-		+            p[3]
+		+ p[3]
 end
 
 ---@param p ffi.cdata*

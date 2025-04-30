@@ -317,7 +317,7 @@ function test.send_oob(t, rsoc, ssoc)
 	t:tdeq({ssoc:send("world", -15, -10)}, {0})
 	t:tdeq({ssoc:send("qwert", -4, -2)}, {4})
 	t:tdeq({ssoc:send("yuiop", -4, 4)}, {4})
-	t:tdeq({ssoc:send("asdfg", -2, 2)}, {3})  -- nothing sent
+	t:tdeq({ssoc:send("asdfg", -2, 2)}, {3}) -- nothing sent
 	t:tdeq({ssoc:send("hjkl;", -10, 2)}, {2})
 	t:tdeq({ssoc:send("zxcvb", 4, 10)}, {5})
 

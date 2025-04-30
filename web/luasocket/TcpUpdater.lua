@@ -50,7 +50,7 @@ end
 
 ---@param soc TCPSocket
 function TcpUpdater:handle_accept(soc)
-	local client, err = soc:accept()  -- timeout | ?
+	local client, err = soc:accept() -- timeout | ?
 	if err then
 		if err ~= "timeout" then
 			error(err)
@@ -92,7 +92,7 @@ end
 
 ---@param timeout number
 function TcpUpdater:update(timeout)
-	local rsocs, ssocs, err = socket.select(self.recvt, self.sendt, timeout)  -- timeout | select failed
+	local rsocs, ssocs, err = socket.select(self.recvt, self.sendt, timeout) -- timeout | select failed
 	if err then
 		if err ~= "timeout" then
 			error(err)

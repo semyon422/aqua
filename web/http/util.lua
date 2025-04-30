@@ -185,7 +185,7 @@ end
 function util.set_download_file_headers(headers, filename)
 	headers:set("Cache-Control", "no-cache")
 	headers:set("Content-Disposition", ("attachment; filename=%q"):format(path_util.fix_illegal(filename)))
-	headers:set("Content-Transfer-Encoding", "binary")  -- https://www.w3.org/Protocols/rfc1341/5_Content-Transfer-Encoding.html
+	headers:set("Content-Transfer-Encoding", "binary") -- https://www.w3.org/Protocols/rfc1341/5_Content-Transfer-Encoding.html
 	headers:set("Content-Type", "application/octet-stream")
 end
 

@@ -103,7 +103,7 @@ local function format_cond(op, k, v, ident)
 		return fmt(k, v)
 	end
 	local has_binds = fmt:find("?") ~= nil
-	if not has_binds and not v then  -- *__isnull = false
+	if not has_binds and not v then -- *__isnull = false
 		return nil, {}
 	end
 	local cond = fmt:format(esci(k))

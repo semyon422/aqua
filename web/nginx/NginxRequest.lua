@@ -30,7 +30,7 @@ function NginxRequest:receive_headers()
 		self.headers:set(k, v)
 	end
 
-	RequestResponse.process_headers(self)  ---@diagnostic disable-line
+	RequestResponse.process_headers(self) ---@diagnostic disable-line
 
 	return 1
 end

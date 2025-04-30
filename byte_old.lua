@@ -84,10 +84,10 @@ local string_to_int32_le = function(s)
 	assert(#s == 4)
 	local a, b, c, d = s:byte(1, -1)
 	return
-		  bit.lshift(d, 24)
+		bit.lshift(d, 24)
 		+ bit.lshift(c, 16)
 		+ bit.lshift(b, 8)
-		+            a
+		+ a
 end
 
 local string_to_int32_be = function(s)
@@ -95,10 +95,10 @@ local string_to_int32_be = function(s)
 	assert(#s == 4)
 	local a, b, c, d = s:byte(1, -1)
 	return
-		  bit.lshift(a, 24)
+		bit.lshift(a, 24)
 		+ bit.lshift(b, 16)
 		+ bit.lshift(c, 8)
-		+            d
+		+ d
 end
 
 local string_to_uint32_le
@@ -235,7 +235,7 @@ end
 local int16_to_string_le = function(n)
 	assert_type(n, "number")
 	return string.char(
-		           bit.band(n, 0x000000ff),
+		bit.band(n, 0x000000ff),
 		bit.rshift(bit.band(n, 0x0000ff00), 8)
 	)
 end
@@ -244,14 +244,14 @@ local int16_to_string_be = function(n)
 	assert_type(n, "number")
 	return string.char(
 		bit.rshift(bit.band(n, 0x0000ff00), 8),
-		           bit.band(n, 0x000000ff)
+		bit.band(n, 0x000000ff)
 	)
 end
 
 local int32_to_string_le = function(n)
 	assert_type(n, "number")
 	return string.char(
-		           bit.band(n, 0x000000ff),
+		bit.band(n, 0x000000ff),
 		bit.rshift(bit.band(n, 0x0000ff00), 8),
 		bit.rshift(bit.band(n, 0x00ff0000), 16),
 		bit.rshift(bit.band(n, 0xff000000), 24)
@@ -264,7 +264,7 @@ local int32_to_string_be = function(n)
 		bit.rshift(bit.band(n, 0xff000000), 24),
 		bit.rshift(bit.band(n, 0x00ff0000), 16),
 		bit.rshift(bit.band(n, 0x0000ff00), 8),
-		           bit.band(n, 0x000000ff)
+		bit.band(n, 0x000000ff)
 	)
 end
 

@@ -59,7 +59,7 @@ function Testing:test(file_pattern, method_pattern)
 		end
 	end
 
-	for _,  line in ipairs(self.t) do
+	for _, line in ipairs(self.t) do
 		tio:writeStdout(line .. "\n")
 	end
 

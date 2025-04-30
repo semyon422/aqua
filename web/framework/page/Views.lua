@@ -27,7 +27,7 @@ function Views:template(path)
 
 	return function(result)
 		local env = Views.new_viewable_env(self, result)
-		assert(not next(env))  -- security check, env should be an empty table
+		assert(not next(env)) -- security check, env should be an empty table
 		return tpl(env)
 	end
 end

@@ -4,12 +4,15 @@ local test = {}
 
 function test.all(t)
 	local tbl = {
-		1, 2, nil, math.huge,
-		[-math.huge] = 0/0,
+		1,
+		2,
+		nil,
+		math.huge,
+		[-math.huge] = 0 / 0,
 		a = "qwe",
 		t = {[2] = {}},
 		["true"] = false,
-		["\n"] = "\n"
+		["\n"] = "\n",
 	}
 	local s = [[{1,2,nil,1/0,[-1/0]=0/0,["\n"]="\n",a="qwe",t={nil,{}},["true"]=false}]]
 

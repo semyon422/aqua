@@ -29,7 +29,7 @@ users.types = {
 	role = {
 		decode = function(v) return table_util.keyof(Roles, v) end,
 		encode = function(k) return Roles[k] end,
-	}
+	},
 }
 
 users.relations = {
@@ -107,7 +107,7 @@ function test.all(t)
 	t:eq(user.null_flag, nil)
 	t:eq(user.nullable_flag, 1)
 	t:eq(user.role, "user")
-	t:eq(user.added_column, 0)  -- from migration
+	t:eq(user.added_column, 0) -- from migration
 
 	t:assert(not models.users:find({id__eq_ = "added_column"}))
 	t:assert(not models.users:find({id_ = "added_column"}))

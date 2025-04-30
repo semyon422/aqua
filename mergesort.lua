@@ -63,4 +63,3 @@ mergesort.sort(t)
 assert(table.concat(t) == "12345678", table.concat(t))
 
 return mergesort
-

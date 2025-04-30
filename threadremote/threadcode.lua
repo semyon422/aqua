@@ -12,15 +12,17 @@ local threadId = "<threadId>"
 local input_channel = love.thread.getChannel("thread_remote_input_" .. threadId)
 local output_channel = love.thread.getChannel("thread_remote_output_" .. threadId)
 
----@param _ any
----@param msg icc.Message
-local peer = {send = function(_, msg)
-	output_channel:push({
-		name = "message",
-		msg = msg,
-	})
-	return 1
-end}
+local peer = {
+	---@param _ any
+	---@param msg icc.Message
+	send = function(_, msg)
+		output_channel:push({
+			name = "message",
+			msg = msg,
+		})
+		return 1
+	end
+}
 
 local remote_handler = RemoteHandler({})
 local task_handler = TaskHandler(remote_handler)

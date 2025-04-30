@@ -234,7 +234,7 @@ function Path:fromString(path)
 			table.insert(self.parts, {
 				name = name,
 				isDirectory = true,
-				isHidden = name:sub(1, 1) == "."
+				isHidden = name:sub(1, 1) == ".",
 			})
 		end
 	end
@@ -264,7 +264,7 @@ function Path:fromArray(array)
 				table.insert(self.parts, {
 					name = name,
 					isDirectory = true,
-					isHidden = name:sub(1, 1) == "."
+					isHidden = name:sub(1, 1) == ".",
 				})
 			end
 		end

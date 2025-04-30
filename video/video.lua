@@ -18,7 +18,7 @@ local buffer_size = 8192
 video.open = function(ptr, size)
 	local self = setmetatable({}, mt)
 
-	self.buffer = avutil.av_malloc(buffer_size)  -- don't gc because of IOContext will do it
+	self.buffer = avutil.av_malloc(buffer_size) -- don't gc because of IOContext will do it
 	assert(self.buffer ~= nil)
 
 	self.buf = ffi.new("Avbuf[1]")
@@ -50,7 +50,7 @@ video.open = function(ptr, size)
 	ffi.gc(self.formatContext, avformat.avformat_close_input)
 
 	self.formatContext[0].pb = self.ioContext[0]
-	self.formatContext[0].flags = bit.bor(self.formatContext[0].flags, 0x0080)  -- AVFMT_FLAG_CUSTOM_IO
+	self.formatContext[0].flags = bit.bor(self.formatContext[0].flags, 0x0080) -- AVFMT_FLAG_CUSTOM_IO
 
 	assert(avformat.avformat_open_input(self.formatContext, "", nil, nil) == 0)
 	assert(avformat.avformat_find_stream_info(self.formatContext[0], nil) == 0)
@@ -180,9 +180,9 @@ function Video:seek(time)
 	local ts = time * base.den / base.num - start_time
 	local cts = self.frame.best_effort_timestamp - start_time
 
-	local flags = 4  -- AVSEEK_FLAG_ANY
+	local flags = 4 -- AVSEEK_FLAG_ANY
 	if cts > ts then
-		flags = bit.bor(flags, 1)  -- AVSEEK_FLAG_BACKWARD
+		flags = bit.bor(flags, 1) -- AVSEEK_FLAG_BACKWARD
 	end
 
 	avformat.av_seek_frame(

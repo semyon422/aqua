@@ -27,7 +27,8 @@ function test.basic()
 
 	assert(#epeer == 1)
 	assert(table_util.deepequal(epeer[1], {
-		1, 2,
+		1,
+		2,
 		n = 2,
 		id = 1,
 		name = "add",
@@ -63,7 +64,8 @@ function test.basic_no_return()
 
 	assert(#epeer == 1)
 	assert(table_util.deepequal(epeer[1], {
-		1, 2,
+		1,
+		2,
 		n = 2,
 		-- id = 1,
 		name = "add",

@@ -110,21 +110,29 @@ function love.draw()
 		imgui.checkbox("rcb1", pressed, kp_text .. tostring(pressed))
 
 		imgui.List("c list1", 400, 40, scroll_w, scroll_step, 0)
+		do
 			pressed = just.keypressed("q")
 			imgui.checkbox("rcb2", pressed, kp_text .. tostring(pressed))
+		end
 		imgui.List()
 
 		imgui.List("c list2", 400, 180, scroll_w, scroll_step, 0)
+		do
 			pressed = just.keypressed("q")
 			imgui.checkbox("rcb3", pressed, kp_text .. tostring(pressed))
 			imgui.List("c list3", 300, 40, scroll_w, scroll_step, 0)
+			do
 				pressed = just.keypressed("q")
 				imgui.checkbox("rcb33", pressed, kp_text .. tostring(pressed))
+			end
 			imgui.List()
 			imgui.List("c list4", 300, 40, scroll_w, scroll_step, 0)
+			do
 				pressed = just.keypressed("q")
 				imgui.checkbox("rcb4", pressed, kp_text .. tostring(pressed))
+			end
 			imgui.List()
+		end
 		imgui.List()
 
 		scrollY2 = imgui.Container()

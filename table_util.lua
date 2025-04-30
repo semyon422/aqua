@@ -24,7 +24,7 @@ function table_util.equal(a, b)
 	for k, v in pairs(a) do
 		size = size + 1
 		local _v = b[k]
-		if v == v and v ~= _v then  -- nan check
+		if v == v and v ~= _v then -- nan check
 			return false
 		end
 	end
@@ -46,7 +46,7 @@ function table_util.deepequal(a, b)
 			if not table_util.equal(v, _v) and not table_util.deepequal(v, _v) then
 				return false
 			end
-		elseif v == v and v ~= _v then  -- nan check
+		elseif v == v and v ~= _v then -- nan check
 			return false
 		end
 	end

@@ -1,11 +1,11 @@
 local ffi = require("ffi")
 
-ffi.cdef([[
-typedef void* libiconv_t;
-libiconv_t libiconv_open (const char* tocode, const char* fromcode);
-size_t libiconv (libiconv_t cd, const char* * inbuf, size_t *inbytesleft, char* * outbuf, size_t *outbytesleft);
-int libiconv_close (libiconv_t cd);
-]])
+ffi.cdef [[
+	typedef void* libiconv_t;
+	libiconv_t libiconv_open (const char* tocode, const char* fromcode);
+	size_t libiconv (libiconv_t cd, const char* * inbuf, size_t *inbytesleft, char* * outbuf, size_t *outbytesleft);
+	int libiconv_close (libiconv_t cd);
+]]
 
 local libiconv = ffi.load("iconv")
 

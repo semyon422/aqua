@@ -56,7 +56,10 @@ function test.simple(t)
 	fake:pushOutput({
 		name = "synctable",
 		n = 4,
-		{}, "b", 2, false
+		{},
+		"b",
+		2,
+		false,
 	})
 
 	thread:update()
