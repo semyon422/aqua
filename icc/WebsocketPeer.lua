@@ -29,6 +29,8 @@ function WebsocketPeer:decode(s)
 end
 
 ---@param msg icc.Message
+---@return integer?
+---@return string?
 function WebsocketPeer:send(msg)
 	return self.ws:send("text", self:encode(msg))
 end

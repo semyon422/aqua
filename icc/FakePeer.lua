@@ -10,8 +10,11 @@ function FakePeer:new()
 end
 
 ---@param msg icc.Message
+---@return integer?
+---@return string?
 function FakePeer:send(msg)
 	table.insert(self.messages, msg)
+	return 1
 end
 
 ---@return integer
