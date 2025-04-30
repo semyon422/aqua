@@ -182,6 +182,55 @@ function test.error_after_resume(t)
 	local ok, err = pcall(th.handleReturn, th, peer:get(2))
 	t:eq(ok, false)
 	t:assert(err and err:match("_test.lua:%d+: msg"))
+	t:assert(err and err:match("stack traceback"))
+
+	t:assert(not done)
+end
+
+---@param t testing.T
+function test.error_send_closed(t)
+	local th = TaskHandler(FuncHandler(function() end))
+	local peer = FakePeer()
+
+	function peer:send()
+		return nil, "closed"
+	end
+
+	local done = false
+	local co = coroutine.create(function()
+		th:call(peer)
+		done = true
+	end)
+
+	local ok, err = coroutine.resume(co)
+
+	t:eq(ok, false)
+	t:assert(err and err:match("_test.lua:%d+: closed"))
+	t:assert(err and err:match("stack traceback"))
+
+	t:assert(not done)
+end
+
+---@param t testing.T
+function test.error_timeout(t)
+	local th = TaskHandler(FuncHandler(function() end))
+	local peer = FakePeer()
+
+	th.timeout = 0
+
+	local done = false
+	local co = coroutine.create(function()
+		th:call(peer)
+		done = true
+	end)
+
+	assert(coroutine.resume(co))
+
+	local ok, err = pcall(th.update, th)
+
+	t:eq(ok, false)
+	t:assert(err and err:match("_test.lua:%d+: timeout"))
+	t:assert(err and err:match("stack traceback"))
 
 	t:assert(not done)
 end
