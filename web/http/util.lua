@@ -171,6 +171,15 @@ function util.get_json(req)
 	return json.decode_safe(body)
 end
 
+---@param res web.IResponse
+---@param data any
+---@return integer?
+---@return string?
+function util.send_json(res, data)
+	res.headers:set("Content-Type", "application/json")
+	return res:send(json.encode(data))
+end
+
 ---@param headers web.Headers
 ---@param filename string
 function util.set_download_file_headers(headers, filename)
