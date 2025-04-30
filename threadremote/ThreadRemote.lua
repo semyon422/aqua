@@ -1,4 +1,4 @@
-local class = require("class")
+local IPeer = require("icc.IPeer")
 local table_util = require("table_util")
 local Remote = require("icc.Remote")
 local TaskHandler = require("icc.TaskHandler")
@@ -21,10 +21,9 @@ local function getCodeString(id)
 	return (codestring:gsub('"<threadId>"', id))
 end
 
----@class threadremote.ThreadRemote
+---@class threadremote.ThreadRemote: icc.IPeer
 ---@operator call: threadremote.ThreadRemote
-local ThreadRemote = class()
-
+local ThreadRemote = IPeer + {}
 ---@param id integer
 ---@param t table
 function ThreadRemote:new(id, t)
@@ -65,11 +64,14 @@ function ThreadRemote:start(f, ...)
 end
 
 ---@param msg icc.Message
+---@return integer?
+---@return string?
 function ThreadRemote:send(msg)
 	self.input_channel:push({
 		name = "message",
 		msg = msg,
 	})
+	return 1
 end
 
 function ThreadRemote:update()

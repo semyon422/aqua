@@ -19,6 +19,7 @@ local peer = {send = function(_, msg)
 		name = "message",
 		msg = msg,
 	})
+	return 1
 end}
 
 local remote_handler = RemoteHandler({})
