@@ -15,11 +15,6 @@ function LjsqliteDatabase:close()
 	self.c:close()
 end
 
----@param query string
-function LjsqliteDatabase:exec(query)
-	self.c:exec(query)
-end
-
 ---@param row any[]
 ---@param colnames string[]
 ---@return rdb.Row

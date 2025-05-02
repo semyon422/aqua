@@ -29,11 +29,6 @@ function LuasqlMysqlDatabase:close()
 	assert(self.env:close())
 end
 
----@param query string
-function LuasqlMysqlDatabase:exec(query)
-	assert(self.c:execute(query))
-end
-
 ---@param v any
 ---@return string|integer
 local function escape_literal(v)
@@ -53,6 +48,9 @@ function LuasqlMysqlDatabase:iter(query, bind_vals)
 	end
 
 	local cur = assert(self.c:execute(query))
+	if type(cur) == "number" then
+		return function() end
+	end
 
 	---@type any[]
 	local row = {}

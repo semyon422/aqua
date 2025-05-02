@@ -1,4 +1,5 @@
 local class = require("class")
+local sql_util = require("rdb.sql_util")
 
 ---@class rdb.IDatabase
 ---@operator call: rdb.IDatabase
@@ -25,6 +26,13 @@ end
 ---@return string[]
 function IDatabase:columns(table_name)
 	return {}
+end
+
+---@param query string
+function IDatabase:exec(query)
+	for _, q in ipairs(sql_util.split_sql(query)) do
+		self:query(q)
+	end
 end
 
 ---@param query string

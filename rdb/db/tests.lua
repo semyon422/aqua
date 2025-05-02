@@ -17,8 +17,7 @@ function tests.bind_bytes(t, db)
 end
 
 function tests.columns(t, db)
-	db:exec("DROP TABLE IF EXISTS `test`;")
-	db:exec("CREATE TABLE `test` (`count` INT);")
+	db:exec("DROP TABLE IF EXISTS `test`; CREATE TABLE `test` (`count` INT);")
 
 	t:tdeq(db:columns("test"), {"count"})
 end

@@ -20,11 +20,6 @@ function LuasqlSqliteDatabase:close()
 end
 
 ---@param query string
-function LuasqlSqliteDatabase:exec(query)
-	assert(self.c:execute(query))
-end
-
----@param query string
 ---@param bind_vals any[]?
 ---@return fun(): integer?, rdb.Row?
 function LuasqlSqliteDatabase:iter(query, bind_vals)
@@ -33,6 +28,9 @@ function LuasqlSqliteDatabase:iter(query, bind_vals)
 	end
 
 	local cur = assert(self.c:execute(query))
+	if type(cur) == "number" then
+		return function() end
+	end
 
 	---@type any[]
 	local row = {}

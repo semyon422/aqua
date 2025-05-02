@@ -34,6 +34,8 @@ function test.all(t)
 
 	t:eq(sql_util.conditions({t__isnull = true}), "(`t` IS NULL)")
 	t:eq(sql_util.conditions({t__isnull = false}), "")
+
+	t:tdeq(sql_util.split_sql("'hello''wor;ld'; 'hi';    "), {"'hello''wor;ld';", " 'hi';"})
 end
 
 return test

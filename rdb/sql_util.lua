@@ -290,4 +290,37 @@ function sql_util.from_db(t, types)
 	return _t
 end
 
+--- https://github.com/Codezerker/lua-ljsqlite3/commit/4efb927a6514039ec657ce977154b6ea3596f2ce
+---@param sql string
+---@return string[]
+function sql_util.split_sql(sql)
+	local res = {}
+	local s, fs = 1, 1
+	local quoted = false
+
+	---@type integer?, integer?, ";"|"'"?
+	local _, e, v
+
+	repeat
+		_, e, v = sql:find("([;'])", fs)
+		if e then
+			fs = e + 1
+		end
+
+		if v == "'" then
+			quoted = not quoted
+		elseif not v or v == ";" and not quoted then
+			local q = sql:sub(s, e)
+			if q:match("^%s*(.-)%s*$") ~= "" then
+				table.insert(res, q)
+			end
+			if v then
+				s = e + 1
+			end
+		end
+	until not e
+
+	return res
+end
+
 return sql_util
