@@ -32,7 +32,7 @@ function LuasqlSqliteDatabase:iter(query, bind_vals)
 		query = sql_util.bind(query, bind_vals)
 	end
 
-	local cur = self.c:execute(query)
+	local cur = assert(self.c:execute(query))
 
 	---@type any[]
 	local row = {}

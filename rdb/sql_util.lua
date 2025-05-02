@@ -41,6 +41,20 @@ function sql_util.escape_literal(v)
 	error(("unsupported type '%s'"):format(type(v)))
 end
 
+---@param cond string
+---@param vals any[]
+---@param escape (fun(v: any): string)?
+---@return string
+function sql_util.bind(cond, vals, escape)
+	escape = escape or sql_util.escape_literal
+	local n = 0
+	local full_cond = cond:gsub("?", function()
+		n = n + 1
+		return escape(vals[n])
+	end)
+	return full_cond
+end
+
 ---@param s string|{[1]: string}
 ---@return string
 function sql_util.escape_identifier(s)
@@ -115,18 +129,6 @@ local function format_cond(op, k, v, ident)
 		return cond, {}
 	end
 	return cond, {v}
-end
-
----@param cond string
----@param vals any[]
----@return string
-function sql_util.bind(cond, vals)
-	local n = 0
-	local full_cond = cond:gsub("?", function()
-		n = n + 1
-		return sql_util.escape_literal(vals[n])
-	end)
-	return full_cond
 end
 
 ---@param t rdb.Conditions

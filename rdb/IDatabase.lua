@@ -4,11 +4,6 @@ local class = require("class")
 ---@operator call: rdb.IDatabase
 local IDatabase = class()
 
----@param db string
-function IDatabase:open(db) end
-
-function IDatabase:close() end
-
 ---@param query string
 function IDatabase:exec(query) end
 

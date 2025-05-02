@@ -1,7 +1,7 @@
 ---@type {[string]: fun(t: testing.T, db: rdb.IDatabase)}
 local tests = {}
 
-function tests.select_bind(t, db)
+function tests.bind_string(t, db)
 	t:tdeq(db:query("SELECT ? AS hello;", {"world"}), {{hello = "world"}})
 end
 
