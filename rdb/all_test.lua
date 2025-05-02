@@ -1,4 +1,4 @@
-local LjsqliteDatabase = require("rdb.LjsqliteDatabase")
+local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
 local TableOrm = require("rdb.TableOrm")
 local Models = require("rdb.Models")
 local sql_util = require("rdb.sql_util")

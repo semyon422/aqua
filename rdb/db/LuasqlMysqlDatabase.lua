@@ -1,5 +1,5 @@
 local driver = require("luasql.mysql")
-local IDatabase = require("rdb.IDatabase")
+local IDatabase = require("rdb.db.IDatabase")
 local sql_util = require("rdb.sql_util")
 
 -- https://lunarmodules.github.io/luasql/manual.html

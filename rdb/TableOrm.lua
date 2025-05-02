@@ -1,7 +1,7 @@
 local class = require("class")
 local table_util = require("table_util")
 local sql_util = require("rdb.sql_util")
-local PrintDatabase = require("rdb.PrintDatabase")
+local PrintDatabase = require("rdb.db.PrintDatabase")
 
 ---@alias rdb.Row {[string]: any}
 ---@alias rdb.ColumnInfo {name: string, cid: integer, notnull: boolean, pk: boolean}

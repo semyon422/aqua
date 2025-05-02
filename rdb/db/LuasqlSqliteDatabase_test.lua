@@ -2,8 +2,8 @@ if not pcall(require, "rdb.LuasqlSqliteDatabase") then
 	return {}
 end
 
-local LuasqlSqliteDatabase = require("rdb.LuasqlSqliteDatabase")
-local db_tests = require("rdb.db_tests")
+local LuasqlSqliteDatabase = require("rdb.db.LuasqlSqliteDatabase")
+local db_tests = require("rdb.db.tests")
 
 ---@type {[string]: fun(t: testing.T)}
 local test = {}

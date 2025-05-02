@@ -1,4 +1,4 @@
-local IDatabase = require("rdb.IDatabase")
+local IDatabase = require("rdb.db.IDatabase")
 local stbl = require("stbl")
 
 ---@class rdb.PrintDatabase: rdb.IDatabase

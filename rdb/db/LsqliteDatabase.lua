@@ -1,5 +1,5 @@
 local sqlite = require("lsqlite3")
-local IDatabase = require("rdb.IDatabase")
+local IDatabase = require("rdb.db.IDatabase")
 local sql_util = require("rdb.sql_util")
 
 -- http://lua.sqlite.org/index.cgi/doc/tip/doc/lsqlite3.wiki

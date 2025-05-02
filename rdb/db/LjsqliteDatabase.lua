@@ -1,5 +1,5 @@
 local sqlite = require("ljsqlite3")
-local IDatabase = require("rdb.IDatabase")
+local IDatabase = require("rdb.db.IDatabase")
 local sql_util = require("rdb.sql_util")
 
 ---@class rdb.LjsqliteDatabase: rdb.IDatabase
