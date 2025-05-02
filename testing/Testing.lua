@@ -51,7 +51,9 @@ function Testing:test(file_pattern, method_pattern)
 			local start_time = tio:getTime()
 			local tmod = tio:dofile(path)
 			if tmod then
+				local total = self.total
 				self:testMod(tmod, method_pattern)
+				tio:writeStdout((" - %d"):format(self.total - total))
 			end
 			local dt = tio:getTime() - start_time
 
