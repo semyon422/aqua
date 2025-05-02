@@ -1,4 +1,4 @@
-if not pcall(require, "rdb.LuasqlSqliteDatabase") then
+if not pcall(require, "rdb.db.LuasqlSqliteDatabase") then
 	return {}
 end
 

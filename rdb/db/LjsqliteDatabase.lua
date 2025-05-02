@@ -1,10 +1,10 @@
 local sqlite = require("ljsqlite3")
-local IDatabase = require("rdb.db.IDatabase")
+local SqliteDatabase = require("rdb.db.SqliteDatabase")
 local sql_util = require("rdb.sql_util")
 
----@class rdb.LjsqliteDatabase: rdb.IDatabase
+---@class rdb.LjsqliteDatabase: rdb.SqliteDatabase
 ---@operator call: rdb.LjsqliteDatabase
-local LjsqliteDatabase = IDatabase + {}
+local LjsqliteDatabase = SqliteDatabase + {}
 
 ---@param db string
 function LjsqliteDatabase:open(db)
@@ -63,18 +63,6 @@ function LjsqliteDatabase:iter(query, bind_vals)
 
 		stmt:close()
 	end
-end
-
----@param query string
----@param bind_vals any[]?
----@return rdb.Row[]
-function LjsqliteDatabase:query(query, bind_vals)
-	---@type rdb.Row[]
-	local objects = {}
-	for i, obj in self:iter(query, bind_vals) do
-		objects[i] = obj
-	end
-	return objects
 end
 
 return LjsqliteDatabase

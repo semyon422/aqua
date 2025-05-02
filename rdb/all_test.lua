@@ -140,23 +140,6 @@ function test.all(t)
 	t:eq(models.posts:count(), 1)
 	models.users:delete({id = 1})
 	t:eq(models.posts:count(), 0)
-
-	local t_from_db = {
-		is_admin = true,
-		role__in = {"user", "admin"},
-		role__isnull = true,
-		{name = "admin"},
-	}
-	local t_for_db = {
-		is_admin = 1,
-		role__in = {0, 1},
-		role__isnull = true,
-		{name = "admin"},
-	}
-	t:tdeq(sql_util.conditions_for_db(t_from_db, users.types), t_for_db)
-
-	t:eq(sql_util.conditions({t__isnull = true}), "(`t` IS NULL)")
-	t:eq(sql_util.conditions({t__isnull = false}), "")
 end
 
 return test

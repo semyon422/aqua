@@ -13,9 +13,15 @@ local LuasqlMysqlDatabase = IDatabase + {}
 ---@param password string
 ---@param hostname string
 ---@param port integer
+---@return true?
+---@return string?
 function LuasqlMysqlDatabase:open(db, username, password, hostname, port)
 	self.env = driver.mysql()
-	self.c = self.env:connect(db, username, password, hostname, port)
+	local c, err = self.env:connect(db, username, password, hostname, port)
+	if not c then
+		return nil, err
+	end
+	self.c = c
 end
 
 function LuasqlMysqlDatabase:close()
@@ -25,7 +31,7 @@ end
 
 ---@param query string
 function LuasqlMysqlDatabase:exec(query)
-	self.c:execute(query)
+	assert(self.c:execute(query))
 end
 
 ---@param v any
@@ -71,6 +77,21 @@ function LuasqlMysqlDatabase:query(query, bind_vals)
 		objects[i] = obj
 	end
 	return objects
+end
+
+---@param table_name string
+---@return string[]
+function LuasqlMysqlDatabase:columns(table_name)
+	---@type string[]
+	local columns = {}
+
+	---@type {Field: string}[]
+	local info = self:query(("DESCRIBE %s;"):format(table_name))
+	for i, t in ipairs(info) do
+		columns[i] = t.Field
+	end
+
+	return columns
 end
 
 return LuasqlMysqlDatabase

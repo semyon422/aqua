@@ -16,4 +16,16 @@ function tests.bind_bytes(t, db)
 	t:tdeq(db:query("SELECT ? AS bytes;", {str}), {{bytes = str}})
 end
 
+function tests.columns(t, db)
+	db:exec("DROP TABLE IF EXISTS `test`;")
+	db:exec("CREATE TABLE `test` (`count` INT);")
+
+	t:tdeq(db:columns("test"), {"count"})
+end
+
+function tests.begin_commit(t, db)
+	db:exec("BEGIN")
+	db:exec("COMMIT;")
+end
+
 return tests

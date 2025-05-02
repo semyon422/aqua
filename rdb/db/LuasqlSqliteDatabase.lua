@@ -1,12 +1,12 @@
 local driver = require("luasql.sqlite3")
-local IDatabase = require("rdb.db.IDatabase")
+local SqliteDatabase = require("rdb.db.SqliteDatabase")
 local sql_util = require("rdb.sql_util")
 
 -- https://lunarmodules.github.io/luasql/manual.html
 
----@class rdb.LuasqlSqliteDatabase: rdb.IDatabase
+---@class rdb.LuasqlSqliteDatabase: rdb.SqliteDatabase
 ---@operator call: rdb.LuasqlSqliteDatabase
-local LuasqlSqliteDatabase = IDatabase + {}
+local LuasqlSqliteDatabase = SqliteDatabase + {}
 
 ---@param db string
 function LuasqlSqliteDatabase:open(db)
@@ -21,7 +21,7 @@ end
 
 ---@param query string
 function LuasqlSqliteDatabase:exec(query)
-	self.c:execute(query)
+	assert(self.c:execute(query))
 end
 
 ---@param query string
@@ -45,18 +45,6 @@ function LuasqlSqliteDatabase:iter(query, bind_vals)
 			return i, row
 		end
 	end
-end
-
----@param query string
----@param bind_vals any?
----@return rdb.Row[]
-function LuasqlSqliteDatabase:query(query, bind_vals)
-	---@type rdb.Row[]
-	local objects = {}
-	for i, obj in self:iter(query, bind_vals) do
-		objects[i] = obj
-	end
-	return objects
 end
 
 return LuasqlSqliteDatabase

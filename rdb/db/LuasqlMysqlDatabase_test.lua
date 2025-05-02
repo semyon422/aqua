@@ -1,4 +1,4 @@
-if not pcall(require, "rdb.LuasqlMysqlDatabase") then
+if not pcall(require, "rdb.db.LuasqlMysqlDatabase") then
 	return {}
 end
 
@@ -7,6 +7,12 @@ local db_tests = require("rdb.db.tests")
 
 ---@type {[string]: fun(t: testing.T)}
 local test = {}
+
+local db = LuasqlMysqlDatabase()
+local ok, err = db:open("test", "username", "password", "127.0.0.1", 3306)
+if not ok then
+	return
+end
 
 for k, v in pairs(db_tests) do
 	test[k] = function(t)

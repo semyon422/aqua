@@ -4,7 +4,6 @@ local sql_util = require("rdb.sql_util")
 local PrintDatabase = require("rdb.db.PrintDatabase")
 
 ---@alias rdb.Row {[string]: any}
----@alias rdb.ColumnInfo {name: string, cid: integer, notnull: boolean, pk: boolean}
 ---@alias rdb.Conditions {[string]: any?, [integer]: rdb.Conditions?, [1]: "or"?}
 ---@alias rdb.Options {columns: string[]?, order: string[]?, group: string[]?, limit: integer?, format: string?}
 
@@ -15,8 +14,8 @@ local TableOrm = class()
 ---@param db rdb.IDatabase
 function TableOrm:new(db)
 	self.db = db
-	---@type {[string]: rdb.ColumnInfo[]}
-	self.table_infos = {}
+	---@type {[string]: string[]}
+	self.table_columns = {}
 end
 
 ---@param dbg boolean
@@ -31,21 +30,15 @@ function TableOrm:debug(dbg)
 end
 
 ---@param table_name string
----@return rdb.ColumnInfo[]
-function TableOrm:table_info(table_name)
-	local info = self.table_infos[table_name]
-	if info then
-		return info
+---@return string[]
+function TableOrm:columns(table_name)
+	local columns = self.table_columns[table_name]
+	if columns then
+		return columns
 	end
-	---@type table[]
-	info = self.db:query("PRAGMA table_info(" .. sql_util.escape_identifier(table_name) .. ")")
-	for _, t in ipairs(info) do
-		t.cid = tonumber(t.cid)
-		t.notnull = tonumber(t.notnull) ~= 0
-		t.pk = tonumber(t.pk) ~= 0
-	end
-	self.table_infos[table_name] = info
-	return info
+	columns = self.db:columns(table_name)
+	self.table_columns[table_name] = columns
+	return columns
 end
 
 ---@param ver integer?
@@ -65,17 +58,6 @@ end
 
 function TableOrm:commit()
 	self.db:exec("COMMIT")
-end
-
----@param path string
----@param name string
-function TableOrm:attach(path, name)
-	self.db:query("ATTACH ? AS ?", {path, name})
-end
-
----@param name string
-function TableOrm:detach(name)
-	self.db:query("DETACH ?", {name})
 end
 
 local default_options = {
@@ -130,7 +112,7 @@ end
 ---@param ignore boolean?
 ---@return rdb.Row[]
 function TableOrm:insert(table_name, values_array, ignore)
-	local table_info = assert(self:table_info(table_name), "no such table: " .. table_name)
+	local columns = assert(self:columns(table_name), "no such table: " .. table_name)
 	assert(#values_array > 0, "missing values")
 
 	---@type {[string]: true?}
@@ -143,8 +125,7 @@ function TableOrm:insert(table_name, values_array, ignore)
 
 	---@type string[]
 	local keys_list = {}
-	for _, column in ipairs(table_info) do
-		local key = column.name
+	for _, key in ipairs(columns) do
 		if keys_map[key] then
 			table.insert(keys_list, key)
 		end
@@ -188,12 +169,11 @@ end
 ---@param conditions rdb.Conditions?
 ---@return rdb.Row[]
 function TableOrm:update(table_name, values, conditions)
-	local table_info = assert(self:table_info(table_name), "no such table: " .. table_name)
+	local columns = assert(self:columns(table_name), "no such table: " .. table_name)
 
 	---@type {[string]: any}
 	local filtered_values = {}
-	for _, column in ipairs(table_info) do
-		local key = column.name
+	for _, key in ipairs(columns) do
 		local value = values[key]
 		if value ~= nil then
 			filtered_values[key] = value
