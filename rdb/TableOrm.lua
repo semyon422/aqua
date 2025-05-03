@@ -41,6 +41,16 @@ function TableOrm:columns(table_name)
 	return columns
 end
 
+---@param query string
+---@param bind_vals any[]?
+---@return rdb.Row[]
+function TableOrm:query(query, bind_vals)
+	if self.db.returning and not query:upper():find("^%s*SELECT") then
+		query = query .. " RETURNING *"
+	end
+	return self.db:query(query, bind_vals)
+end
+
 ---@param ver integer?
 ---@return integer?
 function TableOrm:user_version(ver)
@@ -104,7 +114,7 @@ function TableOrm:select(table_name, conditions, options)
 		q = opts.format:format(q)
 	end
 
-	return self.db:query(q, vals)
+	return self:query(q, vals)
 end
 
 ---@param table_name string
@@ -157,7 +167,7 @@ function TableOrm:insert(table_name, values_array, ignore)
 		end
 	end
 
-	return self.db:query(("INSERT%s INTO %s %s VALUES %s RETURNING *"):format(
+	return self:query(("INSERT%s INTO %s %s VALUES %s"):format(
 		ignore and " OR IGNORE" or "",
 		sql_util.escape_identifier(table_name),
 		keys, values_q
@@ -186,7 +196,7 @@ function TableOrm:update(table_name, values, conditions)
 	local assigns, vals_a = sql_util.assigns(filtered_values)
 
 	if not conditions or not next(conditions) then
-		return self.db:query(("UPDATE %s SET %s RETURNING *"):format(
+		return self:query(("UPDATE %s SET %s"):format(
 			sql_util.escape_identifier(table_name),
 			assigns
 		), vals_a)
@@ -203,7 +213,7 @@ function TableOrm:update(table_name, values, conditions)
 		table.insert(vals, v)
 	end
 
-	return self.db:query(("UPDATE %s SET %s WHERE %s RETURNING *"):format(
+	return self:query(("UPDATE %s SET %s WHERE %s"):format(
 		sql_util.escape_identifier(table_name),
 		assigns, conds
 	), vals)
@@ -214,13 +224,13 @@ end
 ---@return rdb.Row[]
 function TableOrm:delete(table_name, conditions)
 	if not conditions or not next(conditions) then
-		return self.db:query(("DELETE FROM %s RETURNING *"):format(
+		return self:query(("DELETE FROM %s"):format(
 			sql_util.escape_identifier(table_name)
 		))
 	end
 
 	local conds, vals = sql_util.conditions(conditions)
-	return self.db:query(("DELETE FROM %s WHERE %s RETURNING *"):format(
+	return self:query(("DELETE FROM %s WHERE %s"):format(
 		sql_util.escape_identifier(table_name),
 		conds
 	), vals)

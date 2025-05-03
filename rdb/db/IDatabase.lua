@@ -5,6 +5,9 @@ local sql_util = require("rdb.sql_util")
 ---@operator call: rdb.IDatabase
 local IDatabase = class()
 
+IDatabase.returning = false -- RETURNING *
+IDatabase.last_insert_id = false -- LAST_INSERT_ID()
+
 ---@param query string
 function IDatabase:exec(query) end
 
@@ -13,13 +16,6 @@ function IDatabase:exec(query) end
 ---@return fun(): integer?, rdb.Row?
 function IDatabase:iter(query, bind_vals)
 	return function() end
-end
-
----@param query string
----@param bind_vals table?
----@return table
-function IDatabase:query(query, bind_vals)
-	return {}
 end
 
 ---@param table_name string

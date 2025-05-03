@@ -5,6 +5,8 @@ local sql_util = require("rdb.sql_util")
 ---@operator call: rdb.SqliteDatabase
 local SqliteDatabase = IDatabase + {}
 
+SqliteDatabase.returning = true
+
 ---@param table_name string
 ---@return string[]
 function SqliteDatabase:columns(table_name)

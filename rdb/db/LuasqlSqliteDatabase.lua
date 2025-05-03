@@ -2,6 +2,7 @@ local driver = require("luasql.sqlite3")
 local SqliteDatabase = require("rdb.db.SqliteDatabase")
 local sql_util = require("rdb.sql_util")
 
+-- BUG: https://github.com/lunarmodules/luasql/issues/179
 -- https://lunarmodules.github.io/luasql/manual.html
 
 ---@class rdb.LuasqlSqliteDatabase: rdb.SqliteDatabase
@@ -32,13 +33,11 @@ function LuasqlSqliteDatabase:iter(query, bind_vals)
 		return function() end
 	end
 
-	---@type any[]
-	local row = {}
-
 	local i = 0
 	return function()
 		i = i + 1
-		local row = cur:fetch(row, "a")
+		---@type rdb.Row
+		local row = cur:fetch({}, "a")
 		if row then
 			return i, row
 		end
