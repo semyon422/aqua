@@ -278,6 +278,8 @@ function sql_util.from_db(t, types)
 		local _type = types and types[k]
 		if _type == "boolean" then
 			v = sql_util.toboolean(v)
+		elseif _type == "number" then
+			v = tonumber(v)
 		elseif type(_type) == "table" then
 			if class.is_instance(_type) then
 				v = _type:decode(v) ---@diagnostic disable-line
