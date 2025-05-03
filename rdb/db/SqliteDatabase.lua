@@ -20,4 +20,15 @@ function SqliteDatabase:columns(table_name)
 	return columns
 end
 
+---@param ver integer?
+---@return integer?
+function SqliteDatabase:user_version(ver)
+	if ver then
+		self:query("PRAGMA user_version = " .. ver)
+		return
+	end
+	local rows = self:query("PRAGMA user_version")
+	return tonumber(rows[1].user_version)
+end
+
 return SqliteDatabase

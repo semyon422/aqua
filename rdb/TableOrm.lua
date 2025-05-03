@@ -51,17 +51,6 @@ function TableOrm:query(query, bind_vals)
 	return self.db:query(query, bind_vals)
 end
 
----@param ver integer?
----@return integer?
-function TableOrm:user_version(ver)
-	if ver then
-		self.db:query("PRAGMA user_version = " .. ver)
-		return
-	end
-	local rows = self.db:query("PRAGMA user_version")
-	return tonumber(rows[1].user_version)
-end
-
 function TableOrm:begin()
 	self.db:exec("BEGIN")
 end
@@ -244,27 +233,6 @@ function TableOrm:count(table_name, conditions, options)
 	local opts = table_util.copy(options) or {}
 	opts.format = ("SELECT COUNT(*) as c FROM (%s)"):format(opts.format or "%s")
 	return self:select(table_name, conditions, opts)[1].c
-end
-
----@param new_ver integer
----@param migrations {[integer]: string|fun(self: rdb.TableOrm)}
----@return integer
-function TableOrm:migrate(new_ver, migrations)
-	local ver = self:user_version()
-
-	for i = ver + 1, new_ver do
-		self:begin()
-		local migration = migrations[i]
-		if type(migration) == "string" then
-			self.db:exec(migration)
-		elseif type(migration) == "function" then
-			migration(self)
-		end
-		self:user_version(i)
-		self:commit()
-	end
-
-	return new_ver - ver
 end
 
 return TableOrm

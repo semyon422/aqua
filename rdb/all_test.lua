@@ -1,4 +1,5 @@
 local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
+local SqliteMigrator = require("rdb.db.SqliteMigrator")
 local TableOrm = require("rdb.TableOrm")
 local Models = require("rdb.Models")
 local sql_util = require("rdb.sql_util")
@@ -73,13 +74,14 @@ function test.all(t)
 	}
 	local orm = TableOrm(db)
 
-	assert(orm:user_version() == 0)
-	orm:user_version(10)
-	assert(orm:user_version() == 10)
-	orm:user_version(0)
+	assert(db:user_version() == 0)
+	db:user_version(10)
+	assert(db:user_version() == 10)
+	db:user_version(0)
 
-	t:eq(orm:migrate(1, migrations), 1)
-	t:eq(orm:migrate(1, migrations), 0)
+	local migrator = SqliteMigrator(db)
+	t:eq(migrator:migrate(1, migrations), 1)
+	t:eq(migrator:migrate(1, migrations), 0)
 
 	local models = Models(_models, orm)
 
