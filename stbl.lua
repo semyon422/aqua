@@ -1,3 +1,5 @@
+local ffi = require("ffi")
+
 local stbl = {}
 
 -- String-TaBLe / STaBLe
@@ -23,6 +25,14 @@ function encoders.string(v)
 end
 
 function encoders.boolean(v)
+	return tostring(v)
+end
+
+encoders["ctype<int64_t>"] = function(v)
+	return tostring(v)
+end
+
+encoders["ctype<uint64_t>"] = function(v)
 	return tostring(v)
 end
 
@@ -104,9 +114,13 @@ function stbl.encode(v, tables)
 	if v == nil then
 		return ""
 	end
-	local encoder = encoders[type(v)]
+	local tv = type(v)
+	if tv == "cdata" then
+		tv = tostring(ffi.typeof(v))
+	end
+	local encoder = encoders[tv]
 	if not encoder then
-		error("unsupported value type '" .. type(v) .. "'")
+		error("unsupported value type '" .. tv .. "'")
 	end
 	tables = tables or {count = 0}
 	return encoder(v, tables)
