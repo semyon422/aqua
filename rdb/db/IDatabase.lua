@@ -5,9 +5,6 @@ local sql_util = require("rdb.sql_util")
 ---@operator call: rdb.IDatabase
 local IDatabase = class()
 
-IDatabase.returning = false -- RETURNING *
-IDatabase.last_insert_id = false -- LAST_INSERT_ID()
-
 ---@param query string
 function IDatabase:exec(query) end
 

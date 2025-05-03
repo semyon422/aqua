@@ -22,6 +22,7 @@ function LuasqlMysqlDatabase:open(db, username, password, hostname, port)
 		return nil, err
 	end
 	self.c = c
+	return true
 end
 
 function LuasqlMysqlDatabase:close()
@@ -52,13 +53,11 @@ function LuasqlMysqlDatabase:iter(query, bind_vals)
 		return function() end
 	end
 
-	---@type any[]
-	local row = {}
-
 	local i = 0
 	return function()
 		i = i + 1
-		local row = cur:fetch(row, "a")
+		---@type rdb.Row
+		local row = cur:fetch({}, "a")
 		if row then
 			return i, row
 		end

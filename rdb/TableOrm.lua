@@ -45,7 +45,7 @@ end
 ---@param bind_vals any[]?
 ---@return rdb.Row[]
 function TableOrm:query(query, bind_vals)
-	if self.db.returning and not query:upper():find("^%s*SELECT") then
+	if not query:upper():find("^%s*SELECT") then
 		query = query .. " RETURNING *"
 	end
 	return self.db:query(query, bind_vals)
