@@ -1,12 +1,12 @@
 local driver = require("luasql.mysql")
-local IDatabase = require("rdb.db.IDatabase")
+local MysqlDatabase = require("rdb.db.MysqlDatabase")
 local sql_util = require("rdb.sql_util")
 
 -- https://lunarmodules.github.io/luasql/manual.html
 
----@class rdb.LuasqlMysqlDatabase: rdb.IDatabase
+---@class rdb.LuasqlMysqlDatabase: rdb.MysqlDatabase
 ---@operator call: rdb.LuasqlMysqlDatabase
-local LuasqlMysqlDatabase = IDatabase + {}
+local LuasqlMysqlDatabase = MysqlDatabase + {}
 
 ---@param db string
 ---@param username string
@@ -30,22 +30,12 @@ function LuasqlMysqlDatabase:close()
 	assert(self.env:close())
 end
 
----@param v any
----@return string|integer
-local function escape_literal(v)
-	local tv = type(v)
-	if tv == "string" then
-		return ("x'%s'"):format(sql_util.tohex(v))
-	end
-	return sql_util.escape_literal(v)
-end
-
 ---@param query string
 ---@param bind_vals any[]?
 ---@return fun(): integer?, rdb.Row?
 function LuasqlMysqlDatabase:iter(query, bind_vals)
 	if bind_vals then
-		query = sql_util.bind(query, bind_vals, escape_literal)
+		query = sql_util.bind(query, bind_vals, self.escape_literal)
 	end
 
 	local cur = assert(self.c:execute(query))
@@ -62,33 +52,6 @@ function LuasqlMysqlDatabase:iter(query, bind_vals)
 			return i, row
 		end
 	end
-end
-
----@param query string
----@param bind_vals any?
----@return rdb.Row[]
-function LuasqlMysqlDatabase:query(query, bind_vals)
-	---@type rdb.Row[]
-	local objects = {}
-	for i, obj in self:iter(query, bind_vals) do
-		objects[i] = obj
-	end
-	return objects
-end
-
----@param table_name string
----@return string[]
-function LuasqlMysqlDatabase:columns(table_name)
-	---@type string[]
-	local columns = {}
-
-	---@type {Field: string}[]
-	local info = self:query(("DESCRIBE %s;"):format(table_name))
-	for i, t in ipairs(info) do
-		columns[i] = t.Field
-	end
-
-	return columns
 end
 
 return LuasqlMysqlDatabase

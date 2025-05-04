@@ -1,3 +1,5 @@
+rawset(_G, 'sqlite3', false) -- _G write guard warning fix
+
 local sqlite = require("lsqlite3")
 local SqliteDatabase = require("rdb.db.SqliteDatabase")
 local sql_util = require("rdb.sql_util")

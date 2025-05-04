@@ -1,8 +1,8 @@
-if not pcall(require, "rdb.db.LuasqlMysqlDatabase") then
+if not pcall(require, "rdb.db.RestyMysqlDatabase") then
 	return {}
 end
 
-local LuasqlMysqlDatabase = require("rdb.db.LuasqlMysqlDatabase")
+local RestyMysqlDatabase = require("rdb.db.RestyMysqlDatabase")
 local db_tests = require("rdb.db.tests")
 
 ---@type {[string]: fun(t: testing.T)}
@@ -13,13 +13,13 @@ local function open_db(db)
 end
 
 function test.__check(t)
-	local db = LuasqlMysqlDatabase()
+	local db = RestyMysqlDatabase()
 	return open_db(db)
 end
 
 for k, v in pairs(db_tests) do
 	test[k] = function(t)
-		local db = LuasqlMysqlDatabase()
+		local db = RestyMysqlDatabase()
 		open_db(db)
 		v(t, db)
 		db:close()
@@ -27,7 +27,7 @@ for k, v in pairs(db_tests) do
 end
 
 function test.insert_returning(t)
-	local db = LuasqlMysqlDatabase()
+	local db = RestyMysqlDatabase()
 	open_db(db)
 
 	db:exec([[
@@ -42,7 +42,7 @@ CREATE TABLE `test` (
 
 	local rows = db:query("INSERT INTO `test` (`count`) VALUES (10), (20) RETURNING *")
 
-	t:tdeq(rows, {{id = "1", count = "10"}, {id = "2", count = "20"}})
+	t:tdeq(rows, {{id = 1, count = 10}, {id = 2, count = 20}})
 
 	db:close()
 end
