@@ -108,7 +108,7 @@ function TaskHandler:handleCall(peer, msg)
 	end
 	self:send(peer, msg.id, true, xpcall(handler.handle, debug.traceback, handler, self, peer, msg:unpack()))
 end
-TaskHandler.handleCall = icc_co.wrap(TaskHandler.handleCall)
+TaskHandler.handleCall = icc_co.callwrap(TaskHandler.handleCall)
 
 ---@param msg icc.Message
 function TaskHandler:handleReturn(msg)
