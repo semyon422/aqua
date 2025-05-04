@@ -93,9 +93,17 @@ function TableOrm:select(table_name, conditions, options)
 		table.insert(postfix, "LIMIT " .. opts.limit)
 	end
 
+	---@type string
+	local from
+	if table_name:upper():match("^%s*SELECT") or table_name:find("\n") then -- subquery
+		from = ("(%s)"):format(table_name)
+	else
+		from = sql_util.escape_identifier(table_name)
+	end
+
 	local q = ("SELECT %s FROM %s %s"):format(
 		table.concat(columns, ", "),
-		sql_util.escape_identifier(table_name),
+		from,
 		table.concat(postfix, " ")
 	)
 

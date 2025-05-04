@@ -4,6 +4,7 @@ local relations = require("rdb.relations")
 
 ---@class rdb.ModelOptions
 ---@field table_name string?
+---@field subquery string?
 ---@field types table?
 ---@field relations {[string]: rdb.Relation}?
 ---@field from_db fun(row: rdb.Row)?
@@ -17,6 +18,7 @@ local Model = class()
 ---@param models rdb.Models
 function Model:new(opts, models)
 	self.table_name = opts.table_name
+	self.subquery = opts.subquery
 	self.types = opts.types or {}
 	self.relations = opts.relations or {}
 	self.from_db = opts.from_db
@@ -53,8 +55,9 @@ end
 ---@param options rdb.Options?
 ---@return rdb.Row[]
 function Model:select(conditions, options)
+	local from = assert(self.subquery or self.table_name)
 	conditions = sql_util.conditions_for_db(conditions, self.types)
-	local rows = self.orm:select(self.table_name, conditions, options)
+	local rows = self.orm:select(from, conditions, options)
 	return self:rows_from_db(rows)
 end
 

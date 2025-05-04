@@ -17,7 +17,7 @@ function Models:__index(k)
 		options = {}
 	end
 
-	if not options.table_name then
+	if not options.table_name and not options.subquery then
 		options.table_name = k
 	end
 
