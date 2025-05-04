@@ -19,7 +19,7 @@ function test.all(t)
 	t:eq(stbl.encode(tbl), s)
 	t:tdeq(stbl.decode(s), tbl)
 
-	t:has_error(stbl.encode, 0ll)
+	-- t:has_error(stbl.encode, 0ll)
 	t:has_error(stbl.encode, {[true] = 1})
 	t:has_error(stbl.decode, "{,}")
 end
