@@ -16,6 +16,12 @@ function PrintDatabase:open(path)
 	self.db:open(path)
 end
 
+---@param table_name string
+---@return string[]
+function PrintDatabase:columns(table_name)
+	return self.db:columns(table_name)
+end
+
 function PrintDatabase:close()
 	print("close")
 	self.db:close()
