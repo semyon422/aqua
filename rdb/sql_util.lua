@@ -151,7 +151,7 @@ function sql_util.conditions(t)
 			cd, vs = format_cond(op, field, v, ident == "_")
 		elseif type(v) == "table" then
 			cd, vs = sql_util.conditions(v)
-		else
+		elseif t[1] ~= "or" then
 			error("invalid conditions")
 		end
 		if cd and vs then
