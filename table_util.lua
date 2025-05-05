@@ -473,4 +473,26 @@ assert(not table_util.is_array_of({[0] = 1, 2, 3}, "number"))
 assert(not table_util.is_array_of({t = 1, 2, 3}, "number"))
 assert(not table_util.is_array_of({1, nil, 3}, "number"))
 
+
+---@param n integer
+---@param m integer?
+---@return integer[]
+function table_util.range(n, m)
+	---@type integer[]
+	local t = {}
+
+	if not m then
+		n, m = 1, n
+	end
+
+	for i = n, m do
+		t[i - n + 1] = i
+	end
+
+	return t
+end
+
+assert(table_util.equal(table_util.range(3), {1, 2, 3}))
+assert(table_util.equal(table_util.range(2, 4), {2, 3, 4}))
+
 return table_util
