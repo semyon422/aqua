@@ -327,4 +327,26 @@ function sql_util.split_sql(sql)
 	return res
 end
 
+---@param src {[string]: any}
+---@return {[string]: sql_util.NULL}
+function sql_util.null_keys(src)
+	---@type {[string]: sql_util.NULL}
+	local t = {}
+	for k in pairs(src) do
+		t[k] = sql_util.NULL
+	end
+	return t
+end
+
+---@param src {[any]: string}
+---@return {[string]: sql_util.NULL}
+function sql_util.null_values(src)
+	---@type {[string]: sql_util.NULL}
+	local t = {}
+	for _, v in pairs(src) do
+		t[v] = sql_util.NULL
+	end
+	return t
+end
+
 return sql_util
