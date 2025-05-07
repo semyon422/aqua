@@ -96,7 +96,7 @@ function TableOrm:select(table_name, conditions, options)
 	---@type string
 	local from
 	if table_name:upper():match("^%s*SELECT") or table_name:find("\n") then -- subquery
-		from = ("(%s)"):format(table_name)
+		from = ("(%s) AS subquery"):format(table_name)
 	else
 		from = sql_util.escape_identifier(table_name)
 	end
