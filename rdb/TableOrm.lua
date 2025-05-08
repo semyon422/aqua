@@ -138,6 +138,8 @@ function TableOrm:insert(table_name, values_array, ignore)
 		end
 	end
 
+	assert(#keys_list > 0, "missing values")
+
 	---@type string[]
 	local query_keys = {}
 	for i, key in ipairs(keys_list) do
