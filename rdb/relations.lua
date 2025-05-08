@@ -19,7 +19,7 @@ local function preload_relation(model, objects, rel_name)
 		---@type integer[]
 		local rel_ids = {}
 		for i, obj in ipairs(objects) do
-			rel_ids[i] = obj[rel.key]
+			table.insert(rel_ids, obj[rel.key])
 		end
 		rel_objs = rel_model:select({id__in = rel_ids})
 		---@type {[integer]: rdb.Row}
