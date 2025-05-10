@@ -21,17 +21,6 @@ function TaskHandler:new(handler)
 	self.event_id = 0
 end
 
----@param ok boolean
----@param ... any
----@return any ...
-local function assert_pcall(ok, ...)
-	if not ok then
-		local level = 2
-		error(debug.traceback(..., level), level)
-	end
-	return ...
-end
-
 ---@param peer icc.IPeer
 ---@param id icc.EventId?
 ---@param ret true?
@@ -86,7 +75,7 @@ function TaskHandler:call(peer, ...)
 		end
 	end
 
-	return assert_pcall(coroutine.yield())
+	return icc_co.assert_pcall(coroutine.yield())
 end
 
 function TaskHandler:update()

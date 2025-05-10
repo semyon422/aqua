@@ -94,4 +94,19 @@ function test.pwrap_error_on_second_resume(t)
 	t:assert(err and not err:match("stack traceback"))
 end
 
+---@param t testing.T
+function test.wrap_iterator(t)
+	local iter = icc_co.wrap(function()
+		for i = 1, 3 do
+			coroutine.yield(i)
+		end
+	end)
+
+	t:eq(iter(), 1)
+	t:eq(iter(), 2)
+	t:eq(iter(), 3)
+	t:eq(iter(), nil)
+	t:has_error(iter)
+end
+
 return test

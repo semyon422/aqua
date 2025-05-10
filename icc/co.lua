@@ -3,13 +3,24 @@ local icc_co = {}
 -- no coroutine.wrap because of
 -- https://github.com/openresty/lua-nginx-module/issues/2406
 
+---@param ok boolean
+---@param ... any
+---@return any ...
+function icc_co.assert_pcall(ok, ...)
+	if not ok then
+		local level = 2
+		error(debug.traceback(..., level), level)
+	end
+	return ...
+end
+
 ---@param f async fun(...):...
 ---@return fun(...):...
 ---@nodiscard
 function icc_co.wrap(f)
 	local co = coroutine.create(f)
 	return function(...)
-		return assert(coroutine.resume(co, ...))
+		return icc_co.assert_pcall(coroutine.resume(co, ...))
 	end
 end
 
@@ -19,7 +30,7 @@ end
 function icc_co.callwrap(f)
 	return function(...)
 		local co = coroutine.create(f)
-		return assert(coroutine.resume(co, ...))
+		return icc_co.assert_pcall(coroutine.resume(co, ...))
 	end
 end
 
