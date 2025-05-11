@@ -27,8 +27,13 @@ function Model:new(opts, models)
 	self.orm = models._orm
 end
 
+---@generic T: rdb.Row
+---@param rows T[]
+---@param ... any
+---@return T[]
 function Model:preload(rows, ...)
 	relations.preload(self, rows, ...)
+	return rows
 end
 
 ---@param rows rdb.Row[]
