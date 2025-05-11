@@ -11,6 +11,9 @@ local relations = {}
 local function preload_relation(model, objects, rel_name)
 	local models = model.models
 	local rel = model.relations[rel_name]
+	if not rel then
+		error(("missing relation '%s' for '%s'"):format(rel_name, model.table_name or "?"))
+	end
 	---@type rdb.Row[], rdb.Model
 	local rel_objs, rel_model
 	if rel.belongs_to then
