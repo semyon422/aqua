@@ -243,11 +243,42 @@ function test.flatten(t)
 		user_3 = false,
 	}
 
-	t:tdeq(valid.flatten(errs), {
+	local flatten_errors = {
 		"user_2 is not a table",
 		"user_3 is not nil",
 		"user_1.name is invalid",
-	})
+	}
+
+	t:tdeq(valid.flatten_errors(errs), flatten_errors)
+
+	local f = valid.wrap_flatten(function(v)
+		if v == 1 then return true end
+		return nil, errs
+	end)
+
+	t:tdeq({f(1)}, {true})
+	t:tdeq({f(0)}, {nil, flatten_errors})
+end
+
+---@param t testing.T
+function test.format(t)
+	local errs = {
+		user_1 = {name = true},
+		user_2 = "not a table",
+		user_3 = false,
+	}
+
+	local format_errors = "user_2 is not a table, user_3 is not nil, user_1.name is invalid"
+
+	t:eq(valid.format_errors(errs), format_errors)
+
+	local f = valid.wrap_format(function(v)
+		if v == 1 then return true end
+		return nil, errs
+	end)
+
+	t:tdeq({f(1)}, {true})
+	t:tdeq({f(0)}, {nil, format_errors})
 end
 
 ---@param t testing.T

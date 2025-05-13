@@ -168,7 +168,8 @@ end
 ---@param fmt string?
 ---@param buf string[]?
 ---@param prefix string?
-function valid.flatten(errs, fmt, buf, prefix)
+---@return string[]
+function valid.flatten_errors(errs, fmt, buf, prefix)
 	if not errs then
 		return {}
 	end
@@ -200,10 +201,42 @@ function valid.flatten(errs, fmt, buf, prefix)
 	for _, k in ipairs(table_keys) do
 		local t = errs[k]
 		---@cast t -string, -boolean
-		valid.flatten(t, fmt, buf, prefix .. k .. ".")
+		valid.flatten_errors(t, fmt, buf, prefix .. k .. ".")
 	end
 
 	return buf
+end
+
+---@generic T
+---@param ok T?
+---@param err string|valid.Errors?
+---@return T?
+---@return string[]?
+function valid.flatten(ok, err)
+	if ok then
+		return ok
+	end
+	return ok, valid.flatten_errors(err)
+end
+
+---@param f util.ValidationFunc
+---@return fun(v?: any): boolean?, string[]?
+function valid.wrap_flatten(f)
+	return function(...)
+		return valid.flatten(f(...))
+	end
+end
+
+--------------------------------------------------------------------------------
+
+---@param err string|valid.Errors?
+---@return string?
+function valid.format_errors(err)
+	if type(err) == "table" then
+		err = table.concat(valid.flatten_errors(err), ", ")
+	end
+	---@cast err string
+	return err
 end
 
 ---@generic T
@@ -215,11 +248,15 @@ function valid.format(ok, err)
 	if ok then
 		return ok
 	end
-	if type(err) == "table" then
-		err = table.concat(valid.flatten(err), ", ")
+	return ok, valid.format_errors(err)
+end
+
+---@param f util.ValidationFunc
+---@return fun(v?: any): boolean?, string?
+function valid.wrap_format(f)
+	return function(...)
+		return valid.format(f(...))
 	end
-	---@cast err string
-	return ok, err
 end
 
 --------------------------------------------------------------------------------
