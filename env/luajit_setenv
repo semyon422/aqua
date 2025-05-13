@@ -1,0 +1,11 @@
+#!/bin/bash
+
+TREE=$PWD/tree
+
+PATH=$TREE/bin:$PATH
+LD_LIBRARY_PATH=$PWD:$TREE/lib
+DYLD_LIBRARY_PATH=$PWD:$TREE/lib
+
+export PATH
+export LD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH
