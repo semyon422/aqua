@@ -14,8 +14,9 @@ function icc_co.assert_pcall(ok, ...)
 	return ...
 end
 
----@param f async fun(...):...
----@return fun(...):...
+---@generic T: function
+---@param f async T
+---@return T
 ---@nodiscard
 function icc_co.wrap(f)
 	local co = coroutine.create(f)
@@ -24,8 +25,9 @@ function icc_co.wrap(f)
 	end
 end
 
----@param f async fun(...):...
----@return fun(...):...
+---@generic T: function
+---@param f async T
+---@return T
 ---@nodiscard
 function icc_co.callwrap(f)
 	return function(...)
@@ -34,20 +36,22 @@ function icc_co.callwrap(f)
 	end
 end
 
----@generic F: function
----@param f F
+---@generic T: function
+---@param f T
 ---@param result fun(ok: boolean, ...: any)
 ---@return thread
+---@nodiscard
 function icc_co.pcreate(f, result)
 	return coroutine.create(function(...)
 		result(pcall(f, ...))
 	end)
 end
 
----@generic F: function
----@param f F
+---@generic T: function
+---@param f T
 ---@param result fun(ok: boolean, ...: any)
----@return F
+---@return T
+---@nodiscard
 function icc_co.pwrap(f, result)
 	return function(...)
 		local co = icc_co.pcreate(f, result)
