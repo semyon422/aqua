@@ -13,8 +13,9 @@ end
 ---@return integer?
 ---@return string?
 function EnetPeer:send(msg)
-	self.peer:send(self:encode(msg))
-	return 1
+	local data = self:encode(msg)
+	self.peer:send(data)
+	return #data
 end
 
 return EnetPeer
