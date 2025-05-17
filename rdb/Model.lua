@@ -9,8 +9,9 @@ local relations = require("rdb.relations")
 ---@field relations {[string]: rdb.Relation}?
 ---@field from_db fun(row: rdb.Row)?
 ---@field metatable table?
+---@field validate (fun(row: rdb.Row): boolean?, string?)?
 
----@class rdb.Model
+---@class rdb.Model: rdb.ModelOptions
 ---@operator call: rdb.Model
 local Model = class()
 
@@ -19,10 +20,12 @@ local Model = class()
 function Model:new(opts, models)
 	self.table_name = opts.table_name
 	self.subquery = opts.subquery
-	self.types = opts.types or {}
-	self.relations = opts.relations or {}
+	self.types = opts.types
+	self.relations = opts.relations
 	self.from_db = opts.from_db
 	self.metatable = opts.metatable
+	self.validate = opts.validate
+
 	self.models = models
 	self.orm = models._orm
 end
@@ -36,22 +39,35 @@ function Model:preload(rows, ...)
 	return rows
 end
 
+---@param row rdb.Row
+---@return rdb.Row
+function Model:row_from_db(row)
+	local types = self.types
+	local from_db = self.from_db
+	local validate = self.validate
+	local metatable = self.metatable
+
+	row = sql_util.from_db(row, types)
+	if metatable then
+		setmetatable(row, metatable)
+	end
+	if from_db then
+		from_db(row)
+	end
+	if validate then
+		assert(validate(row))
+	end
+
+	return row
+end
+
 ---@param rows rdb.Row[]
 ---@return rdb.Row[]
 function Model:rows_from_db(rows)
-	local from_db = self.from_db
-	local metatable = self.metatable
 	---@type rdb.Row[]
 	local _rows = {}
 	for i, row in ipairs(rows) do
-		row = sql_util.from_db(row, self.types)
-		if metatable then
-			setmetatable(row, metatable)
-		end
-		if from_db then
-			from_db(row)
-		end
-		_rows[i] = row
+		_rows[i] = self:row_from_db(row)
 	end
 	return _rows
 end
