@@ -2,7 +2,9 @@ local dpairs = require("dpairs")
 
 local valid = {}
 
----@alias valid.Errors {[string|integer]: string|true|false|valid.Errors}
+---@class valid.Errors
+---@field [string|integer] string|true|false|valid.Errors
+
 ---@alias util.ValidationFunc fun(v: any?): boolean?, string|valid.Errors?
 
 ---@param schema {[string]: util.ValidationFunc}
