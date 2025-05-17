@@ -4,8 +4,18 @@ local sql_util = require("rdb.sql_util")
 local PrintDatabase = require("rdb.db.PrintDatabase")
 
 ---@alias rdb.Row {[string]: any}
----@alias rdb.Conditions {[string]: any?, [integer]: rdb.Conditions?, [1]: "or"?}
----@alias rdb.Options {columns: string[]?, order: string[]?, group: string[]?, limit: integer?, format: string?}
+
+---@class rdb.Conditions
+---@field [string] any?
+---@field [integer] rdb.Conditions?
+---@field [1] "or"?
+
+---@class rdb.Options
+---@field columns string[]?
+---@field order string[]?
+---@field group string[]?
+---@field limit integer?
+---@field format string?
 
 ---@class rdb.TableOrm
 ---@operator call: rdb.TableOrm
