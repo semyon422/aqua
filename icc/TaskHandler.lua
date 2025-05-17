@@ -19,6 +19,7 @@ function TaskHandler:new(handler)
 	self.timeouts = {}
 	self.callbacks = {}
 	self.event_id = 0
+	self.bytes_sent = 0
 end
 
 ---@param peer icc.IPeer
@@ -34,6 +35,7 @@ function TaskHandler:send(peer, id, ret, ...)
 		end
 		error(debug.traceback(err, level), level)
 	end
+	self.bytes_sent = self.bytes_sent + bytes
 end
 
 ---@param peer icc.IPeer
