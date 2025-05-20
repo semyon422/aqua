@@ -159,16 +159,18 @@ function imgui.lfslider(id, v, format, a, b, c, label)
 	return decibel.lf_to_f(lv)
 end
 
+---@generic T: boolean|number
 ---@param id any
----@param v boolean|number
+---@param v T
 ---@param label string?
----@return boolean|number
-function imgui.checkbox(id, v, label)
+---@param inactive boolean?
+---@return T
+function imgui.checkbox(id, v, label, inactive)
 	local isNumber = type(v) == "number"
 	if isNumber then
 		v = v == 1
 	end
-	if imgui.Checkbox(id, v, _h) then
+	if imgui.Checkbox(id, v, _h, inactive) then
 		v = not v
 	end
 	just.sameline()
@@ -179,10 +181,11 @@ function imgui.checkbox(id, v, label)
 	return v
 end
 
+---@generic T: boolean|number
 ---@param id any
----@param v boolean|number
+---@param v T
 ---@param text string
----@return boolean|number
+---@return T
 function imgui.textcheckbox(id, v, text)
 	local isNumber = type(v) == "number"
 	if isNumber then
@@ -212,15 +215,17 @@ function imgui.combo(id, v, values, to_string, label)
 	return i and values[i] or v
 end
 
+---@type {[any]: integer}
 local scrolls = {}
 
+---@generic T: string|number
 ---@param id any
----@param v number|string
----@param values table
+---@param v T
+---@param values T[]
 ---@param height number
 ---@param format function?
 ---@param label string?
----@return number|string
+---@return T
 function imgui.list(id, v, values, height, format, label)
 	scrolls[id] = scrolls[id] or 0
 	imgui.List(id, _w, height, _h / 3, _h, scrolls[id])
