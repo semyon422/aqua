@@ -56,12 +56,13 @@ end
 ---@param cond any?
 ---@param got any?
 ---@param expected any?
+---@param level integer?
 ---@return any?
-function Test:expected_assert(cond, got, expected)
+function Test:expected_assert(cond, got, expected, level)
 	if cond then
 		return cond
 	end
-	local line = debug.getinfo(2, "Sl")
+	local line = debug.getinfo(level or 2, "Sl")
 
 	got = format_got_expected(got)
 	expected = format_got_expected(expected)
@@ -115,9 +116,9 @@ Test.tdeq = build_method(table_util.deepequal)
 function Test:has_error(f, ...)
 	---@type boolean, string
 	local ok, err = pcall(f, ...)
-	self:eq(ok, false)
+	self:expected_assert(not ok, "no error", "error", 3)
 	if not ok then
-		return err:match("^.-:.-: (.-)\n.+$")
+		return err:match("^.-:.-: ([^\n]+)\n?.*$")
 	end
 end
 
