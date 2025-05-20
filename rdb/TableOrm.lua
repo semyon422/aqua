@@ -14,6 +14,7 @@ local PrintDatabase = require("rdb.db.PrintDatabase")
 ---@field columns string[]?
 ---@field order string[]?
 ---@field group string[]?
+---@field having rdb.Conditions
 ---@field limit integer?
 ---@field format string?
 
@@ -73,6 +74,7 @@ local default_options = {
 	columns = {"*"},
 	order = nil,
 	group = nil,
+	having = nil,
 	limit = nil,
 	format = nil,
 }
@@ -86,15 +88,22 @@ function TableOrm:select(table_name, conditions, options)
 	local columns = opts.columns or default_options.columns
 
 	local postfix = {}
-	---@type string, any[]
-	local conds, vals
+
+	---@type any[]
+	local values = {}
 
 	if conditions and next(conditions) then
-		conds, vals = sql_util.conditions(conditions)
+		local conds, vals = sql_util.conditions(conditions)
+		table_util.append(values, vals)
 		table.insert(postfix, "WHERE " .. conds)
 	end
 	if opts.group then
 		table.insert(postfix, "GROUP BY " .. table.concat(opts.group, ", "))
+	end
+	if opts.having and next(opts.having) then
+		local conds, vals = sql_util.conditions(opts.having)
+		table_util.append(values, vals)
+		table.insert(postfix, "HAVING " .. conds)
 	end
 	if opts.order then
 		table.insert(postfix, "ORDER BY " .. table.concat(opts.order, ", "))
@@ -121,7 +130,7 @@ function TableOrm:select(table_name, conditions, options)
 		q = opts.format:format(q)
 	end
 
-	return self:query(q, vals)
+	return self:query(q, values)
 end
 
 ---@param table_name string
