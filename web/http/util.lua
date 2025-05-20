@@ -1,5 +1,7 @@
 local socket_url = require("socket.url")
 local path_util = require("path_util")
+local table_util = require("table_util")
+local dpairs = require("dpairs")
 local json = require("web.json")
 local HttpClient = require("web.http.HttpClient")
 local MimeType = require("web.http.MimeType")
@@ -63,7 +65,7 @@ end
 function util.encode_query_string(t)
 	local i = 0
 	local buf = {}
-	for k, v in pairs(t) do
+	for k, v in dpairs(t) do
 		buf[i + 1] = socket_url.escape(k)
 		if v == true then
 			buf[i + 2] = "&"
@@ -96,6 +98,20 @@ function util.decode_query_string(s)
 		end
 	end
 	return query
+end
+
+
+---@param ... table
+---@return string
+function util.query(...)
+	local t = {}
+	for i = 1, select("#", ...) do
+		local src = select(i, ...)
+		if src then
+			table_util.copy(src, t)
+		end
+	end
+	return util.encode_query_string(t)
 end
 
 ---@param req web.IRequest
