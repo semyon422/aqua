@@ -14,8 +14,9 @@ local PrintDatabase = require("rdb.db.PrintDatabase")
 ---@field columns string[]?
 ---@field order string[]?
 ---@field group string[]?
----@field having rdb.Conditions
+---@field having rdb.Conditions?
 ---@field limit integer?
+---@field offset integer?
 ---@field format string?
 
 ---@class rdb.TableOrm
@@ -76,6 +77,7 @@ local default_options = {
 	group = nil,
 	having = nil,
 	limit = nil,
+	offset = nil,
 	format = nil,
 }
 
@@ -110,6 +112,9 @@ function TableOrm:select(table_name, conditions, options)
 	end
 	if opts.limit then
 		table.insert(postfix, "LIMIT " .. opts.limit)
+	end
+	if opts.offset then
+		table.insert(postfix, "OFFSET " .. opts.offset)
 	end
 
 	---@type string
