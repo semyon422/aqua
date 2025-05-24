@@ -60,30 +60,27 @@ function util.request(url, body)
 	}
 end
 
----@param t table
+---@param t {[string]: string}
 ---@return string
 function util.encode_query_string(t)
 	local i = 0
+	---@type string[]
 	local buf = {}
 	for k, v in dpairs(t) do
 		buf[i + 1] = socket_url.escape(k)
-		if v == true then
-			buf[i + 2] = "&"
-			i = i + 2
-		else
-			buf[i + 2] = "="
-			buf[i + 3] = socket_url.escape(v)
-			buf[i + 4] = "&"
-			i = i + 4
-		end
+		buf[i + 2] = "="
+		buf[i + 3] = socket_url.escape(tostring(v))
+		buf[i + 4] = "&"
+		i = i + 4
 	end
 	buf[i] = nil
 	return table.concat(buf)
 end
 
 ---@param s string?
----@return table
+---@return {[string]: string}
 function util.decode_query_string(s)
+	---@type {[string]: string}
 	local query = {}
 	if not s then
 		return query
@@ -94,7 +91,7 @@ function util.decode_query_string(s)
 		if k then
 			query[socket_url.unescape(k)] = socket_url.unescape(v)
 		else
-			query[socket_url.unescape(kv)] = true
+			query[socket_url.unescape(kv)] = ""
 		end
 	end
 	return query
@@ -115,7 +112,7 @@ function util.query(...)
 end
 
 ---@param req web.IRequest
----@return table?
+---@return {[string]: string}?
 ---@return string?
 function util.get_form(req)
 	local content_type = req.headers:get("Content-Type")
