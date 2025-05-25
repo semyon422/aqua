@@ -19,6 +19,7 @@ return function(id, v, size, inactive)
 	if v then
 		theme.fillrect(size)
 	end
+	love.graphics.setColor(1, 1, 1, 1)
 
 	just.next(size, size)
 
