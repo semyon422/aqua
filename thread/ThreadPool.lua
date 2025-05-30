@@ -10,6 +10,7 @@ ThreadPool.threads = {}
 ThreadPool.runningThreads = {}
 ThreadPool.queue = {}
 ThreadPool.loaded = true
+ThreadPool.lastThreadId = 0
 
 ThreadPool.initFunc = string.dump(function() end)
 ThreadPool.initArgsFunc = function() return {} end
@@ -125,7 +126,9 @@ end
 ---@param id number
 ---@return thread.Thread
 function ThreadPool:createThread(id)
-	local thread = Thread(id, ThreadPool.synctable)
+	local _id = self.lastThreadId + 1
+	self.lastThreadId = _id
+	local thread = Thread(_id, ThreadPool.synctable)
 
 	-- populate new thread with shared data
 	synctable.new(_synctable, function(...)
