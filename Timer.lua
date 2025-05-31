@@ -41,7 +41,7 @@ function Timer:getTime()
 
 	local adjustTime = self:tryAdjust()
 	if adjustTime and self.adjustRate > 0 then
-		time = time + (adjustTime - time) * self.adjustRate
+		time = math.max(time, time + (adjustTime - time) * self.adjustRate) -- monotonic
 		self:setTime(time)
 	end
 
