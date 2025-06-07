@@ -7,6 +7,18 @@ local IEventHandler = require("ui.IEventHandler")
 ---@field focus {[string]: ui.Node}
 local SphereEventHandler = IEventHandler + {}
 
+function SphereEventHandler:new()
+	self.event_listeners = {}
+	self.cancelable_event_listeners = {}
+	self.focus = {}
+	self.collect_cancelable_events = false
+end
+
+---@param node ui.Node
+function SphereEventHandler:setRoot(node)
+	self.root = node
+end
+
 ---@param name string
 ---@param cancelable boolean?
 function SphereEventHandler:registerEvent(name, cancelable)
@@ -15,32 +27,32 @@ function SphereEventHandler:registerEvent(name, cancelable)
 end
 
 ---@param node ui.Node
-function SphereEventHandler:collectNodeEvents(node)
+function SphereEventHandler:nodeAdded(node)
 	for event_name, list in pairs(self.event_listeners) do
 		if node[event_name] then
 			list[node] = true
 		end
 	end
+
+	self.collect_cancelable_events = self.collect_cancelable_events or self:hasCancelableEvents(node)
 end
 
 ---@param node ui.Node
-function SphereEventHandler:removeNodeEvents(node)
+function SphereEventHandler:nodeRemoved(node)
+	self:clearFocus(node)
 	for _, list in pairs(self.event_listeners) do
 		list[node] = nil
 	end
-end
 
----@param node ui.Node
-function SphereEventHandler:collectCancelableEvents(node)
-	for event_name, _ in pairs(self.cancelable_event_listeners) do
-		self.cancelable_event_listeners[event_name] = {}
-	end
-
-	self:collectCancelableEventsFrom(node)
+	self.collect_cancelable_events = self.collect_cancelable_events or self:hasCancelableEvents(node)
 end
 
 ---@param name string
 function SphereEventHandler:dispatchEvent(name, ...)
+	if self.collect_cancelable_events then
+		self:collectCancelableEvents()
+	end
+
 	local focused_node = self.focus[name]
 	if focused_node then
 		focused_node[name](focused_node, ...)
@@ -49,23 +61,26 @@ function SphereEventHandler:dispatchEvent(name, ...)
 
 	if self.event_listeners[name] then
 		for node, _ in pairs(self.event_listeners[name]) do
-			if not node.is_killed then
-				node[name](node, ...)
-			end
+			node[name](node, ...)
 		end
 		return
 	elseif self.cancelable_event_listeners[name] then
 		for _, node in ipairs(self.cancelable_event_listeners[name]) do
-			if not node.is_killed then
-				if node[name](node, ...) then
-					break
-				end
+			if node[name](node, ...) then
+				break
 			end
 		end
 		return
 	end
 
 	print(("Event %s is not registered"):format(name))
+end
+
+function SphereEventHandler:collectCancelableEvents()
+	for event_name, _ in pairs(self.cancelable_event_listeners) do
+		self.cancelable_event_listeners[event_name] = {}
+	end
+	self:collectCancelableEventsFrom(self.root)
 end
 
 ---@param node ui.Node
@@ -79,6 +94,17 @@ function SphereEventHandler:collectCancelableEventsFrom(node)
 	for _, child in ipairs(node.children) do
 		self:collectCancelableEventsFrom(child)
 	end
+end
+
+---@param node ui.Node
+---@return boolean
+function SphereEventHandler:hasCancelableEvents(node)
+	for event_name, _ in pairs(self.cancelable_event_listeners) do
+		if node[event_name] then
+			return true
+		end
+	end
+	return false
 end
 
 ---@param node ui.Node

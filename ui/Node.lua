@@ -60,8 +60,8 @@ end
 function Node:removeChild(node)
 	for i, child in ipairs(self.children) do
 		if child == node then
-			self.root:nodeRemoved(node)
 			table.remove(self.children, i)
+			self.root:nodeRemoved(node)
 			return
 		end
 	end

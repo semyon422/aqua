@@ -9,13 +9,10 @@ local IEventHandler = class()
 function IEventHandler:registerEvent(name, cancelable) end
 
 ---@param node ui.Node
-function IEventHandler:collectNodeEvents(node) end
+function IEventHandler:nodeAdded(node) end
 
 ---@param node ui.Node
-function IEventHandler:removeNodeEvents(node) end
-
----@param node ui.Node
-function IEventHandler:collectCancelableEvents(node) end
+function IEventHandler:nodeRemoved(node) end
 
 ---@param name string
 function IEventHandler:dispatchEvent(name, ...) end

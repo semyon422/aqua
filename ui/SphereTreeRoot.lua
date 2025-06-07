@@ -1,40 +1,31 @@
 local Node = require("ui.Node")
-local SphereEventHandler = require("ui.SphereEventHandler")
 local ITreeRoot = require("ui.ITreeRoot")
 
----@class ui.SphereTreeRoot : ui.Node, ui.SphereEventHandler, ui.ITreeRoot
+---@class ui.SphereTreeRoot : ui.Node, ui.ITreeRoot
 ---@operator call: ui.SphereTreeRoot
-local SphereTreeRoot = Node + SphereEventHandler + ITreeRoot + {}
+local SphereTreeRoot = Node + ITreeRoot + {}
 
-function SphereTreeRoot:new()
+---@param event_handler ui.SphereEventHandler
+function SphereTreeRoot:new(event_handler)
 	self.root = self
 	self.children = {}
-	self.event_listeners = {}
-	self.cancelable_event_listeners = {}
-	self.focus = {}
-	self.tree_updated = false
+	self.event_handler = event_handler
+	event_handler:setRoot(self)
 end
 
 ---@param node ui.Node
 function SphereTreeRoot:nodeAdded(node)
-	self.tree_updated = true
-	self:collectNodeEvents(node)
+	self.event_handler:nodeAdded(node)
 end
 
 ---@param node ui.Node
 function SphereTreeRoot:nodeRemoved(node)
-	self.tree_updated = true
-	self:removeNodeEvents(node)
-	self:clearFocus(node)
+	self.event_handler:nodeRemoved(node)
 end
 
-function SphereTreeRoot:update()
-	if self.tree_updated then
-		self.tree_updated = false
-		self:collectCancelableEvents(self)
-		return
-	end
+---@param name string
+function SphereTreeRoot:dispatchEvent(name, ...)
+	self.event_handler:dispatchEvent(name, ...)
 end
-
 
 return SphereTreeRoot
