@@ -22,8 +22,16 @@ end
 ---@param name string
 ---@param cancelable boolean?
 function SphereEventHandler:registerEvent(name, cancelable)
+	if self.event_listeners[name] or self.cancelable_event_listeners[name] then
+		error(("Event %s is already registered"):format(name))
+	end
+
 	local list = cancelable and self.cancelable_event_listeners or self.event_listeners
 	list[name] = {}
+
+	if cancelable then
+		self.collect_cancelable_events = true
+	end
 end
 
 ---@param node ui.Node
@@ -81,6 +89,7 @@ function SphereEventHandler:collectCancelableEvents()
 		self.cancelable_event_listeners[event_name] = {}
 	end
 	self:collectCancelableEventsFrom(self.root)
+	self.collect_cancelable_events = false
 end
 
 ---@param node ui.Node
