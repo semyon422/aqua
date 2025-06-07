@@ -25,6 +25,6 @@ function IEventHandler:dispatchEvent(name, ...) end
 function IEventHandler:setFocus(node, event_name) end
 
 ---@param node ui.Node
-function IEventHandler:removeFocus(node) end
+function IEventHandler:clearFocus(node) end
 
 return IEventHandler

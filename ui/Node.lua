@@ -7,6 +7,7 @@ local class = require("class")
 ---@field children ui.Node[]
 ---@field parent ui.Node?
 ---@field root ui.ITreeRoot
+---@field is_killed boolean
 local Node = class()
 
 function Node:new(params)
@@ -17,6 +18,7 @@ function Node:new(params)
 	end
 
 	self.z = self.z or 0
+	self.is_killed = false
 	self.children = {}
 end
 
@@ -45,7 +47,7 @@ function Node:addChild(node)
 	end
 
 	if not self.root then
-		self:error(("%i doesn't have a root"):format(self.id or "unnamed"))
+		self:error(("No root node"))
 	end
 
 	node.parent = self
@@ -67,6 +69,7 @@ end
 
 function Node:kill()
 	self.parent:removeChild(self)
+	self.is_killed = true
 
 	for _, child in ipairs(self.children) do
 		child:kill()

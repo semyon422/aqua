@@ -44,6 +44,7 @@ function test.events(t)
 	t:teq(triggered, {n1 = 1, n3 = 1})
 end
 
+---@param t testing.T
 function test.cancelable_events(t)
 	local root = SphereTreeRoot()
 	root:registerEvent("mousePressed", true)
@@ -62,6 +63,59 @@ function test.cancelable_events(t)
 	root:update()
 	root:dispatchEvent("mousePressed")
 	t:teq(order, {n1, n2, n2c1, n2c2, n3})
+end
+
+---@param t testing.T
+function test.interrupt(t)
+
+end
+
+---@param t testing.T
+function test.focus(t)
+	local root = SphereTreeRoot()
+	root:registerEvent("keyPressed", true)
+	root:registerEvent("textInput", true)
+
+	local receivers = {}
+	local f = function(self)
+		table.insert(receivers, self)
+	end
+
+	local modal = root:addChild(Node({z = 0.9, keyPressed = f}))
+	local text_box = modal:addChild(Node({z = 0.5, textInput = f, keyPressed = f}))
+	local exit_button = modal:addChild(Node({z = 1, keyPressed = f}))
+	local screen = root:addChild(Node({z = 0.1, keyPressed = f}))
+	local search = screen:addChild(Node({z = 0.1, textInput = f}))
+
+	root:update()
+	root:dispatchEvent("keyPressed")
+
+	t:teq(receivers, {modal, exit_button, text_box, screen})
+
+	receivers = {}
+	root:dispatchEvent("textInput")
+	t:teq(receivers, {text_box, search})
+
+	receivers = {}
+	root:setFocus(text_box, "textInput")
+	root:setFocus(text_box, "keyPressed")
+	root:dispatchEvent("keyPressed")
+	t:teq(receivers, {text_box})
+
+	receivers = {}
+	root:dispatchEvent("textInput")
+	t:teq(receivers, {text_box})
+
+	receivers = {}
+	root:clearFocus(text_box)
+	root:dispatchEvent("textInput")
+	t:teq(receivers, {text_box, search})
+
+	receivers = {}
+	root:setFocus(text_box, "textInput")
+	text_box:kill()
+	root:dispatchEvent("textInput")
+	t:teq(receivers, {search})
 end
 
 return test

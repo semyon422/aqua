@@ -11,6 +11,7 @@ function SphereTreeRoot:new()
 	self.children = {}
 	self.event_listeners = {}
 	self.cancelable_event_listeners = {}
+	self.focus = {}
 	self.tree_updated = false
 end
 
@@ -24,6 +25,7 @@ end
 function SphereTreeRoot:nodeRemoved(node)
 	self.tree_updated = true
 	self:removeNodeEvents(node)
+	self:clearFocus(node)
 end
 
 function SphereTreeRoot:update()
