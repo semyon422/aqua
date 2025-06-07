@@ -1,0 +1,30 @@
+local class = require("class")
+
+---@class ui.IEventHandler
+---@operator call: ui.IEventHandler
+local IEventHandler = class()
+
+---@param name string
+---@param cancelable boolean?
+function IEventHandler:registerEvent(name, cancelable) end
+
+---@param node ui.Node
+function IEventHandler:collectNodeEvents(node) end
+
+---@param node ui.Node
+function IEventHandler:removeNodeEvents(node) end
+
+---@param node ui.Node
+function IEventHandler:collectCancelableEvents(node) end
+
+---@param name string
+function IEventHandler:dispatchEvent(name, ...) end
+
+---@param node ui.Node
+---@param event_name string
+function IEventHandler:setFocus(node, event_name) end
+
+---@param node ui.Node
+function IEventHandler:removeFocus(node) end
+
+return IEventHandler
