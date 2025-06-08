@@ -1,4 +1,4 @@
-local IDatabase = require("rdb.IDatabase")
+local IDatabase = require("rdb.db.IDatabase")
 local stbl = require("stbl")
 
 ---@class rdb.PrintDatabase: rdb.IDatabase
@@ -14,6 +14,12 @@ end
 function PrintDatabase:open(path)
 	print("open", path)
 	self.db:open(path)
+end
+
+---@param table_name string
+---@return string[]
+function PrintDatabase:columns(table_name)
+	return self.db:columns(table_name)
 end
 
 function PrintDatabase:close()

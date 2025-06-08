@@ -24,8 +24,8 @@ end
 ---@param h number
 ---@param locate string
 function gfx_util.drawFrame(drawable, x, y, w, h, locate)
-    local dw = drawable:getWidth()
-    local dh = drawable:getHeight()
+	local dw = drawable:getWidth()
+	local dh = drawable:getHeight()
 
 	local s = 1
 	local s1 = w / h <= dw / dh
@@ -37,7 +37,7 @@ function gfx_util.drawFrame(drawable, x, y, w, h, locate)
 		s = w / dw
 	end
 
-    love.graphics.draw(drawable, x + (w - dw * s) / 2, y + (h - dh * s) / 2, 0, s)
+	love.graphics.draw(drawable, x + (w - dw * s) / 2, y + (h - dh * s) / 2, 0, s)
 end
 
 ---@param text string
@@ -74,38 +74,38 @@ end
 ---@param ... table
 ---@return love.Mesh
 function gfx_util.newGradient(dir, ...)
-    local isHorizontal = true
-    if dir == "vertical" then
-        isHorizontal = false
-    elseif dir ~= "horizontal" then
-        error("bad argument #1 to 'gradient' (invalid value)", 2)
-    end
+	local isHorizontal = true
+	if dir == "vertical" then
+		isHorizontal = false
+	elseif dir ~= "horizontal" then
+		error("bad argument #1 to 'gradient' (invalid value)", 2)
+	end
 
-    local colorLen = select("#", ...)
-    if colorLen < 2 then
-        error("color list is less than two", 2)
-    end
+	local colorLen = select("#", ...)
+	if colorLen < 2 then
+		error("color list is less than two", 2)
+	end
 
-    local meshData = {}
-    if isHorizontal then
-        for i = 1, colorLen do
-            local color = select(i, ...)
-            local x = (i - 1) / (colorLen - 1)
+	local meshData = {}
+	if isHorizontal then
+		for i = 1, colorLen do
+			local color = select(i, ...)
+			local x = (i - 1) / (colorLen - 1)
 
-            meshData[#meshData + 1] = {x, 1, x, 1, unpack(color)}
-            meshData[#meshData + 1] = {x, 0, x, 0, unpack(color)}
-        end
-    else
-        for i = 1, colorLen do
-            local color = select(i, ...)
-            local y = (i - 1) / (colorLen - 1)
+			meshData[#meshData + 1] = {x, 1, x, 1, unpack(color)}
+			meshData[#meshData + 1] = {x, 0, x, 0, unpack(color)}
+		end
+	else
+		for i = 1, colorLen do
+			local color = select(i, ...)
+			local y = (i - 1) / (colorLen - 1)
 
-            meshData[#meshData + 1] = {1, y, 1, y, unpack(color)}
-            meshData[#meshData + 1] = {0, y, 0, y, unpack(color)}
-        end
-    end
+			meshData[#meshData + 1] = {1, y, 1, y, unpack(color)}
+			meshData[#meshData + 1] = {0, y, 0, y, unpack(color)}
+		end
+	end
 
-    return love.graphics.newMesh(meshData, "strip", "static")
+	return love.graphics.newMesh(meshData, "strip", "static")
 end
 
 ---@param r number?

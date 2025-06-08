@@ -113,7 +113,7 @@ function test.debounce_locked()
 	assert(not result)
 	assert(c)
 
-	run_debounced()  -- func executing, debounce is locked
+	run_debounced() -- func executing, debounce is locked
 
 	coroutine.resume(c)
 

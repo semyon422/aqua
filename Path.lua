@@ -5,6 +5,7 @@ local string_util = require("string_util")
 
 ---@class aqua.Path
 ---@operator call: aqua.Path
+---@operator concat(aqua.Path | string): aqua.Path
 ---@field parts aqua.Path.Part[]
 ---@field absolute boolean
 ---@field driveLetter string?
@@ -233,7 +234,7 @@ function Path:fromString(path)
 			table.insert(self.parts, {
 				name = name,
 				isDirectory = true,
-				isHidden = name:sub(1, 1) == "."
+				isHidden = name:sub(1, 1) == ".",
 			})
 		end
 	end
@@ -263,7 +264,7 @@ function Path:fromArray(array)
 				table.insert(self.parts, {
 					name = name,
 					isDirectory = true,
-					isHidden = name:sub(1, 1) == "."
+					isHidden = name:sub(1, 1) == ".",
 				})
 			end
 		end

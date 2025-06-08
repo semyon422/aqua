@@ -1,5 +1,7 @@
 local socket_url = require("socket.url")
 local path_util = require("path_util")
+local table_util = require("table_util")
+local dpairs = require("dpairs")
 local json = require("web.json")
 local HttpClient = require("web.http.HttpClient")
 local MimeType = require("web.http.MimeType")
@@ -58,30 +60,27 @@ function util.request(url, body)
 	}
 end
 
----@param t table
+---@param t {[string]: string}
 ---@return string
 function util.encode_query_string(t)
 	local i = 0
+	---@type string[]
 	local buf = {}
-	for k, v in pairs(t) do
+	for k, v in dpairs(t) do
 		buf[i + 1] = socket_url.escape(k)
-		if v == true then
-			buf[i + 2] = "&"
-			i = i + 2
-		else
-			buf[i + 2] = "="
-			buf[i + 3] = socket_url.escape(v)
-			buf[i + 4] = "&"
-			i = i + 4
-		end
+		buf[i + 2] = "="
+		buf[i + 3] = socket_url.escape(tostring(v))
+		buf[i + 4] = "&"
+		i = i + 4
 	end
 	buf[i] = nil
 	return table.concat(buf)
 end
 
 ---@param s string?
----@return table
+---@return {[string]: string}
 function util.decode_query_string(s)
+	---@type {[string]: string}
 	local query = {}
 	if not s then
 		return query
@@ -92,14 +91,28 @@ function util.decode_query_string(s)
 		if k then
 			query[socket_url.unescape(k)] = socket_url.unescape(v)
 		else
-			query[socket_url.unescape(kv)] = true
+			query[socket_url.unescape(kv)] = ""
 		end
 	end
 	return query
 end
 
+
+---@param ... table
+---@return string
+function util.query(...)
+	local t = {}
+	for i = 1, select("#", ...) do
+		local src = select(i, ...)
+		if src then
+			table_util.copy(src, t)
+		end
+	end
+	return util.encode_query_string(t)
+end
+
 ---@param req web.IRequest
----@return table?
+---@return {[string]: string}?
 ---@return string?
 function util.get_form(req)
 	local content_type = req.headers:get("Content-Type")
@@ -171,12 +184,21 @@ function util.get_json(req)
 	return json.decode_safe(body)
 end
 
+---@param res web.IResponse
+---@param data any
+---@return integer?
+---@return string?
+function util.send_json(res, data)
+	res.headers:set("Content-Type", "application/json")
+	return res:send(json.encode(data))
+end
+
 ---@param headers web.Headers
 ---@param filename string
 function util.set_download_file_headers(headers, filename)
 	headers:set("Cache-Control", "no-cache")
 	headers:set("Content-Disposition", ("attachment; filename=%q"):format(path_util.fix_illegal(filename)))
-	headers:set("Content-Transfer-Encoding", "binary")  -- https://www.w3.org/Protocols/rfc1341/5_Content-Transfer-Encoding.html
+	headers:set("Content-Transfer-Encoding", "binary") -- https://www.w3.org/Protocols/rfc1341/5_Content-Transfer-Encoding.html
 	headers:set("Content-Type", "application/octet-stream")
 end
 

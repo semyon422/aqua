@@ -1,4 +1,5 @@
 local ls = require("ls")
+local socket = require("socket")
 local ITestingIO = require("testing.ITestingIO")
 
 ---@class testing.BaseTestingIO: testing.ITestingIO
@@ -48,7 +49,10 @@ end
 
 ---@return number
 function BaseTestingIO:getTime()
-	return love.timer.getTime()
+	if love then
+		return love.timer.getTime()
+	end
+	return socket.gettime()
 end
 
 return BaseTestingIO

@@ -17,8 +17,8 @@ function Models:__index(k)
 		options = {}
 	end
 
-	if not options.table_name then
-		options.table_name = k
+	if not options.table_name and not options.subquery then
+		options = setmetatable({table_name = k}, {__index = options})
 	end
 
 	self[k] = Model(options, self)

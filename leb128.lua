@@ -9,14 +9,14 @@ local leb128 = {}
 ---@return integer
 ---@return integer
 function leb128.udec(p)
-	p = ffi.cast("const unsigned char *", p)  ---@type integer[]
+	p = ffi.cast("const unsigned char *", p) ---@type integer[]
 	local result = 0ull
 	local shift = 0
 	local byte = 0
 
 	local i = 0
 	while true do
-		byte = ffi.cast("uint64_t", p[i])  ---@cast byte integer
+		byte = ffi.cast("uint64_t", p[i]) ---@cast byte integer
 		i = i + 1
 		result = bit.bor(result, bit.lshift(bit.band(byte, 0x7f), shift))
 		if bit.band(byte, 0x80) == 0 then
@@ -32,14 +32,14 @@ end
 ---@return integer
 ---@return integer
 function leb128.sdec(p)
-	p = ffi.cast("const unsigned char *", p)  ---@type integer[]
+	p = ffi.cast("const unsigned char *", p) ---@type integer[]
 	local result = 0ll
 	local shift = 0
 	local byte = 0
 
 	local i = 0
 	while true do
-		byte = ffi.cast("uint64_t", p[i])  ---@cast byte integer
+		byte = ffi.cast("uint64_t", p[i]) ---@cast byte integer
 		i = i + 1
 		result = bit.bor(result, bit.lshift(bit.band(byte, 0x7f), shift))
 		shift = shift + 7
@@ -52,13 +52,13 @@ function leb128.sdec(p)
 		result = bit.bor(result, bit.lshift(bit.bnot(0ull), shift))
 	end
 
-	return i, ffi.cast("int64_t", result)  ---@type integer, integer
+	return i, ffi.cast("int64_t", result) ---@type integer, integer
 end
 
 ---@param p ffi.cdata*
 ---@param value integer
 function leb128.uenc(p, value)
-	p = ffi.cast("unsigned char *", p)  ---@type integer[]
+	p = ffi.cast("unsigned char *", p) ---@type integer[]
 	value = value + 0ull
 
 	local i = 0
@@ -82,7 +82,7 @@ end
 ---@param p ffi.cdata*
 ---@param value integer
 function leb128.senc(p, value)
-	p = ffi.cast("unsigned char *", p)  ---@type integer[]
+	p = ffi.cast("unsigned char *", p) ---@type integer[]
 	value = value + 0ll
 
 	local i = 0
@@ -107,9 +107,9 @@ end
 
 local p = ffi.new("uint8_t[?]", 16)
 
-do  -- from wikipedia
+do -- from wikipedia
 	local n = 624485
-	local s = string.char(0xE5, 0x8E, 0x26)  -- LSB to MSB
+	local s = string.char(0xE5, 0x8E, 0x26) -- LSB to MSB
 
 	local size = leb128.uenc(p, n)
 	assert(size == #s)
@@ -120,9 +120,9 @@ do  -- from wikipedia
 	assert(result == n)
 end
 
-do  -- from wikipedia
+do -- from wikipedia
 	local n = -123456
-	local s = string.char(0xC0, 0xBB, 0x78)  -- LSB to MSB
+	local s = string.char(0xC0, 0xBB, 0x78) -- LSB to MSB
 
 	local size = leb128.senc(p, n)
 	assert(size == 3)

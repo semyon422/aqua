@@ -27,7 +27,7 @@ function Testing:testMod(tmod, method_pattern)
 	t.name = nil
 	local errors = #t
 	for method, tf in pairs(tmod) do
-		if not method_pattern or method:match(method_pattern) then
+		if (not method_pattern or method:match(method_pattern)) and not method:match("^__") then
 			t.name = method
 			tf(t)
 			if errors ~= #t then
@@ -50,8 +50,10 @@ function Testing:test(file_pattern, method_pattern)
 
 			local start_time = tio:getTime()
 			local tmod = tio:dofile(path)
-			if tmod then
+			if tmod and (not tmod.__check or tmod.__check(self.t)) then
+				local total = self.total
 				self:testMod(tmod, method_pattern)
+				tio:writeStdout((" - %d"):format(self.total - total))
 			end
 			local dt = tio:getTime() - start_time
 
@@ -59,7 +61,7 @@ function Testing:test(file_pattern, method_pattern)
 		end
 	end
 
-	for _,  line in ipairs(self.t) do
+	for _, line in ipairs(self.t) do
 		tio:writeStdout(line .. "\n")
 	end
 

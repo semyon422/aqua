@@ -1,4 +1,5 @@
-local LjsqliteDatabase = require("rdb.LjsqliteDatabase")
+local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
+local SqliteMigrator = require("rdb.db.SqliteMigrator")
 local TableOrm = require("rdb.TableOrm")
 local Models = require("rdb.Models")
 local sql_util = require("rdb.sql_util")
@@ -29,7 +30,7 @@ users.types = {
 	role = {
 		decode = function(v) return table_util.keyof(Roles, v) end,
 		encode = function(k) return Roles[k] end,
-	}
+	},
 }
 
 users.relations = {
@@ -73,13 +74,14 @@ function test.all(t)
 	}
 	local orm = TableOrm(db)
 
-	assert(orm:user_version() == 0)
-	orm:user_version(10)
-	assert(orm:user_version() == 10)
-	orm:user_version(0)
+	assert(db:user_version() == 0)
+	db:user_version(10)
+	assert(db:user_version() == 10)
+	db:user_version(0)
 
-	t:eq(orm:migrate(1, migrations), 1)
-	t:eq(orm:migrate(1, migrations), 0)
+	local migrator = SqliteMigrator(db)
+	t:eq(migrator:migrate(1, migrations), 1)
+	t:eq(migrator:migrate(1, migrations), 0)
 
 	local models = Models(_models, orm)
 
@@ -107,7 +109,7 @@ function test.all(t)
 	t:eq(user.null_flag, nil)
 	t:eq(user.nullable_flag, 1)
 	t:eq(user.role, "user")
-	t:eq(user.added_column, 0)  -- from migration
+	t:eq(user.added_column, 0) -- from migration
 
 	t:assert(not models.users:find({id__eq_ = "added_column"}))
 	t:assert(not models.users:find({id_ = "added_column"}))
@@ -140,23 +142,6 @@ function test.all(t)
 	t:eq(models.posts:count(), 1)
 	models.users:delete({id = 1})
 	t:eq(models.posts:count(), 0)
-
-	local t_from_db = {
-		is_admin = true,
-		role__in = {"user", "admin"},
-		role__isnull = true,
-		{name = "admin"},
-	}
-	local t_for_db = {
-		is_admin = 1,
-		role__in = {0, 1},
-		role__isnull = true,
-		{name = "admin"},
-	}
-	t:tdeq(sql_util.conditions_for_db(t_from_db, users.types), t_for_db)
-
-	t:eq(sql_util.conditions({t__isnull = true}), "(`t` IS NULL)")
-	t:eq(sql_util.conditions({t__isnull = false}), "")
 end
 
 return test

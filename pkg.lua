@@ -10,7 +10,7 @@ package.loaded.pkg = pkg
 
 ---@alias pkg.Path string|table
 
-local CWD = {}  -- current working directory
+local CWD = {} -- current working directory
 
 local os_ext = {
 	Windows = {"dll"},

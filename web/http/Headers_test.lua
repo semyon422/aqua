@@ -12,7 +12,7 @@ function test.add_set_get(t)
 	headers:add("Name2", "value2")
 
 	t:tdeq({headers:get("Name1")}, {"value1", "value2"})
-	t:tdeq({headers:get("name1")}, {"value1", "value2"})  -- lowercase
+	t:tdeq({headers:get("name1")}, {"value1", "value2"}) -- lowercase
 	t:tdeq({headers:get("Name2")}, {"value2"})
 
 	headers:set("Name1", "value3")

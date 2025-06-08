@@ -1,7 +1,11 @@
 local relations = {}
 
 ---@alias rdb.PreloadSpec string|{[number|string]: rdb.PreloadSpec}
----@alias rdb.Relation {belongs_to: string, has_many: string, key: string}
+
+---@class rdb.Relation
+---@field belongs_to string?
+---@field has_many string?
+---@field key string
 
 ---@param model rdb.Model
 ---@param objects rdb.Row[]
@@ -9,8 +13,11 @@ local relations = {}
 ---@return rdb.Row[]
 ---@return rdb.Model
 local function preload_relation(model, objects, rel_name)
+	local rel = model.relations and model.relations[rel_name]
+	if not rel then
+		error(("missing relation '%s' for '%s'"):format(rel_name, model.table_name or "?"))
+	end
 	local models = model.models
-	local rel = model.relations[rel_name]
 	---@type rdb.Row[], rdb.Model
 	local rel_objs, rel_model
 	if rel.belongs_to then
@@ -19,7 +26,7 @@ local function preload_relation(model, objects, rel_name)
 		---@type integer[]
 		local rel_ids = {}
 		for i, obj in ipairs(objects) do
-			rel_ids[i] = obj[rel.key]
+			table.insert(rel_ids, obj[rel.key])
 		end
 		rel_objs = rel_model:select({id__in = rel_ids})
 		---@type {[integer]: rdb.Row}

@@ -100,7 +100,7 @@ local function lua_loader(name)
 			if not blacklisted then
 				content = deco.process(content, name:match("([^/]+)$"))
 			end
-			local loader, err = loadstring(content, "@" .. path)  -- [string "mod.lua"] -> mod.lua
+			local loader, err = loadstring(content, "@" .. path) -- [string "mod.lua"] -> mod.lua
 			if loader then
 				return loader
 			end

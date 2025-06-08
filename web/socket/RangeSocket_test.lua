@@ -14,7 +14,7 @@ function test.basic(t)
 	t:tdeq({soc:send("world", -15, -10)}, {0})
 	t:tdeq({soc:send("qwert", -4, -2)}, {4})
 	t:tdeq({soc:send("yuiop", -4, 4)}, {4})
-	t:tdeq({soc:send("asdfg", -2, 2)}, {3})  -- nothing sent
+	t:tdeq({soc:send("asdfg", -2, 2)}, {3}) -- nothing sent
 	t:tdeq({soc:send("hjkl;", -10, 2)}, {2})
 	t:tdeq({soc:send("zxcvb", 4, 10)}, {5})
 

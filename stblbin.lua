@@ -45,7 +45,7 @@ end
 ---@param b ffi.cdata*
 ---@return integer
 local function ptr_sub(a, b)
-	return tonumber(a - b)  --[[@as integer]]
+	return tonumber(a - b) --[[@as integer]]
 end
 
 ---@param k any
@@ -307,39 +307,72 @@ local t = {
 	c = true,
 	d = {
 		q = {1, 2},
-		1, 2,
+		1,
+		2,
 	},
 	10,
 	20,
 }
 
-local buf = byte.buffer(1e4)  -- manual encode
+local buf = byte.buffer(1e4) -- manual encode
 buf:uint8(type_enum.table)
-	buf:uint32_be(6)  -- size
-	buf:uint8(type_enum.number) buf:double_be(1)
-	buf:uint8(type_enum.number) buf:double_be(10)
-	buf:uint8(type_enum.number) buf:double_be(2)
-	buf:uint8(type_enum.number) buf:double_be(20)
-	buf:uint8(type_enum.string) buf:uint16_be(1) buf:fill("a")
-	buf:uint8(type_enum.number) buf:double_be(1)
-	buf:uint8(type_enum.string) buf:uint16_be(1) buf:fill("b")
-	buf:uint8(type_enum.string) buf:uint16_be(2) buf:fill("hi")
-	buf:uint8(type_enum.string) buf:uint16_be(1) buf:fill("c")
-	buf:uint8(type_enum.boolean) buf:uint8(1)
-	buf:uint8(type_enum.string) buf:uint16_be(1) buf:fill("d")
+do
+	buf:uint32_be(6) -- size
+	buf:uint8(type_enum.number)
+	buf:double_be(1)
+	buf:uint8(type_enum.number)
+	buf:double_be(10)
+	buf:uint8(type_enum.number)
+	buf:double_be(2)
+	buf:uint8(type_enum.number)
+	buf:double_be(20)
+	buf:uint8(type_enum.string)
+	buf:uint16_be(1)
+	buf:fill("a")
+	buf:uint8(type_enum.number)
+	buf:double_be(1)
+	buf:uint8(type_enum.string)
+	buf:uint16_be(1)
+	buf:fill("b")
+	buf:uint8(type_enum.string)
+	buf:uint16_be(2)
+	buf:fill("hi")
+	buf:uint8(type_enum.string)
+	buf:uint16_be(1)
+	buf:fill("c")
+	buf:uint8(type_enum.boolean)
+	buf:uint8(1)
+	buf:uint8(type_enum.string)
+	buf:uint16_be(1)
+	buf:fill("d")
 	buf:uint8(type_enum.table)
+	do
 		buf:uint32_be(3)
-		buf:uint8(type_enum.number) buf:double_be(1)
-		buf:uint8(type_enum.number) buf:double_be(1)
-		buf:uint8(type_enum.number) buf:double_be(2)
-		buf:uint8(type_enum.number) buf:double_be(2)
-		buf:uint8(type_enum.string) buf:uint16_be(1) buf:fill("q")
+		buf:uint8(type_enum.number)
+		buf:double_be(1)
+		buf:uint8(type_enum.number)
+		buf:double_be(1)
+		buf:uint8(type_enum.number)
+		buf:double_be(2)
+		buf:uint8(type_enum.number)
+		buf:double_be(2)
+		buf:uint8(type_enum.string)
+		buf:uint16_be(1)
+		buf:fill("q")
 		buf:uint8(type_enum.table)
+		do
 			buf:uint32_be(2)
-			buf:uint8(type_enum.number) buf:double_be(1)
-			buf:uint8(type_enum.number) buf:double_be(1)
-			buf:uint8(type_enum.number) buf:double_be(2)
-			buf:uint8(type_enum.number) buf:double_be(2)
+			buf:uint8(type_enum.number)
+			buf:double_be(1)
+			buf:uint8(type_enum.number)
+			buf:double_be(1)
+			buf:uint8(type_enum.number)
+			buf:double_be(2)
+			buf:uint8(type_enum.number)
+			buf:double_be(2)
+		end
+	end
+end
 
 local buf_size = tonumber(buf.offset)
 buf:seek(0)

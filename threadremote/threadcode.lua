@@ -12,18 +12,23 @@ local threadId = "<threadId>"
 local input_channel = love.thread.getChannel("thread_remote_input_" .. threadId)
 local output_channel = love.thread.getChannel("thread_remote_output_" .. threadId)
 
----@param _ any
----@param msg icc.Message
-local peer = {send = function(_, msg)
-	output_channel:push({
-		name = "message",
-		msg = msg,
-	})
-end}
+local peer = {
+	---@param _ any
+	---@param msg icc.Message
+	send = function(_, msg)
+		output_channel:push({
+			name = "message",
+			msg = msg,
+		})
+		return 1
+	end
+}
 
 local remote_handler = RemoteHandler({})
 local task_handler = TaskHandler(remote_handler)
 local remote = Remote(task_handler, peer)
+
+task_handler.timeout = 60
 
 function remote_handler.transform(_, th, peer, obj, ...)
 	local _obj = setmetatable({}, {
@@ -50,6 +55,7 @@ local function handle(event)
 		else
 			task_handler:handleCall(peer, msg)
 		end
+		task_handler:update()
 	else
 		error("unknown event " .. require("inspect")(event))
 	end

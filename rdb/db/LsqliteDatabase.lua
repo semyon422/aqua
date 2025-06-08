@@ -1,12 +1,14 @@
+rawset(_G, 'sqlite3', false) -- _G write guard warning fix
+
 local sqlite = require("lsqlite3")
-local IDatabase = require("rdb.IDatabase")
+local SqliteDatabase = require("rdb.db.SqliteDatabase")
 local sql_util = require("rdb.sql_util")
 
 -- http://lua.sqlite.org/index.cgi/doc/tip/doc/lsqlite3.wiki
 
----@class rdb.LsqliteDatabase: rdb.IDatabase
+---@class rdb.LsqliteDatabase: rdb.SqliteDatabase
 ---@operator call: rdb.LsqliteDatabase
-local LsqliteDatabase = IDatabase + {}
+local LsqliteDatabase = SqliteDatabase + {}
 
 ---@param db string
 function LsqliteDatabase:open(db)
@@ -44,18 +46,6 @@ function LsqliteDatabase:iter(query, bind_vals)
 			return i, row
 		end
 	end
-end
-
----@param query string
----@param bind_vals any?
----@return rdb.Row[]
-function LsqliteDatabase:query(query, bind_vals)
-	---@type rdb.Row[]
-	local objects = {}
-	for i, obj in self:iter(query, bind_vals) do
-		objects[i] = obj
-	end
-	return objects
 end
 
 return LsqliteDatabase

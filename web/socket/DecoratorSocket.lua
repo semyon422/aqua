@@ -21,7 +21,7 @@ for _, name in ipairs(methods) do
 	---@param self web.DecoratorSocket
 	---@param ... any
 	---@return any
-	DecoratorSocket[name] = function(self, ...)  ---@diagnostic disable-line
+	DecoratorSocket[name] = function(self, ...) ---@diagnostic disable-line
 		local soc = self.soc
 		return soc[name](soc, ...)
 	end

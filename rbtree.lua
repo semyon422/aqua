@@ -127,7 +127,7 @@ end
 ---@param tree rbtree.Tree
 ---@param x rbtree.Node?
 ---@param xp rbtree.Node?
-local function fix_remove(tree, x, xp)  -- x may be nil (nil node), xp may be nil (parent of root node)
+local function fix_remove(tree, x, xp) -- x may be nil (nil node), xp may be nil (parent of root node)
 	while xp or x ~= tree.root and x.color == 0 do
 		local p = xp or x.parent
 		xp = nil
@@ -379,26 +379,26 @@ end
 ---@return boolean
 ---@return number
 local function check_subtree(t)
-    if not t then
-        return true, 1
+	if not t then
+		return true, 1
 	end
 
-    if not t.parent and t.color == 1 then
-        return false, 0
+	if not t.parent and t.color == 1 then
+		return false, 0
 	end
 
 	local black = 1
-    if t.color == 1 then
-        black = 0
-        if t.left and t.left.color == 1 or t.right and t.right.color == 1 then
-            return false, -1
+	if t.color == 1 then
+		black = 0
+		if t.left and t.left.color == 1 or t.right and t.right.color == 1 then
+			return false, -1
 		end
 	end
 
-    local r, black_right = check_subtree(t.right)
-    local l, black_left = check_subtree(t.left)
+	local r, black_right = check_subtree(t.right)
+	local l, black_left = check_subtree(t.left)
 
-    return r and l and black_right == black_left, black_right + black
+	return r and l and black_right == black_left, black_right + black
 end
 
 ---@return boolean
@@ -464,5 +464,5 @@ end
 return {
 	Tree = Tree,
 	Node = Node,
-	new = new
+	new = new,
 }

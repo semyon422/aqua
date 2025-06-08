@@ -27,7 +27,7 @@ end
 ---@param offset integer
 ---@param size integer
 ---@return integer|"again"
-function socket_tcp_upstream_t:recv(b, offset, size)  -- n = c->recv(c, b->last, size);
+function socket_tcp_upstream_t:recv(b, offset, size) -- n = c->recv(c, b->last, size);
 	error("not implemented")
 end
 

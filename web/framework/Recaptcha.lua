@@ -26,7 +26,7 @@ function Recaptcha:verify(ip, params, action)
 	local res, err = http_util.request(self.url, {
 		secret = self.secret_key,
 		response = params["g-recaptcha-response"],
-		remoteip = ip
+		remoteip = ip,
 	})
 
 	if not res then

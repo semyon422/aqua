@@ -2,7 +2,7 @@ local class = require("class")
 
 local Rule = class()
 
-Rule.effect = "permit"  -- or "deny"
+Rule.effect = "permit" -- or "deny"
 
 function Rule:condition()
 	return true

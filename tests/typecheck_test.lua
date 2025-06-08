@@ -128,7 +128,7 @@ function test.parse_type_array_of_arrays()
 end
 
 function test.parse_type_array_of_arrays_alternative()
-	local tokens = lex("number[][]")  -- support both variants
+	local tokens = lex("number[][]") -- support both variants
 	local t = assert(tokens:parse_type())
 	assert(typeof(t, typecheck.ArrayType))
 	assert(typeof(t.type, typecheck.ArrayType))

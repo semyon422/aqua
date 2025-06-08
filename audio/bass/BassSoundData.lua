@@ -81,9 +81,9 @@ end
 function BassSoundData:getBitDepth()
 	local flags = self.info.flags
 	local bits = 16
-	if bit.band(flags, 1) ~= 0 then  -- BASS_SAMPLE_8BITS
+	if bit.band(flags, 1) ~= 0 then -- BASS_SAMPLE_8BITS
 		bits = 8
-	elseif bit.band(flags, 256) ~= 0 then  -- BASS_SAMPLE_FLOAT
+	elseif bit.band(flags, 256) ~= 0 then -- BASS_SAMPLE_FLOAT
 		bits = 32
 	end
 	return bits

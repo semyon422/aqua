@@ -78,8 +78,8 @@ function delay.debounce(object, key, duration, func, ...)
 	-- debounce for this object will do nothing until end of coroutine
 	c = coroutine.create(function()
 		delay.sleep(duration)
-		func(unpack(args, 1, n))
 		object[key] = nil
+		func(unpack(args, 1, n))
 	end)
 	object[key] = c
 	assert(coroutine.resume(c))

@@ -1,4 +1,5 @@
 local class = require("class")
+local icc_co = require("icc.co")
 local Message = require("icc.Message")
 
 ---@alias icc.EventId integer
@@ -18,33 +19,23 @@ function TaskHandler:new(handler)
 	self.timeouts = {}
 	self.callbacks = {}
 	self.event_id = 0
+	self.bytes_sent = 0
 end
-
----@param ok boolean
----@param ... any
----@return any ...
-local function assert_pcall(ok, ...)
-	assert(ok, ...)
-	return ...
-end
-
----@param f function
----@return function
-local function wrap(f)
-	return function(...)
-		-- https://github.com/openresty/lua-nginx-module/issues/2406
-		local co = coroutine.create(f)
-		return assert(coroutine.resume(co, ...))
-	end
-end
-TaskHandler.wrap = wrap
 
 ---@param peer icc.IPeer
 ---@param id icc.EventId?
 ---@param ret true?
 ---@param ... any?
 function TaskHandler:send(peer, id, ret, ...)
-	peer:send(Message(id, ret, ...))
+	local bytes, err = peer:send(Message(id, ret, ...))
+	if not bytes then
+		local level = 3
+		if err == nil then
+			err = "missing send error"
+		end
+		error(debug.traceback(err, level), level)
+	end
+	self.bytes_sent = self.bytes_sent + bytes
 end
 
 ---@param peer icc.IPeer
@@ -69,23 +60,31 @@ function TaskHandler:call(peer, ...)
 
 	local trace = debug.traceback(c)
 	self.timeouts[id] = os.time() + self.timeout
-	self.callbacks[id] = function(...)
+	self.callbacks[id] = function(ret, ...)
 		self.callbacks[id] = nil
 		self.timeouts[id] = nil
-		local status, err = coroutine.resume(c, ...)
-		if not status then
+
+		---@type boolean, any
+		local ok, err
+		if not ret then -- timeout
+			ok, err = coroutine.resume(c, ret, ...)
+		else
+			ok, err = coroutine.resume(c, ...)
+		end
+
+		if not ok then
 			error(err .. "\n" .. trace)
 		end
 	end
 
-	return assert_pcall(coroutine.yield())
+	return icc_co.assert_pcall(coroutine.yield())
 end
 
 function TaskHandler:update()
 	local time = os.time()
 	for id, t in pairs(self.timeouts) do
 		if t <= time then
-			self.callbacks[id](nil, "timeout")
+			self.callbacks[id](false, "timeout")
 		end
 	end
 end
@@ -100,12 +99,12 @@ function TaskHandler:handleCall(peer, msg)
 	end
 	self:send(peer, msg.id, true, xpcall(handler.handle, debug.traceback, handler, self, peer, msg:unpack()))
 end
-TaskHandler.handleCall = TaskHandler.wrap(TaskHandler.handleCall)
+TaskHandler.handleCall = icc_co.callwrap(TaskHandler.handleCall)
 
 ---@param msg icc.Message
 function TaskHandler:handleReturn(msg)
 	assert(msg.ret)
-	self.callbacks[msg.id](msg:unpack())
+	self.callbacks[msg.id](true, msg:unpack())
 end
 
 return TaskHandler

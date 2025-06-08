@@ -2,7 +2,7 @@
 
 local ffi = require("ffi")
 
-ffi.cdef[[
+ffi.cdef [[
 	void * realloc(void * ptr, size_t newsize);
 	void free(void * ptr);
 	typedef struct {} stb_t;
@@ -46,7 +46,7 @@ end
 
 --------------------------------------------------------------------------------
 
-local PREFIX_SIZE = 2  -- * ffi.sizeof("size_t")
+local PREFIX_SIZE = 2 -- * ffi.sizeof("size_t")
 ---@alias util.StbHeader {[0]: integer, [1]: integer}
 
 ---@param a util.Stb
@@ -179,7 +179,7 @@ assert(buf:tell() == 10)
 buf:step(20)
 assert(buf:tell() == 30)
 
-local _buf = buf:grow(1000)  -- realloc may return same pointer
+local _buf = buf:grow(1000) -- realloc may return same pointer
 assert(_buf:size() == 1000)
 _buf:free()
 

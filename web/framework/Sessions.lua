@@ -27,22 +27,18 @@ function Sessions:hmac(s)
 	return hmac:final(s)
 end
 
----@param headers web.Headers
+---@param session table
+---@return string
+function Sessions:encode(session)
+	local message = mime.b64(json.encode(session))
+	local signature = mime.b64(self:hmac(message))
+	return message .. "." .. signature
+end
+
+---@param session_string string
 ---@return table?
 ---@return string?
-function Sessions:get(headers)
-	local cookie_string = headers:get("Cookie")
-	if not cookie_string then
-		return nil, "missing cookie"
-	end
-
-	local cookie = RequestCookie(cookie_string)
-
-	local session_string = cookie:get(self.cookie_name)
-	if not session_string then
-		return nil, "missing value"
-	end
-
+function Sessions:decode(session_string)
 	local message_b64, signature = session_string:match("^(.*)%.(.*)$")
 	if not message_b64 then
 		return nil, "invalid format"
@@ -66,14 +62,31 @@ function Sessions:get(headers)
 end
 
 ---@param headers web.Headers
+---@return table?
+---@return string?
+function Sessions:get(headers)
+	local cookie_string = headers:get("Cookie")
+	if not cookie_string then
+		return nil, "missing cookie"
+	end
+
+	local cookie = RequestCookie(cookie_string)
+
+	local session_string = cookie:get(self.cookie_name)
+	if not session_string then
+		return nil, "missing value"
+	end
+
+	return self:decode(session_string)
+end
+
+---@param headers web.Headers
 ---@param session table
 function Sessions:set(headers, session)
-	local message = mime.b64(json.encode(session))
-	local signature = mime.b64(self:hmac(message))
-
 	local set_cookie = SetCookieString()
+
 	set_cookie.name = self.cookie_name
-	set_cookie.value = message .. "." .. signature
+	set_cookie.value = self:encode(session)
 	set_cookie:add("Path", "/")
 	set_cookie:add("SameSite", "Lax")
 	set_cookie:add("HttpOnly")

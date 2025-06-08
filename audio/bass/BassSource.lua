@@ -52,7 +52,7 @@ end
 
 ---@return boolean
 function BassSource:isPlaying()
-	return bass.BASS_ChannelIsActive(self.channel) == 1  -- BASS_ACTIVE_PLAYING
+	return bass.BASS_ChannelIsActive(self.channel) == 1 -- BASS_ACTIVE_PLAYING
 end
 
 ---@param rate number

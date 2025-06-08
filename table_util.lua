@@ -3,6 +3,19 @@ local table_util = {}
 table_util.new = require("table.new")
 table_util.clear = require("table.clear")
 
+---@generic T: {[any]: any}
+---@param t T
+---@param keys any[]
+---@return T
+function table_util.sub(t, keys)
+	---@type {[any]: any}
+	local _t = {}
+	for _, k in ipairs(keys) do
+		_t[k] = t[k]
+	end
+	return _t
+end
+
 ---@param a table
 ---@param b table
 ---@return boolean
@@ -11,7 +24,7 @@ function table_util.equal(a, b)
 	for k, v in pairs(a) do
 		size = size + 1
 		local _v = b[k]
-		if v == v and v ~= _v then  -- nan check
+		if v == v and v ~= _v then -- nan check
 			return false
 		end
 	end
@@ -33,7 +46,7 @@ function table_util.deepequal(a, b)
 			if not table_util.equal(v, _v) and not table_util.deepequal(v, _v) then
 				return false
 			end
-		elseif v == v and v ~= _v then  -- nan check
+		elseif v == v and v ~= _v then -- nan check
 			return false
 		end
 	end
@@ -44,6 +57,33 @@ function table_util.deepequal(a, b)
 end
 
 assert(table_util.deepequal({{}}, {{}}))
+
+---@param ta table
+---@param tb table
+---@param keys string[]
+---@param t_eq (fun(a: table, b: table): boolean)?
+---@return boolean
+function table_util.subequal(ta, tb, keys, t_eq)
+	for _, k in ipairs(keys) do
+		---@type any, any
+		local a, b = ta[k], tb[k]
+		if t_eq and type(a) == "table" and type(b) == "table" then
+			if not t_eq(a, b) then
+				return false
+			end
+		elseif a ~= b then
+			return false
+		end
+	end
+	return true
+end
+
+assert(not table_util.subequal({a = 1, b = 3, 0}, {a = 1, b = 2}, {"a", "b"}))
+assert(table_util.subequal({a = 1, b = 2, 0}, {a = 1, b = 2}, {"a", "b"}))
+
+assert(not table_util.subequal({a = {1, 2}, 0}, {a = {1, 2}}, {"a"}))
+assert(not table_util.subequal({a = {1, 2}, 0}, {a = {1, 3}}, {"a"}, table_util.deepequal))
+assert(table_util.subequal({a = {1, 2}, 0}, {a = {1, 2}}, {"a"}, table_util.deepequal))
 
 ---@generic T
 ---@param src T?
@@ -389,8 +429,8 @@ assert(table_util.deepequal(
 ))
 
 ---@generic T
----@param t {[T]: [any]}
----@return T
+---@param t {[T]: any}
+---@return T[]
 function table_util.keys(t)
 	local keys = {}
 	for k in pairs(t) do
@@ -432,5 +472,27 @@ assert(table_util.is_array_of({1, 2, 3}, "number"))
 assert(not table_util.is_array_of({[0] = 1, 2, 3}, "number"))
 assert(not table_util.is_array_of({t = 1, 2, 3}, "number"))
 assert(not table_util.is_array_of({1, nil, 3}, "number"))
+
+
+---@param n integer
+---@param m integer?
+---@return integer[]
+function table_util.range(n, m)
+	---@type integer[]
+	local t = {}
+
+	if not m then
+		n, m = 1, n
+	end
+
+	for i = n, m do
+		t[i - n + 1] = i
+	end
+
+	return t
+end
+
+assert(table_util.equal(table_util.range(3), {1, 2, 3}))
+assert(table_util.equal(table_util.range(2, 4), {2, 3, 4}))
 
 return table_util

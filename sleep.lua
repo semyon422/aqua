@@ -10,12 +10,12 @@ if jit.os ~= "Linux" then
 	return love.timer.sleep
 end
 
-ffi.cdef[[
-struct timespec {
-	long tv_sec;
-	long tv_nsec;
-};
-int nanosleep(const struct timespec *__requested_time, struct timespec *__remaining);
+ffi.cdef [[
+	struct timespec {
+		long tv_sec;
+		long tv_nsec;
+	};
+	int nanosleep(const struct timespec *__requested_time, struct timespec *__remaining);
 ]]
 
 local rt = ffi.new("struct timespec[1]")

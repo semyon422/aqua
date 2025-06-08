@@ -2,7 +2,7 @@ local ffi = require("ffi")
 
 local fftw3 = ffi.os == "Windows" and ffi.load("libfftw3-3") or ffi.load("fftw3")
 
-ffi.cdef[[
+ffi.cdef [[
 	typedef double fftw_complex[2];
 	typedef struct fftw_plan_s *fftw_plan;
 	extern void fftw_execute(const fftw_plan p);

@@ -200,8 +200,11 @@ function test.map_no_err_msg(t)
 		return type(v) == "number"
 	end
 
-	local is_string_number_map = valid.map(is_string, is_number)
+	local is_string_number_map = valid.map(is_string, is_number, 2)
 	t:tdeq({is_string_number_map({a = 1})}, {true})
+	t:tdeq({is_string_number_map({a = 1, b = 2})}, {true})
+	t:tdeq({is_string_number_map({a = 1, b = 2, c = 3})}, {nil, "too long"})
+	t:tdeq({is_string_number_map({a = 1, b = 2, [3] = 3})}, {nil, {[3] = false}})
 	t:tdeq({is_string_number_map({a = "b"})}, {nil, {a = true}})
 	t:tdeq({is_string_number_map({[1] = 1})}, {nil, {false}})
 	t:tdeq({is_string_number_map({[1] = "a"})}, {nil, {false}})
@@ -222,8 +225,11 @@ function test.map(t)
 		return nil, "not a number"
 	end
 
-	local is_string_number_map = valid.map(is_string, is_number)
+	local is_string_number_map = valid.map(is_string, is_number, 2)
 	t:tdeq({is_string_number_map({a = 1})}, {true})
+	t:tdeq({is_string_number_map({a = 1, b = 2})}, {true})
+	t:tdeq({is_string_number_map({a = 1, b = 2, c = 3})}, {nil, "too long"})
+	t:tdeq({is_string_number_map({a = 1, b = 2, [3] = 3})}, {nil, {[3] = "not a string"}})
 	t:tdeq({is_string_number_map({a = "b"})}, {nil, {a = "not a number"}})
 	t:tdeq({is_string_number_map({[1] = 1})}, {nil, {"not a string"}})
 	t:tdeq({is_string_number_map({[1] = "a"})}, {nil, {"not a string"}})
@@ -237,11 +243,59 @@ function test.flatten(t)
 		user_3 = false,
 	}
 
-	t:tdeq(valid.flatten(errs), {
+	local flatten_errors = {
 		"user_2 is not a table",
 		"user_3 is not nil",
 		"user_1.name is invalid",
-	})
+	}
+
+	t:tdeq(valid.flatten_errors(errs), flatten_errors)
+
+	local f = valid.wrap_flatten(function(v)
+		if v == 1 then return true end
+		return nil, errs
+	end)
+
+	t:tdeq({f(1)}, {true})
+	t:tdeq({f(0)}, {nil, flatten_errors})
+end
+
+---@param t testing.T
+function test.format(t)
+	local errs = {
+		user_1 = {name = true},
+		user_2 = "not a table",
+		user_3 = false,
+	}
+
+	local format_errors = "user_2 is not a table, user_3 is not nil, user_1.name is invalid"
+
+	t:eq(valid.format_errors(errs), format_errors)
+
+	local f = valid.wrap_format(function(v)
+		if v == 1 then return true end
+		return nil, errs
+	end)
+
+	t:tdeq({f(1)}, {true})
+	t:tdeq({f(0)}, {nil, format_errors})
+end
+
+---@param t testing.T
+function test.equals(t)
+	local a = {
+		7,
+		q = "a",
+		w = {a = 2},
+	}
+	local b = {
+		nil,
+		8,
+		q = "b",
+		w = {a = 1, 1},
+	}
+
+	t:tdeq({valid.equals(a, b)}, {nil, [[missing '1', value 'q': "a", "b", value 'w.a': "2", "1", extra 'w.1', extra '2']]})
 end
 
 return test

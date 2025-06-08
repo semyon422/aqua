@@ -17,7 +17,7 @@ function time_util.date_diff(later, sooner)
 		times.years = years
 		table.insert(times, {
 			"years",
-			years
+			years,
 		})
 		diff = diff - years * 365 * 86400
 		days = days - (years * 365)
@@ -26,7 +26,7 @@ function time_util.date_diff(later, sooner)
 		times.days = days
 		table.insert(times, {
 			"days",
-			days
+			days,
 		})
 		diff = diff - days * 86400
 	end
@@ -35,7 +35,7 @@ function time_util.date_diff(later, sooner)
 		times.hours = hours
 		table.insert(times, {
 			"hours",
-			hours
+			hours,
 		})
 		diff = diff - hours * 3600
 	end
@@ -44,7 +44,7 @@ function time_util.date_diff(later, sooner)
 		times.minutes = minutes
 		table.insert(times, {
 			"minutes",
-			minutes
+			minutes,
 		})
 		diff = diff - minutes * 60
 	end
@@ -53,7 +53,7 @@ function time_util.date_diff(later, sooner)
 		times.seconds = seconds
 		table.insert(times, {
 			"seconds",
-			seconds
+			seconds,
 		})
 		diff = diff - seconds
 	end
@@ -71,7 +71,7 @@ local singular = {
 	days = "day",
 	hours = "hour",
 	minutes = "minute",
-	seconds = "second"
+	seconds = "second",
 }
 
 ---@param time number

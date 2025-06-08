@@ -2,7 +2,7 @@ local ffi = require("ffi")
 local bit = require("bit")
 
 -- https://learn.microsoft.com/ru-ru/windows/win32/winprog/windows-data-types
-ffi.cdef[[
+ffi.cdef [[
 	typedef int BOOL;
 	typedef unsigned int UINT;
 	typedef unsigned long DWORD;
@@ -281,7 +281,7 @@ function winapi.sleep(s)
 		return
 	end
 
-	li_p[0].QuadPart = -s * 1e7  -- in 100ns
+	li_p[0].QuadPart = -s * 1e7 -- in 100ns
 	if ffi.C.SetWaitableTimer(sleep_timer, li_p, 0, nil, nil, false) == 0 then
 		return
 	end
@@ -336,7 +336,7 @@ function winapi.get_reg_value(hkey, sub_key, value, flags)
 	local wvalue = value and winapi.to_wchar_t(value)
 
 	local status = ffi.C.RegGetValueW(hkey_p, wsub_key, wvalue, flags, nil, nil, buf_size)
-	if status == 2 then  -- ERROR_FILE_NOT_FOUND
+	if status == 2 then -- ERROR_FILE_NOT_FOUND
 		return nil, "not found"
 	end
 	assert(status == 0)
@@ -357,7 +357,7 @@ end
 function winapi.get_reg_value_sz(hkey, sub_key, value)
 	local flags = winapi.rrf.RRF_RT_REG_SZ
 
-	local buf, size =  winapi.get_reg_value(hkey, sub_key, value, flags)
+	local buf, size = winapi.get_reg_value(hkey, sub_key, value, flags)
 	if not buf then
 		return nil, size
 	end

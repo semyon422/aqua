@@ -21,7 +21,7 @@ thread.shared = synctable.new(shared, function(...)
 	outputChannel:push({
 		name = "synctable",
 		n = select("#", ...),
-		...
+		...,
 	})
 end)
 

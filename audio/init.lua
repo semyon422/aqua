@@ -11,12 +11,12 @@ function audio.reinit() end
 
 audio.default_dev_period = 10
 audio.default_dev_buffer = 10
-function audio.setDevicePeriod(period) end  -- in ms
-function audio.setDeviceBuffer(buffer) end  -- in ms
+function audio.setDevicePeriod(period) end -- in ms
+function audio.setDeviceBuffer(buffer) end -- in ms
 
 function audio.getInfo()
 	return {
-		latency = 0,  -- in ms
+		latency = 0, -- in ms
 	}
 end
 

@@ -1,12 +1,23 @@
 local class = require("class")
 local table_util = require("table_util")
 local sql_util = require("rdb.sql_util")
-local PrintDatabase = require("rdb.PrintDatabase")
+local PrintDatabase = require("rdb.db.PrintDatabase")
 
 ---@alias rdb.Row {[string]: any}
----@alias rdb.ColumnInfo {name: string, cid: integer, notnull: boolean, pk: boolean}
----@alias rdb.Conditions {[string]: any?, [integer]: rdb.Conditions}
----@alias rdb.Options {columns: string[]?, order: string[]?, group: string[]?, limit: integer?, format: string?}
+
+---@class rdb.Conditions
+---@field [string] any?
+---@field [integer] rdb.Conditions?
+---@field [1] "or"?
+
+---@class rdb.Options
+---@field columns string[]?
+---@field order string[]?
+---@field group string[]?
+---@field having rdb.Conditions?
+---@field limit integer?
+---@field offset integer?
+---@field format string?
 
 ---@class rdb.TableOrm
 ---@operator call: rdb.TableOrm
@@ -15,8 +26,8 @@ local TableOrm = class()
 ---@param db rdb.IDatabase
 function TableOrm:new(db)
 	self.db = db
-	---@type {[string]: rdb.ColumnInfo[]}
-	self.table_infos = {}
+	---@type {[string]: string[]}
+	self.table_columns = {}
 end
 
 ---@param dbg boolean
@@ -31,32 +42,25 @@ function TableOrm:debug(dbg)
 end
 
 ---@param table_name string
----@return rdb.ColumnInfo[]
-function TableOrm:table_info(table_name)
-	local info = self.table_infos[table_name]
-	if info then
-		return info
+---@return string[]
+function TableOrm:columns(table_name)
+	local columns = self.table_columns[table_name]
+	if columns then
+		return columns
 	end
-	---@type table[]
-	info = self.db:query("PRAGMA table_info(" .. sql_util.escape_identifier(table_name) .. ")")
-	for _, t in ipairs(info) do
-		t.cid = tonumber(t.cid)
-		t.notnull = tonumber(t.notnull) ~= 0
-		t.pk = tonumber(t.pk) ~= 0
-	end
-	self.table_infos[table_name] = info
-	return info
+	columns = self.db:columns(table_name)
+	self.table_columns[table_name] = columns
+	return columns
 end
 
----@param ver integer?
----@return integer?
-function TableOrm:user_version(ver)
-	if ver then
-		self.db:query("PRAGMA user_version = " .. ver)
-		return
+---@param query string
+---@param bind_vals any[]?
+---@return rdb.Row[]
+function TableOrm:query(query, bind_vals)
+	if not query:upper():find("^%s*SELECT") then
+		query = query .. " RETURNING *"
 	end
-	local rows = self.db:query("PRAGMA user_version")
-	return tonumber(rows[1].user_version)
+	return self.db:query(query, bind_vals)
 end
 
 function TableOrm:begin()
@@ -67,22 +71,13 @@ function TableOrm:commit()
 	self.db:exec("COMMIT")
 end
 
----@param path string
----@param name string
-function TableOrm:attach(path, name)
-	self.db:query("ATTACH ? AS ?", {path, name})
-end
-
----@param name string
-function TableOrm:detach(name)
-	self.db:query("DETACH ?", {name})
-end
-
 local default_options = {
 	columns = {"*"},
 	order = nil,
 	group = nil,
+	having = nil,
 	limit = nil,
+	offset = nil,
 	format = nil,
 }
 
@@ -95,15 +90,22 @@ function TableOrm:select(table_name, conditions, options)
 	local columns = opts.columns or default_options.columns
 
 	local postfix = {}
-	---@type string, any[]
-	local conds, vals
+
+	---@type any[]
+	local values = {}
 
 	if conditions and next(conditions) then
-		conds, vals = sql_util.conditions(conditions)
+		local conds, vals = sql_util.conditions(conditions)
+		table_util.append(values, vals)
 		table.insert(postfix, "WHERE " .. conds)
 	end
 	if opts.group then
 		table.insert(postfix, "GROUP BY " .. table.concat(opts.group, ", "))
+	end
+	if opts.having and next(opts.having) then
+		local conds, vals = sql_util.conditions(opts.having)
+		table_util.append(values, vals)
+		table.insert(postfix, "HAVING " .. conds)
 	end
 	if opts.order then
 		table.insert(postfix, "ORDER BY " .. table.concat(opts.order, ", "))
@@ -111,10 +113,21 @@ function TableOrm:select(table_name, conditions, options)
 	if opts.limit then
 		table.insert(postfix, "LIMIT " .. opts.limit)
 	end
+	if opts.offset then
+		table.insert(postfix, "OFFSET " .. opts.offset)
+	end
+
+	---@type string
+	local from
+	if table_name:upper():match("^%s*SELECT") or table_name:find("\n") then -- subquery
+		from = ("(%s) AS subquery"):format(table_name)
+	else
+		from = sql_util.escape_identifier(table_name)
+	end
 
 	local q = ("SELECT %s FROM %s %s"):format(
 		table.concat(columns, ", "),
-		sql_util.escape_identifier(table_name),
+		from,
 		table.concat(postfix, " ")
 	)
 
@@ -122,7 +135,7 @@ function TableOrm:select(table_name, conditions, options)
 		q = opts.format:format(q)
 	end
 
-	return self.db:query(q, vals)
+	return self:query(q, values)
 end
 
 ---@param table_name string
@@ -130,7 +143,7 @@ end
 ---@param ignore boolean?
 ---@return rdb.Row[]
 function TableOrm:insert(table_name, values_array, ignore)
-	local table_info = assert(self:table_info(table_name), "no such table: " .. table_name)
+	local columns = assert(self:columns(table_name), "no such table: " .. table_name)
 	assert(#values_array > 0, "missing values")
 
 	---@type {[string]: true?}
@@ -143,12 +156,13 @@ function TableOrm:insert(table_name, values_array, ignore)
 
 	---@type string[]
 	local keys_list = {}
-	for _, column in ipairs(table_info) do
-		local key = column.name
+	for _, key in ipairs(columns) do
 		if keys_map[key] then
 			table.insert(keys_list, key)
 		end
 	end
+
+	assert(#keys_list > 0, "missing values")
 
 	---@type string[]
 	local query_keys = {}
@@ -172,10 +186,11 @@ function TableOrm:insert(table_name, values_array, ignore)
 			else
 				query_values[c] = sql_util.NULL
 			end
+			sql_util.assert_value(key, query_values[c])
 		end
 	end
 
-	return self.db:query(("INSERT%s INTO %s %s VALUES %s RETURNING *"):format(
+	return self:query(("INSERT%s INTO %s %s VALUES %s"):format(
 		ignore and " OR IGNORE" or "",
 		sql_util.escape_identifier(table_name),
 		keys, values_q
@@ -187,15 +202,15 @@ end
 ---@param conditions rdb.Conditions?
 ---@return rdb.Row[]
 function TableOrm:update(table_name, values, conditions)
-	local table_info = assert(self:table_info(table_name), "no such table: " .. table_name)
+	local columns = assert(self:columns(table_name), "no such table: " .. table_name)
 
 	---@type {[string]: any}
 	local filtered_values = {}
-	for _, column in ipairs(table_info) do
-		local key = column.name
+	for _, key in ipairs(columns) do
 		local value = values[key]
 		if value ~= nil then
 			filtered_values[key] = value
+			sql_util.assert_value(key, value)
 		end
 	end
 	if not next(filtered_values) then
@@ -204,10 +219,10 @@ function TableOrm:update(table_name, values, conditions)
 	local assigns, vals_a = sql_util.assigns(filtered_values)
 
 	if not conditions or not next(conditions) then
-		return self.db:query(("UPDATE %s SET %s RETURNING *"):format(
+		return self:query(("UPDATE %s SET %s"):format(
 			sql_util.escape_identifier(table_name),
-			assigns, vals_a
-		))
+			assigns
+		), vals_a)
 	end
 
 	local conds, vals_b = sql_util.conditions(conditions)
@@ -221,7 +236,7 @@ function TableOrm:update(table_name, values, conditions)
 		table.insert(vals, v)
 	end
 
-	return self.db:query(("UPDATE %s SET %s WHERE %s RETURNING *"):format(
+	return self:query(("UPDATE %s SET %s WHERE %s"):format(
 		sql_util.escape_identifier(table_name),
 		assigns, conds
 	), vals)
@@ -232,13 +247,13 @@ end
 ---@return rdb.Row[]
 function TableOrm:delete(table_name, conditions)
 	if not conditions or not next(conditions) then
-		return self.db:query(("DELETE FROM %s RETURNING *"):format(
+		return self:query(("DELETE FROM %s"):format(
 			sql_util.escape_identifier(table_name)
 		))
 	end
 
 	local conds, vals = sql_util.conditions(conditions)
-	return self.db:query(("DELETE FROM %s WHERE %s RETURNING *"):format(
+	return self:query(("DELETE FROM %s WHERE %s"):format(
 		sql_util.escape_identifier(table_name),
 		conds
 	), vals)
@@ -252,27 +267,6 @@ function TableOrm:count(table_name, conditions, options)
 	local opts = table_util.copy(options) or {}
 	opts.format = ("SELECT COUNT(*) as c FROM (%s)"):format(opts.format or "%s")
 	return self:select(table_name, conditions, opts)[1].c
-end
-
----@param new_ver integer
----@param migrations {[integer]: string|fun(self: rdb.TableOrm)}
----@return integer
-function TableOrm:migrate(new_ver, migrations)
-	local ver = self:user_version()
-
-	for i = ver + 1, new_ver do
-		self:begin()
-		local migration = migrations[i]
-		if type(migration) == "string" then
-			self.db:exec(migration)
-		elseif type(migration) == "function" then
-			migration(self)
-		end
-		self:user_version(i)
-		self:commit()
-	end
-
-	return new_ver - ver
 end
 
 return TableOrm

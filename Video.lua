@@ -1,4 +1,4 @@
-local ok, video = pcall(require, "video")  -- c
+local ok, video = pcall(require, "video") -- c
 -- local ok, video = pcall(require, "video.video")  -- ffi
 
 if not ok then

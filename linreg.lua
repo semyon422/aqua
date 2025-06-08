@@ -31,5 +31,5 @@ return function(x, y)
 	local b = (sxy - sx * sy) / (sx2 - sx ^ 2)
 	local a = sy - b * sx
 
-	return a, b  -- f(x) = a + b * x
+	return a, b -- f(x) = a + b * x
 end

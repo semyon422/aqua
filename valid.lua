@@ -2,21 +2,25 @@ local dpairs = require("dpairs")
 
 local valid = {}
 
----@alias util.Errors {[string|integer]: string|true|false|util.Errors}
----@alias util.ValidationFunc fun(v: any?): boolean?, string|util.Errors?
+---@class valid.Errors
+---@field [string|integer] string|true|false|valid.Errors
+
+---@alias util.ValidationFunc fun(v: any?): boolean?, string|valid.Errors?
 
 ---@param schema {[string]: util.ValidationFunc}
 ---@param table_err string?
 ---@return util.ValidationFunc
 function valid.struct(schema, table_err)
 	---@param t any?
+	---@return true?
+	---@return string|valid.Errors?
 	return function(t)
 		if type(t) ~= "table" then
 			return nil, table_err
 		end
 		---@cast t {[any]: any}
 
-		---@type util.Errors
+		---@type valid.Errors
 		local errs = {}
 
 		for k, f in pairs(schema) do
@@ -46,13 +50,15 @@ end
 ---@return util.ValidationFunc
 function valid.array(f, max_size, table_err)
 	---@param t {[any]: any?}?
+	---@return true?
+	---@return string|valid.Errors?
 	return function(t)
 		if type(t) ~= "table" then
 			return nil, table_err
 		end
 		---@cast t {[any]: any}
 
-		---@type util.Errors
+		---@type valid.Errors
 		local errs = {}
 
 		local max_key = 0
@@ -84,19 +90,23 @@ end
 
 ---@param kf util.ValidationFunc
 ---@param vf util.ValidationFunc
+---@param max_size integer
 ---@param table_err string?
 ---@return util.ValidationFunc
-function valid.map(kf, vf, table_err)
+function valid.map(kf, vf, max_size, table_err)
 	---@param t any?
+	---@return true?
+	---@return string|valid.Errors?
 	return function(t)
 		if type(t) ~= "table" then
 			return nil, table_err
 		end
 		---@cast t {[any]: any}
 
-		---@type util.Errors
+		---@type valid.Errors
 		local errs = {}
 
+		local count = 0
 		for k, v in pairs(t) do
 			local ok, err = kf(k)
 			if not ok then
@@ -106,10 +116,13 @@ function valid.map(kf, vf, table_err)
 				if not ok then
 					errs[k] = err or true
 				end
+				count = count + 1
 			end
 		end
 
-		if next(errs) then
+		if count > max_size then
+			return nil, "too long"
+		elseif next(errs) then
 			return nil, errs
 		end
 
@@ -128,11 +141,20 @@ function valid.optional(f)
 	end
 end
 
+---@return util.ValidationFunc
+function valid.any()
+	return function(v)
+		return v ~= nil
+	end
+end
+
 ---@param ... util.ValidationFunc
 ---@return util.ValidationFunc
 function valid.compose(...)
 	local n = select("#", ...)
 	local fs = {...}
+	---@return true?
+	---@return string|valid.Errors?
 	return function(v)
 		for i = 1, n do
 			local ok, err = fs[i](v)
@@ -144,11 +166,12 @@ function valid.compose(...)
 	end
 end
 
----@param errs string|util.Errors?
+---@param errs string|valid.Errors?
 ---@param fmt string?
 ---@param buf string[]?
 ---@param prefix string?
-function valid.flatten(errs, fmt, buf, prefix)
+---@return string[]
+function valid.flatten_errors(errs, fmt, buf, prefix)
 	if not errs then
 		return {}
 	end
@@ -180,10 +203,114 @@ function valid.flatten(errs, fmt, buf, prefix)
 	for _, k in ipairs(table_keys) do
 		local t = errs[k]
 		---@cast t -string, -boolean
-		valid.flatten(t, fmt, buf, prefix .. k .. ".")
+		valid.flatten_errors(t, fmt, buf, prefix .. k .. ".")
 	end
 
 	return buf
+end
+
+---@generic T
+---@param ok T?
+---@param err string|valid.Errors?
+---@return T?
+---@return string[]?
+function valid.flatten(ok, err)
+	if ok then
+		return ok
+	end
+	return ok, valid.flatten_errors(err)
+end
+
+---@param f util.ValidationFunc
+---@return fun(v?: any): boolean?, string[]?
+function valid.wrap_flatten(f)
+	return function(...)
+		return valid.flatten(f(...))
+	end
+end
+
+--------------------------------------------------------------------------------
+
+---@param err string|valid.Errors?
+---@return string?
+function valid.format_errors(err)
+	if type(err) == "table" then
+		err = table.concat(valid.flatten_errors(err), ", ")
+	end
+	---@cast err string
+	return err
+end
+
+---@generic T
+---@param ok T?
+---@param err string|valid.Errors?
+---@return T?
+---@return string?
+function valid.format(ok, err)
+	if ok then
+		return ok
+	end
+	return ok, valid.format_errors(err)
+end
+
+---@param f util.ValidationFunc
+---@return fun(v?: any): boolean?, string?
+function valid.wrap_format(f)
+	return function(...)
+		return valid.format(f(...))
+	end
+end
+
+--------------------------------------------------------------------------------
+
+---@param a {[any]: any} reference value
+---@param b {[any]: any}
+---@param buf string[]?
+---@param prefix string?
+function valid.equals(a, b, buf, prefix)
+	buf = buf or {}
+	prefix = prefix or ""
+
+	---@type {[string]: true}
+	local keys = {}
+
+	for k, v in dpairs(a) do
+		keys[k] = true
+
+		local _v = b[k]
+		local ta, tb = type(v), type(_v)
+
+		if ta == "number" then
+			v = ("%0.20g"):format(v)
+		end
+		if tb == "number" then
+			_v = ("%0.20g"):format(_v)
+		end
+
+		if _v == nil then
+			table.insert(buf, ("missing '%s'"):format(prefix .. k))
+		elseif ta ~= tb then
+			table.insert(buf, ("type '%s': %q, %q"):format(prefix .. k, ta, tb))
+		elseif ta ~= "table" then
+			if v == v and v ~= _v then
+				table.insert(buf, ("value '%s': %q, %q"):format(prefix .. k, v, _v))
+			end
+		else
+			valid.equals(v, _v, buf, prefix .. k .. ".")
+		end
+	end
+
+	for k, v in dpairs(b) do
+		if not keys[k] then
+			table.insert(buf, ("extra '%s'"):format(prefix .. k))
+		end
+	end
+
+	if #buf ~= 0 then
+		return nil, table.concat(buf, ", ")
+	end
+
+	return true
 end
 
 return valid

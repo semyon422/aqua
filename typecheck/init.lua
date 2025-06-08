@@ -133,7 +133,7 @@ local function check(types, ...)
 		local res = false
 		if i <= n then
 			res = _type:check(v)
-		else  -- no value
+		else -- no value
 			res = _type.is_optional
 		end
 

@@ -41,6 +41,20 @@ function sql_util.escape_literal(v)
 	error(("unsupported type '%s'"):format(type(v)))
 end
 
+---@param cond string
+---@param vals any[]
+---@param escape (fun(v: any): string)?
+---@return string
+function sql_util.bind(cond, vals, escape)
+	escape = escape or sql_util.escape_literal
+	local n = 0
+	local full_cond = cond:gsub("?", function()
+		n = n + 1
+		return escape(vals[n])
+	end)
+	return full_cond
+end
+
 ---@param s string|{[1]: string}
 ---@return string
 function sql_util.escape_identifier(s)
@@ -103,7 +117,7 @@ local function format_cond(op, k, v, ident)
 		return fmt(k, v)
 	end
 	local has_binds = fmt:find("?") ~= nil
-	if not has_binds and not v then  -- *__isnull = false
+	if not has_binds and not v then -- *__isnull = false
 		return nil, {}
 	end
 	local cond = fmt:format(esci(k))
@@ -115,18 +129,6 @@ local function format_cond(op, k, v, ident)
 		return cond, {}
 	end
 	return cond, {v}
-end
-
----@param cond string
----@param vals any[]
----@return string
-function sql_util.bind(cond, vals)
-	local n = 0
-	local full_cond = cond:gsub("?", function()
-		n = n + 1
-		return sql_util.escape_literal(vals[n])
-	end)
-	return full_cond
 end
 
 ---@param t rdb.Conditions
@@ -149,10 +151,13 @@ function sql_util.conditions(t)
 			cd, vs = format_cond(op, field, v, ident == "_")
 		elseif type(v) == "table" then
 			cd, vs = sql_util.conditions(v)
+		elseif t[1] ~= "or" then
+			error("invalid conditions")
 		end
 		if cd and vs then
 			table.insert(conds, cd)
-			for _, _v in ipairs(vs) do
+			for i, _v in ipairs(vs) do
+				sql_util.assert_value(("%s (%d)"):format(cd, i), _v)
 				table.insert(vals, _v)
 			end
 		end
@@ -237,6 +242,18 @@ function sql_util.conditions_for_db(t, types)
 	return _t
 end
 
+---@generic T: any
+---@param k string
+---@param v T
+---@return T
+function sql_util.assert_value(k, v)
+	local tv = type(v)
+	if v ~= sql_util.NULL and tv ~= "number" and tv ~= "string" then
+		error(("unexpected type '%s' for key '%s'"):format(tv, k))
+	end
+	return v
+end
+
 ---@param t rdb.Row
 ---@param types {[string]: "boolean"|table}?
 ---@return rdb.Row
@@ -263,6 +280,8 @@ function sql_util.from_db(t, types)
 		local _type = types and types[k]
 		if _type == "boolean" then
 			v = sql_util.toboolean(v)
+		elseif _type == "number" then
+			v = tonumber(v)
 		elseif type(_type) == "table" then
 			if class.is_instance(_type) then
 				v = _type:decode(v) ---@diagnostic disable-line
@@ -273,6 +292,61 @@ function sql_util.from_db(t, types)
 		_t[k] = v
 	end
 	return _t
+end
+
+--- https://github.com/Codezerker/lua-ljsqlite3/commit/4efb927a6514039ec657ce977154b6ea3596f2ce
+---@param sql string
+---@return string[]
+function sql_util.split_sql(sql)
+	local res = {}
+	local s, fs = 1, 1
+	local quoted = false
+
+	---@type integer?, integer?, ";"|"'"?
+	local _, e, v
+
+	repeat
+		_, e, v = sql:find("([;'])", fs)
+		if e then
+			fs = e + 1
+		end
+
+		if v == "'" then
+			quoted = not quoted
+		elseif not v or v == ";" and not quoted then
+			local q = sql:sub(s, e)
+			if q:match("^%s*(.-)%s*$") ~= "" then
+				table.insert(res, q)
+			end
+			if v then
+				s = e + 1
+			end
+		end
+	until not e
+
+	return res
+end
+
+---@param src {[string]: any}
+---@return {[string]: sql_util.NULL}
+function sql_util.null_keys(src)
+	---@type {[string]: sql_util.NULL}
+	local t = {}
+	for k in pairs(src) do
+		t[k] = sql_util.NULL
+	end
+	return t
+end
+
+---@param src {[any]: string}
+---@return {[string]: sql_util.NULL}
+function sql_util.null_values(src)
+	---@type {[string]: sql_util.NULL}
+	local t = {}
+	for _, v in pairs(src) do
+		t[v] = sql_util.NULL
+	end
+	return t
 end
 
 return sql_util

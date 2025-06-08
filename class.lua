@@ -22,11 +22,15 @@ local function new(T, ...)
 	return return_from_new_xpcall(t, xpcall(T.new, debug.traceback, t, ...))
 end
 
+---@param T table
+---@return boolean
 local function is_class(T)
 	local mt = getmetatable(T)
-	return mt and mt.__call
+	return not not (mt and mt.__call)
 end
 
+---@param t table
+---@return boolean
 local function is_instance(t)
 	local T = getmetatable(t)
 	return is_class(T)
