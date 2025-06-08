@@ -2,16 +2,14 @@ local IEventHandler = require("ui.IEventHandler")
 
 ---@class ui.SphereEventHandler : ui.IEventHandler
 ---@operator call: ui.SphereEventHandler
----@field event_listeners {[string]: {[ui.Node]: true}}
----@field cancelable_event_listeners {[string]: ui.Node[]}
+---@field event_listeners {[string]: ui.Node[]}
 ---@field focus {[string]: ui.Node}
 local SphereEventHandler = IEventHandler + {}
 
 function SphereEventHandler:new()
 	self.event_listeners = {}
-	self.cancelable_event_listeners = {}
 	self.focus = {}
-	self.collect_cancelable_events = false
+	self.collect_events = false
 end
 
 ---@param node ui.Node
@@ -20,45 +18,34 @@ function SphereEventHandler:setRoot(node)
 end
 
 ---@param name string
----@param cancelable boolean?
-function SphereEventHandler:registerEvent(name, cancelable)
-	if self.event_listeners[name] or self.cancelable_event_listeners[name] then
+function SphereEventHandler:registerEvent(name)
+	if self.event_listeners[name] then
 		error(("Event %s is already registered"):format(name))
 	end
 
-	local list = cancelable and self.cancelable_event_listeners or self.event_listeners
-	list[name] = {}
-
-	if cancelable then
-		self.collect_cancelable_events = true
-	end
+	self.event_listeners[name] = {}
+	self.collect_events = true
 end
 
 ---@param node ui.Node
 function SphereEventHandler:nodeAdded(node)
-	for event_name, list in pairs(self.event_listeners) do
-		if node[event_name] then
-			list[node] = true
-		end
-	end
-
-	self.collect_cancelable_events = self.collect_cancelable_events or self:hasCancelableEvents(node)
+	self.collect_events = true
 end
 
 ---@param node ui.Node
 function SphereEventHandler:nodeRemoved(node)
 	self:clearFocus(node)
-	for _, list in pairs(self.event_listeners) do
-		list[node] = nil
-	end
-
-	self.collect_cancelable_events = self.collect_cancelable_events or self:hasCancelableEvents(node)
+	self.collect_events = true
 end
 
 ---@param name string
 function SphereEventHandler:dispatchEvent(name, ...)
-	if self.collect_cancelable_events then
-		self:collectCancelableEvents()
+	if self.collect_events then
+		self:collectEvents()
+	end
+
+	if not self.event_listeners[name] then
+		print(("Event %s is not registered"):format(name))
 	end
 
 	local focused_node = self.focus[name]
@@ -67,53 +54,33 @@ function SphereEventHandler:dispatchEvent(name, ...)
 		return
 	end
 
-	if self.event_listeners[name] then
-		for node, _ in pairs(self.event_listeners[name]) do
-			node[name](node, ...)
+	for _, node in ipairs(self.event_listeners[name]) do
+		if node[name](node, ...) then
+			break
 		end
-		return
-	elseif self.cancelable_event_listeners[name] then
-		for _, node in ipairs(self.cancelable_event_listeners[name]) do
-			if node[name](node, ...) then
-				break
-			end
-		end
-		return
 	end
 
-	print(("Event %s is not registered"):format(name))
 end
 
-function SphereEventHandler:collectCancelableEvents()
-	for event_name, _ in pairs(self.cancelable_event_listeners) do
-		self.cancelable_event_listeners[event_name] = {}
+function SphereEventHandler:collectEvents()
+	for event_name, _ in pairs(self.event_listeners) do
+		self.event_listeners[event_name] = {}
 	end
-	self:collectCancelableEventsFrom(self.root)
-	self.collect_cancelable_events = false
+	self:collectEventsFrom(self.root)
+	self.collect_events = false
 end
 
 ---@param node ui.Node
-function SphereEventHandler:collectCancelableEventsFrom(node)
-	for event_name, list in pairs(self.cancelable_event_listeners) do
+function SphereEventHandler:collectEventsFrom(node)
+	for event_name, list in pairs(self.event_listeners) do
 		if node[event_name] then
 			table.insert(list, node)
 		end
 	end
 
 	for _, child in ipairs(node.children) do
-		self:collectCancelableEventsFrom(child)
+		self:collectEventsFrom(child)
 	end
-end
-
----@param node ui.Node
----@return boolean
-function SphereEventHandler:hasCancelableEvents(node)
-	for event_name, _ in pairs(self.cancelable_event_listeners) do
-		if node[event_name] then
-			return true
-		end
-	end
-	return false
 end
 
 ---@param node ui.Node

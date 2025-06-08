@@ -25,7 +25,7 @@ function test.events(t)
 	local n3 = root:addChild(Node({id = "n3", sphere_testEvent = f}))
 
 	root:dispatchEvent("sphere_testEvent")
-	t:teq(event_handler.event_listeners["sphere_testEvent"], {[n1] = true, [n2] = true, [n2c1] = true, [n2c2] = true, [n3] = true})
+	t:teq(event_handler.event_listeners["sphere_testEvent"], {n1, n2, n2c1, n2c2, n3})
 	t:teq(triggered, {n1 = 1, n2 = 1, n2c1 = 1, n2c2 = 1, n3 = 1})
 
 	root:dispatchEvent("sphere_testEvent")
@@ -37,42 +37,20 @@ function test.events(t)
 	n2c2:kill()
 	triggered = {}
 	root:dispatchEvent("sphere_testEvent")
-	t:teq(event_handler.event_listeners["sphere_testEvent"], {[n1] = true, [n2] = true, [n2c1] = true, [n3] = true})
+	t:teq(event_handler.event_listeners["sphere_testEvent"], {n1, n2, n2c1, n3})
 	t:teq(triggered, {n1 = 1, n2 = 1, n2c1 = 1, n3 = 1})
 
 	n2:kill()
 	triggered = {}
 	root:dispatchEvent("sphere_testEvent")
-	t:teq(event_handler.event_listeners["sphere_testEvent"], {[n1] = true, [n3] = true})
+	t:teq(event_handler.event_listeners["sphere_testEvent"], {n1, n3})
 	t:teq(triggered, {n1 = 1, n3 = 1})
-end
-
----@param t testing.T
-function test.cancelable_events(t)
-	local event_handler = SphereEventHandler()
-	event_handler:registerEvent("mousePressed", true)
-
-	local root = SphereTreeRoot(event_handler)
-
-	local order = {}
-	local f = function(self)
-		table.insert(order, self)
-	end
-
-	local n1 = root:addChild(Node({z = 1, mousePressed = f}))
-	local n2 = root:addChild(Node({z = 0.5, mousePressed = f}))
-	local n2c1 = n2:addChild(Node({z = 999, mousePressed = f}))
-	local n2c2 = n2:addChild(Node({z = -999, mousePressed = f}))
-	local n3 = root:addChild(Node({mousePressed = f}))
-
-	root:dispatchEvent("mousePressed")
-	t:teq(order, {n1, n2, n2c1, n2c2, n3})
 end
 
 ---@param t testing.T
 function test.interrupt(t)
 	local event_handler = SphereEventHandler()
-	event_handler:registerEvent("keyPressed", true)
+	event_handler:registerEvent("keyPressed")
 
 	local root = SphereTreeRoot(event_handler)
 
@@ -106,8 +84,8 @@ end
 ---@param t testing.T
 function test.focus(t)
 	local event_handler = SphereEventHandler()
-	event_handler:registerEvent("keyPressed", true)
-	event_handler:registerEvent("textInput", true)
+	event_handler:registerEvent("keyPressed")
+	event_handler:registerEvent("textInput")
 
 	local root = SphereTreeRoot(event_handler)
 

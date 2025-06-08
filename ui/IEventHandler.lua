@@ -5,8 +5,7 @@ local class = require("class")
 local IEventHandler = class()
 
 ---@param name string
----@param cancelable boolean?
-function IEventHandler:registerEvent(name, cancelable) end
+function IEventHandler:registerEvent(name) end
 
 ---@param node ui.Node
 function IEventHandler:nodeAdded(node) end
