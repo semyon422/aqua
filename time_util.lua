@@ -137,4 +137,10 @@ function time_util.format(time, decimals)
 	return sign .. s
 end
 
+---@param time integer
+---@return integer
+function time_util.unix_day(time)
+	return math.floor(time / 86400) + 1
+end
+
 return time_util
