@@ -12,6 +12,17 @@ function ITcpSocket:connect(host, port)
 	error("not implemented")
 end
 
+---@param name string
+function ITcpSocket:sni(name)
+	error("not implemented")
+end
+
+---@return 1?
+---@return string?
+function ITcpSocket:sslwrap()
+	return 1
+end
+
 ---@return 1?
 ---@return string?
 function ITcpSocket:sslhandshake()

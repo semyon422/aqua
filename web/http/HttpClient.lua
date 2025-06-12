@@ -42,6 +42,8 @@ function HttpClient:connect(url)
 	assert(tcp_soc:connect(parsed_url.host, parsed_url.port or scheme_ports[parsed_url.scheme]))
 
 	if parsed_url.scheme == "https" then
+		assert(tcp_soc:sslwrap())
+		tcp_soc:sni(parsed_url.host)
 		assert(tcp_soc:sslhandshake())
 	end
 

@@ -33,19 +33,30 @@ function LsTcpSocket:connect(host, port)
 	return self.soc:connect(host, port)
 end
 
+---@param name string
+function LsTcpSocket:sni(name)
+	self.soc:sni(name)
+end
+
 ---@return 1?
 ---@return string?
-function LsTcpSocket:sslhandshake()
+function LsTcpSocket:sslwrap()
 	local ssl = require("ssl")
 	local soc, err = ssl.wrap(self.soc, self.ssl_params)
 	if not soc then
 		return nil, err
 	end
-	local ok, err = soc:dohandshake()
+	self.soc = soc
+	return 1
+end
+
+---@return 1?
+---@return string?
+function LsTcpSocket:sslhandshake()
+	local ok, err = self.soc:dohandshake()
 	if not ok then
 		return nil, err
 	end
-	self.soc = soc
 	return 1
 end
 

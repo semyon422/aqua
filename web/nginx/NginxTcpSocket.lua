@@ -17,10 +17,15 @@ function NginxTcpSocket:connect(host, port)
 	return self.soc:connect(host, port) ---@diagnostic disable-line
 end
 
+---@param name string
+function NginxTcpSocket:sni(name)
+	self.server_name = name
+end
+
 ---@return 1?
 ---@return string?
 function NginxTcpSocket:sslhandshake()
-	return self.soc:sslhandshake() ---@diagnostic disable-line
+	return self.soc:sslhandshake(nil, self.server_name) ---@diagnostic disable-line
 end
 
 ---@param time integer
