@@ -60,7 +60,7 @@ function util.request(url, body)
 	}
 end
 
----@param t {[string]: string}
+---@param t {[string]: any}
 ---@return string
 function util.encode_query_string(t)
 	local i = 0
