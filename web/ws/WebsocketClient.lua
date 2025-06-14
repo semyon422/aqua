@@ -45,6 +45,8 @@ function WebsocketClient:connect(url)
 	end
 
 	if parsed_url.scheme == "wss" then
+		assert(tcp_soc:sslwrap())
+		tcp_soc:sni(parsed_url.host)
 		ok, err = tcp_soc:sslhandshake()
 		if not ok then
 			return nil, err
