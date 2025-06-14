@@ -17,23 +17,22 @@ function Label:load()
 		self:error("Font doesn't exist")
 	end
 
-	self.font, self.text_scale = fonts:get(self.font_name, self.font_size)
+	self.font = fonts:get(self.font_name, self.font_size)
 	self.text_batch = love.graphics.newText(self.font, self.text)
 	self.width, self.height = self.text_batch:getDimensions()
 end
 
 ---@return number
 function Label:getWidth()
-	return self.width * self.text_scale
+	return self.width
 end
 
 ---@return number
 function Label:getHeight()
-	return self.height * self.text_scale
+	return self.height
 end
 
 function Label:draw()
-	love.graphics.scale(self.text_scale)
 	love.graphics.draw(self.text_batch)
 end
 

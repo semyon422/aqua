@@ -48,17 +48,17 @@ Drawable.Pivot = {
 function Drawable:new(params)
 	Node.new(self, params)
 
-	self.x = params.x or 0
-	self.y = params.y or 0
-	self.angle = params.angle or 0
-	self.scale_x = params.scale_x or 1
-	self.scale_y = params.scale_y or 1
-	self.origin = params.origin or Drawable.Pivot.TopLeft
-	self.anchor = params.anchor or Drawable.Pivot.TopLeft
-	self.width = params.width or 0
-	self.height = params.height or 0
-	self.color = params.color or {1, 1, 1, 1}
-	self.alpha = params.alpha or 1
+	self.x = self.x or 0
+	self.y = self.y or 0
+	self.angle = self.angle or 0
+	self.scale_x = self.scale_x or 1
+	self.scale_y = self.scale_y or 1
+	self.origin = self.origin or Drawable.Pivot.TopLeft
+	self.anchor = self.anchor or Drawable.Pivot.TopLeft
+	self.width = self.width or 0
+	self.height = self.height or 0
+	self.color = self.color or {1, 1, 1, 1}
+	self.alpha = self.alpha or 1
 
 	if #self.color < 4 then
 		local missing = 4 - #self.color
@@ -160,14 +160,34 @@ function Drawable:drawTree()
 	end
 end
 
+function Drawable:autoSize()
+	local w, h = 0, 0
+	for _, child in pairs(self.children) do
+		w = math.max(w, child.x + child:getWidth())
+		h = math.max(h, child.y + child:getHeight())
+	end
+	self:setWidth(w)
+	self:setHeight(h)
+end
+
+---@return number
+function Drawable:getX()
+	return self.x
+end
+
+---@return number
+function Drawable:getY()
+	return self.y
+end
+
 ---@return number
 function Drawable:getWidth()
-	return self.width
+	return self.width * self.scale_x
 end
 
 ---@return number
 function Drawable:getHeight()
-	return self.height
+	return self.height * self.scale_y
 end
 
 ---@return number, number
@@ -181,6 +201,18 @@ function Drawable:updateTransform()
 	local ax = self.anchor.x * self.parent:getWidth()
 	local ay = self.anchor.y * self.parent:getHeight()
 	self.transform:setTransformation(self.x + ax, self.y + ay, self.angle, self.scale_x, self.scale_y, ox, oy)
+end
+
+---@param x number
+function Drawable:setX(x)
+	self.x = x
+	self:updateTransform()
+end
+
+---@param y number
+function Drawable:setY(y)
+	self.y = y
+	self:updateTransform()
 end
 
 ---@param width number
