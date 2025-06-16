@@ -1,4 +1,5 @@
 local Drawable = require("ui.Drawable")
+local Assets = require("ui.Assets")
 
 ---@class ui.Image : ui.Drawable
 ---@operator call: ui.Image
@@ -7,7 +8,7 @@ local Drawable = require("ui.Drawable")
 local Image = Drawable + {}
 
 function Image:load()
-	self:assert(self.image, "No image")
+	self.image = self.image or Assets.getEmptyImage()
 	local iw, ih = self.image:getDimensions()
 	self.blend_mode = self.blend_mode or "alpha"
 	self.width = self.width ~= 0 and self.width or iw
@@ -20,9 +21,17 @@ end
 function Image:replaceImage(image, width, height)
 	self.image = image
 	local iw, ih = self.image:getDimensions()
-	self.width = width or iw
-	self.height = height or ih
-	self:load()
+	self:setWidth(width or iw)
+	self:setHeight(height or ih)
+end
+
+function Image:scaleToFit()
+	local w, h = self.parent:getDimensions()
+	local d1 = math.max(self.width, self.height)
+	local d2 = math.max(w, h)
+	local s = d2 / d1
+	self:setScaleX(s)
+	self:setScaleY(s)
 end
 
 function Image:draw()

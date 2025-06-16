@@ -8,10 +8,15 @@ local Assets = class()
 
 local audio_extensions = { ".wav", ".ogg", ".mp3" }
 local image_extensions = { ".png", ".jpg", ".jpeg", ".bmp", ".tga" }
+local empty_image = love.graphics.newCanvas(1, 1)
+
+---@return love.Image
+function Assets.getEmptyImage()
+	return empty_image
+end
 
 ---@param directory string
 function Assets:new(directory)
-	self.empty_image = love.graphics.newCanvas(1, 1)
 	self.directory = directory
 	self.images = {}
 	self.file_list = {}
@@ -68,13 +73,13 @@ function Assets:loadImage(filepath)
 	local image_path = self:findImage(filepath)
 
 	if not image_path then
-		return self.empty_image
+		return empty_image
 	end
 
 	local success, result = pcall(love.graphics.newImage, image_path)
 
 	if not success then
-		return self.empty_image
+		return empty_image
 	end
 
 	self.file_list[filepath] = result

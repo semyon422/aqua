@@ -23,6 +23,7 @@ local Node = require("ui.Node")
 ---@field height number
 ---@field color number[]
 ---@field alpha number
+---@field accepts_input boolean
 
 ---@class ui.Drawable : ui.Node, ui.Drawable.Params
 ---@operator call: ui.Drawable
@@ -69,6 +70,7 @@ function Drawable:new(params)
 
 	self.transform = love.math.newTransform()
 	self.mouse_over = false
+	self.accepts_input = self.accepts_input == nil and false or self.accepts_input
 end
 
 ---@generic T : ui.Drawable
@@ -82,6 +84,7 @@ function Drawable:add(drawable)
 end
 
 function Drawable:onHover() end
+function Drawable:onHoverLost() end
 
 ---@param dt number
 function Drawable:update(dt) end
@@ -102,18 +105,23 @@ function Drawable:updateTree(ctx)
 
 	love.graphics.applyTransform(self.transform)
 
-	if ctx.mouse_focus and self.alpha * self.color[4] > 0 then
+	if self.accepts_input and ctx.mouse_focus and self.alpha * self.color[4] > 0 then
 		local had_focus = self.mouse_over
-		local is_focused = self:isMouseOver(ctx.mouse_x, ctx.mouse_y)
+		self.mouse_over = self:isMouseOver(ctx.mouse_x, ctx.mouse_y)
 
-		if is_focused then
+		if self.mouse_over then
 			ctx.mouse_focus = false
 		end
 
-		if not had_focus and is_focused then
+		if not had_focus and self.mouse_over then
 			self:onHover()
+		elseif had_focus and not self.mouse_over then
+			self:onHoverLost()
 		end
 	else
+		if self.mouse_over then
+			self:onHoverLost()
+		end
 		self.mouse_over = false
 	end
 
@@ -126,29 +134,15 @@ function Drawable:updateTree(ctx)
 	end
 end
 
----@return number
----@return number
----@return number
----@return number
-function Drawable:mixColors()
-	local r, g, b, a = love.graphics.getColor()
-	r = r * self.color[1]
-	g = g * self.color[2]
-	b = b * self.color[3]
-	a = a * self.color[4] * self.alpha
-	return r, g, b, a
-end
-
 function Drawable:drawTree()
 	if self.is_disabled then
 		return
 	end
 
-	local r, g, b, a = self:mixColors()
-	love.graphics.setColor(r, g, b, a)
 	love.graphics.applyTransform(self.transform)
 
 	love.graphics.push("all")
+	love.graphics.setColor(self.color)
 	self:draw()
 	love.graphics.pop()
 
@@ -196,8 +190,8 @@ function Drawable:getDimensions()
 end
 
 function Drawable:updateTransform()
-	local ox = self.origin.x * self:getWidth()
-	local oy = self.origin.y * self:getHeight()
+	local ox = self.origin.x * self.width
+	local oy = self.origin.y * self.height
 	local ax = self.anchor.x * self.parent:getWidth()
 	local ay = self.anchor.y * self.parent:getHeight()
 	self.transform:setTransformation(self.x + ax, self.y + ay, self.angle, self.scale_x, self.scale_y, ox, oy)
@@ -227,6 +221,24 @@ end
 ---@param height number
 function Drawable:setHeight(height)
 	self.height = height
+	self:updateTransform()
+	for _, child in ipairs(self.children) do
+		child:updateTransform()
+	end
+end
+
+---@param scale_x number
+function Drawable:setScaleX(scale_x)
+	self.scale_x = scale_x
+	self:updateTransform()
+	for _, child in ipairs(self.children) do
+		child:updateTransform()
+	end
+end
+
+---@param scale_y number
+function Drawable:setScaleY(scale_y)
+	self.scale_y = scale_y
 	self:updateTransform()
 	for _, child in ipairs(self.children) do
 		child:updateTransform()

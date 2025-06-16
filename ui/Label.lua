@@ -19,17 +19,21 @@ function Label:load()
 
 	self.font = fonts:get(self.font_name, self.font_size)
 	self.text_batch = love.graphics.newText(self.font, self.text)
-	self.width, self.height = self.text_batch:getDimensions()
+	local width, height = self.text_batch:getDimensions()
+	self:setWidth(width)
+	self:setHeight(height)
 end
 
----@return number
-function Label:getWidth()
-	return self.width
-end
-
----@return number
-function Label:getHeight()
-	return self.height
+---@param text string
+function Label:replaceText(text)
+	if self.text == text then
+		return
+	end
+	self.text = text
+	self.text_batch = love.graphics.newText(self.font, self.text)
+	local width, height = self.text_batch:getDimensions()
+	self:setWidth(width)
+	self:setHeight(height)
 end
 
 function Label:draw()
