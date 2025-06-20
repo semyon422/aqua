@@ -1,6 +1,4 @@
 local RemoteHandler = require("icc.RemoteHandler")
-local TaskHandler = require("icc.TaskHandler")
-local FakePeer = require("icc.FakePeer")
 
 local test = {}
 
@@ -9,15 +7,15 @@ function test.basic(t)
 	local tbl = {}
 	tbl.obj = {}
 
-	tbl.obj.func = function(self, remote, a, b)
+	tbl.obj.func = function(self, a, b)
+		t:eq(self.a, 1)
 		return a + b
 	end
 
-	local th = TaskHandler()
 	local rh = RemoteHandler(tbl)
+	local ctx = {a = 1}
 
-	local peer = FakePeer()
-	local res = rh:handle(th, peer, {"obj", "func"}, true, 1, 2)
+	local res = rh:handle(ctx, {"obj", "func"}, true, 1, 2)
 
 	t:eq(res, 3)
 end
@@ -39,17 +37,14 @@ function test.whitelist(t)
 		},
 	}
 
-	local th = TaskHandler()
 	local rh = RemoteHandler(tbl, whitelist)
 
-	local peer = FakePeer()
+	t:eq(rh:handle({}, {"obj", "func"}, true), 1)
 
-	t:eq(rh:handle(th, peer, {"obj", "func"}, true), 1)
-
-	local err = t:has_error(rh.handle, rh, th, peer, {"obj_hidden", "func"}, true)
+	local err = t:has_error(rh.handle, rh, {}, {"obj_hidden", "func"}, true)
 	t:eq(err, "attempt to get field 'obj_hidden' (not whitelisted)")
 
-	local err = t:has_error(rh.handle, rh, th, peer, {"obj", "func_hidden"}, true)
+	local err = t:has_error(rh.handle, rh, {}, {"obj", "func_hidden"}, true)
 	t:eq(err, "attempt to get field 'func_hidden' (not whitelisted)")
 end
 
@@ -57,12 +52,9 @@ end
 function test.error_index_nil(t)
 	local tbl = {}
 
-	local th = TaskHandler()
 	local rh = RemoteHandler(tbl)
 
-	local peer = FakePeer()
-
-	local err = t:has_error(rh.handle, rh, th, peer, {"obj", "func"}, true)
+	local err = t:has_error(rh.handle, rh, {}, {"obj", "func"}, true)
 	t:eq(err, "attempt to index field 'obj' (a nil value)")
 end
 
@@ -70,13 +62,33 @@ end
 function test.error_call_nil(t)
 	local tbl = {}
 
-	local th = TaskHandler()
 	local rh = RemoteHandler(tbl)
 
-	local peer = FakePeer()
-
-	local err = t:has_error(rh.handle, rh, th, peer, {"func"}, true)
+	local err = t:has_error(rh.handle, rh, {}, {"func"}, true)
 	t:eq(err, "attempt to call field 'func' (a nil value)")
+end
+
+---@param t testing.T
+function test.basic_validation(t)
+	local tbl = {}
+	function tbl:func(a, b)
+		return a + b
+	end
+
+	local validated = false
+
+	local val = {remote = tbl}
+	function val:func(a, b)
+		validated = true
+		return self.remote:func(a, b)
+	end
+
+	local rh = RemoteHandler(val)
+
+	local res = rh:handle({}, {"func"}, true, 1, 2)
+
+	t:eq(res, 3)
+	t:assert(validated)
 end
 
 return test

@@ -8,7 +8,7 @@ local test = {}
 ---@param t testing.T
 function test.basic(t)
 	---@type icc.HandlerFunc
-	local function handler(th, peer, a, b)
+	local function handler(ctx, a, b)
 		return a + b
 	end
 
@@ -25,7 +25,7 @@ function test.basic(t)
 	t:eq(peer:count(), 1)
 	t:tdeq(peer:get(1), Message(1, nil, 1, 2))
 
-	th:handleCall(peer, peer:get(1))
+	th:handleCall(peer, {}, peer:get(1))
 
 	t:eq(peer:count(), 2)
 	t:tdeq(peer:get(2), Message(1, true, true, 3))
@@ -38,7 +38,7 @@ end
 function test.basic_no_return(t)
 	local handled = false
 	---@type icc.HandlerFunc
-	local function handler(th, peer, a, b)
+	local function handler(ctx, a, b)
 		handled = true
 		return a + b
 	end
@@ -56,7 +56,7 @@ function test.basic_no_return(t)
 	t:eq(peer:count(), 1)
 	t:tdeq(peer:get(1), Message(nil, nil, 1, 2))
 
-	th:handleCall(peer, peer:get(1))
+	th:handleCall(peer, {}, peer:get(1))
 
 	t:eq(peer:count(), 1)
 	t:assert(handled)
@@ -66,15 +66,16 @@ end
 ---@param t testing.T
 function test.multiple(t)
 	---@type icc.HandlerFunc
-	local function handler1(th, peer, a)
+	local function handler1(ctx, a)
 		t:eq(a, "ab")
 		return a .. "c"
 	end
 
 	---@type icc.HandlerFunc
-	local function handler2(th, peer, a)
+	local function handler2(ctx, a)
+		---@cast ctx {th: icc.TaskHandler, peer: icc.IPeer}
 		t:eq(a, "a")
-		local res = th:call(peer, a .. "b")
+		local res = ctx.th:call(ctx.peer, a .. "b")
 		t:eq(res, "abc")
 		return res .. "d"
 	end
@@ -91,8 +92,13 @@ function test.multiple(t)
 		done = true
 	end)()
 
-	th2:handleCall(peer2, peer1:get(1))
-	th1:handleCall(peer1, peer2:get(1))
+	local ctx = {
+		th = th2,
+		peer = peer2,
+	}
+
+	th2:handleCall(peer2, ctx, peer1:get(1))
+	th1:handleCall(peer1, {}, peer2:get(1))
 	th2:handleReturn(peer1:get(2))
 	th1:handleReturn(peer2:get(2))
 
@@ -102,7 +108,7 @@ end
 ---@param t testing.T
 function test.error(t)
 	---@type icc.HandlerFunc
-	local function handler(th, peer)
+	local function handler(ctx)
 		error("msg")
 	end
 
@@ -119,7 +125,7 @@ function test.error(t)
 	t:eq(peer:count(), 1)
 	t:tdeq(peer:get(1), Message(1, nil))
 
-	th:handleCall(peer, peer:get(1))
+	th:handleCall(peer, {}, peer:get(1))
 
 	t:eq(peer:count(), 2)
 
@@ -137,7 +143,7 @@ end
 ---@param t testing.T
 function test.error_no_return(t)
 	---@type icc.HandlerFunc
-	local function handler(th, peer)
+	local function handler(ctx)
 		error("msg")
 	end
 
@@ -155,7 +161,7 @@ function test.error_no_return(t)
 
 	t:assert(done)
 
-	local ok, err = pcall(th.handleCall, th, peer, peer:get(1))
+	local ok, err = pcall(th.handleCall, th, peer, {}, peer:get(1))
 	t:eq(ok, false)
 	t:assert(err and err:match("_test.lua:%d+: msg"))
 end
@@ -175,7 +181,7 @@ function test.error_after_resume(t)
 	t:eq(peer:count(), 1)
 	t:tdeq(peer:get(1), Message(1, nil))
 
-	th:handleCall(peer, peer:get(1))
+	th:handleCall(peer, {}, peer:get(1))
 
 	t:eq(peer:count(), 2)
 

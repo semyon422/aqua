@@ -43,12 +43,12 @@ function ThreadRemote:new(id, t)
 
 	self.thread = love.thread.newThread(getCodeString(id))
 
-	function self.remote_handler.transform(_, th, peer, obj, ...)
+	function self.remote_handler.transform(_, ctx, obj, ...)
 		local _obj = setmetatable({}, {
 			__index = obj,
 			__newindex = function(t, k, v) obj[k] = v end,
 		})
-		_obj.remote = Remote(th, peer)
+		_obj.remote = self.remote
 		return _obj, ...
 	end
 end
@@ -85,16 +85,10 @@ function ThreadRemote:update()
 		if event.name == "message" then
 			---@type icc.Message
 			local msg = setmetatable(event.msg, Message)
-			if msg.ret then
-				task_handler:handleReturn(msg)
-			else
-				task_handler:handleCall(self, msg)
-			end
+			task_handler:handle(self, {}, msg)
 		end
 		event = output_channel:pop()
 	end
-
-	task_handler:update()
 end
 
 return ThreadRemote

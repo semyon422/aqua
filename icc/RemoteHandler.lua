@@ -1,5 +1,5 @@
+local table_util = require("table_util")
 local IHandler = require("icc.IHandler")
-local Remote = require("icc.Remote")
 
 ---@class icc.RemoteHandlerWhitelist
 ---@field [string] true|icc.RemoteHandlerWhitelist?
@@ -15,22 +15,32 @@ function RemoteHandler:new(t, whitelist)
 	self.whitelist = whitelist
 end
 
----@param th icc.TaskHandler
----@param peer icc.IPeer
+---@param ctx icc.IPeerContext
 ---@param obj table
 ---@param ... any
 ---@return any ...
-function RemoteHandler:transform(th, peer, obj, ...)
-	return obj, Remote(th, peer), ...
+function RemoteHandler:transform(ctx, obj, ...)
+	---@type table
+	local real_obj = obj.remote -- `obj` is validation
+
+	local wrapped_obj = setmetatable({}, {__index = real_obj or obj})
+
+	table_util.copy(ctx, wrapped_obj)
+
+	if real_obj then
+		local val = setmetatable({}, getmetatable(obj))
+		wrapped_obj, val.remote = val, wrapped_obj
+	end
+
+	return wrapped_obj, ...
 end
 
----@param th icc.TaskHandler
----@param peer icc.IPeer
+---@param ctx icc.IPeerContext
 ---@param path string[]
 ---@param is_method boolean
 ---@param ... any
 ---@return any ...
-function RemoteHandler:handle(th, peer, path, is_method, ...)
+function RemoteHandler:handle(ctx, path, is_method, ...)
 	local whitelist = self.whitelist
 
 	---@type any
@@ -58,7 +68,7 @@ function RemoteHandler:handle(th, peer, path, is_method, ...)
 	end
 
 	---@cast value -table, +function
-	return value(select(is_method and 1 or 2, self:transform(th, peer, _self, ...)))
+	return value(select(is_method and 1 or 2, self:transform(ctx, _self, ...)))
 end
 
 return RemoteHandler

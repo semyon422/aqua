@@ -7,7 +7,7 @@ local Message = require("icc.Message")
 local test = {}
 
 function test.basic(t)
-	local function handler(th, peer, path, is_method, a, b)
+	local function handler(ctx, path, is_method, a, b)
 		t:tdeq(path, {"obj1", "obj2", "func1"})
 		t:assert(is_method)
 		return a + b
@@ -26,7 +26,7 @@ function test.basic(t)
 
 	t:tdeq(peer:get(1), Message(1, nil, {"obj1", "obj2", "func1"}, true, 1, 2))
 
-	th:handleCall(peer, peer:get(1))
+	th:handleCall(peer, {}, peer:get(1))
 	th:handleReturn(peer:get(2))
 	t:assert(done)
 end
