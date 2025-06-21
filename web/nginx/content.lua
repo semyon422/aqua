@@ -1,3 +1,13 @@
+-- lua entry thread aborted:
+-- runtime error: /opt/openresty/lualib/resty/core/base.lua:80:
+-- loop or previous error loading module '<mod_name>'
+-- bug?
+
+local orig_require_name, orig_require_value = debug.getupvalue(require, 4)
+if orig_require_name == "orig_require" then
+	require = orig_require_value
+end
+
 local NginxRequest = require("web.nginx.NginxRequest")
 local NginxReqSocket = require("web.nginx.NginxReqSocket")
 local Response = require("web.http.Response")
