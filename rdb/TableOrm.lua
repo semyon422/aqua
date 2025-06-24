@@ -140,9 +140,9 @@ end
 
 ---@param table_name string
 ---@param values_array rdb.Row[]
----@param ignore boolean?
+---@param on_duplicate "ignore"|"replace"?
 ---@return rdb.Row[]
-function TableOrm:insert(table_name, values_array, ignore)
+function TableOrm:insert(table_name, values_array, on_duplicate)
 	local columns = assert(self:columns(table_name), "no such table: " .. table_name)
 	assert(#values_array > 0, "missing values")
 
@@ -190,8 +190,13 @@ function TableOrm:insert(table_name, values_array, ignore)
 		end
 	end
 
-	return self:query(("INSERT%s INTO %s %s VALUES %s"):format(
-		ignore and " OR IGNORE" or "",
+	local insert = "INSERT"
+	if on_duplicate then
+		insert = ("INSERT OR %s"):format(on_duplicate:upper())
+	end
+
+	return self:query(("%s INTO %s %s VALUES %s"):format(
+		insert,
 		sql_util.escape_identifier(table_name),
 		keys, values_q
 	), query_values)
