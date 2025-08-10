@@ -34,15 +34,15 @@ local Node = require("ui.Node")
 local Drawable = Node + {}
 
 Drawable.Pivot = {
-	TopLeft = {x = 0, y = 0},
-	TopCenter = {x = 0.5, y = 0},
-	TopRight = {x = 1, y = 0},
-	CenterLeft = {x = 0, y = 0.5},
-	Center = {x = 0.5, y = 0.5},
-	CenterRight = {x = 1, y = 0.5},
-	BottomLeft = {x = 0, y = 1},
-	BottomCenter = {x = 0.5, y = 1},
-	BottomRight = {x = 1, y = 1}
+	TopLeft = { x = 0, y = 0 },
+	TopCenter = { x = 0.5, y = 0 },
+	TopRight = { x = 1, y = 0 },
+	CenterLeft = { x = 0, y = 0.5 },
+	Center = { x = 0.5, y = 0.5 },
+	CenterRight = { x = 1, y = 0.5 },
+	BottomLeft = { x = 0, y = 1 },
+	BottomCenter = { x = 0.5, y = 1 },
+	BottomRight = { x = 1, y = 1 },
 }
 
 ---@param params {[string]: any}
@@ -58,7 +58,7 @@ function Drawable:new(params)
 	self.anchor = self.anchor or Drawable.Pivot.TopLeft
 	self.width = self.width or 0
 	self.height = self.height or 0
-	self.color = self.color or {1, 1, 1, 1}
+	self.color = self.color or { 1, 1, 1, 1 }
 	self.alpha = self.alpha or 1
 
 	if #self.color < 4 then
@@ -80,7 +80,20 @@ function Drawable:add(drawable)
 	Node.add(self, drawable)
 	---@cast drawable ui.Drawable
 	drawable:updateTransform()
+
+	if self.parent then
+		self.parent:invalidateLayout()
+	end
+
 	return drawable
+end
+
+function Drawable:kill()
+	Node.kill(self)
+
+	if self.parent then
+		self.parent:invalidateLayout()
+	end
 end
 
 function Drawable:onHover() end
@@ -165,6 +178,14 @@ function Drawable:autoSize()
 end
 
 ---@return number
+---@return number
+function Drawable:measure(available_w, available_h)
+	return math.min(self:getWidth(), available_w), math.min(self:getHeight(), available_h)
+end
+
+function Drawable:invalidateLayout() end
+
+---@return number
 function Drawable:getX()
 	return self.x
 end
@@ -197,6 +218,18 @@ function Drawable:updateTransform()
 	self.transform:setTransformation(self.x + ax, self.y + ay, self.angle, self.scale_x, self.scale_y, ox, oy)
 end
 
+function Drawable:setBox(x, y, w, h)
+	self.x = x
+	self.y = y
+	self.width = w
+	self.height = h
+	self:updateTransform()
+	for _, child in ipairs(self.children) do
+		child:updateTransform()
+	end
+	self.parent:invalidateLayout()
+end
+
 ---@param x number
 function Drawable:setX(x)
 	self.x = x
@@ -216,6 +249,7 @@ function Drawable:setWidth(width)
 	for _, child in ipairs(self.children) do
 		child:updateTransform()
 	end
+	self.parent:invalidateLayout()
 end
 
 ---@param height number
@@ -225,6 +259,7 @@ function Drawable:setHeight(height)
 	for _, child in ipairs(self.children) do
 		child:updateTransform()
 	end
+	self.parent:invalidateLayout()
 end
 
 ---@param scale_x number
@@ -234,6 +269,7 @@ function Drawable:setScaleX(scale_x)
 	for _, child in ipairs(self.children) do
 		child:updateTransform()
 	end
+	self.parent:invalidateLayout()
 end
 
 ---@param scale_y number
@@ -243,6 +279,7 @@ function Drawable:setScaleY(scale_y)
 	for _, child in ipairs(self.children) do
 		child:updateTransform()
 	end
+	self.parent:invalidateLayout()
 end
 
 return Drawable
