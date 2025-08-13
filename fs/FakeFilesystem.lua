@@ -112,7 +112,7 @@ function FakeFilesystem:getInfo(path, info)
 end
 
 ---@param dir string
----@return table
+---@return string[]
 function FakeFilesystem:getDirectoryItems(dir)
 	local node = self:findNode(dir)
 	if not node or not node.items then

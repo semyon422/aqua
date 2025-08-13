@@ -29,7 +29,7 @@ function IFilesystem:createDirectory(path)
 end
 
 ---@param dir string
----@return table files
+---@return string[]
 function IFilesystem:getDirectoryItems(dir)
 	error("not implemented")
 end

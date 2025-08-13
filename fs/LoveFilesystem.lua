@@ -18,7 +18,7 @@ function LoveFilesystem:createDirectory(path)
 end
 
 ---@param dir string
----@return table
+---@return string[]
 function LoveFilesystem:getDirectoryItems(dir)
 	return love.filesystem.getDirectoryItems(dir)
 end
