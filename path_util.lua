@@ -7,6 +7,12 @@ function path_util.fix_illegal(s, c)
 	return (s:gsub('[/\\?%*:|"<>]', c or "_"))
 end
 
+---@param s string
+---@return string
+function path_util.fix_separators(s)
+	return (s:gsub('[\\¥]', "/"))
+end
+
 ---@param ... string?
 ---@return string
 function path_util.join(...)
@@ -31,5 +37,23 @@ function path_util.ext(name, lower)
 	end
 	return ext
 end
+
+---@param name string
+---@return string
+---@return string?
+function path_util.name_ext(name)
+	local _name, ext = name:match("^(.+)%.([^%.]-)$")
+	if not _name then
+		return name
+	end
+	return _name, ext
+end
+
+assert(table.concat({path_util.name_ext("file.zip")}, " ") == "file zip")
+assert(table.concat({path_util.name_ext("file.zip.zip")}, " ") == "file.zip zip")
+assert(table.concat({path_util.name_ext(".file")}, " ") == ".file")
+assert(table.concat({path_util.name_ext("..file")}, " ") == ". file")
+assert(table.concat({path_util.name_ext("...file")}, " ") == ".. file")
+assert(table.concat({path_util.name_ext(".file.zip")}, " ") == ".file zip")
 
 return path_util
