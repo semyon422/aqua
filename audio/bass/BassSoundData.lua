@@ -3,6 +3,7 @@ local ffi = require("ffi")
 local bit = require("bit")
 local bass = require("bass")
 local bass_assert = require("bass.assert")
+local bass_flags = require("bass.flags")
 local decibel = require("decibel")
 
 ---@class audio.bass.BassSoundData: audio.SoundData
@@ -81,9 +82,9 @@ end
 function BassSoundData:getBitDepth()
 	local flags = self.info.flags
 	local bits = 16
-	if bit.band(flags, 1) ~= 0 then -- BASS_SAMPLE_8BITS
+	if bit.band(flags, bass_flags.BASS_SAMPLE_8BITS) ~= 0 then
 		bits = 8
-	elseif bit.band(flags, 256) ~= 0 then -- BASS_SAMPLE_FLOAT
+	elseif bit.band(flags, bass_flags.BASS_SAMPLE_FLOAT) ~= 0 then
 		bits = 32
 	end
 	return bits

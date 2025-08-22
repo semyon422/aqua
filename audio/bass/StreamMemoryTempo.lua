@@ -1,7 +1,9 @@
+local bit = require("bit")
 local BassSource = require("audio.bass.BassSource")
 local bass = require("bass")
 local bass_fx = require("bass.fx")
 local bass_assert = require("bass.assert")
+local bass_flags = require("bass.flags")
 
 ---@class audio.bass.StreamMemoryTempo: audio.bass.BassSource
 ---@operator call:audio.bass.StreamMemoryTempo
@@ -10,9 +12,9 @@ local StreamMemoryTempo = BassSource + {}
 ---@param soundData audio.bass.BassSoundData
 function StreamMemoryTempo:new(soundData)
 	self.soundData = soundData
-	self.channel = bass.BASS_SampleGetChannel(soundData.sample, 0x200002) -- BASS_STREAM_DECODE | BASS_SAMCHAN_STREAM
+	self.channel = bass.BASS_SampleGetChannel(soundData.sample, bit.bor(bass_flags.BASS_STREAM_DECODE, bass_flags.BASS_SAMCHAN_STREAM))
 	bass_assert(self.channel ~= 0)
-	self.channel = bass_fx.BASS_FX_TempoCreate(self.channel, 0x10000)
+	self.channel = bass_fx.BASS_FX_TempoCreate(self.channel, bass_flags.BASS_FX_FREESOURCE)
 	bass_assert(self.channel ~= 0)
 	self:readChannelInfo()
 end
@@ -23,7 +25,7 @@ function StreamMemoryTempo:setRate(rate)
 		return
 	end
 	self.rateValue = rate
-	bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 0x10000, (rate - 1) * 100) == 1)
+	bass_assert(bass.BASS_ChannelSetAttribute(self.channel, bass_flags.BASS_ATTRIB_TEMPO, (rate - 1) * 100) == 1)
 end
 
 ---@param pitch number
@@ -33,7 +35,7 @@ function StreamMemoryTempo:setPitch(pitch)
 	end
 	-- semitone 1 : 2^(1/12)
 	self.pitchValue = pitch
-	bass_assert(bass.BASS_ChannelSetAttribute(self.channel, 0x10001, 12 * math.log(pitch, 2)) == 1)
+	bass_assert(bass.BASS_ChannelSetAttribute(self.channel, bass_flags.BASS_ATTRIB_TEMPO_PITCH, 12 * math.log(pitch, 2)) == 1)
 end
 
 return StreamMemoryTempo
