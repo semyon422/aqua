@@ -30,6 +30,10 @@ ffi.cdef [[
 		DWORD handle
 	);
 
+	BOOL BASS_Mixer_ChannelRemove(
+		DWORD handle
+	);
+
 	BOOL BASS_Mixer_ChannelSetPosition(
 		DWORD handle,
 		QWORD pos,
