@@ -106,9 +106,9 @@ end
 ---@param options rdb.Options?
 ---@return integer
 function Model:count(conditions, options)
-	local table_name = assert(self.table_name, "missing table name")
+	local from = assert(self.subquery or self.table_name, "missing subquery or table name")
 	conditions = sql_util.conditions_for_db(conditions, self.types)
-	return tonumber(self.orm:count(table_name, conditions, options)) or 0
+	return tonumber(self.orm:count(from, conditions, options)) or 0
 end
 
 ---@param values_array rdb.Row[]
