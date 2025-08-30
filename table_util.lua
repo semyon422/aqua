@@ -225,8 +225,27 @@ function table_util.inside(t, key)
 	end
 end
 
----@param ... any?
----@return table
+---@generic T
+---@param t T[]
+---@param i integer?
+---@param j integer?
+---@return T? ...
+---@nodiscard
+function table_util.unpack(t, i, j)
+	i = i or 1
+	j = j or t.n or #t
+	if i > j then
+		return
+	end
+	return t[i], unpack(t, i + 1, j)
+end
+
+assert(table_util.equal({table_util.unpack({1, 2, 3})}, {1, 2, 3}))
+assert(table_util.equal({table_util.unpack({1, 2, 3}, 2, 2)}, {2}))
+
+---@generic T
+---@param ... T?
+---@return {n: integer, [integer]: T}
 function table_util.pack(...)
 	return {n = select("#", ...), ...}
 end
