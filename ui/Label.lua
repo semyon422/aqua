@@ -13,7 +13,7 @@ local Label = Drawable + {}
 function Label:load()
 	local fonts = self.dependencies:get(Fonts)
 
-	if not fonts:isFontExists(self.font_name) then
+	if not fonts:isFontExist(self.font_name) then
 		self:error("Font doesn't exist")
 	end
 

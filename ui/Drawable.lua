@@ -1,14 +1,16 @@
 local Node = require("ui.Node")
 
----@class ui.UpdateContext
+---@class ui.TraversalContext
 ---@field delta_time number
 ---@field mouse_x number
 ---@field mouse_y number
----@field mouse_focus boolean
+---@field mouse_target ui.Node?
 
 ---@class ui.Pivot
 ---@field x number
 ---@field y number
+
+---@alias ui.Color [number, number, number, number]
 
 ---@class ui.Drawable.Params : ui.Node.Params
 ---@field id string
@@ -21,8 +23,9 @@ local Node = require("ui.Node")
 ---@field anchor ui.Pivot
 ---@field width number
 ---@field height number
----@field color number[]
+---@field color ui.RGBA
 ---@field alpha number
+---@field blend_colors boolean
 ---@field accepts_input boolean
 
 ---@class ui.Drawable : ui.Node, ui.Drawable.Params
@@ -60,6 +63,7 @@ function Drawable:new(params)
 	self.height = self.height or 0
 	self.color = self.color or { 1, 1, 1, 1 }
 	self.alpha = self.alpha or 1
+	self.blend_colors = false
 
 	if #self.color < 4 then
 		local missing = 4 - #self.color
@@ -97,10 +101,12 @@ function Drawable:kill()
 end
 
 function Drawable:onHover() end
+
 function Drawable:onHoverLost() end
 
 ---@param dt number
 function Drawable:update(dt) end
+
 function Drawable:draw() end
 
 ---@param mouse_x number
@@ -110,7 +116,16 @@ function Drawable:isMouseOver(mouse_x, mouse_y)
 	return imx >= 0 and imx < self.width and imy >= 0 and imy < self.height
 end
 
----@param ctx ui.UpdateContext
+---@param ctx ui.TraversalContext
+function Drawable:updateChildren(ctx)
+	for _, child in ipairs(self.children) do
+		love.graphics.push()
+		child:updateTree(ctx)
+		love.graphics.pop()
+	end
+end
+
+---@param ctx ui.TraversalContext
 function Drawable:updateTree(ctx)
 	if self.is_disabled then
 		return
@@ -118,12 +133,12 @@ function Drawable:updateTree(ctx)
 
 	love.graphics.applyTransform(self.transform)
 
-	if self.accepts_input and ctx.mouse_focus and self.alpha * self.color[4] > 0 then
+	if self.accepts_input and self.alpha * self.color[4] > 0 then
 		local had_focus = self.mouse_over
 		self.mouse_over = self:isMouseOver(ctx.mouse_x, ctx.mouse_y)
 
 		if self.mouse_over then
-			ctx.mouse_focus = false
+			ctx.mouse_target = self
 		end
 
 		if not had_focus and self.mouse_over then
@@ -139,26 +154,10 @@ function Drawable:updateTree(ctx)
 	end
 
 	self:update(ctx.delta_time)
-
-	for _, child in ipairs(self.children) do
-		love.graphics.push()
-		child:updateTree(ctx)
-		love.graphics.pop()
-	end
+	self:updateChildren(ctx)
 end
 
-function Drawable:drawTree()
-	if self.is_disabled then
-		return
-	end
-
-	love.graphics.applyTransform(self.transform)
-
-	love.graphics.push("all")
-	love.graphics.setColor(self.color)
-	self:draw()
-	love.graphics.pop()
-
+function Drawable:drawChildren()
 	for i = #self.children, 1, -1 do
 		local child = self.children[i]
 		love.graphics.push("all")
@@ -167,12 +166,76 @@ function Drawable:drawTree()
 	end
 end
 
-function Drawable:autoSize()
-	local w, h = 0, 0
-	for _, child in pairs(self.children) do
-		w = math.max(w, child.x + child:getWidth())
-		h = math.max(h, child.y + child:getHeight())
+---@return number
+---@return number
+---@return number
+---@return number
+function Drawable:mixColors()
+	local r, g, b, a = love.graphics.getColor()
+	r = r * self.color[1]
+	g = g * self.color[2]
+	b = b * self.color[3]
+	a = a * self.color[4] * self.alpha
+	return r, g, b, a
+end
+
+function Drawable:drawTree()
+	if self.is_disabled then
+		return
 	end
+
+	local r, g, b, a = 0, 0, 0, 0
+
+	if self.blend_colors then
+		r, g, b, a = self:mixColors()
+	else
+		r, g, b, a = self.color[1], self.color[2], self.color[3], self.color[4] * self.alpha
+	end
+
+	if a <= 0 then
+		return
+	end
+
+	love.graphics.applyTransform(self.transform)
+
+	love.graphics.setColor(r, g, b, a)
+	love.graphics.push("all")
+	self:draw()
+	love.graphics.pop()
+
+	self:drawChildren()
+end
+
+---@return number width
+---@return number height
+function Drawable:getContentSize()
+	if #self.children == 0 then
+		return 0, 0
+	end
+
+	local min_x, min_y = math.huge, math.huge
+	local max_x, max_y = -math.huge, -math.huge
+
+	for _, child in pairs(self.children) do
+		local left = child.x
+		local top = child.y
+		local right = child.x + child:getWidth()
+		local bottom = child.y + child:getHeight()
+
+		min_x = math.min(min_x, left)
+		min_y = math.min(min_y, top)
+		max_x = math.max(max_x, right)
+		max_y = math.max(max_y, bottom)
+	end
+
+	local w = max_x - min_x
+	local h = max_y - min_y
+
+	return w, h
+end
+
+function Drawable:autoSize()
+	local w, h = self:getContentSize()
 	self:setWidth(w)
 	self:setHeight(h)
 end
@@ -280,6 +343,40 @@ function Drawable:setScaleY(scale_y)
 		child:updateTransform()
 	end
 	self.parent:invalidateLayout()
+end
+
+---@param t {[string]: any}
+function Drawable:applyRecurse(t)
+	for k, v in pairs(t) do
+		self[k] = v
+	end
+
+	for _, child in ipairs(self.children) do
+		child:applyRecurse(t)
+	end
+end
+
+local sound_play_time = {}
+
+---@param sound audio.Source
+---@param limit number?
+function Drawable.playSound(sound, limit)
+	if not sound then
+		print("no sound")
+		return
+	end
+
+	limit = limit or 0.05
+
+	local prev_time = sound_play_time[sound] or 0
+	local current_time = love.timer.getTime()
+
+	if current_time > prev_time + limit then
+		sound:stop()
+		sound_play_time[sound] = current_time
+	end
+
+	sound:play()
 end
 
 return Drawable

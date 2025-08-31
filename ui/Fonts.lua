@@ -32,7 +32,7 @@ end
 
 ---@param name string
 ---@return boolean
-function Fonts:isFontExists(name)
+function Fonts:isFontExist(name)
 	return self.fonts[name] ~= nil
 end
 

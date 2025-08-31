@@ -9,7 +9,6 @@ local class = require("class")
 ---@field id string?
 ---@field children ui.Node[]
 ---@field parent ui.Node?
----@field event_handler ui.EventHandler
 ---@field dependencies ui.Dependencies
 ---@field is_killed boolean
 local Node = class()
@@ -52,10 +51,8 @@ function Node:add(node)
 	end
 
 	node.parent = self
-	node.event_handler = self.event_handler
 	node.dependencies = self.dependencies
 	node:load()
-	self.event_handler:nodeAdded(node)
 	return node
 end
 
@@ -64,7 +61,6 @@ function Node:remove(node)
 	for i, child in ipairs(self.children) do
 		if child == node then
 			table.remove(self.children, i)
-			self.event_handler:nodeRemoved(node)
 			return
 		end
 	end

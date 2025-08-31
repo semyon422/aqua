@@ -8,8 +8,6 @@ local Drawable = require("ui.Drawable")
 local Viewport = Drawable + {}
 
 function Viewport:load()
-	self.event_handler:registerEvent("windowResized")
-	self.event_handler:registerEvent("viewportResized")
 	self:createViewport()
 	self.resize_time = math.huge
 	self.resize_defered = false
@@ -20,7 +18,8 @@ function Viewport:createViewport()
 
 	local screen_ratio_half = -16 / 9 / 2
 	self.inner_scale = 1 / self.target_height * self.height
-	self.inner_transform = love.math.newTransform(0.5 * self.width + screen_ratio_half * self.height, 0, 0, self.inner_scale, self.inner_scale)
+	self.inner_transform = love.math.newTransform(0.5 * self.width + screen_ratio_half * self.height, 0, 0,
+		self.inner_scale, self.inner_scale)
 
 	local x, y = self.inner_transform:inverseTransformPoint(0, 0)
 	local xw, yh = self.inner_transform:inverseTransformPoint(self.width, self.height)
@@ -33,14 +32,14 @@ function Viewport:updateTree(ctx)
 	local time = love.timer.getTime()
 	if self.resize_defered and time >= self.resize_time then
 		self:createViewport()
-		self.event_handler:dispatchEvent("viewportResized")
+		--self.event_handler:dispatchEvent("viewportResized")
 	end
 
 	local ww, wh = love.graphics.getDimensions()
 	if not self.resize_defered and (ww ~= self.width or wh ~= self.height) then
 		self.resize_defered = true
 		self.resize_time = time + 0.2
-		self.event_handler:dispatchEvent("windowResized")
+		--self.event_handler:dispatchEvent("windowResized")
 	end
 
 	love.graphics.origin()
