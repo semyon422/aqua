@@ -14,16 +14,21 @@ local InputManager = class()
 
 local MOUSE_CLICK_MAX_DISTANCE = 30
 
+local mouse_events = {
+	mousepressed = true,
+	mousereleased = true,
+	mousemoved = true,
+	wheelmoved = true
+}
+
 ---@param event {name: string, [integer]: any}
 ---@param traversal_ctx ui.TraversalContext
-function InputManager:receive(event, traversal_ctx)
-	local e = nil ---@type ui.UIEvent
+---@return ui.MouseEvent?
+function InputManager:createMouseEvent(event, traversal_ctx)
+	local e = nil ---@type ui.MouseEvent
 
 	if event.name == "mousepressed" then
 		e = MouseDownEvent()
-		e.target = traversal_ctx.mouse_target
-		e.x = traversal_ctx.mouse_x
-		e.y = traversal_ctx.mouse_y
 		e.button = event[3]
 		self.last_mouse_down_event = e
 	elseif event.name == "mousereleased" then
@@ -35,53 +40,70 @@ function InputManager:receive(event, traversal_ctx)
 		local dy = (self.last_mouse_down_event.y - traversal_ctx.mouse_y)
 		local distance = math.sqrt(dx * dx + dy * dy)
 		if distance < MOUSE_CLICK_MAX_DISTANCE then
+			-- TODO: don't dispatch here
 			local ce = MouseClickEvent()
 			ce.target = self.last_mouse_down_event.target
 			ce.x = traversal_ctx.mouse_x
 			ce.y = traversal_ctx.mouse_y
+			ce.rx = traversal_ctx.target_relative_mouse_x
+			ce.ry = traversal_ctx.target_relative_mouse_y
 			ce.button = event[3]
 			self:dispatchEvent(ce)
 		end
 
 		if self.last_drag_event then
+			-- TODO: don't dispatch here
 			local de = DragEndEvent()
 			de.target = self.last_drag_event.target
 			de.x = traversal_ctx.mouse_x
 			de.y = traversal_ctx.mouse_y
+			de.rx = traversal_ctx.target_relative_mouse_x
+			de.ry = traversal_ctx.target_relative_mouse_y
 			self:dispatchEvent(de)
 			self.last_drag_event = nil
 		end
 
 		e = MouseUpEvent(traversal_ctx.mouse_target)
-		e.x = traversal_ctx.mouse_x
-		e.y = traversal_ctx.mouse_y
 		e.button = event[3]
-
 		self.last_mouse_down_event = nil
 	elseif event.name == "wheelmoved" then
 		e = ScrollEvent()
-		e.target = traversal_ctx.mouse_target
-		e.x = traversal_ctx.mouse_x
-		e.y = traversal_ctx.mouse_y
 		e.direction_x = event[1]
 		e.direction_y = event[2]
 	elseif event.name == "mousemoved" and self.last_mouse_down_event then
 		if not self.last_drag_event then
 			e = DragStartEvent()
-			e.target = traversal_ctx.mouse_target
 			self.last_drag_event = e
 		else
 			e = DragEvent()
 			e.target = self.last_drag_event.target
 		end
-		e.x = traversal_ctx.mouse_x
-		e.y = traversal_ctx.mouse_y
 	else
 		return
 	end
 
-	assert(e)
-	self:dispatchEvent(e)
+	e.target = e.target or traversal_ctx.mouse_target
+	e.x = traversal_ctx.mouse_x
+	e.y = traversal_ctx.mouse_y
+	e.rx = traversal_ctx.target_relative_mouse_x
+	e.ry = traversal_ctx.target_relative_mouse_y
+	return e
+end
+
+---@param event {name: string, [integer]: any}
+---@param traversal_ctx ui.TraversalContext
+function InputManager:receive(event, traversal_ctx)
+	local e = nil ---@type ui.UIEvent
+
+	if mouse_events[event.name] then
+		e = self:createMouseEvent(event, traversal_ctx)
+	else
+		return
+	end
+
+	if e then
+		self:dispatchEvent(e)
+	end
 end
 
 ---@param e ui.InputEvent

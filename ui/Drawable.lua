@@ -5,6 +5,8 @@ local Node = require("ui.Node")
 ---@field mouse_x number
 ---@field mouse_y number
 ---@field mouse_target ui.Node?
+---@field target_relative_mouse_x number
+---@field target_relative_mouse_y number
 
 ---@class ui.Pivot
 ---@field x number
@@ -111,8 +113,9 @@ function Drawable:draw() end
 
 ---@param mouse_x number
 ---@param mouse_y number
-function Drawable:isMouseOver(mouse_x, mouse_y)
-	local imx, imy = love.graphics.inverseTransformPoint(mouse_x, mouse_y)
+---@param imx number
+---@param imy number
+function Drawable:isMouseOver(mouse_x, mouse_y, imx, imy)
 	return imx >= 0 and imx < self.width and imy >= 0 and imy < self.height
 end
 
@@ -135,9 +138,12 @@ function Drawable:updateTree(ctx)
 
 	if not ctx.mouse_target and self.accepts_input and self.alpha * self.color[4] > 0 then
 		local had_focus = self.mouse_over
-		self.mouse_over = self:isMouseOver(ctx.mouse_x, ctx.mouse_y)
+		local imx, imy = love.graphics.inverseTransformPoint(ctx.mouse_x, ctx.mouse_y)
+		self.mouse_over = self:isMouseOver(ctx.mouse_x, ctx.mouse_y, imx, imy)
 
 		if self.mouse_over then
+			ctx.target_relative_mouse_x = imx
+			ctx.target_relative_mouse_y = imy
 			ctx.mouse_target = self
 		end
 
