@@ -79,10 +79,7 @@ end
 ---@param item any
 ---@param i integer
 ---@param y number
-function List:drawPanel(item, i, y)
-	love.graphics.setColor(0.1, 0.1, 0.1)
-	love.graphics.rectangle("fill", 0, y, self:getWidth(), self.panel_height)
-end
+function List:drawPanel(item, i, y) end
 
 function List:draw()
 	if self.item_count == 0 then

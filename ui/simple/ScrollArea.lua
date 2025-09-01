@@ -35,7 +35,11 @@ end
 
 ---@param position number
 function ScrollArea:setScrollPosition(position)
-	self.scroll_position = math_util.clamp(position, 0, self.max_scroll)
+	self.scroll_position = math_util.clamp(
+		position,
+		0,
+		math.max(0, self.max_scroll - self:getHeight())
+	)
 end
 
 ---@param position number
