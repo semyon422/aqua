@@ -21,9 +21,32 @@ function List:setItems(items)
 	self.max_scroll = #items * self.panel_height
 end
 
+---@param index integer
+---@return number
+function List:getCenteredViewFrom(index)
+	local items_in_view = math.ceil(self:getHeight() / self.panel_height) + 1
+	return index * self.panel_height - (items_in_view / 2) * self.panel_height
+end
+
 ---@param i integer
-function List:scrollToIndex(i)
-	self:scrollTo(i * self.panel_height)
+---@param center_view boolean?
+function List:scrollToIndex(i, center_view)
+	if center_view then
+		self:scrollTo(self:getCenteredViewFrom(i))
+	else
+		self:scrollTo(i * self.panel_height)
+	end
+end
+
+---@param i integer
+---@param center_view boolean?
+function List:teleportToIndex(i, center_view)
+	self:resetScrollState()
+	if center_view then
+		self:setScrollPosition(self:getCenteredViewFrom(i))
+	else
+		self:setScrollPosition(i * self.panel_height)
+	end
 end
 
 ---@param i integer
@@ -49,8 +72,7 @@ end
 
 ---@param e ui.MouseClickEvent
 function List:onMouseClick(e)
-	local items_to_draw = math.ceil(self:getHeight() / self.panel_height) + 1
-	self:scrollTo(self.hover_index * self.panel_height - (items_to_draw / 2) * self.panel_height)
+	self:scrollTo(self:getCenteredViewFrom(self.hover_index), true)
 	self:selectItem(self.hover_index)
 end
 

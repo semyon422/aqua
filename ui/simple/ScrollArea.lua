@@ -13,12 +13,15 @@ local ScrollArea = ui.Drawable + {}
 local frame_aim = 60
 
 function ScrollArea:load()
+	self.accepts_input = true
 	self.friction = self.friction or 0.95
 	self.threshold = self.threshold or 0.5
+	self:resetScrollState()
+end
+
+function ScrollArea:resetScrollState()
 	self.velocity = 0
 	self.scroll_position = 0
-	self.accepts_input = true
-
 	self.drag_start_y = 0
 	self.drag_start_scroll_position = 0
 	self.last_position = 0
