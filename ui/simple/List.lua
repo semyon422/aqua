@@ -1,13 +1,16 @@
 local ScrollArea = require("ui.simple.ScrollArea")
 local math_util = require("math_util")
 
+---@class ui.Simple.List.Params
+---@field panel_height number
+
 ---@class ui.Simple.List : ui.Simple.ScrollArea
----@operator call: ui.Simple.List
+---@overload fun(params: ui.Simple.List.Params): ui.Simple.List
 local List = ScrollArea + {}
 
 function List:load()
 	ScrollArea.load(self)
-	self.panel_height = 60
+	self:ensureExist("panel_height")
 	self.item_count = 0
 end
 
