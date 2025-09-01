@@ -12,10 +12,38 @@ local callbacks = {
 	"keyreleased",
 	"textinput",
 }
+
+local function transformInputEvent(name, ...)
+	if name == "keypressed" then
+		return "keyboard", 1, select(2, ...), true
+	elseif name == "keyreleased" then
+		return "keyboard", 1, select(2, ...), false
+	elseif name == "gamepadpressed" then
+		return "gamepad", select(1, ...):getID(), select(2, ...), true
+	elseif name == "gamepadreleased" then
+		return "gamepad", select(1, ...):getID(), select(2, ...), false
+	elseif name == "joystickpressed" then
+		return "joystick", select(1, ...):getID(), select(2, ...), true
+	elseif name == "joystickreleased" then
+		return "joystick", select(1, ...):getID(), select(2, ...), false
+	elseif name == "midipressed" then
+		return "midi", 1, select(1, ...), true
+	elseif name == "midireleased" then
+		return "midi", 1, select(1, ...), false
+	end
+end
+
+local function resend_transformed(...)
+	if not ... then return end
+	local icb = just.callbacks.inputchanged(...)
+end
+
 for _, name in ipairs(callbacks) do
 	love[name] = function(...)
-		if just.callbacks[name](...) then return end
 		event_message = ("%s: " .. ("%s, "):rep(select("#", ...) - 1) .. "%s"):format(name, ...)
+		resend_transformed(transformInputEvent(name, ...))
+		local icb = just.callbacks[name]
+		if icb and icb(...) then return end
 	end
 end
 
