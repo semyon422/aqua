@@ -89,15 +89,29 @@ function TaskHandler:update()
 	end
 end
 
+
 ---@param peer icc.IPeer
+---@param ctx icc.IPeerContext
 ---@param msg icc.Message
-function TaskHandler:handleCall(peer, msg)
+function TaskHandler:handle(peer, ctx, msg)
+	if msg.ret then
+		self:handleReturn(msg)
+	else
+		self:handleCall(peer, ctx, msg)
+	end
+	self:update()
+end
+
+---@param peer icc.IPeer
+---@param ctx icc.IPeerContext
+---@param msg icc.Message
+function TaskHandler:handleCall(peer, ctx, msg)
 	local handler = self.handler
 	if not msg.id then
-		handler:handle(self, peer, msg:unpack())
+		handler:handle(ctx, msg:unpack())
 		return
 	end
-	self:send(peer, msg.id, true, xpcall(handler.handle, debug.traceback, handler, self, peer, msg:unpack()))
+	self:send(peer, msg.id, true, xpcall(handler.handle, debug.traceback, handler, ctx, msg:unpack()))
 end
 TaskHandler.handleCall = icc_co.callwrap(TaskHandler.handleCall)
 

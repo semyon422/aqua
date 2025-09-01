@@ -30,12 +30,12 @@ local remote = Remote(task_handler, peer)
 
 task_handler.timeout = 60
 
-function remote_handler.transform(_, th, peer, obj, ...)
+function remote_handler.transform(_, ctx, obj, ...)
 	local _obj = setmetatable({}, {
 		__index = obj,
 		__newindex = function(t, k, v) obj[k] = v end,
 	})
-	_obj.remote = Remote(th, peer)
+	_obj.remote = remote
 	return _obj, ...
 end
 
@@ -50,12 +50,7 @@ local function handle(event)
 	elseif event.name == "message" then
 		---@type icc.Message
 		local msg = setmetatable(event.msg, Message)
-		if msg.ret then
-			task_handler:handleReturn(msg)
-		else
-			task_handler:handleCall(peer, msg)
-		end
-		task_handler:update()
+		task_handler:handle(peer, {}, msg)
 	else
 		error("unknown event " .. require("inspect")(event))
 	end

@@ -1,6 +1,13 @@
 local ls = require("ls")
-local socket = require("socket")
 local ITestingIO = require("testing.ITestingIO")
+
+local socket
+do
+	local ok, err = pcall(require, "socket")
+	if ok then
+		socket = err
+	end
+end
 
 ---@class testing.BaseTestingIO: testing.ITestingIO
 ---@operator call: testing.BaseTestingIO
@@ -52,7 +59,10 @@ function BaseTestingIO:getTime()
 	if love then
 		return love.timer.getTime()
 	end
-	return socket.gettime()
+	if socket then
+		return socket.gettime()
+	end
+	return 0
 end
 
 return BaseTestingIO

@@ -72,6 +72,17 @@ function Model:rows_from_db(rows)
 	return _rows
 end
 
+---@param rows rdb.Row[]
+---@return rdb.Row[]
+function Model:rows_for_db(rows)
+	---@type rdb.Row[]
+	local _rows = {}
+	for i, row in ipairs(rows) do
+		_rows[i] = sql_util.for_db(row, self.types)
+	end
+	return _rows
+end
+
 ---@param conditions rdb.Conditions?
 ---@param options rdb.Options?
 ---@return rdb.Row[]
@@ -95,22 +106,17 @@ end
 ---@param options rdb.Options?
 ---@return integer
 function Model:count(conditions, options)
-	local table_name = assert(self.table_name, "missing table name")
+	local from = assert(self.subquery or self.table_name, "missing subquery or table name")
 	conditions = sql_util.conditions_for_db(conditions, self.types)
-	return tonumber(self.orm:count(table_name, conditions, options)) or 0
+	return tonumber(self.orm:count(from, conditions, options)) or 0
 end
 
 ---@param values_array rdb.Row[]
----@param ignore boolean?
+---@param on_duplicate "ignore"|"replace"?
 ---@return rdb.Row[]
-function Model:insert(values_array, ignore)
+function Model:insert(values_array, on_duplicate)
 	local table_name = assert(self.table_name, "missing table name")
-	---@type rdb.Row[]
-	local new_values_array = {}
-	for i, values in ipairs(values_array) do
-		new_values_array[i] = sql_util.for_db(values, self.types)
-	end
-	local rows = self.orm:insert(table_name, new_values_array, ignore)
+	local rows = self.orm:insert(table_name, self:rows_for_db(values_array), on_duplicate)
 	return self:rows_from_db(rows)
 end
 

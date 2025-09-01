@@ -70,6 +70,8 @@ ffi.cdef [[
 		DWORD flags;
 	} BASS_DEVICEINFO;
 
+	typedef DWORD (STREAMPROC)(HSTREAM handle, void *buffer, DWORD length, void *user);
+
 	BOOL BASS_Init(int device, DWORD freq, DWORD flags, void *win, void *dsguid);
 	BOOL BASS_Free();
 	HSAMPLE BASS_SampleCreate(DWORD length, DWORD freq, DWORD chans, DWORD max, DWORD flags);
@@ -84,7 +86,9 @@ ffi.cdef [[
 	HSAMPLE BASS_SampleLoad(BOOL mem, const void *file, QWORD offset, DWORD length, DWORD max, DWORD flags);
 	BOOL BASS_SampleFree(HSAMPLE handle);
 	BOOL BASS_ChannelFree(DWORD handle);
+	BOOL BASS_StreamFree(HSTREAM handle);
 	BOOL BASS_ChannelSetAttribute(DWORD handle, DWORD attrib, float value);
+	HSTREAM BASS_StreamCreate(DWORD freq, DWORD chans, DWORD flags, STREAMPROC *proc, void *user);
 	HSTREAM BASS_StreamCreateFile(BOOL mem, const void *file, QWORD offset, QWORD length, DWORD flags);
 	DWORD BASS_SampleGetChannel(HSAMPLE handle, DWORD flags);
 	BOOL BASS_ChannelPlay(DWORD handle, BOOL restart);
@@ -102,6 +106,8 @@ ffi.cdef [[
 	DWORD BASS_GetConfig(DWORD option);
 	DWORD BASS_GetDevice();
 	BOOL BASS_GetDeviceInfo(DWORD device, BASS_DEVICEINFO *info);
+	DWORD BASS_StreamPutData(HSTREAM handle, void *buffer, DWORD length);
+	DWORD BASS_StreamPutFileData(HSTREAM handle, void *buffer, DWORD length);
 ]]
 
 local bass_config = require("bass.config")

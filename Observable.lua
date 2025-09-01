@@ -1,40 +1,38 @@
 local class = require("class")
+local table_util = require("table_util")
+
+---@alias util.Observer {receive: fun(self: table, event: table)}
 
 ---@class util.Observable
 ---@operator call: util.Observable
 local Observable = class()
 
----@param observer any
+---@param observer util.Observer
 function Observable:add(observer)
-	for i, o in ipairs(self) do
-		if o == observer then
-			return
-		end
+	if not table_util.indexof(self, observer) then
+		table.insert(self, observer)
 	end
-	table.insert(self, observer)
 end
 
----@param observer any
----@return any
+---@generic T: util.Observer
+---@param observer T
+---@return T?
 function Observable:remove(observer)
-	for i, o in ipairs(self) do
-		if o == observer then
-			return table.remove(self, i)
-		end
+	local index = table_util.indexof(self, observer)
+	if index then
+		return table.remove(self, index)
 	end
 end
 
 ---@param event table
 function Observable:send(event)
-	self.temp = self.temp or {}
-	local observers = self.temp
-
-	for i, o in ipairs(self) do
-		observers[i] = o
+	if #self == 1 then
+		self[1]:receive(event)
+		return
 	end
 
-	for i = 1, #self do
-		observers[i]:receive(event)
+	for _, o in ipairs(table_util.copy(self) --[=[@as util.Observer[]]=]) do
+		o:receive(event)
 	end
 end
 

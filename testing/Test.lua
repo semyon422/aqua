@@ -122,4 +122,14 @@ function Test:has_error(f, ...)
 	end
 end
 
+---@param f any
+---@param ... any
+---@return boolean
+function Test:has_not_error(f, ...)
+	---@type boolean, string
+	local ok, err = pcall(f, ...)
+	self:expected_assert(ok, "error", "no error", 3)
+	return ok
+end
+
 return Test

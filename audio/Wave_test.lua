@@ -6,7 +6,8 @@ local test = {}
 function test.basic(t)
 	local wave = Wave()
 
-	local samples_count = wave.sample_rate / 10
+	local duration = 0.1
+	local samples_count = wave.sample_rate * duration
 
 	wave:initBuffer(2, samples_count)
 	for i = 0, samples_count - 1 do
@@ -23,6 +24,10 @@ function test.basic(t)
 		assert(math.abs(wave:getSampleFloat(i, 1) - math.sin(i / samples_count * 1000)) < 1e-4)
 		assert(math.abs(wave:getSampleFloat(i, 2) - math.sin(i / samples_count * 2000)) < 1e-4)
 	end
+
+	t:eq(wave:getDuration(), duration)
+	t:eq(wave:bytesToSeconds(wave:getDataSize()), duration)
+	t:eq(wave:secondsToBytes(duration), wave:getDataSize())
 end
 
 return test

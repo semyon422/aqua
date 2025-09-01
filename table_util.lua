@@ -155,6 +155,43 @@ function table_util.array_update(new, old, new_f, old_f)
 	return new, old, all
 end
 
+---@generic T
+---@param new T[]
+---@param old T[]
+---@return T[]
+---@return T[]
+function table_util.array_update2(new, old)
+	---@type {[any]: true}
+	local _new = {}
+	for _, v in ipairs(new) do ---@diagnostic disable-line: no-unknown
+		_new[v] = true
+	end
+
+	---@type {[any]: true}
+	local _old = {}
+	for _, v in ipairs(old) do ---@diagnostic disable-line: no-unknown
+		_old[v] = true
+	end
+
+	---@type any[]
+	new = {}
+	for v in pairs(_new) do
+		if not _old[v] then
+			table.insert(new, v)
+		end
+	end
+
+	---@type any[]
+	old = {}
+	for v in pairs(_old) do
+		if not _new[v] then
+			table.insert(old, v)
+		end
+	end
+
+	return new, old
+end
+
 ---@param t table
 ---@param key any?
 ---@return any?
@@ -188,8 +225,27 @@ function table_util.inside(t, key)
 	end
 end
 
----@param ... any?
----@return table
+---@generic T
+---@param t T[]
+---@param i integer?
+---@param j integer?
+---@return T? ...
+---@nodiscard
+function table_util.unpack(t, i, j)
+	i = i or 1
+	j = j or t.n or #t
+	if i > j then
+		return
+	end
+	return t[i], unpack(t, i + 1, j)
+end
+
+assert(table_util.equal({table_util.unpack({1, 2, 3})}, {1, 2, 3}))
+assert(table_util.equal({table_util.unpack({1, 2, 3}, 2, 2)}, {2}))
+
+---@generic T
+---@param ... T?
+---@return {n: integer, [integer]: T}
 function table_util.pack(...)
 	return {n = select("#", ...), ...}
 end

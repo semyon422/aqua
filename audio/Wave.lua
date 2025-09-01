@@ -9,7 +9,7 @@ local buffer = require("string.buffer")
 ---@operator call: audio.Wave
 local Wave = class()
 
-Wave.bits_per_sample = 16
+Wave.bytes_per_sample = 2
 
 function Wave:new()
 	self.samples_count = 0 -- number of samples per channel
@@ -22,8 +22,13 @@ end
 function Wave:initBuffer(channels_count, samples_count)
 	self.channels_count = channels_count or self.channels_count
 	self.samples_count = samples_count or self.samples_count
+
+	assert(self.channels_count > 0)
+	assert(self.samples_count > 0)
+
 	---@type {[integer]: integer}
 	self.data_buf = ffi.new("int16_t[?]", self.samples_count * self.channels_count)
+	self.byte_ptr = ffi.cast("uint8_t*", self.data_buf)
 end
 
 ---@param i integer starting at 0
@@ -59,7 +64,31 @@ function Wave:getSampleFloat(i, channel)
 end
 
 function Wave:getDataSize()
-	return self.samples_count * self.channels_count * self.bits_per_sample / 8
+	return self.samples_count * self.channels_count * self.bytes_per_sample
+end
+
+---@param bytes integer
+---@return integer
+function Wave:floorBytes(bytes)
+	local mul = self.channels_count * self.bytes_per_sample
+	return math.floor(bytes / mul) * mul
+end
+
+---@param pos integer
+---@return number
+function Wave:bytesToSeconds(pos)
+	return pos / (self.sample_rate * self.channels_count * self.bytes_per_sample)
+end
+
+---@param pos number
+---@return integer
+function Wave:secondsToBytes(pos)
+	return math.floor(pos * self.sample_rate) * self.channels_count * self.bytes_per_sample
+end
+
+---@return number
+function Wave:getDuration()
+	return self.samples_count / self.sample_rate
 end
 
 function Wave:encode()
@@ -75,9 +104,9 @@ function Wave:encode()
 	header_buf:int16_le(1) -- audioFormat - no compression
 	header_buf:int16_le(self.channels_count) -- numChannels
 	header_buf:int32_le(self.sample_rate)
-	header_buf:int32_le(self.sample_rate * self.channels_count * self.bits_per_sample / 8) -- byteRate
-	header_buf:int16_le(self.channels_count * self.bits_per_sample / 8) -- blockAlign
-	header_buf:int16_le(self.bits_per_sample)
+	header_buf:int32_le(self.sample_rate * self.channels_count * self.bytes_per_sample) -- byteRate
+	header_buf:int16_le(self.channels_count * self.bytes_per_sample) -- blockAlign
+	header_buf:int16_le(self.bytes_per_sample * 8)
 	header_buf:fill("data") -- subchunk2ID
 	header_buf:int32_le(data_size) -- Subchunk2Size
 
@@ -113,14 +142,14 @@ function Wave:decode(data)
 	self.sample_rate = buf:int32_le()
 	buf:int32_le()
 	buf:int16_le()
-	self.bits_per_sample = buf:int16_le()
-	assert(self.bits_per_sample == 16)
+	self.bytes_per_sample = buf:int16_le() / 8
+	assert(self.bytes_per_sample == 2)
 
 	assert(buf:string(4) == "data")
 
 	local data_size = buf:int32_le()
 
-	self.samples_count = 8 / self.bits_per_sample * data_size / self.channels_count
+	self.samples_count = 1 / self.bytes_per_sample * data_size / self.channels_count
 
 	---@type {[integer]: integer}
 	self.data_buf = ffi.new("int16_t[?]", self.samples_count * self.channels_count)

@@ -1,6 +1,6 @@
 local IHandler = require("icc.IHandler")
 
----@alias icc.HandlerFunc fun(self: icc.TaskHandler, peer: icc.IPeer, ...: any): ...: any
+---@alias icc.HandlerFunc fun(ctx: icc.IPeerContext, ...: any): ...: any
 
 ---@class icc.FuncHandler: icc.IHandler
 ---@operator call: icc.FuncHandler
@@ -11,12 +11,11 @@ function FuncHandler:new(f)
 	self.f = f
 end
 
----@param th icc.TaskHandler
----@param peer icc.IPeer
+---@param ctx icc.IPeerContext
 ---@param ... any
 ---@return any ...
-function FuncHandler:handle(th, peer, ...)
-	return self.f(th, peer, ...)
+function FuncHandler:handle(ctx, ...)
+	return self.f(ctx, ...)
 end
 
 return FuncHandler
