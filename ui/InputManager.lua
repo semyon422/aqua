@@ -12,7 +12,7 @@ local DragEndEvent = require("ui.input_events.DragEndEvent")
 ---@field last_mouse_up_event ui.MouseDownEvent
 local InputManager = class()
 
-local MOUSE_CLICK_MAX_DISTANCE = 8
+local MOUSE_CLICK_MAX_DISTANCE = 30
 
 ---@param event {name: string, [integer]: any}
 ---@param traversal_ctx ui.TraversalContext
@@ -36,7 +36,7 @@ function InputManager:receive(event, traversal_ctx)
 		local distance = math.sqrt(dx * dx + dy * dy)
 		if distance < MOUSE_CLICK_MAX_DISTANCE then
 			local ce = MouseClickEvent()
-			ce.target = traversal_ctx.mouse_target
+			ce.target = self.last_mouse_down_event.target
 			ce.x = traversal_ctx.mouse_x
 			ce.y = traversal_ctx.mouse_y
 			ce.button = event[3]
@@ -45,7 +45,7 @@ function InputManager:receive(event, traversal_ctx)
 
 		if self.last_drag_event then
 			local de = DragEndEvent()
-			de.target = traversal_ctx.mouse_target
+			de.target = self.last_drag_event.target
 			de.x = traversal_ctx.mouse_x
 			de.y = traversal_ctx.mouse_y
 			self:dispatchEvent(de)
@@ -68,11 +68,12 @@ function InputManager:receive(event, traversal_ctx)
 	elseif event.name == "mousemoved" and self.last_mouse_down_event then
 		if not self.last_drag_event then
 			e = DragStartEvent()
+			e.target = traversal_ctx.mouse_target
 			self.last_drag_event = e
 		else
 			e = DragEvent()
+			e.target = self.last_drag_event.target
 		end
-		e.target = traversal_ctx.mouse_target
 		e.x = traversal_ctx.mouse_x
 		e.y = traversal_ctx.mouse_y
 	else

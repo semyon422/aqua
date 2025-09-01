@@ -10,10 +10,14 @@ local Assets = class()
 
 local audio_extensions = { ".wav", ".ogg", ".mp3" }
 local image_extensions = { ".png", ".jpg", ".jpeg", ".bmp", ".tga" }
-local empty_image = love.graphics.newCanvas(1, 1)
+local empty_image = nil ---@type love.Image?
 
 ---@return love.Image
 function Assets.getEmptyImage()
+	if empty_image then
+		return empty_image
+	end
+	empty_image = love.graphics.newCanvas(1, 1)
 	return empty_image
 end
 

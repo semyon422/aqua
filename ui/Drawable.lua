@@ -63,7 +63,7 @@ function Drawable:new(params)
 	self.height = self.height or 0
 	self.color = self.color or { 1, 1, 1, 1 }
 	self.alpha = self.alpha or 1
-	self.blend_colors = false
+	self.blend_colors = true
 
 	if #self.color < 4 then
 		local missing = 4 - #self.color
@@ -133,7 +133,7 @@ function Drawable:updateTree(ctx)
 
 	love.graphics.applyTransform(self.transform)
 
-	if self.accepts_input and self.alpha * self.color[4] > 0 then
+	if not ctx.mouse_target and self.accepts_input and self.alpha * self.color[4] > 0 then
 		local had_focus = self.mouse_over
 		self.mouse_over = self:isMouseOver(ctx.mouse_x, ctx.mouse_y)
 
@@ -273,6 +273,11 @@ function Drawable:getDimensions()
 	return self:getWidth(), self:getHeight()
 end
 
+---@return number
+function Drawable:getAngle()
+	return self.angle
+end
+
 function Drawable:updateTransform()
 	local ox = self.origin.x * self.width
 	local oy = self.origin.y * self.height
@@ -343,6 +348,12 @@ function Drawable:setScaleY(scale_y)
 		child:updateTransform()
 	end
 	self.parent:invalidateLayout()
+end
+
+---@param a number
+function Drawable:setAngle(a)
+	self.angle = a
+	self:updateTransform()
 end
 
 ---@param t {[string]: any}

@@ -7,7 +7,9 @@ local Drawable = require("ui.Drawable")
 ---@operator call: ui.Viewport
 local Viewport = Drawable + {}
 
-function Viewport:load()
+function Viewport:new(...)
+	Drawable.new(self, ...)
+	self:ensureExist("target_height")
 	self:createViewport()
 	self.resize_time = math.huge
 	self.resize_defered = false
@@ -32,14 +34,14 @@ function Viewport:updateTree(ctx)
 	local time = love.timer.getTime()
 	if self.resize_defered and time >= self.resize_time then
 		self:createViewport()
-		--self.event_handler:dispatchEvent("viewportResized")
+		self:clearTree()
+		self:load()
 	end
 
 	local ww, wh = love.graphics.getDimensions()
 	if not self.resize_defered and (ww ~= self.width or wh ~= self.height) then
 		self.resize_defered = true
 		self.resize_time = time + 0.2
-		--self.event_handler:dispatchEvent("windowResized")
 	end
 
 	love.graphics.origin()

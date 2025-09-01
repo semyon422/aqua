@@ -11,6 +11,8 @@ local class = require("class")
 ---@field parent ui.Node?
 ---@field dependencies ui.Dependencies
 ---@field is_killed boolean
+---@field handle_mouse_input boolean
+---@field handle_keyboard_input boolean
 local Node = class()
 
 ---@param params {[string]: any}
@@ -82,6 +84,9 @@ function Node:kill()
 	end
 end
 
+---@param e ui.UIEvent
+function Node:handleEvent(e) end
+
 ---@param message string
 function Node:error(message)
 	message = ("%s :: %s"):format(self.id or "unnamed", message)
@@ -96,6 +101,11 @@ function Node:assert(condition, message)
 	if not condition then
 		self:error(message)
 	end
+end
+
+---@param field_name string
+function Node:ensureExist(field_name)
+	self:assert(self[field_name], ("The field `%s` is required"):format(field_name))
 end
 
 return Node
