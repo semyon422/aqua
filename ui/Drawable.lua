@@ -5,8 +5,6 @@ local Node = require("ui.Node")
 ---@field mouse_x number
 ---@field mouse_y number
 ---@field mouse_target ui.Node?
----@field target_relative_mouse_x number
----@field target_relative_mouse_y number
 
 ---@class ui.Pivot
 ---@field x number
@@ -34,7 +32,7 @@ local Node = require("ui.Node")
 ---@operator call: ui.Drawable
 ---@field children ui.Drawable[]
 ---@field parent ui.Drawable?
----@field transform love.Transform
+---@field world_transform love.Transform
 ---@field mouse_over boolean
 local Drawable = Node + {}
 
@@ -74,7 +72,7 @@ function Drawable:new(params)
 		end
 	end
 
-	self.transform = love.math.newTransform()
+	self.world_transform = love.math.newTransform()
 	self.mouse_over = false
 	self.accepts_input = self.accepts_input == nil and false or self.accepts_input
 end
@@ -85,13 +83,31 @@ end
 function Drawable:add(drawable)
 	Node.add(self, drawable)
 	---@cast drawable ui.Drawable
-	drawable:updateTransform()
+	drawable:updateWorldTransform()
 
 	if self.parent then
 		self.parent:invalidateLayout()
 	end
 
 	return drawable
+end
+
+function Drawable:updateWorldTransform()
+	local tf = love.math.newTransform(
+		self.x + self.anchor.x * self.parent:getWidth(),
+		self.y + self.anchor.y * self.parent:getHeight(),
+		self.angle,
+		self.scale_x,
+		self.scale_y,
+		self.origin.x * self.width,
+		self.origin.y * self.height
+	)
+
+	self.world_transform = self.parent.world_transform * tf
+
+	for _, child in ipairs(self.children) do
+		child:updateWorldTransform()
+	end
 end
 
 function Drawable:kill()
@@ -134,16 +150,12 @@ function Drawable:updateTree(ctx)
 		return
 	end
 
-	love.graphics.applyTransform(self.transform)
-
 	if not ctx.mouse_target and self.accepts_input and self.alpha * self.color[4] > 0 then
 		local had_focus = self.mouse_over
-		local imx, imy = love.graphics.inverseTransformPoint(ctx.mouse_x, ctx.mouse_y)
+		local imx, imy = self.world_transform:inverseTransformPoint(ctx.mouse_x, ctx.mouse_y)
 		self.mouse_over = self:isMouseOver(ctx.mouse_x, ctx.mouse_y, imx, imy)
 
 		if self.mouse_over then
-			ctx.target_relative_mouse_x = imx
-			ctx.target_relative_mouse_y = imy
 			ctx.mouse_target = self
 		end
 
@@ -202,11 +214,13 @@ function Drawable:drawTree()
 		return
 	end
 
-	love.graphics.applyTransform(self.transform)
+	love.graphics.push()
+	love.graphics.applyTransform(self.world_transform)
 
 	love.graphics.setColor(r, g, b, a)
 	love.graphics.push("all")
 	self:draw()
+	love.graphics.pop()
 	love.graphics.pop()
 
 	self:drawChildren()
@@ -284,82 +298,59 @@ function Drawable:getAngle()
 	return self.angle
 end
 
-function Drawable:updateTransform()
-	local ox = self.origin.x * self.width
-	local oy = self.origin.y * self.height
-	local ax = self.anchor.x * self.parent:getWidth()
-	local ay = self.anchor.y * self.parent:getHeight()
-	self.transform:setTransformation(self.x + ax, self.y + ay, self.angle, self.scale_x, self.scale_y, ox, oy)
-end
-
 function Drawable:setBox(x, y, w, h)
 	self.x = x
 	self.y = y
 	self.width = w
 	self.height = h
-	self:updateTransform()
-	for _, child in ipairs(self.children) do
-		child:updateTransform()
-	end
+	self:updateWorldTransform()
 	self.parent:invalidateLayout()
 end
 
 ---@param x number
 function Drawable:setX(x)
 	self.x = x
-	self:updateTransform()
+	self:updateWorldTransform()
 end
 
 ---@param y number
 function Drawable:setY(y)
 	self.y = y
-	self:updateTransform()
+	self:updateWorldTransform()
 end
 
 ---@param width number
 function Drawable:setWidth(width)
 	self.width = width
-	self:updateTransform()
-	for _, child in ipairs(self.children) do
-		child:updateTransform()
-	end
+	self:updateWorldTransform()
 	self.parent:invalidateLayout()
 end
 
 ---@param height number
 function Drawable:setHeight(height)
 	self.height = height
-	self:updateTransform()
-	for _, child in ipairs(self.children) do
-		child:updateTransform()
-	end
+	self:updateWorldTransform()
 	self.parent:invalidateLayout()
 end
 
 ---@param scale_x number
 function Drawable:setScaleX(scale_x)
 	self.scale_x = scale_x
-	self:updateTransform()
-	for _, child in ipairs(self.children) do
-		child:updateTransform()
-	end
+	self:updateWorldTransform()
 	self.parent:invalidateLayout()
 end
 
 ---@param scale_y number
 function Drawable:setScaleY(scale_y)
 	self.scale_y = scale_y
-	self:updateTransform()
-	for _, child in ipairs(self.children) do
-		child:updateTransform()
-	end
+	self:updateWorldTransform()
 	self.parent:invalidateLayout()
 end
 
 ---@param a number
 function Drawable:setAngle(a)
 	self.angle = a
-	self:updateTransform()
+	self:updateWorldTransform()
 end
 
 ---@param t {[string]: any}

@@ -6,8 +6,6 @@ local Stencil = require("ui.Stencil")
 ---@operator call: ui.Simple.WindowTopBar
 local WindowTopBar = Drawable + {}
 
-local top_bar_height = 30
-
 function WindowTopBar:load()
 	self.accepts_input = true
 	self.position_origin = { x = 0, y = 0 }
@@ -16,7 +14,7 @@ function WindowTopBar:load()
 	self:add(Rectangle({
 		width = self:getWidth(),
 		height = self:getHeight(),
-		color = { 1, 0, 1, 0.3 }
+		color = { 0.5, 0.2, 0.5, 0.8 }
 	}))
 end
 

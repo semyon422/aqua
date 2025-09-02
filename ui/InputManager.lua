@@ -45,8 +45,6 @@ function InputManager:createMouseEvent(event, traversal_ctx)
 			ce.target = self.last_mouse_down_event.target
 			ce.x = traversal_ctx.mouse_x
 			ce.y = traversal_ctx.mouse_y
-			ce.rx = traversal_ctx.target_relative_mouse_x
-			ce.ry = traversal_ctx.target_relative_mouse_y
 			ce.button = event[3]
 			self:dispatchEvent(ce)
 		end
@@ -57,8 +55,6 @@ function InputManager:createMouseEvent(event, traversal_ctx)
 			de.target = self.last_drag_event.target
 			de.x = traversal_ctx.mouse_x
 			de.y = traversal_ctx.mouse_y
-			de.rx = traversal_ctx.target_relative_mouse_x
-			de.ry = traversal_ctx.target_relative_mouse_y
 			self:dispatchEvent(de)
 			self.last_drag_event = nil
 		end
@@ -85,8 +81,6 @@ function InputManager:createMouseEvent(event, traversal_ctx)
 	e.target = e.target or traversal_ctx.mouse_target
 	e.x = traversal_ctx.mouse_x
 	e.y = traversal_ctx.mouse_y
-	e.rx = traversal_ctx.target_relative_mouse_x
-	e.ry = traversal_ctx.target_relative_mouse_y
 	return e
 end
 

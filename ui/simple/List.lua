@@ -54,10 +54,10 @@ function List:selectItem(i) end
 
 ---@return integer
 function List:mousePositionToIndex()
-	local _, imy = love.graphics.inverseTransformPoint(0, love.mouse.getY())
+	local _, imy = self.world_transform:inverseTransformPoint(0, love.mouse.getY())
 	local top_index = self:getScrollPosition() / self.panel_height
 	local relative_index = imy / self.panel_height
-	return math.floor(top_index + relative_index) + 1
+	return math_util.clamp(math.floor(top_index + relative_index) + 1, 1, self.item_count)
 end
 
 function List:update(dt)

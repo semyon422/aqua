@@ -16,16 +16,13 @@ function Viewport:new(...)
 end
 
 function Viewport:createViewport()
-	self.width, self.height = love.graphics.getDimensions()
+	self.screen_width, self.screen_height = love.graphics.getDimensions()
 
-	local screen_ratio_half = -16 / 9 / 2
-	self.inner_scale = 1 / self.target_height * self.height
-	self.inner_transform = love.math.newTransform(0.5 * self.width + screen_ratio_half * self.height, 0, 0,
-		self.inner_scale, self.inner_scale)
-
-	local x, y = self.inner_transform:inverseTransformPoint(0, 0)
-	local xw, yh = self.inner_transform:inverseTransformPoint(self.width, self.height)
-	self.scaled_width, self.scaled_height = xw - x, yh - y
+	self.inner_scale = 1 / self.target_height * self.screen_height
+	self.world_transform = love.math.newTransform(0, 0, 0, self.inner_scale, self.inner_scale)
+	local x, y = self.world_transform:inverseTransformPoint(0, 0)
+	local xw, yh = self.world_transform:inverseTransformPoint(self.screen_width, self.screen_height)
+	self.width, self.height = xw - x, yh - y
 	self.resize_defered = false
 end
 
@@ -39,21 +36,17 @@ function Viewport:updateTree(ctx)
 	end
 
 	local ww, wh = love.graphics.getDimensions()
-	if not self.resize_defered and (ww ~= self.width or wh ~= self.height) then
+	if not self.resize_defered and (ww ~= self.screen_width or wh ~= self.screen_height) then
 		self.resize_defered = true
 		self.resize_time = time + 0.2
 	end
 
 	love.graphics.origin()
-	love.graphics.applyTransform(self.inner_transform)
-	love.graphics.translate(love.graphics.inverseTransformPoint(0, 0))
 	Drawable.updateTree(self, ctx)
 end
 
 function Viewport:drawTree()
 	love.graphics.origin()
-	love.graphics.applyTransform(self.inner_transform)
-	love.graphics.translate(love.graphics.inverseTransformPoint(0, 0))
 
 	love.graphics.clear(0, 0, 0, 1)
 	love.graphics.setColor(1, 1, 1)
@@ -63,16 +56,6 @@ function Viewport:drawTree()
 		child:drawTree()
 		love.graphics.pop()
 	end
-end
-
----@return number
-function Viewport:getWidth()
-	return self.scaled_width
-end
-
----@return number
-function Viewport:getHeight()
-	return self.scaled_height
 end
 
 return Viewport

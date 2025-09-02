@@ -9,8 +9,11 @@ local Stencil = Drawable + {}
 
 function Stencil:load()
 	self.stencil_function = self.stencil_function or function()
+		love.graphics.push()
+		love.graphics.applyTransform(self.world_transform)
 		love.graphics.setColor(1, 1, 1)
 		love.graphics.rectangle("fill", 0, 0, self:getWidth(), self:getHeight())
+		love.graphics.pop()
 	end
 end
 
@@ -19,7 +22,6 @@ function Stencil:drawTree()
 		return
 	end
 
-	love.graphics.applyTransform(self.transform)
 	love.graphics.stencil(self.stencil_function, "replace", 1)
 	love.graphics.setStencilTest("greater", 0)
 

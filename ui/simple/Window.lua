@@ -16,7 +16,8 @@ function Window:load()
 		y = top_bar:getHeight(),
 		width = self:getWidth(),
 		height = self:getHeight() - top_bar:getHeight(),
-		color = { 1, 0, 1, 0.2 }
+		color = { 0.5, 0.2, 0.5, 0.5 },
+		accepts_input = true
 	}))
 	self.container = self:add(Stencil({
 		y = top_bar:getHeight(),
