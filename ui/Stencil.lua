@@ -17,11 +17,7 @@ function Stencil:load()
 	end
 end
 
-function Stencil:drawTree()
-	if self.is_disabled then
-		return
-	end
-
+function Stencil:drawChildren()
 	love.graphics.stencil(self.stencil_function, "replace", 1)
 	love.graphics.setStencilTest("greater", 0)
 

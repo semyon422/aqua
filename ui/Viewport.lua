@@ -26,8 +26,7 @@ function Viewport:createViewport()
 	self.resize_defered = false
 end
 
----@param ctx ui.UpdateContext
-function Viewport:updateTree(ctx)
+function Viewport:update()
 	local time = love.timer.getTime()
 	if self.resize_defered and time >= self.resize_time then
 		self:createViewport()
@@ -40,16 +39,13 @@ function Viewport:updateTree(ctx)
 		self.resize_defered = true
 		self.resize_time = time + 0.2
 	end
-
-	love.graphics.origin()
-	Drawable.updateTree(self, ctx)
 end
 
-function Viewport:drawTree()
+function Viewport:drawChildren()
 	love.graphics.origin()
-
 	love.graphics.clear(0, 0, 0, 1)
 	love.graphics.setColor(1, 1, 1)
+
 	for i = #self.children, 1, -1 do
 		local child = self.children[i]
 		love.graphics.push("all")

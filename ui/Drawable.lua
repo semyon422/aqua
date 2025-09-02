@@ -25,7 +25,6 @@ local Node = require("ui.Node")
 ---@field height number
 ---@field color ui.RGBA
 ---@field alpha number
----@field blend_colors boolean
 ---@field accepts_input boolean
 
 ---@class ui.Drawable : ui.Node, ui.Drawable.Params
@@ -63,7 +62,6 @@ function Drawable:new(params)
 	self.height = self.height or 0
 	self.color = self.color or { 1, 1, 1, 1 }
 	self.alpha = self.alpha or 1
-	self.blend_colors = true
 
 	if #self.color < 4 then
 		local missing = 4 - #self.color
@@ -145,6 +143,8 @@ function Drawable:updateChildren(ctx)
 end
 
 ---@param ctx ui.TraversalContext
+---@private
+--- Internal method, don't ever override it.
 function Drawable:updateTree(ctx)
 	if self.is_disabled then
 		return
@@ -184,40 +184,17 @@ function Drawable:drawChildren()
 	end
 end
 
----@return number
----@return number
----@return number
----@return number
-function Drawable:mixColors()
-	local r, g, b, a = love.graphics.getColor()
-	r = r * self.color[1]
-	g = g * self.color[2]
-	b = b * self.color[3]
-	a = a * self.color[4] * self.alpha
-	return r, g, b, a
-end
-
+---@private
+--- Internal method, don't ever override it.
 function Drawable:drawTree()
 	if self.is_disabled then
-		return
-	end
-
-	local r, g, b, a = 0, 0, 0, 0
-
-	if self.blend_colors then
-		r, g, b, a = self:mixColors()
-	else
-		r, g, b, a = self.color[1], self.color[2], self.color[3], self.color[4] * self.alpha
-	end
-
-	if a <= 0 then
 		return
 	end
 
 	love.graphics.push()
 	love.graphics.applyTransform(self.world_transform)
 
-	love.graphics.setColor(r, g, b, a)
+	love.graphics.setColor(self.color[1], self.color[2], self.color[3], self.color[4] * self.alpha)
 	love.graphics.push("all")
 	self:draw()
 	love.graphics.pop()
