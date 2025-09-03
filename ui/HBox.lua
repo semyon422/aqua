@@ -3,11 +3,12 @@ local LayoutContainer = require("ui.LayoutContainer")
 ---@class ui.HBox.Params
 ---@field spacing number
 ---@field reverse boolean
----@field center boolean?
 
 ---@class ui.HBox : ui.LayoutContainer, ui.HBox.Params
 ---@overload fun(ui.HBox.Params): ui.HBox
 local HBox = LayoutContainer + {}
+
+HBox.size_mode = HBox.SizeMode.Auto
 
 function HBox:rearrangeChildren()
 	local current_x = 0
@@ -28,13 +29,9 @@ function HBox:rearrangeChildren()
 		end
 	end
 
-	self:autoSize()
-
-	if self.center then
-		for _, child in pairs(self.children) do
-			child:setY((self:getHeight() - child:getHeight()) / 2)
-		end
-	end
+	-- Updates it for the second time for each child...
+	-- TODO: fix this the smart way
+	self:updateWorldTransform()
 end
 
 return HBox

@@ -104,7 +104,8 @@ end
 function Drawable:updateWorldTransform()
 	local w, h = self:getNewDimensions()
 	if w and h then
-		self:setDimensions(w, h)
+		self.width = w
+		self.height = h
 	end
 
 	local tf = love.math.newTransform(
@@ -363,6 +364,13 @@ end
 ---@param scale_y number
 function Drawable:setScaleY(scale_y)
 	self.scale_y = scale_y
+	self:updateWorldTransform()
+end
+
+---@param scale_y number
+function Drawable:setScale(scale)
+	self.scale_x = scale
+	self.scale_y = scale
 	self:updateWorldTransform()
 end
 

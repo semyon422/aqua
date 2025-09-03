@@ -28,6 +28,7 @@ return {
 	Padding = require("ui.Padding"),
 	VBox = require("ui.VBox"),
 	HBox = require("ui.HBox"),
+	Stencil = require("ui.Stencil"),
 	Image = require("ui.Image"),
 	Label = require("ui.Label"),
 	Rectangle = require("ui.Rectangle"),
