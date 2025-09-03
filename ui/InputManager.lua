@@ -106,13 +106,13 @@ function InputManager:dispatchEvent(e)
 	-- TODO: who cares about capture phase
 	-- create your own InputManager if you need it
 
-	local current_target = e.target
-	while current_target do
-		current_target:triggerEvent(e)
+	e.current_target = e.target
+	while e.current_target do
+		e:trigger()
 		if e.stop then
 			return
 		end
-		current_target = current_target.parent
+		e.current_target = e.current_target.parent
 	end
 end
 

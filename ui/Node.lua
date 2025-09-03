@@ -29,6 +29,9 @@ function Node:new(params)
 	self.children = {}
 end
 
+--- Used for internal classes. Should always call base.beforeLoad()
+function Node:beforeLoad() end
+
 function Node:load() end
 
 ---@generic T : ui.Node
@@ -54,6 +57,7 @@ function Node:add(node)
 
 	node.parent = self
 	node.dependencies = self.dependencies
+	node:beforeLoad()
 	node:load()
 	return node
 end
@@ -84,8 +88,30 @@ function Node:kill()
 	end
 end
 
----@param e ui.UIEvent
-function Node:handleEvent(e) end
+---@param e ui.MouseDownEvent
+function Node:onMouseDown(e) end
+
+---@param e ui.MouseUpEvent
+function Node:onMouseUp(e) end
+
+---@param e ui.MouseClickEvent
+function Node:onMouseClick(e) end
+
+---@param e ui.ScrollEvent
+function Node:onScroll(e) end
+
+---@param e ui.DragStartEvent
+function Node:onDragStart(e) end
+
+---@param e ui.DragEvent
+function Node:onDrag(e) end
+
+---@param e ui.DragEndEvent
+function Node:onDragEnd(e) end
+
+function Node:onHover() end
+
+function Node:onHoverLost() end
 
 ---@param message string
 function Node:error(message)

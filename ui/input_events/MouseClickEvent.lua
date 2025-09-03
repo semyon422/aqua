@@ -4,4 +4,8 @@ local MouseButtonEvent = require("ui.input_events.MouseButtonEvent")
 ---@operator call: ui.MouseClickEvent
 local MouseClickEvent = MouseButtonEvent + {}
 
+function MouseClickEvent:trigger()
+	self.current_target:onMouseClick(self)
+end
+
 return MouseClickEvent

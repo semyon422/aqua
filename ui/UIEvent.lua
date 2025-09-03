@@ -4,6 +4,7 @@ local class = require("class")
 ---@operator call: ui.UIEvent
 ---@field callback_name string
 ---@field target ui.Node?
+---@field current_target ui.Node
 local UIEvent = class()
 
 function UIEvent:new()
@@ -13,5 +14,7 @@ end
 function UIEvent:stopPropagation()
 	self.stop = true
 end
+
+function UIEvent:trigger() end
 
 return UIEvent
