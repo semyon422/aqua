@@ -5,6 +5,4 @@ local MouseEvent = require("ui.input_events.MouseEvent")
 ---@field button number
 local MouseButtonEvent = MouseEvent + {}
 
-MouseButtonEvent.callback_name = "MouseButton"
-
 return MouseButtonEvent

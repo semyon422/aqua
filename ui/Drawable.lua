@@ -1,5 +1,13 @@
 local Node = require("ui.Node")
 
+local MouseDownEvent = require("ui.input_events.MouseDownEvent")
+local MouseUpEvent = require("ui.input_events.MouseUpEvent")
+local MouseClickEvent = require("ui.input_events.MouseClickEvent")
+local ScrollEvent = require("ui.input_events.ScrollEvent")
+local DragStartEvent = require("ui.input_events.DragStartEvent")
+local DragEvent = require("ui.input_events.DragEvent")
+local DragEndEvent = require("ui.input_events.DragEndEvent")
+
 ---@class ui.TraversalContext
 ---@field delta_time number
 ---@field mouse_x number
@@ -116,10 +124,6 @@ function Drawable:kill()
 	end
 end
 
-function Drawable:onHover() end
-
-function Drawable:onHoverLost() end
-
 ---@param dt number
 function Drawable:update(dt) end
 
@@ -159,6 +163,7 @@ function Drawable:updateTree(ctx)
 			ctx.mouse_target = self
 		end
 
+		-- TODO: dispatch an event
 		if not had_focus and self.mouse_over then
 			self:onHover()
 		elseif had_focus and not self.mouse_over then
@@ -340,6 +345,47 @@ function Drawable:applyRecurse(t)
 		child:applyRecurse(t)
 	end
 end
+
+local events = {
+	[MouseDownEvent] = "onMouseDown",
+	[MouseUpEvent] = "onMouseUp",
+	[MouseClickEvent] = "onMouseClick",
+	[ScrollEvent] = "onScroll",
+	[DragStartEvent] = "onDragStart",
+	[DragEvent] = "onDrag",
+	[DragEndEvent] = "onDragEnd"
+}
+
+---@param e ui.UIEvent
+function Drawable:triggerEvent(e)
+	local func_name = events[getmetatable(e)]
+	self[func_name](self, e)
+end
+
+---@param e ui.MouseDownEvent
+function Drawable:onMouseDown(e) end
+
+---@param e ui.MouseUpEvent
+function Drawable:onMouseUp(e) end
+
+---@param e ui.MouseClickEvent
+function Drawable:onMouseClick(e) end
+
+---@param e ui.ScrollEvent
+function Drawable:onScroll(e) end
+
+---@param e ui.DragStartEvent
+function Drawable:onDragStart(e) end
+
+---@param e ui.DragEvent
+function Drawable:onDrag(e) end
+
+---@param e ui.DragEndEvent
+function Drawable:onDragEnd(e) end
+
+function Drawable:onHover() end
+
+function Drawable:onHoverLost() end
 
 local sound_play_time = {}
 

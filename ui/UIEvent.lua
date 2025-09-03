@@ -6,8 +6,6 @@ local class = require("class")
 ---@field target ui.Node?
 local UIEvent = class()
 
-UIEvent.callback_name = "UIEvent"
-
 function UIEvent:new()
 	self.stop = false
 end

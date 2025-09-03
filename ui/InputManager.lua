@@ -103,14 +103,12 @@ end
 ---@param e ui.InputEvent
 ---@private
 function InputManager:dispatchEvent(e)
-	-- TODO: capture phase
+	-- TODO: who cares about capture phase
+	-- create your own InputManager if you need it
 
 	local current_target = e.target
 	while current_target do
-		local f = current_target[e.callback_name]
-		if f then
-			f(current_target, e)
-		end
+		current_target:triggerEvent(e)
 		if e.stop then
 			return
 		end

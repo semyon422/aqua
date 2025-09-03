@@ -4,6 +4,4 @@ local MouseButtonEvent = require("ui.input_events.MouseButtonEvent")
 ---@operator call: ui.MouseDownEvent
 local MouseDownEvent = MouseButtonEvent + {}
 
-MouseDownEvent.callback_name = "onMouseDown"
-
 return MouseDownEvent

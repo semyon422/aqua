@@ -4,6 +4,4 @@ local MouseButtonEvent = require("ui.input_events.MouseButtonEvent")
 ---@operator call: ui.DragStartEvent
 local DragStartEvent = MouseButtonEvent + {}
 
-DragStartEvent.callback_name = "onDragStart"
-
 return DragStartEvent

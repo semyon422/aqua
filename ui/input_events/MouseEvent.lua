@@ -7,6 +7,4 @@ local UIEvent = require("ui.UIEvent")
 ---@field y number
 local MouseEvent = UIEvent + {}
 
-MouseEvent.callback_name = "MouseEvent"
-
 return MouseEvent

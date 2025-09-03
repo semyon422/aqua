@@ -6,6 +6,4 @@ local MouseEvent = require("ui.input_events.MouseEvent")
 ---@field direction_y number
 local ScrollEvent = MouseEvent + {}
 
-ScrollEvent.callback_name = "onScroll"
-
 return ScrollEvent
