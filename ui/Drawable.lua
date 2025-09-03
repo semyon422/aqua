@@ -116,11 +116,6 @@ function Drawable:kill()
 	end
 end
 
----@param dt number
-function Drawable:update(dt) end
-
-function Drawable:draw() end
-
 ---@param mouse_x number
 ---@param mouse_y number
 ---@param imx number
@@ -330,40 +325,6 @@ end
 function Drawable:setAngle(a)
 	self.angle = a
 	self:updateWorldTransform()
-end
-
----@param t {[string]: any}
-function Drawable:applyRecurse(t)
-	for k, v in pairs(t) do
-		self[k] = v
-	end
-
-	for _, child in ipairs(self.children) do
-		child:applyRecurse(t)
-	end
-end
-
-local sound_play_time = {}
-
----@param sound audio.Source
----@param limit number?
-function Drawable.playSound(sound, limit)
-	if not sound then
-		print("no sound")
-		return
-	end
-
-	limit = limit or 0.05
-
-	local prev_time = sound_play_time[sound] or 0
-	local current_time = love.timer.getTime()
-
-	if current_time > prev_time + limit then
-		sound:stop()
-		sound_play_time[sound] = current_time
-	end
-
-	sound:play()
 end
 
 return Drawable

@@ -34,6 +34,11 @@ function Node:beforeLoad() end
 
 function Node:load() end
 
+---@param dt number
+function Node:update(dt) end
+
+function Node:draw() end
+
 ---@generic T : ui.Node
 ---@param node T
 ---@return T
