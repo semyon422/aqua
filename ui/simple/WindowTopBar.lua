@@ -31,8 +31,10 @@ function WindowTopBar:onDrag(e)
 	local dx = self.drag_origin.x - e.x
 	local dy = self.drag_origin.y - e.y
 	local viewport_scale = (768 / love.graphics.getHeight()) -- TODO: get it from viewport
-	self.parent:setX(self.position_origin.x - dx * viewport_scale)
-	self.parent:setY(self.position_origin.y - dy * viewport_scale)
+	self.parent:setPosition(
+		self.position_origin.x - dx * viewport_scale,
+		self.position_origin.y - dy * viewport_scale
+	)
 end
 
 return WindowTopBar

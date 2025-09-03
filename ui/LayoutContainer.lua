@@ -17,6 +17,7 @@ function LayoutContainer:invalidateLayout()
 	if self.is_killed then
 		return
 	end
+	Drawable.invalidateLayout(self)
 	self.invalidated = true
 end
 

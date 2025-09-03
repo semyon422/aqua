@@ -32,5 +32,6 @@ return {
 	Label = require("ui.Label"),
 	Rectangle = require("ui.Rectangle"),
 	Pivot = Drawable.Pivot,
+	SizeMode = Drawable.SizeMode,
 	playSound = playSound
 }

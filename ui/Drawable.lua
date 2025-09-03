@@ -23,7 +23,9 @@ local Node = require("ui.Node")
 ---@field anchor ui.Pivot
 ---@field width number
 ---@field height number
----@field color ui.RGBA
+---@field percent_width number? Used for Percent size mode
+---@field percent_height number? Used for Percent size mode
+---@field color ui.Color
 ---@field alpha number
 ---@field accepts_input boolean
 
@@ -47,6 +49,13 @@ Drawable.Pivot = {
 	BottomRight = { x = 1, y = 1 },
 }
 
+Drawable.SizeMode = {
+	Fixed = 1, -- Fixed width/height
+	Auto = 2, -- Drawable:getContentSize() becomes width and height
+	Inherit = 3, -- Takes 100% of parent's width and height
+	Percent = 4 -- Takes self.percent_width and self.percent_height of parent's width and height
+}
+
 ---@param params {[string]: any}
 function Drawable:new(params)
 	Node.new(self, params)
@@ -62,6 +71,7 @@ function Drawable:new(params)
 	self.height = self.height or 0
 	self.color = self.color or { 1, 1, 1, 1 }
 	self.alpha = self.alpha or 1
+	self.size_mode = self.size_mode or Drawable.SizeMode.Fixed
 
 	if #self.color < 4 then
 		local missing = 4 - #self.color
@@ -81,6 +91,7 @@ end
 function Drawable:add(drawable)
 	Node.add(self, drawable)
 	---@cast drawable ui.Drawable
+
 	drawable:updateWorldTransform()
 
 	if self.parent then
@@ -91,14 +102,19 @@ function Drawable:add(drawable)
 end
 
 function Drawable:updateWorldTransform()
+	local w, h = self:getNewDimensions()
+	if w and h then
+		self:setDimensions(w, h)
+	end
+
 	local tf = love.math.newTransform(
 		self.x + self.anchor.x * self.parent:getWidth(),
 		self.y + self.anchor.y * self.parent:getHeight(),
 		self.angle,
 		self.scale_x,
 		self.scale_y,
-		self.origin.x * self.width,
-		self.origin.y * self.height
+		self.origin.x * self:getWidth(),
+		self.origin.y * self:getHeight()
 	)
 
 	self.world_transform = self.parent.world_transform * tf
@@ -106,6 +122,8 @@ function Drawable:updateWorldTransform()
 	for _, child in ipairs(self.children) do
 		child:updateWorldTransform()
 	end
+
+	self:invalidateLayout()
 end
 
 function Drawable:kill()
@@ -134,7 +152,6 @@ function Drawable:updateChildren(ctx)
 end
 
 ---@param ctx ui.TraversalContext
----@private
 --- Internal method, don't ever override it.
 function Drawable:updateTree(ctx)
 	if self.is_disabled then
@@ -223,14 +240,40 @@ function Drawable:getContentSize()
 	return w, h
 end
 
-function Drawable:autoSize()
-	self:setDimensions(self:getContentSize())
-end
-
 ---@return number
 ---@return number
 function Drawable:measure(available_w, available_h)
 	return math.min(self:getWidth(), available_w), math.min(self:getHeight(), available_h)
+end
+
+---@return number? width
+---@return number? height
+function Drawable:getNewDimensions()
+	if not self.parent then
+		return
+	end
+
+	if self.size_mode == Drawable.SizeMode.Auto then
+		local cw, ch = self:getContentSize()
+		local w, h = self:getDimensions()
+		if cw ~= w or ch ~= h then
+			return cw, ch
+		end
+	elseif self.size_mode == Drawable.SizeMode.Inherit then
+		local pw, ph = self.parent:getDimensions()
+		local w, h = self:getDimensions()
+		if pw ~= w or ph ~= h then
+			return pw, ph
+		end
+	elseif self.size_mode == Drawable.SizeMode.Percent then
+		local pw, ph = self.parent:getDimensions()
+		local w, h = self:getDimensions()
+		local sw = self.percent_width and self.percent_width * pw or self.width
+		local sh = self.percent_height and self.percent_height * ph or self.height
+		if sw ~= w or sh ~= h then
+			return sw, sh
+		end
+	end
 end
 
 function Drawable:invalidateLayout() end
@@ -271,7 +314,6 @@ function Drawable:setBox(x, y, w, h)
 	self.width = w
 	self.height = h
 	self:updateWorldTransform()
-	self.parent:invalidateLayout()
 end
 
 ---@param x number
@@ -286,39 +328,42 @@ function Drawable:setY(y)
 	self:updateWorldTransform()
 end
 
+---@param x number
+---@param y number
+function Drawable:setPosition(x, y)
+	self.x = x
+	self.y = y
+	self:updateWorldTransform()
+end
+
 ---@param width number
 function Drawable:setWidth(width)
 	self.width = width
 	self:updateWorldTransform()
-	self.parent:invalidateLayout()
 end
 
 ---@param height number
 function Drawable:setHeight(height)
 	self.height = height
 	self:updateWorldTransform()
-	self.parent:invalidateLayout()
 end
 
 function Drawable:setDimensions(width, height)
 	self.width = width
 	self.height = height
 	self:updateWorldTransform()
-	self.parent:invalidateLayout()
 end
 
 ---@param scale_x number
 function Drawable:setScaleX(scale_x)
 	self.scale_x = scale_x
 	self:updateWorldTransform()
-	self.parent:invalidateLayout()
 end
 
 ---@param scale_y number
 function Drawable:setScaleY(scale_y)
 	self.scale_y = scale_y
 	self:updateWorldTransform()
-	self.parent:invalidateLayout()
 end
 
 ---@param a number

@@ -11,9 +11,11 @@ function Viewport:new(...)
 	Drawable.new(self, ...)
 	self:ensureExist("target_height")
 	self:createViewport()
-	self.resize_time = math.huge
-	self.resize_defered = false
 end
+
+function Viewport:updateWorldTransform() end
+
+function Viewport:invalidateLayout() end
 
 function Viewport:createViewport()
 	self.screen_width, self.screen_height = love.graphics.getDimensions()
@@ -22,22 +24,18 @@ function Viewport:createViewport()
 	self.world_transform = love.math.newTransform(0, 0, 0, self.inner_scale, self.inner_scale)
 	local x, y = self.world_transform:inverseTransformPoint(0, 0)
 	local xw, yh = self.world_transform:inverseTransformPoint(self.screen_width, self.screen_height)
-	self.width, self.height = xw - x, yh - y
-	self.resize_defered = false
+	self.width = xw - x
+	self.height = yh - y
+
+	for _, v in ipairs(self.children) do
+		v:updateWorldTransform()
+	end
 end
 
-function Viewport:update()
-	local time = love.timer.getTime()
-	if self.resize_defered and time >= self.resize_time then
-		self:createViewport()
-		self:clearTree()
-		self:load()
-	end
-
+function Viewport:update(ctx)
 	local ww, wh = love.graphics.getDimensions()
-	if not self.resize_defered and (ww ~= self.screen_width or wh ~= self.screen_height) then
-		self.resize_defered = true
-		self.resize_time = time + 0.2
+	if ww ~= self.screen_width or wh ~= self.screen_height then
+		self:createViewport()
 	end
 end
 
