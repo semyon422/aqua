@@ -62,10 +62,9 @@ function Viewport:update(ctx)
 end
 
 function Viewport:drawChildren()
-	love.graphics.origin()
+	love.graphics.setCanvas({ self.canvas, stencil = true })
 	love.graphics.clear(0, 0, 0, 1)
 	love.graphics.setColor(1, 1, 1)
-	love.graphics.setCanvas({ self.canvas, stencil = true })
 
 	for i = #self.children, 1, -1 do
 		local child = self.children[i]

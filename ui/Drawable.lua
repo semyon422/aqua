@@ -201,13 +201,10 @@ function Drawable:drawTree()
 		return
 	end
 
-	love.graphics.push()
-	love.graphics.applyTransform(self.world_transform)
-
-	love.graphics.setColor(self.color[1], self.color[2], self.color[3], self.color[4] * self.alpha)
 	love.graphics.push("all")
+	love.graphics.applyTransform(self.world_transform)
+	love.graphics.setColor(self.color[1], self.color[2], self.color[3], self.color[4] * self.alpha)
 	self:draw()
-	love.graphics.pop()
 	love.graphics.pop()
 
 	self:drawChildren()

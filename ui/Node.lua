@@ -10,8 +10,9 @@ local table_util = require("table_util")
 ---@field id string?
 ---@field children ui.Node[]
 ---@field parent ui.Node?
----@field dependencies ui.Dependencies
 ---@field is_killed boolean
+---@field dependencies ui.Dependencies
+---@field input_manager ui.InputManager
 ---@field handle_mouse_input boolean
 ---@field handle_keyboard_input boolean
 local Node = class()
@@ -71,6 +72,7 @@ function Node:add(node)
 
 	node.parent = self
 	node.dependencies = self.dependencies
+	node.input_manager = self.input_manager
 	node:beforeLoad()
 	node:load()
 
@@ -133,6 +135,21 @@ function Node:onDragEnd(e) end
 function Node:onHover() end
 
 function Node:onHoverLost() end
+
+---@param e ui.FocusEvent
+function Node:onFocus(e) end
+
+---@param e ui.FocusLostEvent
+function Node:onFocusLost(e) end
+
+---@param e ui.KeyDownEvent
+function Node:onKeyDown(e) end
+
+---@param e ui.KeyUpEvent
+function Node:onKeyUp(e) end
+
+---@param e ui.TextInputEvent
+function Node:onTextInput(e) end
 
 ---@return ui.Viewport
 function Node:getViewport()
