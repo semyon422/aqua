@@ -6,15 +6,13 @@ local table_util = require("table_util")
 ---@field is_disabled boolean?
 
 ---@class ui.Node : ui.Node.Params
----@operator call: ui.Node
+---@overload fun(params: ui.Node.Params): ui.Node
 ---@field id string?
 ---@field children ui.Node[]
 ---@field parent ui.Node?
 ---@field is_killed boolean
 ---@field dependencies ui.Dependencies
 ---@field input_manager ui.InputManager
----@field handle_mouse_input boolean
----@field handle_keyboard_input boolean
 local Node = class()
 
 ---@param params {[string]: any}
