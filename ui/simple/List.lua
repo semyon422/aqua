@@ -25,7 +25,7 @@ end
 ---@return number
 function List:getCenteredViewFrom(index)
 	local items_in_view = math.ceil(self:getHeight() / self.panel_height) + 1
-	return index * self.panel_height - (items_in_view / 2) * self.panel_height
+	return index * self.panel_height - (items_in_view / 2) * self.panel_height + self.panel_height / 4
 end
 
 ---@param i integer

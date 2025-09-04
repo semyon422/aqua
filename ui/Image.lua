@@ -25,15 +25,6 @@ function Image:replaceImage(image, width, height)
 	self:setHeight(height or ih)
 end
 
-function Image:scaleToFit()
-	local w, h = self.parent:getDimensions()
-	local d1 = math.max(self.width, self.height)
-	local d2 = math.max(w, h)
-	local s = d2 / d1
-	self:setScaleX(s)
-	self:setScaleY(s)
-end
-
 function Image:draw()
 	love.graphics.setBlendMode(self.blend_mode)
 	love.graphics.draw(self.image)

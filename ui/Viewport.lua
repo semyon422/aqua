@@ -7,10 +7,31 @@ local Drawable = require("ui.Drawable")
 ---@operator call: ui.Viewport
 local Viewport = Drawable + {}
 
-function Viewport:new(...)
-	Drawable.new(self, ...)
+function Viewport:beforeLoad()
+	Drawable.beforeLoad(self)
 	self:ensureExist("target_height")
 	self:createViewport()
+end
+
+---@return love.Canvas
+function Viewport:getCanvas()
+	return self.canvas
+end
+
+---@return number
+function Viewport:getViewportScale()
+	return self.inner_scale
+end
+
+---@return ui.Viewport
+function Viewport:getViewport()
+	return self
+end
+
+---@return number width
+---@return number height
+function Viewport:getScreenDimensions()
+	return self.screen_width, self.screen_height
 end
 
 function Viewport:updateWorldTransform() end
@@ -26,6 +47,7 @@ function Viewport:createViewport()
 	local xw, yh = self.world_transform:inverseTransformPoint(self.screen_width, self.screen_height)
 	self.width = xw - x
 	self.height = yh - y
+	self.canvas = love.graphics.newCanvas(self.screen_width, self.screen_height)
 
 	for _, v in ipairs(self.children) do
 		v:updateWorldTransform()
@@ -43,6 +65,7 @@ function Viewport:drawChildren()
 	love.graphics.origin()
 	love.graphics.clear(0, 0, 0, 1)
 	love.graphics.setColor(1, 1, 1)
+	love.graphics.setCanvas({ self.canvas, stencil = true })
 
 	for i = #self.children, 1, -1 do
 		local child = self.children[i]
@@ -50,6 +73,9 @@ function Viewport:drawChildren()
 		child:drawTree()
 		love.graphics.pop()
 	end
+
+	love.graphics.setCanvas()
+	love.graphics.draw(self.canvas)
 end
 
 return Viewport

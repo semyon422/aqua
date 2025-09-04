@@ -134,6 +134,12 @@ function Node:onHover() end
 
 function Node:onHoverLost() end
 
+---@return ui.Viewport
+function Node:getViewport()
+	self:assert(self.parent, "No viewport")
+	return self.parent:getViewport()
+end
+
 ---@param message string
 function Node:error(message)
 	message = ("%s :: %s"):format(self.id or "unnamed", message)
