@@ -11,6 +11,8 @@ local LayoutContainer = require("ui.LayoutContainer")
 ---@overload fun(ui.Padding.Params): ui.Padding
 local Padding = LayoutContainer + {}
 
+Padding.ClassName = "Padding"
+
 function Padding:rearrangeChildren()
 	if #self.children > 1 then
 		self:error("Padding can only have one child")

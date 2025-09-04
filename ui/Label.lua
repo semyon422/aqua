@@ -13,6 +13,8 @@ local Fonts = require("ui.Fonts")
 ---@operator call: ui.Label
 local Label = Drawable + {}
 
+Label.ClassName = "Label"
+
 function Label:load()
 	local fonts = self.dependencies:get(Fonts)
 

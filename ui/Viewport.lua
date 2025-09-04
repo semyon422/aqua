@@ -7,6 +7,8 @@ local Drawable = require("ui.Drawable")
 ---@operator call: ui.Viewport
 local Viewport = Drawable + {}
 
+Viewport.ClassName = "Viewport"
+
 function Viewport:beforeLoad()
 	Drawable.beforeLoad(self)
 	self:ensureExist("target_height")

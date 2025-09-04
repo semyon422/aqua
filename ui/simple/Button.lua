@@ -11,6 +11,8 @@ local MouseClickEvent = require("ui.input_events.MouseClickEvent")
 ---@overload fun(params: ui.Simple.Button.Params): ui.Simple.Button
 local Button = ui.Drawable + {}
 
+Button.ClassName = "Button"
+
 function Button:load()
 	self.label = self:add(ui.Label({
 		anchor = ui.Pivot.Center,

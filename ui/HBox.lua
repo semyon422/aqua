@@ -8,6 +8,7 @@ local LayoutContainer = require("ui.LayoutContainer")
 ---@overload fun(ui.HBox.Params): ui.HBox
 local HBox = LayoutContainer + {}
 
+HBox.ClassName = "HBox"
 HBox.size_mode = HBox.SizeMode.Auto
 
 function HBox:rearrangeChildren()

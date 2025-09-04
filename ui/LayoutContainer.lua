@@ -4,6 +4,8 @@ local Drawable = require("ui.Drawable")
 ---@operator call: ui.LayoutContainer
 local LayoutContainer = Drawable + {}
 
+LayoutContainer.ClassName = "LayoutContainer"
+
 function LayoutContainer:updateTree(ctx)
 	Drawable.updateTree(self, ctx)
 

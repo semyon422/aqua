@@ -10,6 +10,8 @@ local math_util = require("math_util")
 ---@overload fun(params: ui.Simple.ScrollArea.Params)
 local ScrollArea = ui.Drawable + {}
 
+ScrollArea.ClassName = "ScrollArea"
+
 local frame_aim = 60
 
 function ScrollArea:load()

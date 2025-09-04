@@ -7,6 +7,8 @@ local Drawable = require("ui.Drawable")
 ---@overload fun(params: ui.BlurLayer.Params): ui.BlurLayer
 local BlurLayer = Drawable + {}
 
+BlurLayer.ClassName = "BlurLayer"
+
 local shader_code = [[
 extern number radius;
 extern vec2 tex_size;

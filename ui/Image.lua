@@ -7,6 +7,8 @@ local Assets = require("ui.Assets")
 ---@field blend_mode love.BlendMode
 local Image = Drawable + {}
 
+Image.ClassName = "Image"
+
 function Image:load()
 	self.image = self.image or Assets.getEmptyImage()
 	local iw, ih = self.image:getDimensions()

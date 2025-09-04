@@ -6,6 +6,8 @@ local Stencil = require("ui.Stencil")
 ---@operator call: ui.Simple.WindowTopBar
 local WindowTopBar = Drawable + {}
 
+WindowTopBar.ClassName = "WindowTopBar"
+
 function WindowTopBar:load()
 	self.accepts_input = true
 	self.position_origin = { x = 0, y = 0 }

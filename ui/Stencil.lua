@@ -7,6 +7,8 @@ local Drawable = require("ui.Drawable")
 ---@operator call: ui.Stencil
 local Stencil = Drawable + {}
 
+Stencil.ClassName = "Stencil"
+
 function Stencil:beforeLoad()
 	Drawable.beforeLoad(self)
 

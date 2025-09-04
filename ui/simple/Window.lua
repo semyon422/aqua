@@ -7,6 +7,8 @@ local WindowTopBar = require("ui.simple.WindowTopBar")
 ---@operator call: ui.Simple.Window
 local Window = Drawable + {}
 
+Window.ClassName = "Window"
+
 function Window:load()
 	local top_bar = self:add(WindowTopBar({
 		width = self:getWidth(),

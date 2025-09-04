@@ -8,6 +8,8 @@ local LayoutContainer = require("ui.LayoutContainer")
 ---@overload fun(ui.VBox.Params): ui.VBox
 local VBox = LayoutContainer + {}
 
+VBox.ClassName = "VBox"
+
 VBox.size_mode = VBox.SizeMode.Auto
 
 function VBox:rearrangeChildren()

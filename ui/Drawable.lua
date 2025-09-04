@@ -37,6 +37,8 @@ local Node = require("ui.Node")
 ---@field mouse_over boolean
 local Drawable = Node + {}
 
+Drawable.ClassName = "Drawable"
+
 Drawable.Pivot = {
 	TopLeft = { x = 0, y = 0 },
 	TopCenter = { x = 0.5, y = 0 },

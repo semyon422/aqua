@@ -8,6 +8,8 @@ local math_util = require("math_util")
 ---@overload fun(params: ui.Simple.List.Params): ui.Simple.List
 local List = ScrollArea + {}
 
+List.ClassName = "List"
+
 function List:load()
 	ScrollArea.load(self)
 	self:ensureExist("panel_height")

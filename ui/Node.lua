@@ -15,6 +15,8 @@ local table_util = require("table_util")
 ---@field input_manager ui.InputManager
 local Node = class()
 
+Node.ClassName = "Node"
+
 ---@param params {[string]: any}
 function Node:new(params)
 	if params then
