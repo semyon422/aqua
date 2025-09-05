@@ -66,7 +66,7 @@ end
 
 ---@param e ui.DragEvent
 function ScrollArea:onDrag(e)
-	local distance = (e.y - self.drag_start_y) * (768 / love.graphics.getHeight())
+	local distance = (e.y - self.drag_start_y) * self:getViewport():getViewportScale()
 	local new_position = self.drag_start_scroll_position - distance
 	self:setScrollPosition(new_position)
 end

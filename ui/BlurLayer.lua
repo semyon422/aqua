@@ -37,6 +37,7 @@ function BlurLayer:beforeLoad()
 	self.stencil_function = function()
 		love.graphics.push()
 		love.graphics.origin()
+		love.graphics.applyTransform(self.viewport.negative)
 		love.graphics.setColor(1, 1, 1)
 		for i, v in ipairs(self.mask_providers) do
 			love.graphics.push()
