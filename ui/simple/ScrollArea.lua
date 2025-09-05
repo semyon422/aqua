@@ -15,7 +15,7 @@ ScrollArea.ClassName = "ScrollArea"
 local frame_aim = 60
 
 function ScrollArea:load()
-	self.accepts_input = true
+	self.handles_mouse_input = true
 	self.friction = self.friction or 0.95
 	self.threshold = self.threshold or 0.5
 	self:resetScrollState()

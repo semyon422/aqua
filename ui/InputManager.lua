@@ -51,15 +51,10 @@ function InputManager:setKeyboardFocus(node)
 	self.keyboard_focus = node
 end
 
----@param node ui.Node?
-function InputManager:setKeyboardFocusFallback(node)
-	self.keyboard_focus_fallback = node
-end
-
 ---@param event {name: string, [integer]: any}
 ---@param traversal_ctx ui.TraversalContext
 ---@return ui.MouseEvent?
-function InputManager:createMouseEvent(event, traversal_ctx)
+function InputManager:dispatchMouseEvent(event, traversal_ctx)
 	local e = nil ---@type ui.MouseEvent
 
 	if event.name == "mousepressed" then
@@ -116,16 +111,12 @@ function InputManager:createMouseEvent(event, traversal_ctx)
 	e.target = e.target or traversal_ctx.mouse_target
 	e.x = traversal_ctx.mouse_x
 	e.y = traversal_ctx.mouse_y
-	return e
+	self:dispatchEvent(e)
 end
 
-function InputManager:createKeyboardEvent(event)
-	local target = self.keyboard_focus or self.keyboard_focus_fallback
-
-	if not target then
-		return
-	end
-
+---@param event {name: string, [integer]: any}
+---@param traversal_ctx ui.TraversalContext
+function InputManager:dispatchKeyboardEvent(event, traversal_ctx)
 	local e = nil ---@type ui.KeyboardEvent?
 
 	if event.name == "keypressed" then
@@ -140,43 +131,54 @@ function InputManager:createKeyboardEvent(event)
 
 	---@cast e -?
 	e.key = event[1]
-	e.target = target
 
-	return e
+	if self.keyboard_focus then
+		e.target = self.keyboard_focus
+		self:dispatchEvent(e)
+		return
+	end
+
+	for _, v in ipairs(traversal_ctx.focus_requesters) do
+		e.target = v
+		local handled = self:dispatchEvent(e)
+		if handled then
+			break
+		end
+		-- TODO: onKeyUp should go to the node that handled the event
+		-- Maybe it's unnecessary
+	end
 end
 
 ---@param event {name: string, [integer]: any}
 ---@param traversal_ctx ui.TraversalContext
 function InputManager:receive(event, traversal_ctx)
-	local e = nil ---@type ui.UIEvent
-
 	if mouse_events[event.name] then
-		e = self:createMouseEvent(event, traversal_ctx)
+		self:dispatchMouseEvent(event, traversal_ctx)
 	elseif keyboard_events[event.name] then
-		e = self:createKeyboardEvent(event)
+		self:dispatchKeyboardEvent(event, traversal_ctx)
 	else
 		return
-	end
-
-	if e then
-		self:dispatchEvent(e)
 	end
 end
 
 ---@param e ui.UIEvent
+---@return boolean? handled
 ---@private
 function InputManager:dispatchEvent(e)
 	-- TODO: who cares about capture phase
 	-- create your own InputManager if you need it
 
+	local handled = false
 	e.current_target = e.target
 	while e.current_target do
-		e:trigger()
+		handled = handled or e:trigger()
 		if e.stop then
 			return
 		end
 		e.current_target = e.current_target.parent
 	end
+
+	return handled
 end
 
 return InputManager

@@ -5,6 +5,7 @@ local Node = require("ui.Node")
 ---@field mouse_x number
 ---@field mouse_y number
 ---@field mouse_target ui.Node?
+---@field focus_requesters ui.Node[]
 
 ---@class ui.Pivot
 ---@field x number
@@ -27,7 +28,8 @@ local Node = require("ui.Node")
 ---@field percent_height number? Used for Percent size mode
 ---@field color ui.Color
 ---@field alpha number
----@field accepts_input boolean
+---@field handles_mouse_input boolean
+---@field handles_keyboard_input boolean
 
 ---@class ui.Drawable : ui.Node, ui.Drawable.Params
 ---@operator call: ui.Drawable
@@ -84,7 +86,8 @@ function Drawable:new(params)
 
 	self.world_transform = love.math.newTransform()
 	self.mouse_over = false
-	self.accepts_input = self.accepts_input == nil and false or self.accepts_input
+	self.handles_mouse_input = self.handles_mouse_input == nil and false or self.handles_mouse_input
+	self.handles_keyboard_input = self.handles_keyboard_input == nil and false or self.handles_keyboard_input
 end
 
 ---@generic T : ui.Drawable
@@ -161,26 +164,32 @@ function Drawable:updateTree(ctx)
 		return
 	end
 
-	if not ctx.mouse_target and self.accepts_input and self.alpha * self.color[4] > 0 then
-		local had_focus = self.mouse_over
-		local imx, imy = self.world_transform:inverseTransformPoint(ctx.mouse_x, ctx.mouse_y)
-		self.mouse_over = self:isMouseOver(ctx.mouse_x, ctx.mouse_y, imx, imy)
-
-		if self.mouse_over then
-			ctx.mouse_target = self
+	if (self.handles_mouse_input or self.handles_keyboard_input) and self.alpha * self.color[4] > 0 then
+		if self.handles_keyboard_input then
+			table.insert(ctx.focus_requesters, self)
 		end
 
-		-- TODO: dispatch an event
-		if not had_focus and self.mouse_over then
-			self:onHover()
-		elseif had_focus and not self.mouse_over then
-			self:onHoverLost()
+		if not ctx.mouse_target and self.handles_mouse_input then
+			local had_focus = self.mouse_over
+			local imx, imy = self.world_transform:inverseTransformPoint(ctx.mouse_x, ctx.mouse_y)
+			self.mouse_over = self:isMouseOver(ctx.mouse_x, ctx.mouse_y, imx, imy)
+
+			if self.mouse_over then
+				ctx.mouse_target = self
+			end
+
+			-- TODO: dispatch an event
+			if not had_focus and self.mouse_over then
+				self:onHover()
+			elseif had_focus and not self.mouse_over then
+				self:onHoverLost()
+			end
+		else
+			if self.mouse_over then
+				self:onHoverLost()
+				self.mouse_over = false
+			end
 		end
-	else
-		if self.mouse_over then
-			self:onHoverLost()
-		end
-		self.mouse_over = false
 	end
 
 	self:update(ctx.delta_time)

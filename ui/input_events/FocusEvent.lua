@@ -6,7 +6,7 @@ local UIEvent = require("ui.UIEvent")
 local FocusEvent = UIEvent + {}
 
 function FocusEvent:trigger()
-	self.current_target:onFocus(self)
+	return self.current_target:onFocus(self)
 end
 
 return FocusEvent

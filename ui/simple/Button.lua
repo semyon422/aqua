@@ -25,7 +25,7 @@ function Button:load()
 	local w, h = self.label:getDimensions()
 	self:setWidth(w + 12)
 	self:setHeight(h + 8)
-	self.accepts_input = true
+	self.handles_mouse_input = true
 end
 
 ---@param text string

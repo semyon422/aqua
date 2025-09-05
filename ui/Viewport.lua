@@ -8,6 +8,7 @@ local Drawable = require("ui.Drawable")
 local Viewport = Drawable + {}
 
 Viewport.ClassName = "Viewport"
+Viewport.size_mode = Drawable.SizeMode.Inherit
 
 function Viewport:beforeLoad()
 	Drawable.beforeLoad(self)
@@ -37,7 +38,7 @@ end
 
 ---@return number width
 ---@return number height
-function Viewport:getScreenDimensions()
+function Viewport:getVirtualScreenDimensions()
 	return self.virtual_screen_width, self.virtual_screen_height
 end
 

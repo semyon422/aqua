@@ -19,7 +19,7 @@ function Window:load()
 		width = self:getWidth(),
 		height = self:getHeight() - top_bar:getHeight(),
 		color = { 0.5, 0.2, 0.5, 0.5 },
-		accepts_input = true
+		handles_mouse_input = true
 	}))
 	self.container = self:add(Stencil({
 		y = top_bar:getHeight(),

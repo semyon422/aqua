@@ -9,7 +9,7 @@ local WindowTopBar = Drawable + {}
 WindowTopBar.ClassName = "WindowTopBar"
 
 function WindowTopBar:load()
-	self.accepts_input = true
+	self.handles_mouse_input = true
 	self.position_origin = { x = 0, y = 0 }
 	self.drag_origin = { x = 0, y = 0 }
 
@@ -32,7 +32,7 @@ end
 function WindowTopBar:onDrag(e)
 	local dx = self.drag_origin.x - e.x
 	local dy = self.drag_origin.y - e.y
-	local viewport_scale = (768 / love.graphics.getHeight()) -- TODO: get it from viewport
+	local viewport_scale = self:getViewport():getViewportScale()
 	self.parent:setPosition(
 		self.position_origin.x - dx * viewport_scale,
 		self.position_origin.y - dy * viewport_scale

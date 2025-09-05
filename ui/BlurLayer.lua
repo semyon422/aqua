@@ -52,7 +52,7 @@ function BlurLayer:beforeLoad()
 end
 
 function BlurLayer:createCanvas()
-	self:setDimensions(self.viewport:getScreenDimensions())
+	self:setDimensions(self.viewport:getVirtualScreenDimensions())
 	local w, h = self:getWidth() * self.canvas_scale, self:getHeight() * self.canvas_scale
 	self.canvas = love.graphics.newCanvas(w, h)
 	self.shader:send("tex_size", { w, h })
@@ -70,7 +70,7 @@ function BlurLayer:addArea(drawable)
 end
 
 function BlurLayer:update()
-	local sw, sh = self.viewport:getScreenDimensions()
+	local sw, sh = self.viewport:getVirtualScreenDimensions()
 
 	if self:getWidth() ~= sw or self:getHeight() ~= sh then
 		self:createCanvas()

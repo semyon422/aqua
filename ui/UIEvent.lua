@@ -22,6 +22,7 @@ function UIEvent:stopPropagation()
 	self.stop = true
 end
 
+---@return boolean?
 function UIEvent:trigger() end
 
 return UIEvent
