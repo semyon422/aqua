@@ -12,6 +12,7 @@ Viewport.size_mode = Drawable.SizeMode.Inherit
 
 function Viewport:beforeLoad()
 	Drawable.beforeLoad(self)
+	self.parent = Drawable()
 	self.screen_width = love.graphics.getWidth()
 	self.screen_height = love.graphics.getHeight()
 	self.virtual_screen_width = self.virtual_screen_width or self.screen_width
@@ -42,6 +43,8 @@ function Viewport:getVirtualScreenDimensions()
 	return self.virtual_screen_width, self.virtual_screen_height
 end
 
+---@param w number
+---@param h number
 function Viewport:setVirtualScreenDimensions(w, h)
 	self.virtual_screen_width = w
 	self.virtual_screen_height = h

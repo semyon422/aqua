@@ -322,18 +322,21 @@ function Drawable:setBox(x, y, w, h)
 	self.y = y
 	self.width = w
 	self.height = h
+	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 
 ---@param x number
 function Drawable:setX(x)
 	self.x = x
+	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 
 ---@param y number
 function Drawable:setY(y)
 	self.y = y
+	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 
@@ -343,23 +346,27 @@ function Drawable:setPosition(x, y)
 	self.x = x
 	self.y = y
 	self:updateWorldTransform()
+	self.parent:invalidateLayout()
 end
 
 ---@param width number
 function Drawable:setWidth(width)
 	self.width = width
+	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 
 ---@param height number
 function Drawable:setHeight(height)
 	self.height = height
+	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 
 function Drawable:setDimensions(width, height)
 	self.width = width
 	self.height = height
+	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 

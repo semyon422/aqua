@@ -6,20 +6,13 @@ local LayoutContainer = Drawable + {}
 
 LayoutContainer.ClassName = "LayoutContainer"
 
-function LayoutContainer:updateTree(ctx)
-	Drawable.updateTree(self, ctx)
-
-	if self.invalidated then
-		self:rearrangeChildren()
-		self.invalidated = false
-	end
-end
-
 function LayoutContainer:invalidateLayout()
-	if self.is_killed then
+	if self.invalidating == true then
 		return
 	end
-	self.invalidated = true
+	self.invalidating = true
+	self:rearrangeChildren()
+	self.invalidating = false
 end
 
 function LayoutContainer:rearrangeChildren() end
