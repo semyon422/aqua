@@ -1,6 +1,7 @@
 local Drawable = require("ui.Drawable")
-local ui = require("ui")
+local rectangle = require("ui.primitives.rectangle")
 local math_util = require("math_util")
+local colors = require("ui.simple.colors")
 
 ---@class ui.Simple.Slider.Params
 ---@field min number
@@ -14,8 +15,6 @@ local math_util = require("math_util")
 local Slider = Drawable + {}
 
 Slider.ClassName = "Slider"
-
-Slider.height = 24
 Slider.handles_mouse_input = true
 
 function Slider:load()
@@ -50,8 +49,8 @@ end
 ---@param x number
 function Slider:calcTargetPercent(screen_mouse_x, screen_mouse_y)
 	local x, _ = self.world_transform:inverseTransformPoint(screen_mouse_x, screen_mouse_y)
-	local value = self:valueFromThumbPosition(x)
-	self.setValue(math_util.round(value, self.step))
+	local value = math_util.round(self:valueFromThumbPosition(x), self.step)
+	self.setValue(value)
 	self.thumb_target_position = self:thumbPositionFromValue(value)
 end
 
@@ -62,11 +61,11 @@ end
 
 function Slider:draw()
 	local w, h = self:getDimensions()
-	love.graphics.setColor(0.1, 0.1, 0.1, 1)
-	ui.rectangle(w, h, h / 2 + 1)
+	love.graphics.setColor(colors.background)
+	rectangle(w, h, h / 2)
 
-	love.graphics.setColor(0.9, 0.9, 0.9, 1)
-	ui.rectangle(self.thumb_position, h, h / 2 + 1)
+	love.graphics.setColor(colors.palette_1)
+	rectangle(self.thumb_position, h, h / 2)
 end
 
 return Slider

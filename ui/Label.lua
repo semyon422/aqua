@@ -37,7 +37,7 @@ function Label:replaceText(text)
 		return
 	end
 	self.text = text
-	self.text_batch = love.graphics.newText(self.font, self.text)
+	self.text_batch:set(text)
 	local width, height = self.text_batch:getDimensions()
 	self:setWidth(width)
 	self:setHeight(height)

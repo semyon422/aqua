@@ -159,7 +159,7 @@ end
 
 ---@param message string
 function Node:error(message)
-	message = ("%s :: %s"):format(self.id or "unnamed", message)
+	message = ("%s :: %s"):format(self.id or self.ClassName or "unnamed", message)
 	if self.parent then
 		self.parent:error(message)
 	else
