@@ -24,8 +24,6 @@ local Node = require("ui.Node")
 ---@field anchor ui.Pivot
 ---@field width number
 ---@field height number
----@field percent_width number? Used for Percent size mode
----@field percent_height number? Used for Percent size mode
 ---@field color ui.Color
 ---@field alpha number
 ---@field handles_mouse_input boolean
@@ -53,13 +51,6 @@ Drawable.Pivot = {
 	BottomRight = { x = 1, y = 1 },
 }
 
-Drawable.SizeMode = {
-	Fixed = 1, -- Fixed width/height
-	Auto = 2, -- Drawable:getContentSize() becomes width and height
-	Inherit = 3, -- Takes 100% of parent's width and height
-	Percent = 4 -- Takes self.percent_width and self.percent_height of parent's width and height
-}
-
 ---@param params {[string]: any}
 function Drawable:new(params)
 	Node.new(self, params)
@@ -75,7 +66,6 @@ function Drawable:new(params)
 	self.height = self.height or 0
 	self.color = self.color or { 1, 1, 1, 1 }
 	self.alpha = self.alpha or 1
-	self.size_mode = self.size_mode or Drawable.SizeMode.Fixed
 
 	if #self.color < 4 then
 		local missing = 4 - #self.color
@@ -99,20 +89,10 @@ function Drawable:add(drawable)
 
 	drawable:updateWorldTransform()
 
-	if self.parent then
-		self.parent:invalidateLayout()
-	end
-
 	return drawable
 end
 
 function Drawable:updateWorldTransform()
-	local w, h = self:getNewDimensions()
-	if w and h then
-		self.width = w
-		self.height = h
-	end
-
 	local tf = love.math.newTransform(
 		self.x + self.anchor.x * self.parent:getWidth(),
 		self.y + self.anchor.y * self.parent:getHeight(),
@@ -128,16 +108,10 @@ function Drawable:updateWorldTransform()
 	for _, child in ipairs(self.children) do
 		child:updateWorldTransform()
 	end
-
-	self:invalidateLayout()
 end
 
 function Drawable:kill()
 	Node.kill(self)
-
-	if self.parent then
-		self.parent:invalidateLayout()
-	end
 end
 
 ---@param mouse_x number
@@ -250,44 +224,6 @@ function Drawable:getContentSize()
 end
 
 ---@return number
----@return number
-function Drawable:measure(available_w, available_h)
-	return math.min(self:getWidth(), available_w), math.min(self:getHeight(), available_h)
-end
-
----@return number? width
----@return number? height
-function Drawable:getNewDimensions()
-	if not self.parent then
-		return
-	end
-
-	if self.size_mode == Drawable.SizeMode.Auto then
-		local cw, ch = self:getContentSize()
-		local w, h = self:getDimensions()
-		if cw ~= w or ch ~= h then
-			return cw, ch
-		end
-	elseif self.size_mode == Drawable.SizeMode.Inherit then
-		local pw, ph = self.parent:getDimensions()
-		local w, h = self:getDimensions()
-		if pw ~= w or ph ~= h then
-			return pw, ph
-		end
-	elseif self.size_mode == Drawable.SizeMode.Percent then
-		local pw, ph = self.parent:getDimensions()
-		local w, h = self:getDimensions()
-		local sw = self.percent_width and self.percent_width * pw or self.width
-		local sh = self.percent_height and self.percent_height * ph or self.height
-		if sw ~= w or sh ~= h then
-			return sw, sh
-		end
-	end
-end
-
-function Drawable:invalidateLayout() end
-
----@return number
 function Drawable:getX()
 	return self.x
 end
@@ -322,21 +258,18 @@ function Drawable:setBox(x, y, w, h)
 	self.y = y
 	self.width = w
 	self.height = h
-	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 
 ---@param x number
 function Drawable:setX(x)
 	self.x = x
-	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 
 ---@param y number
 function Drawable:setY(y)
 	self.y = y
-	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 
@@ -346,27 +279,23 @@ function Drawable:setPosition(x, y)
 	self.x = x
 	self.y = y
 	self:updateWorldTransform()
-	self.parent:invalidateLayout()
 end
 
 ---@param width number
 function Drawable:setWidth(width)
 	self.width = width
-	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 
 ---@param height number
 function Drawable:setHeight(height)
 	self.height = height
-	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 
 function Drawable:setDimensions(width, height)
 	self.width = width
 	self.height = height
-	self.parent:invalidateLayout()
 	self:updateWorldTransform()
 end
 
