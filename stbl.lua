@@ -54,7 +54,8 @@ end
 
 ---@param t table
 ---@param tables {[table]: number, count: number}
-function encoders.table(t, tables)
+---@param safe boolean?
+function encoders.table(t, tables, safe)
 	if tables[t] then
 		return ("tables[%d]"):format(tables[t])
 	end
@@ -89,7 +90,7 @@ function encoders.table(t, tables)
 	for i = 1, max_int_key do
 		local v = t[i]
 		if v ~= nil then
-			table.insert(out, ("%s"):format(stbl.encode(v, tables)))
+			table.insert(out, ("%s"):format(stbl.encode(v, tables, safe)))
 		else
 			table.insert(out, "nil")
 		end
@@ -97,11 +98,11 @@ function encoders.table(t, tables)
 
 	local eq = ("%s=%s"):format(stbl.space, stbl.space)
 	for _, k in ipairs(float_keys) do
-		table.insert(out, ("[%s]%s%s"):format(stbl.encode(k, tables), eq, stbl.encode(t[k], tables)))
+		table.insert(out, ("[%s]%s%s"):format(stbl.encode(k, tables, safe), eq, stbl.encode(t[k], tables, safe)))
 	end
 
 	for _, k in ipairs(str_keys) do
-		table.insert(out, ("%s%s%s"):format(tkey(k), eq, stbl.encode(t[k], tables)))
+		table.insert(out, ("%s%s%s"):format(tkey(k), eq, stbl.encode(t[k], tables, safe)))
 	end
 
 	return table.concat({"{", table.concat(out, "," .. stbl.space), "}"})
@@ -109,8 +110,9 @@ end
 
 ---@param v any
 ---@param tables {[table]: number, count: number}?
+---@param safe boolean?
 ---@return string
-function stbl.encode(v, tables)
+function stbl.encode(v, tables, safe)
 	if v == nil then
 		return ""
 	end
@@ -120,10 +122,13 @@ function stbl.encode(v, tables)
 	end
 	local encoder = encoders[tv]
 	if not encoder then
+		if safe then
+			return ("%q"):format(v)
+		end
 		error("unsupported value type '" .. tv .. "'")
 	end
 	tables = tables or {count = 0}
-	return encoder(v, tables)
+	return encoder(v, tables, safe)
 end
 
 ---@param v string

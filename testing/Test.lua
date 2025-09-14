@@ -34,7 +34,7 @@ local function format_got_expected(v)
 	if type(v) ~= "table" then
 		return v
 	end
-	return stbl.encode(v)
+	return stbl.encode(v, nil, true)
 end
 
 local function string_diff(a, b)
