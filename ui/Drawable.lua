@@ -24,6 +24,11 @@ local Node = require("ui.Node")
 ---@field anchor ui.Pivot
 ---@field width number
 ---@field height number
+---@field width_mode ui.SizeMode
+---@field height_mode ui.SizeMode
+---@field padding number[] left top bottom right
+---@field child_gap number
+---@field arrange ui.Arrange
 ---@field color ui.Color
 ---@field alpha number
 ---@field handles_mouse_input boolean
@@ -51,6 +56,20 @@ Drawable.Pivot = {
 	BottomRight = { x = 1, y = 1 },
 }
 
+---@enum ui.SizeMode
+Drawable.SizeMode = {
+	Fixed = 1,
+	Fit = 2,
+	Grow = 3,
+}
+
+---@enum ui.Arrange
+Drawable.Arrange = {
+	Absolute = 1,
+	FlowH = 2,
+	FlowV = 3,
+}
+
 ---@param params {[string]: any}
 function Drawable:new(params)
 	Node.new(self, params)
@@ -66,6 +85,9 @@ function Drawable:new(params)
 	self.height = self.height or 0
 	self.color = self.color or { 1, 1, 1, 1 }
 	self.alpha = self.alpha or 1
+	self.padding = self.padding or { 0, 0, 0, 0 }
+	self.child_gap = self.child_gap or 0
+	self.arrange = self.arrange or self.Arrange.Absolute
 
 	if #self.color < 4 then
 		local missing = 4 - #self.color
@@ -74,8 +96,16 @@ function Drawable:new(params)
 		end
 	end
 
+	if #self.padding < 4 then
+		local missing = 4 - #self.padding
+		for _ = 1, missing do
+			table.insert(self.padding, 0)
+		end
+	end
+
 	self.world_transform = love.math.newTransform()
 	self.mouse_over = false
+	self.invalidate_layout = false
 	self.handles_mouse_input = self.handles_mouse_input == nil and false or self.handles_mouse_input
 	self.handles_keyboard_input = self.handles_keyboard_input == nil and false or self.handles_keyboard_input
 end
@@ -87,27 +117,9 @@ function Drawable:add(drawable)
 	Node.add(self, drawable)
 	---@cast drawable ui.Drawable
 
-	drawable:updateWorldTransform()
+	self.invalidate_layout = true
 
 	return drawable
-end
-
-function Drawable:updateWorldTransform()
-	local tf = love.math.newTransform(
-		self.x + self.anchor.x * self.parent:getWidth(),
-		self.y + self.anchor.y * self.parent:getHeight(),
-		self.angle,
-		self.scale_x,
-		self.scale_y,
-		self.origin.x * self:getWidth(),
-		self.origin.y * self:getHeight()
-	)
-
-	self.world_transform = self.parent.world_transform * tf
-
-	for _, child in ipairs(self.children) do
-		child:updateWorldTransform()
-	end
 end
 
 function Drawable:kill()
@@ -168,6 +180,11 @@ function Drawable:updateTree(ctx)
 
 	self:update(ctx.delta_time)
 	self:updateChildren(ctx)
+
+	if self.invalidate_layout then
+		self:updateLayout()
+		self.invalidate_layout = false
+	end
 end
 
 function Drawable:drawChildren()
@@ -195,32 +212,95 @@ function Drawable:drawTree()
 	self:drawChildren()
 end
 
----@return number width
----@return number height
-function Drawable:getContentSize()
-	if #self.children == 0 then
-		return 0, 0
+function Drawable:invalidateLayout()
+	self.invalidate_layout = true
+end
+
+function Drawable:fitWidth()
+	if self.width_mode ~= self.SizeMode.Fit then
+		return
 	end
 
-	local min_x, min_y = math.huge, math.huge
-	local max_x, max_y = -math.huge, -math.huge
+	local total = 0
 
-	for _, child in pairs(self.children) do
-		local left = child.x
-		local top = child.y
-		local right = child.x + child:getWidth()
-		local bottom = child.y + child:getHeight()
-
-		min_x = math.min(min_x, left)
-		min_y = math.min(min_y, top)
-		max_x = math.max(max_x, right)
-		max_y = math.max(max_y, bottom)
+	if self.arrange == self.Arrange.Absolute then
+		for _, child in ipairs(self.children) do
+			child:fitWidth()
+			total = math.max(total, child:getX() + child:getWidth())
+		end
+	elseif self.arrange == self.Arrange.FlowV then
+		for _, child in ipairs(self.children) do
+			child:fitWidth()
+			total = math.max(total, child:getWidth())
+		end
+		total = self.padding[1] + total + self.padding[4]
+	elseif self.arrange == self.Arrange.FlowH then
+		for _, child in ipairs(self.children) do
+			child:fitWidth()
+			total = total + child:getWidth()
+		end
+		total = total + (self.child_gap * (math.max(0, #self.children - 1)))
+		total = self.padding[1] + total + self.padding[4]
 	end
 
-	local w = max_x - min_x
-	local h = max_y - min_y
+	self:setWidth(total)
+end
 
-	return w, h
+function Drawable:fitHeight()
+	if self.height_mode ~= self.SizeMode.Fit then
+		return
+	end
+
+	local total = 0
+
+	if self.arrange == self.Arrange.Absolute then
+		for _, child in ipairs(self.children) do
+			child:fitHeight()
+			total = math.max(total, child:getY() + child:getHeight())
+		end
+	elseif self.arrange == self.Arrange.FlowH then
+		for _, child in ipairs(self.children) do
+			child:fitHeight()
+			total = math.max(total, child:getHeight())
+		end
+		total = self.padding[2] + total + self.padding[3]
+	elseif self.arrange == self.Arrange.FlowV then
+		for _, child in ipairs(self.children) do
+			child:fitHeight()
+			total = total + child:getHeight()
+		end
+		total = total + (self.child_gap * (math.max(0, #self.children - 1)))
+		total = self.padding[2] + total + self.padding[3]
+	end
+
+	self:setHeight(total)
+end
+
+function Drawable:updateLayout()
+	if self.parent then
+		self:updateWorldTransform()
+	end
+
+	for _, child in ipairs(self.children) do
+		child:updateWorldTransform()
+	end
+end
+
+function Drawable:updateWorldTransform()
+	local x = self.x + self.anchor.x * self.parent:getLayoutWidth() + self.parent.padding[1]
+	local y = self.y + self.anchor.y * self.parent:getLayoutHeight() + self.parent.padding[2]
+
+	local tf = love.math.newTransform(
+		x,
+		y,
+		self.angle,
+		self.scale_x,
+		self.scale_y,
+		self.origin.x * self:getWidth(),
+		self.origin.y * self:getHeight()
+	)
+
+	self.world_transform = self.parent.world_transform * tf
 end
 
 ---@return number
@@ -249,6 +329,21 @@ function Drawable:getDimensions()
 end
 
 ---@return number
+function Drawable:getLayoutWidth()
+	return self.width - (self.padding[1] + self.padding[4])
+end
+
+---@return number
+function Drawable:getLayoutHeight()
+	return self.height - (self.padding[2] + self.padding[3])
+end
+
+---@return number, number
+function Drawable:getLayoutDimensions()
+	return self:getLayoutWidth(), self:getLayoutHeight()
+end
+
+---@return number
 function Drawable:getAngle()
 	return self.angle
 end
@@ -258,19 +353,16 @@ function Drawable:setBox(x, y, w, h)
 	self.y = y
 	self.width = w
 	self.height = h
-	self:updateWorldTransform()
 end
 
 ---@param x number
 function Drawable:setX(x)
 	self.x = x
-	self:updateWorldTransform()
 end
 
 ---@param y number
 function Drawable:setY(y)
 	self.y = y
-	self:updateWorldTransform()
 end
 
 ---@param x number
@@ -278,50 +370,42 @@ end
 function Drawable:setPosition(x, y)
 	self.x = x
 	self.y = y
-	self:updateWorldTransform()
 end
 
 ---@param width number
 function Drawable:setWidth(width)
 	self.width = width
-	self:updateWorldTransform()
 end
 
 ---@param height number
 function Drawable:setHeight(height)
 	self.height = height
-	self:updateWorldTransform()
 end
 
 function Drawable:setDimensions(width, height)
 	self.width = width
 	self.height = height
-	self:updateWorldTransform()
 end
 
 ---@param scale_x number
 function Drawable:setScaleX(scale_x)
 	self.scale_x = scale_x
-	self:updateWorldTransform()
 end
 
 ---@param scale_y number
 function Drawable:setScaleY(scale_y)
 	self.scale_y = scale_y
-	self:updateWorldTransform()
 end
 
 ---@param scale_y number
 function Drawable:setScale(scale)
 	self.scale_x = scale
 	self.scale_y = scale
-	self:updateWorldTransform()
 end
 
 ---@param a number
 function Drawable:setAngle(a)
 	self.angle = a
-	self:updateWorldTransform()
 end
 
 return Drawable
