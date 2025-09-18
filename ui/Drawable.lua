@@ -83,6 +83,8 @@ function Drawable:new(params)
 	self.anchor = self.anchor or Drawable.Pivot.TopLeft
 	self.width = self.width or 0
 	self.height = self.height or 0
+	self.width_mode = self.width_mode or self.SizeMode.Fixed
+	self.height_mode = self.height_mode or self.SizeMode.Fixed
 	self.color = self.color or { 1, 1, 1, 1 }
 	self.alpha = self.alpha or 1
 	self.padding = self.padding or { 0, 0, 0, 0 }
@@ -217,78 +219,134 @@ function Drawable:invalidateLayout()
 end
 
 function Drawable:fitWidth()
-	if self.width_mode ~= self.SizeMode.Fit then
+	if self.width_mode == self.SizeMode.Fixed then
+		for _, child in ipairs(self.children) do
+			child:fitWidth()
+		end
 		return
 	end
 
-	local total = 0
+	local w = 0
 
 	if self.arrange == self.Arrange.Absolute then
 		for _, child in ipairs(self.children) do
 			child:fitWidth()
-			total = math.max(total, child:getX() + child:getWidth())
+			w = math.max(w, child.x + child.width)
 		end
 	elseif self.arrange == self.Arrange.FlowV then
 		for _, child in ipairs(self.children) do
 			child:fitWidth()
-			total = math.max(total, child:getWidth())
+			w = math.max(w, child.width)
 		end
-		total = self.padding[1] + total + self.padding[4]
 	elseif self.arrange == self.Arrange.FlowH then
 		for _, child in ipairs(self.children) do
 			child:fitWidth()
-			total = total + child:getWidth()
+			w = w + child.width
 		end
-		total = total + (self.child_gap * (math.max(0, #self.children - 1)))
-		total = self.padding[1] + total + self.padding[4]
+		w = w + self.child_gap * (math.max(0, #self.children - 1))
 	end
 
-	self:setWidth(total)
+	self.width = self.padding[1] + w + self.padding[4]
 end
 
 function Drawable:fitHeight()
-	if self.height_mode ~= self.SizeMode.Fit then
+	if self.height_mode == self.SizeMode.Fixed then
+		for _, child in ipairs(self.children) do
+			child:fitHeight()
+		end
 		return
 	end
 
-	local total = 0
+	local h = 0
 
 	if self.arrange == self.Arrange.Absolute then
 		for _, child in ipairs(self.children) do
 			child:fitHeight()
-			total = math.max(total, child:getY() + child:getHeight())
+			h = math.max(h, child.y + child.height)
 		end
 	elseif self.arrange == self.Arrange.FlowH then
 		for _, child in ipairs(self.children) do
 			child:fitHeight()
-			total = math.max(total, child:getHeight())
+			h = math.max(h, child.height)
 		end
-		total = self.padding[2] + total + self.padding[3]
 	elseif self.arrange == self.Arrange.FlowV then
 		for _, child in ipairs(self.children) do
 			child:fitHeight()
-			total = total + child:getHeight()
+			h = h + child.height
 		end
-		total = total + (self.child_gap * (math.max(0, #self.children - 1)))
-		total = self.padding[2] + total + self.padding[3]
+		h = h + (self.child_gap * (math.max(0, #self.children - 1)))
 	end
 
-	self:setHeight(total)
+	self.height = self.padding[2] + h + self.padding[3]
 end
 
-function Drawable:updateLayout()
-	if self.parent then
-		self:updateWorldTransform()
+function Drawable:grow()
+	local remaining_width = self.width
+	local remaining_height = self.height
+	remaining_width = remaining_width - self.padding[1] - self.padding[4]
+	remaining_height = remaining_height - self.padding[2] - self.padding[3]
+
+	if self.arrange == self.Arrange.FlowH then
+		remaining_width = remaining_width - (self.child_gap * (math.max(0, #self.children - 1)))
+	elseif self.arrange == self.Arrange.FlowV then
+		remaining_height = remaining_height - (self.child_gap * (math.max(0, #self.children - 1)))
 	end
 
 	for _, child in ipairs(self.children) do
-		child:updateWorldTransform()
+		if child.width_mode ~= self.SizeMode.Grow then
+			remaining_width = remaining_width - child.width
+		end
+		if child.height_mode ~= self.SizeMode.Grow then
+			remaining_height = remaining_height - child.height
+		end
+	end
+
+	for _, child in ipairs(self.children) do
+		if child.width_mode == self.SizeMode.Grow then
+			child.width = remaining_width
+		end
+		if child.height_mode == self.SizeMode.Grow then
+			child.height = remaining_height
+		end
+		child:grow()
+	end
+end
+
+function Drawable:positionChildren()
+	local x, y = 0, 0
+
+	if self.arrange == self.Arrange.FlowH then
+		for i, child in ipairs(self.children) do
+			child:setPosition(x, y)
+			child:updateWorldTransform()
+			child:positionChildren()
+			x = x + child:getWidth() + self.child_gap
+		end
+	elseif self.arrange == self.Arrange.FlowV then
+		for i, child in ipairs(self.children) do
+			child:setPosition(x, y)
+			child:updateWorldTransform()
+			child:positionChildren()
+			y = y + child:getHeight() + self.child_gap
+		end
+	end
+end
+
+function Drawable:updateLayout()
+	self:fitWidth()
+	self:fitHeight()
+	self:grow()
+
+	if self.parent then
+		self.parent:positionChildren()
+	else
+		self:positionChildren()
 	end
 end
 
 function Drawable:updateWorldTransform()
 	local x = self.x + self.anchor.x * self.parent:getLayoutWidth() + self.parent.padding[1]
-	local y = self.y + self.anchor.y * self.parent:getLayoutHeight() + self.parent.padding[2]
+	local y = self.y + self.anchor.y * self.parent:getLayoutHeight() + self.parent.padding[3]
 
 	local tf = love.math.newTransform(
 		x,
@@ -315,12 +373,12 @@ end
 
 ---@return number
 function Drawable:getWidth()
-	return self.width * self.scale_x
+	return self.width -- * self.scale_x
 end
 
 ---@return number
 function Drawable:getHeight()
-	return self.height * self.scale_y
+	return self.height -- * self.scale_y
 end
 
 ---@return number, number

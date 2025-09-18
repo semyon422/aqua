@@ -10,8 +10,12 @@ float sdRoundRect(vec2 p, vec2 half_size, float r) {
 vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
     vec2 half_size = size * 0.5;
     vec2 p = (uv * size) - half_size;
+
     float d = sdRoundRect(p, half_size, radius);
-    float alpha = 1.0 - smoothstep(-1.0, 1.0, d);
+
+    float edge = fwidth(d);
+    float alpha = 1.0 - smoothstep(0.0, edge, d);
+
     return vec4(color.rgb, color.a * alpha);
 }
 ]]

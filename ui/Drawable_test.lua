@@ -22,7 +22,7 @@ local function get_ctx()
 end
 
 ---@param t testing.T
-function test.measure_sizes(t)
+function test.fit_sizing(t)
 	-- https://www.figma.com/design/BaNG5kFI2HHoyyzHx2H4UO/Untitled?node-id=0-1&t=EQTwPWhPLVVQYYRR-1
 
 	------ [[ TEST 1 ]] ------
@@ -139,12 +139,14 @@ function test.measure_sizes(t)
 
 	c2:add(Drawable({
 		width_mode = Drawable.SizeMode.Fixed,
+		height_mode = Drawable.SizeMode.Fixed,
 		width = 2,
 		height = 1,
 	}))
 
 	c2:add(Drawable({
 		width_mode = Drawable.SizeMode.Fixed,
+		height_mode = Drawable.SizeMode.Fixed,
 		width = 1,
 		height = 1,
 	}))
@@ -156,6 +158,63 @@ function test.measure_sizes(t)
 
 	root:fitWidth()
 	t:eq(root:getWidth(), 34)
+end
+
+---@param t testing.T
+function test.grow_sizing(t)
+	-- https://www.figma.com/design/BaNG5kFI2HHoyyzHx2H4UO/Untitled?node-id=0-1&t=EQTwPWhPLVVQYYRR-1
+
+	------ [[ TEST 4 ]] ------
+	local root, tctx = get_ctx()
+	root.width_mode = Drawable.SizeMode.Fixed
+	root.width = 10
+	root.padding = { 1, 0, 0, 1 }
+	root.child_gap = 1
+	root.arrange = Drawable.Arrange.FlowH
+
+	root:add(Drawable({
+		width_mode = Drawable.SizeMode.Fixed,
+		width = 2,
+	}))
+
+	local grow = root:add(Drawable({
+		width_mode = Drawable.SizeMode.Grow,
+	}))
+
+	root:fitWidth()
+	root:fitHeight()
+	root:grow()
+	t:eq(grow:getWidth(), 5)
+
+	root:add(Drawable({
+		width_mode = Drawable.SizeMode.Fixed,
+		width = 2,
+	}))
+
+	root:fitWidth()
+	root:fitHeight()
+	root:grow()
+	t:eq(grow:getWidth(), 2)
+
+	root, tctx = get_ctx()
+	root.width_mode = Drawable.SizeMode.Fixed
+	root.height_mode = Drawable.SizeMode.Fixed
+	root.width = 10
+	root.height = 10
+	root.padding = { 1, 1, 1, 1 }
+
+	------ [[ TEST 5 ]] ------
+
+	local c = root:add(Drawable({
+		width_mode = Drawable.SizeMode.Grow,
+		height_mode = Drawable.SizeMode.Grow
+	}))
+
+	root:fitWidth()
+	root:fitHeight()
+	root:grow()
+	t:eq(c:getWidth(), 8)
+	t:eq(c:getHeight(), 8)
 end
 
 return test
