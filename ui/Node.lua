@@ -17,7 +17,7 @@ local Node = class()
 
 Node.ClassName = "Node"
 
----@param params {[string]: any}
+---@param params {[string]: any}?
 function Node:new(params)
 	if params then
 		for k, v in pairs(params) do

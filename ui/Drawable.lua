@@ -184,7 +184,6 @@ function Drawable:updateTree(ctx)
 	self:updateChildren(ctx)
 
 	if self.invalidate_layout then
-		self:updateLayout()
 		self.invalidate_layout = false
 	end
 end
@@ -315,7 +314,12 @@ end
 function Drawable:positionChildren()
 	local x, y = 0, 0
 
-	if self.arrange == self.Arrange.FlowH then
+	if self.arrange == self.Arrange.Absolute then
+		for i, child in ipairs(self.children) do
+			child:updateWorldTransform()
+			child:positionChildren()
+		end
+	elseif self.arrange == self.Arrange.FlowH then
 		for i, child in ipairs(self.children) do
 			child:setPosition(x, y)
 			child:updateWorldTransform()

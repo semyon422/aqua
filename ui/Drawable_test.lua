@@ -32,31 +32,40 @@ function test.fit_sizing(t)
 	root:add(Drawable({
 		arrange = Drawable.Arrange.FlowH,
 		width_mode = Drawable.SizeMode.Fixed,
+		height_mode = Drawable.SizeMode.Fit,
 		width = 2,
 	}))
 
 	local container = root:add(Drawable({
 		arrange = Drawable.Arrange.FlowH,
 		width_mode = Drawable.SizeMode.Fit,
+		height_mode = Drawable.SizeMode.Fit,
 	}))
 	container:add(Drawable({
 		width_mode = Drawable.SizeMode.Fixed,
 		width = 1,
+		height = 1,
 	}))
 	container:add(Drawable({
 		width_mode = Drawable.SizeMode.Fixed,
 		width = 1,
+		height = 1,
 	}))
 	container:add(Drawable({
 		width_mode = Drawable.SizeMode.Fixed,
 		width = 1,
+		height = 1,
 	}))
 
 	container:fitWidth()
+	container:fitHeight()
 	t:eq(container:getWidth(), 3)
+	t:eq(container:getHeight(), 1)
 
 	root:fitWidth()
+	root:fitHeight()
 	t:eq(root:getWidth(), 5)
+	t:eq(root:getHeight(), 1)
 
 	------ [[ TEST 2 ]] ------
 	root, tctx = get_ctx()
@@ -111,6 +120,7 @@ function test.fit_sizing(t)
 
 	c1 = root:add(Drawable({
 		width_mode = Drawable.SizeMode.Fit,
+		height_mode = Drawable.SizeMode.Fit,
 		arrange = Drawable.Arrange.FlowH,
 		padding = { 5, 0, 0, 5 },
 		child_gap = 5
@@ -118,16 +128,20 @@ function test.fit_sizing(t)
 
 	c1:add(Drawable({
 		width_mode = Drawable.SizeMode.Fixed,
-		width = 1
+		width = 1,
+		height = 1
 	}))
 
 	c1:add(Drawable({
 		width_mode = Drawable.SizeMode.Fixed,
-		width = 1
+		width = 1,
+		height = 1
 	}))
 
 	c1:fitWidth()
+	c1:fitHeight()
 	t:eq(c1:getWidth(), 17)
+	t:eq(c1:getHeight(), 1)
 
 	c2 = root:add(Drawable({
 		width_mode = Drawable.SizeMode.Fit,
@@ -157,7 +171,9 @@ function test.fit_sizing(t)
 	t:eq(c2:getHeight(), 7)
 
 	root:fitWidth()
+	root:fitHeight()
 	t:eq(root:getWidth(), 34)
+	t:eq(root:getHeight(), 7)
 end
 
 ---@param t testing.T
