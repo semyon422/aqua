@@ -339,6 +339,7 @@ function Drawable:updateLayout()
 	if self.parent then
 		self.parent:positionChildren()
 	else
+		self:updateWorldTransform()
 		self:positionChildren()
 	end
 
@@ -368,7 +369,7 @@ function Drawable:canResolveLayout(axis)
 end
 
 ---@param axis ui.Axis
---- Finds the suitable node that can handle relayout
+--- Finds a suitable node that can handle relayout
 function Drawable:propagateLayoutInvalidation(axis)
 	if not self.parent then
 		self.invalidate_axis = bit.bor(self.invalidate_axis, axis)
@@ -382,21 +383,45 @@ function Drawable:propagateLayoutInvalidation(axis)
 	end
 end
 
+local tf = love.math.newTransform()
+
 function Drawable:updateWorldTransform()
-	local x = self.x + self.anchor.x * self.parent:getLayoutWidth() + self.parent.padding_left
-	local y = self.y + self.anchor.y * self.parent:getLayoutHeight() + self.parent.padding_top
+	local x, y = 0, 0
 
-	self.world_transform:setTransformation(
-		x,
-		y,
-		self.angle,
-		self.scale_x,
-		self.scale_y,
-		self.origin.x * self:getWidth(),
-		self.origin.y * self:getHeight()
-	)
+	if self.parent then
+		x = self.x + self.anchor.x * self.parent:getLayoutWidth() + self.parent.padding_left
+		y = self.y + self.anchor.y * self.parent:getLayoutHeight() + self.parent.padding_top
+	else
+		x = self.x
+		y = self.y
+	end
 
-	self.world_transform:apply(self.parent.world_transform)
+	if self.parent then
+		-- The code below doesn't create a new transform, that's good
+		-- But would have been better if there was Transform:apply(other, reverse)
+		self.world_transform:reset()
+		self.world_transform:apply(self.parent.world_transform)
+		tf:setTransformation(
+			x,
+			y,
+			self.angle,
+			self.scale_x,
+			self.scale_y,
+			self.origin.x * self:getWidth(),
+			self.origin.y * self:getHeight()
+		)
+		self.world_transform:apply(tf)
+	else
+		self.world_transform:setTransformation(
+			x,
+			y,
+			self.angle,
+			self.scale_x,
+			self.scale_y,
+			self.origin.x * self:getWidth(),
+			self.origin.y * self:getHeight()
+		)
+	end
 end
 
 ---@return number

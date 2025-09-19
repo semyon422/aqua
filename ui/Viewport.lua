@@ -10,16 +10,15 @@ local Viewport = Drawable + {}
 Viewport.ClassName = "Viewport"
 Viewport.size_mode = Drawable.SizeMode.Inherit
 
-function Viewport:beforeLoad()
-	Drawable.beforeLoad(self)
-	self.parent = Drawable()
+function Viewport:new(params)
 	self.screen_width = love.graphics.getWidth()
 	self.screen_height = love.graphics.getHeight()
-	self.virtual_screen_width = self.virtual_screen_width or self.screen_width
-	self.virtual_screen_height = self.virtual_screen_height or self.screen_height
+	self.virtual_screen_width = self.screen_width
+	self.virtual_screen_height = self.screen_height
 	self.requires_canvas_update = true
+	Drawable.new(self, params)
 	self:ensureExist("target_height")
-	self:updateWorldTransform()
+	self:propagateLayoutInvalidation(Drawable.Axis.Both)
 end
 
 ---@return love.Canvas
@@ -49,15 +48,18 @@ function Viewport:setVirtualScreenDimensions(w, h)
 	self.virtual_screen_width = w
 	self.virtual_screen_height = h
 	self.requires_canvas_update = true
-	self:updateWorldTransform()
+	self:propagateLayoutInvalidation(Drawable.Axis.Both)
 end
 
-function Viewport:updateWorldTransform()
+function Viewport:updateLayout()
 	local scale = self.target_height / self.virtual_screen_height
 	self.width = self.virtual_screen_width * scale
 	self.height = self.virtual_screen_height * scale
 	self.inner_scale = 1 / scale
+	Drawable.updateLayout(self)
+end
 
+function Viewport:updateWorldTransform()
 	local tf = love.math.newTransform(
 		self.x + self.anchor.x * self.screen_width,
 		self.y + self.anchor.y * self.screen_height,
@@ -83,10 +85,6 @@ function Viewport:updateWorldTransform()
 		self.origin.y * self.virtual_screen_height
 	)
 
-	for _, child in ipairs(self.children) do
-		child:updateWorldTransform()
-	end
-
 	if self.requires_canvas_update then
 		self.canvas = love.graphics.newCanvas(self.virtual_screen_width, self.virtual_screen_height)
 		self.requires_canvas_update = false
@@ -103,7 +101,7 @@ function Viewport:update()
 			self.virtual_screen_height = wh
 			self.requires_canvas_update = true
 		end
-		self:updateWorldTransform()
+		self:propagateLayoutInvalidation(Drawable.Axis.Both)
 	end
 end
 

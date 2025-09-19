@@ -1,6 +1,6 @@
 local Drawable = require("ui.Drawable")
 
----@class Desugar
+---@class ui.Sugar
 ---@field size [number | "fit" | "grow", number | "fit" | "grow"]?
 ---@field padding [number, number, number, number]?
 ---@field arrange? "absolute" | "flow_h" | "flow_v"
@@ -31,7 +31,7 @@ local pivots = {
 }
 
 ---@param node ui.Drawable
----@param params Desugar
+---@param params ui.Sugar
 local function f(node, params)
 	if params.size then
 		local w, h = assert(params.size[1], "Width isn't defined"), assert(params.size[2], "Height isn't defined")
