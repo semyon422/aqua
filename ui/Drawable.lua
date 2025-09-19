@@ -79,6 +79,10 @@ Drawable.Axis = {
 	Both = 3,
 }
 
+local Arrange = Drawable.Arrange
+local SizeMode = Drawable.SizeMode
+local Axis = Drawable.Axis
+
 ---@param params {[string]: any}
 function Drawable:new(params)
 	self.x = 0
@@ -215,7 +219,7 @@ function Drawable:drawTree()
 end
 
 function Drawable:fitX()
-	if self.width_mode == self.SizeMode.Fixed then
+	if self.width_mode == SizeMode.Fixed then
 		for _, child in ipairs(self.children) do
 			child:fitX()
 		end
@@ -224,17 +228,17 @@ function Drawable:fitX()
 
 	local w = 0
 
-	if self.arrange == self.Arrange.Absolute then
+	if self.arrange == Arrange.Absolute then
 		for _, child in ipairs(self.children) do
 			child:fitX()
 			w = math.max(w, child.x + child.width)
 		end
-	elseif self.arrange == self.Arrange.FlowV then
+	elseif self.arrange == Arrange.FlowV then
 		for _, child in ipairs(self.children) do
 			child:fitX()
 			w = math.max(w, child.width)
 		end
-	elseif self.arrange == self.Arrange.FlowH then
+	elseif self.arrange == Arrange.FlowH then
 		for _, child in ipairs(self.children) do
 			child:fitX()
 			w = w + child.width
@@ -246,7 +250,7 @@ function Drawable:fitX()
 end
 
 function Drawable:fitY()
-	if self.height_mode == self.SizeMode.Fixed then
+	if self.height_mode == SizeMode.Fixed then
 		for _, child in ipairs(self.children) do
 			child:fitY()
 		end
@@ -255,17 +259,17 @@ function Drawable:fitY()
 
 	local h = 0
 
-	if self.arrange == self.Arrange.Absolute then
+	if self.arrange == Arrange.Absolute then
 		for _, child in ipairs(self.children) do
 			child:fitY()
 			h = math.max(h, child.y + child.height)
 		end
-	elseif self.arrange == self.Arrange.FlowH then
+	elseif self.arrange == Arrange.FlowH then
 		for _, child in ipairs(self.children) do
 			child:fitY()
 			h = math.max(h, child.height)
 		end
-	elseif self.arrange == self.Arrange.FlowV then
+	elseif self.arrange == Arrange.FlowV then
 		for _, child in ipairs(self.children) do
 			child:fitY()
 			h = h + child.height
@@ -280,7 +284,7 @@ function Drawable:growX()
 	local remaining_width = self.width
 	remaining_width = remaining_width - self.padding[1] - self.padding[4]
 
-	if self.arrange == self.Arrange.FlowH then
+	if self.arrange == Arrange.FlowH then
 		remaining_width = remaining_width - (self.child_gap * (math.max(0, #self.children - 1)))
 	end
 
@@ -302,18 +306,18 @@ function Drawable:growY()
 	local remaining_height = self.height
 	remaining_height = remaining_height - self.padding[2] - self.padding[3]
 
-	if self.arrange == self.Arrange.FlowV then
+	if self.arrange == Arrange.FlowV then
 		remaining_height = remaining_height - (self.child_gap * (math.max(0, #self.children - 1)))
 	end
 
 	for _, child in ipairs(self.children) do
-		if child.height_mode ~= self.SizeMode.Grow then
+		if child.height_mode ~= SizeMode.Grow then
 			remaining_height = remaining_height - child.height
 		end
 	end
 
 	for _, child in ipairs(self.children) do
-		if child.height_mode == self.SizeMode.Grow then
+		if child.height_mode == SizeMode.Grow then
 			child.height = remaining_height
 		end
 		child:growY()
@@ -323,19 +327,19 @@ end
 function Drawable:positionChildren()
 	local x, y = 0, 0
 
-	if self.arrange == self.Arrange.Absolute then
+	if self.arrange == Arrange.Absolute then
 		for _, child in ipairs(self.children) do
 			child:updateWorldTransform()
 			child:positionChildren()
 		end
-	elseif self.arrange == self.Arrange.FlowH then
+	elseif self.arrange == Arrange.FlowH then
 		for _, child in ipairs(self.children) do
 			child:setPosition(x, y)
 			child:updateWorldTransform()
 			child:positionChildren()
 			x = x + child:getWidth() + self.child_gap
 		end
-	elseif self.arrange == self.Arrange.FlowV then
+	elseif self.arrange == Arrange.FlowV then
 		for _, child in ipairs(self.children) do
 			child:setPosition(x, y)
 			child:updateWorldTransform()
@@ -348,11 +352,11 @@ end
 function Drawable:updateLayout()
 	local axis = self.invalidate_axis
 
-	if bit.band(axis, Drawable.Axis.X) then
+	if bit.band(axis, Axis.X) then
 		self:fitX()
 		self:growX()
 	end
-	if bit.band(axis, Drawable.Axis.Y) then
+	if bit.band(axis, Axis.Y) then
 		self:fitY()
 		self:growY()
 	end
@@ -363,10 +367,10 @@ function Drawable:updateLayout()
 		self:positionChildren()
 	end
 
-	self.invalidate_axis = Drawable.Axis.None
+	self.invalidate_axis = Axis.None
 end
 
----@param axis
+---@param axis ui.Axis
 ---@return boolean
 ---@private
 --- It's safe to use nodes that have fixed width/height for layout recalculation without going to the root and recalculating the whole thing from scratch
@@ -375,13 +379,13 @@ function Drawable:canResolveLayout(axis)
 		return true
 	end
 
-	local x_fixed = self.width_mode == self.SizeMode.Fixed
-	local y_fixed = self.height_mode == self.SizeMode.Fixed
+	local x_fixed = self.width_mode == SizeMode.Fixed
+	local y_fixed = self.height_mode == SizeMode.Fixed
 
-	if bit.band(axis, Drawable.Axis.X) ~= 0 and not x_fixed then
+	if bit.band(axis, Axis.X) ~= 0 and not x_fixed then
 		return false
 	end
-	if bit.band(axis, Drawable.Axis.Y) ~= 0 and not y_fixed then
+	if bit.band(axis, Axis.Y) ~= 0 and not y_fixed then
 		return false
 	end
 
@@ -407,7 +411,7 @@ function Drawable:updateWorldTransform()
 	local x = self.x + self.anchor.x * self.parent:getLayoutWidth() + self.parent.padding[1]
 	local y = self.y + self.anchor.y * self.parent:getLayoutHeight() + self.parent.padding[3]
 
-	local tf = love.math.newTransform(
+	self.world_transform:setTransformation(
 		x,
 		y,
 		self.angle,
@@ -417,7 +421,7 @@ function Drawable:updateWorldTransform()
 		self.origin.y * self:getHeight()
 	)
 
-	self.world_transform = self.parent.world_transform * tf
+	self.world_transform:apply(self.parent.world_transform)
 end
 
 ---@return number
