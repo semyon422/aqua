@@ -57,13 +57,13 @@ function test.fit_sizing(t)
 		height = 1,
 	}))
 
-	container:fitWidth()
-	container:fitHeight()
+	container:fitX()
+	container:fitY()
 	t:eq(container:getWidth(), 3)
 	t:eq(container:getHeight(), 1)
 
-	root:fitWidth()
-	root:fitHeight()
+	root:fitX()
+	root:fitY()
 	t:eq(root:getWidth(), 5)
 	t:eq(root:getHeight(), 1)
 
@@ -110,7 +110,7 @@ function test.fit_sizing(t)
 		width = 3
 	}))
 
-	root:fitWidth()
+	root:fitX()
 	t:eq(root:getWidth(), 9)
 
 	------ [[ TEST 3 ]] ------
@@ -138,8 +138,8 @@ function test.fit_sizing(t)
 		height = 1
 	}))
 
-	c1:fitWidth()
-	c1:fitHeight()
+	c1:fitX()
+	c1:fitY()
 	t:eq(c1:getWidth(), 17)
 	t:eq(c1:getHeight(), 1)
 
@@ -165,13 +165,13 @@ function test.fit_sizing(t)
 		height = 1,
 	}))
 
-	c2:fitWidth()
-	c2:fitHeight()
+	c2:fitX()
+	c2:fitY()
 	t:eq(c2:getWidth(), 12)
 	t:eq(c2:getHeight(), 7)
 
-	root:fitWidth()
-	root:fitHeight()
+	root:fitX()
+	root:fitY()
 	t:eq(root:getWidth(), 34)
 	t:eq(root:getHeight(), 7)
 end
@@ -197,9 +197,9 @@ function test.grow_sizing(t)
 		width_mode = Drawable.SizeMode.Grow,
 	}))
 
-	root:fitWidth()
-	root:fitHeight()
-	root:grow()
+	root:fitX()
+	root:fitY()
+	root:growX()
 	t:eq(grow:getWidth(), 5)
 
 	root:add(Drawable({
@@ -207,9 +207,9 @@ function test.grow_sizing(t)
 		width = 2,
 	}))
 
-	root:fitWidth()
-	root:fitHeight()
-	root:grow()
+	root:fitX()
+	root:fitY()
+	root:growX()
 	t:eq(grow:getWidth(), 2)
 
 	root, tctx = get_ctx()
@@ -226,9 +226,10 @@ function test.grow_sizing(t)
 		height_mode = Drawable.SizeMode.Grow
 	}))
 
-	root:fitWidth()
-	root:fitHeight()
-	root:grow()
+	root:fitX()
+	root:fitY()
+	root:growX()
+	root:growY()
 	t:eq(c:getWidth(), 8)
 	t:eq(c:getHeight(), 8)
 end

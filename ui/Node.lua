@@ -19,20 +19,17 @@ Node.ClassName = "Node"
 
 ---@param params {[string]: any}?
 function Node:new(params)
+	self.z = 0
+	self.is_disabled = false
+	self.is_killed = false
+	self.children = {}
+
 	if params then
 		for k, v in pairs(params) do
 			self[k] = v
 		end
 	end
-
-	self.z = self.z or 0
-	self.is_disabled = self.is_disabled or false
-	self.is_killed = false
-	self.children = self.children or {}
 end
-
---- Used for internal classes. Clases should always call base.beforeLoad()
-function Node:beforeLoad() end
 
 function Node:load() end
 
@@ -62,25 +59,10 @@ function Node:add(node)
 		table.insert(self.children, node)
 	end
 
-	local awaiting = nil
-
-	if #node.children ~= 0 then
-		awaiting = {}
-		table_util.copy(node.children, awaiting)
-		node.children = {}
-	end
-
 	node.parent = self
 	node.dependencies = self.dependencies
 	node.input_manager = self.input_manager
-	node:beforeLoad()
 	node:load()
-
-	if awaiting then
-		for i, v in ipairs(awaiting) do
-			node:add(v)
-		end
-	end
 
 	return node
 end

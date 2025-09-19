@@ -1,4 +1,5 @@
 local Node = require("ui.Node")
+local bit = require("bit")
 
 ---@class ui.TraversalContext
 ---@field delta_time number
@@ -70,26 +71,39 @@ Drawable.Arrange = {
 	FlowV = 3,
 }
 
+---@enum ui.Axis
+Drawable.Axis = {
+	None = 0,
+	X = 1,
+	Y = 2,
+	Both = 3,
+}
+
 ---@param params {[string]: any}
 function Drawable:new(params)
-	Node.new(self, params)
+	self.x = 0
+	self.y = 0
+	self.angle = 0
+	self.scale_x = 1
+	self.scale_y = 1
+	self.origin = Drawable.Pivot.TopLeft
+	self.anchor = Drawable.Pivot.TopLeft
+	self.width = 0
+	self.height = 0
+	self.width_mode = self.SizeMode.Fixed
+	self.height_mode = self.SizeMode.Fixed
+	self.color = { 1, 1, 1, 1 }
+	self.alpha = 1
+	self.padding = { 0, 0, 0, 0 }
+	self.child_gap = 0
+	self.arrange = self.Arrange.Absolute
+	self.world_transform = love.math.newTransform()
+	self.mouse_over = false
+	self.invalidate_axis = Drawable.Axis.None
+	self.handles_mouse_input = false
+	self.handles_keyboard_input = false
 
-	self.x = self.x or 0
-	self.y = self.y or 0
-	self.angle = self.angle or 0
-	self.scale_x = self.scale_x or 1
-	self.scale_y = self.scale_y or 1
-	self.origin = self.origin or Drawable.Pivot.TopLeft
-	self.anchor = self.anchor or Drawable.Pivot.TopLeft
-	self.width = self.width or 0
-	self.height = self.height or 0
-	self.width_mode = self.width_mode or self.SizeMode.Fixed
-	self.height_mode = self.height_mode or self.SizeMode.Fixed
-	self.color = self.color or { 1, 1, 1, 1 }
-	self.alpha = self.alpha or 1
-	self.padding = self.padding or { 0, 0, 0, 0 }
-	self.child_gap = self.child_gap or 0
-	self.arrange = self.arrange or self.Arrange.Absolute
+	Node.new(self, params)
 
 	if #self.color < 4 then
 		local missing = 4 - #self.color
@@ -104,12 +118,6 @@ function Drawable:new(params)
 			table.insert(self.padding, 0)
 		end
 	end
-
-	self.world_transform = love.math.newTransform()
-	self.mouse_over = false
-	self.invalidate_layout = false
-	self.handles_mouse_input = self.handles_mouse_input == nil and false or self.handles_mouse_input
-	self.handles_keyboard_input = self.handles_keyboard_input == nil and false or self.handles_keyboard_input
 end
 
 ---@generic T : ui.Drawable
@@ -117,15 +125,8 @@ end
 ---@return T
 function Drawable:add(drawable)
 	Node.add(self, drawable)
-	---@cast drawable ui.Drawable
-
-	self.invalidate_layout = true
-
+	self:propagateLayoutInvalidation(Drawable.Axis.Both)
 	return drawable
-end
-
-function Drawable:kill()
-	Node.kill(self)
 end
 
 ---@param mouse_x number
@@ -183,8 +184,8 @@ function Drawable:updateTree(ctx)
 	self:update(ctx.delta_time)
 	self:updateChildren(ctx)
 
-	if self.invalidate_layout then
-		self.invalidate_layout = false
+	if self.invalidate_axis ~= Drawable.Axis.None then
+		self:updateLayout()
 	end
 end
 
@@ -213,14 +214,10 @@ function Drawable:drawTree()
 	self:drawChildren()
 end
 
-function Drawable:invalidateLayout()
-	self.invalidate_layout = true
-end
-
-function Drawable:fitWidth()
+function Drawable:fitX()
 	if self.width_mode == self.SizeMode.Fixed then
 		for _, child in ipairs(self.children) do
-			child:fitWidth()
+			child:fitX()
 		end
 		return
 	end
@@ -229,17 +226,17 @@ function Drawable:fitWidth()
 
 	if self.arrange == self.Arrange.Absolute then
 		for _, child in ipairs(self.children) do
-			child:fitWidth()
+			child:fitX()
 			w = math.max(w, child.x + child.width)
 		end
 	elseif self.arrange == self.Arrange.FlowV then
 		for _, child in ipairs(self.children) do
-			child:fitWidth()
+			child:fitX()
 			w = math.max(w, child.width)
 		end
 	elseif self.arrange == self.Arrange.FlowH then
 		for _, child in ipairs(self.children) do
-			child:fitWidth()
+			child:fitX()
 			w = w + child.width
 		end
 		w = w + self.child_gap * (math.max(0, #self.children - 1))
@@ -248,10 +245,10 @@ function Drawable:fitWidth()
 	self.width = self.padding[1] + w + self.padding[4]
 end
 
-function Drawable:fitHeight()
+function Drawable:fitY()
 	if self.height_mode == self.SizeMode.Fixed then
 		for _, child in ipairs(self.children) do
-			child:fitHeight()
+			child:fitY()
 		end
 		return
 	end
@@ -260,17 +257,17 @@ function Drawable:fitHeight()
 
 	if self.arrange == self.Arrange.Absolute then
 		for _, child in ipairs(self.children) do
-			child:fitHeight()
+			child:fitY()
 			h = math.max(h, child.y + child.height)
 		end
 	elseif self.arrange == self.Arrange.FlowH then
 		for _, child in ipairs(self.children) do
-			child:fitHeight()
+			child:fitY()
 			h = math.max(h, child.height)
 		end
 	elseif self.arrange == self.Arrange.FlowV then
 		for _, child in ipairs(self.children) do
-			child:fitHeight()
+			child:fitY()
 			h = h + child.height
 		end
 		h = h + (self.child_gap * (math.max(0, #self.children - 1)))
@@ -279,24 +276,17 @@ function Drawable:fitHeight()
 	self.height = self.padding[2] + h + self.padding[3]
 end
 
-function Drawable:grow()
+function Drawable:growX()
 	local remaining_width = self.width
-	local remaining_height = self.height
 	remaining_width = remaining_width - self.padding[1] - self.padding[4]
-	remaining_height = remaining_height - self.padding[2] - self.padding[3]
 
 	if self.arrange == self.Arrange.FlowH then
 		remaining_width = remaining_width - (self.child_gap * (math.max(0, #self.children - 1)))
-	elseif self.arrange == self.Arrange.FlowV then
-		remaining_height = remaining_height - (self.child_gap * (math.max(0, #self.children - 1)))
 	end
 
 	for _, child in ipairs(self.children) do
 		if child.width_mode ~= self.SizeMode.Grow then
 			remaining_width = remaining_width - child.width
-		end
-		if child.height_mode ~= self.SizeMode.Grow then
-			remaining_height = remaining_height - child.height
 		end
 	end
 
@@ -304,10 +294,29 @@ function Drawable:grow()
 		if child.width_mode == self.SizeMode.Grow then
 			child.width = remaining_width
 		end
+		child:growX()
+	end
+end
+
+function Drawable:growY()
+	local remaining_height = self.height
+	remaining_height = remaining_height - self.padding[2] - self.padding[3]
+
+	if self.arrange == self.Arrange.FlowV then
+		remaining_height = remaining_height - (self.child_gap * (math.max(0, #self.children - 1)))
+	end
+
+	for _, child in ipairs(self.children) do
+		if child.height_mode ~= self.SizeMode.Grow then
+			remaining_height = remaining_height - child.height
+		end
+	end
+
+	for _, child in ipairs(self.children) do
 		if child.height_mode == self.SizeMode.Grow then
 			child.height = remaining_height
 		end
-		child:grow()
+		child:growY()
 	end
 end
 
@@ -315,19 +324,19 @@ function Drawable:positionChildren()
 	local x, y = 0, 0
 
 	if self.arrange == self.Arrange.Absolute then
-		for i, child in ipairs(self.children) do
+		for _, child in ipairs(self.children) do
 			child:updateWorldTransform()
 			child:positionChildren()
 		end
 	elseif self.arrange == self.Arrange.FlowH then
-		for i, child in ipairs(self.children) do
+		for _, child in ipairs(self.children) do
 			child:setPosition(x, y)
 			child:updateWorldTransform()
 			child:positionChildren()
 			x = x + child:getWidth() + self.child_gap
 		end
 	elseif self.arrange == self.Arrange.FlowV then
-		for i, child in ipairs(self.children) do
+		for _, child in ipairs(self.children) do
 			child:setPosition(x, y)
 			child:updateWorldTransform()
 			child:positionChildren()
@@ -337,14 +346,60 @@ function Drawable:positionChildren()
 end
 
 function Drawable:updateLayout()
-	self:fitWidth()
-	self:fitHeight()
-	self:grow()
+	local axis = self.invalidate_axis
+
+	if bit.band(axis, Drawable.Axis.X) then
+		self:fitX()
+		self:growX()
+	end
+	if bit.band(axis, Drawable.Axis.Y) then
+		self:fitY()
+		self:growY()
+	end
 
 	if self.parent then
 		self.parent:positionChildren()
 	else
 		self:positionChildren()
+	end
+
+	self.invalidate_axis = Drawable.Axis.None
+end
+
+---@param axis
+---@return boolean
+---@private
+--- It's safe to use nodes that have fixed width/height for layout recalculation without going to the root and recalculating the whole thing from scratch
+function Drawable:canResolveLayout(axis)
+	if bit.band(self.invalidate_axis, axis) ~= 0 then
+		return true
+	end
+
+	local x_fixed = self.width_mode == self.SizeMode.Fixed
+	local y_fixed = self.height_mode == self.SizeMode.Fixed
+
+	if bit.band(axis, Drawable.Axis.X) ~= 0 and not x_fixed then
+		return false
+	end
+	if bit.band(axis, Drawable.Axis.Y) ~= 0 and not y_fixed then
+		return false
+	end
+
+	return true
+end
+
+---@param axis ui.Axis
+--- Finds the suitable node that can handle relayout
+function Drawable:propagateLayoutInvalidation(axis)
+	if not self.parent then
+		self.invalidate_axis = bit.bor(self.invalidate_axis, axis)
+		return
+	end
+
+	if self.parent:canResolveLayout(axis) then
+		self.parent.invalidate_axis = bit.bor(self.parent.invalidate_axis, axis)
+	else
+		self.parent:propagateLayoutInvalidation(axis)
 	end
 end
 
@@ -437,16 +492,19 @@ end
 ---@param width number
 function Drawable:setWidth(width)
 	self.width = width
+	self:propagateLayoutInvalidation(Drawable.Axis.X)
 end
 
 ---@param height number
 function Drawable:setHeight(height)
 	self.height = height
+	self:propagateLayoutInvalidation(Drawable.Axis.Y)
 end
 
 function Drawable:setDimensions(width, height)
 	self.width = width
 	self.height = height
+	self:propagateLayoutInvalidation(Drawable.Axis.Both)
 end
 
 ---@param scale_x number
