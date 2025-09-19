@@ -1,21 +1,22 @@
 local class = require("class")
 local table_util = require("table_util")
 
----@class ui.Node.Params
----@field z number? z-index, 1 is above 0
----@field is_disabled boolean?
-
----@class ui.Node : ui.Node.Params
----@overload fun(params: ui.Node.Params): ui.Node
+---@class ui.Node
+---@operator call: ui.Node
 ---@field id string?
 ---@field children ui.Node[]
 ---@field parent ui.Node?
----@field is_killed boolean
 ---@field dependencies ui.Dependencies
 ---@field input_manager ui.InputManager
 local Node = class()
 
 Node.ClassName = "Node"
+
+Node.TransformParams = function(node, params)
+	for k, v in pairs(params) do
+		node[k] = v
+	end
+end
 
 ---@param params {[string]: any}?
 function Node:new(params)
@@ -25,9 +26,7 @@ function Node:new(params)
 	self.children = {}
 
 	if params then
-		for k, v in pairs(params) do
-			self[k] = v
-		end
+		Node.TransformParams(self, params)
 	end
 end
 

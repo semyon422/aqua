@@ -14,28 +14,7 @@ local bit = require("bit")
 
 ---@alias ui.Color [number, number, number, number]
 
----@class ui.Drawable.Params : ui.Node.Params
----@field id string
----@field x number
----@field y number
----@field angle number
----@field scale_x number
----@field scale_y number
----@field origin ui.Pivot
----@field anchor ui.Pivot
----@field width number
----@field height number
----@field width_mode ui.SizeMode
----@field height_mode ui.SizeMode
----@field padding number[] left top bottom right
----@field child_gap number
----@field arrange ui.Arrange
----@field color ui.Color
----@field alpha number
----@field handles_mouse_input boolean
----@field handles_keyboard_input boolean
-
----@class ui.Drawable : ui.Node, ui.Drawable.Params
+---@class ui.Drawable : ui.Node
 ---@operator call: ui.Drawable
 ---@field children ui.Drawable[]
 ---@field parent ui.Drawable?
@@ -98,7 +77,10 @@ function Drawable:new(params)
 	self.height_mode = self.SizeMode.Fixed
 	self.color = { 1, 1, 1, 1 }
 	self.alpha = 1
-	self.padding = { 0, 0, 0, 0 }
+	self.padding_left = 0
+	self.padding_right = 0
+	self.padding_top = 0
+	self.padding_bottom = 0
 	self.child_gap = 0
 	self.arrange = self.Arrange.Absolute
 	self.world_transform = love.math.newTransform()
@@ -113,13 +95,6 @@ function Drawable:new(params)
 		local missing = 4 - #self.color
 		for _ = 1, missing do
 			table.insert(self.color, 1)
-		end
-	end
-
-	if #self.padding < 4 then
-		local missing = 4 - #self.padding
-		for _ = 1, missing do
-			table.insert(self.padding, 0)
 		end
 	end
 end
@@ -246,7 +221,7 @@ function Drawable:fitX()
 		w = w + self.child_gap * (math.max(0, #self.children - 1))
 	end
 
-	self.width = self.padding[1] + w + self.padding[4]
+	self.width = self.padding_left + w + self.padding_right
 end
 
 function Drawable:fitY()
@@ -277,12 +252,12 @@ function Drawable:fitY()
 		h = h + (self.child_gap * (math.max(0, #self.children - 1)))
 	end
 
-	self.height = self.padding[2] + h + self.padding[3]
+	self.height = self.padding_top + h + self.padding_bottom
 end
 
 function Drawable:growX()
 	local remaining_width = self.width
-	remaining_width = remaining_width - self.padding[1] - self.padding[4]
+	remaining_width = remaining_width - self.padding_left - self.padding_right
 
 	if self.arrange == Arrange.FlowH then
 		remaining_width = remaining_width - (self.child_gap * (math.max(0, #self.children - 1)))
@@ -304,7 +279,7 @@ end
 
 function Drawable:growY()
 	local remaining_height = self.height
-	remaining_height = remaining_height - self.padding[2] - self.padding[3]
+	remaining_height = remaining_height - self.padding_top - self.padding_bottom
 
 	if self.arrange == Arrange.FlowV then
 		remaining_height = remaining_height - (self.child_gap * (math.max(0, #self.children - 1)))
@@ -408,8 +383,8 @@ function Drawable:propagateLayoutInvalidation(axis)
 end
 
 function Drawable:updateWorldTransform()
-	local x = self.x + self.anchor.x * self.parent:getLayoutWidth() + self.parent.padding[1]
-	local y = self.y + self.anchor.y * self.parent:getLayoutHeight() + self.parent.padding[3]
+	local x = self.x + self.anchor.x * self.parent:getLayoutWidth() + self.parent.padding_left
+	local y = self.y + self.anchor.y * self.parent:getLayoutHeight() + self.parent.padding_top
 
 	self.world_transform:setTransformation(
 		x,
@@ -451,12 +426,12 @@ end
 
 ---@return number
 function Drawable:getLayoutWidth()
-	return self.width - (self.padding[1] + self.padding[4])
+	return self.width - self.padding_left - self.padding_right
 end
 
 ---@return number
 function Drawable:getLayoutHeight()
-	return self.height - (self.padding[2] + self.padding[3])
+	return self.height - self.padding_top - self.padding_bottom
 end
 
 ---@return number, number
