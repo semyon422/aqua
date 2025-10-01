@@ -1,16 +1,69 @@
 local class = require("class")
 local table_util = require("table_util")
 
+---@class ui.Pivot
+---@field x number
+---@field y number
+
+---@alias ui.Color [number, number, number, number]
+
 ---@class ui.Node
 ---@operator call: ui.Node
 ---@field id string?
----@field children ui.Node[]
 ---@field parent ui.Node?
----@field dependencies ui.Dependencies
----@field input_manager ui.InputManager
+---@field children ui.Node[]
+---@field color ui.Color
+---@field draw? fun(self: ui.Node)
 local Node = class()
 
 Node.ClassName = "Node"
+
+Node.State = {
+	Created = 1,
+	Loaded = 2,
+	Ready = 3,
+	Killed = 4,
+}
+
+Node.Pivot = {
+	TopLeft = { x = 0, y = 0 },
+	TopCenter = { x = 0.5, y = 0 },
+	TopRight = { x = 1, y = 0 },
+	CenterLeft = { x = 0, y = 0.5 },
+	Center = { x = 0.5, y = 0.5 },
+	CenterRight = { x = 1, y = 0.5 },
+	BottomLeft = { x = 0, y = 1 },
+	BottomCenter = { x = 0.5, y = 1 },
+	BottomRight = { x = 1, y = 1 },
+}
+
+---@enum ui.SizeMode
+Node.SizeMode = {
+	Fixed = 1,
+	Fit = 2,
+	Grow = 3,
+}
+
+---@enum ui.Arrange
+Node.Arrange = {
+	Absolute = 1,
+	FlowH = 2,
+	FlowV = 3,
+}
+
+---@enum ui.Axis
+Node.Axis = {
+	None = 0,
+	X = 1,
+	Y = 2,
+	Both = 3,
+}
+
+local Pivot = Node.Pivot
+local SizeMode = Node.SizeMode
+local Arrange = Node.Arrange
+local Axis = Node.Axis
+local State = Node.State
 
 Node.TransformParams = function(node, params)
 	for k, v in pairs(params) do
@@ -20,22 +73,54 @@ end
 
 ---@param params {[string]: any}?
 function Node:new(params)
+	self.x = 0
+	self.y = 0
 	self.z = 0
+	self.angle = 0
+	self.scale_x = 1
+	self.scale_y = 1
+	self.origin = Pivot.TopLeft
+	self.anchor = Pivot.TopLeft
+	self.width = 0
+	self.height = 0
+	self.width_mode = SizeMode.Fixed
+	self.height_mode = SizeMode.Fixed
+	self.color = { 1, 1, 1, 1 }
+	self.alpha = 1
+	self.padding_left = 0
+	self.padding_right = 0
+	self.padding_top = 0
+	self.padding_bottom = 0
+	self.child_gap = 0
+	self.arrange = Arrange.Absolute
+	self.transform = love.math.newTransform()
+	self.mouse_over = false
+	self.invalidate_axis = Axis.None
+	self.handles_mouse_input = false
+	self.handles_keyboard_input = false
 	self.is_disabled = false
-	self.is_killed = false
 	self.children = {}
+	self.state = State.Created
 
 	if params then
 		Node.TransformParams(self, params)
+	end
+
+	if #self.color < 4 then
+		local missing = 4 - #self.color
+		for _ = 1, missing do
+			table.insert(self.color, 1)
+		end
 	end
 end
 
 function Node:load() end
 
+--- Will be called once right before the update method after the node was loaded
+function Node:loadComplete() end
+
 ---@param dt number
 function Node:update(dt) end
-
-function Node:draw() end
 
 ---@generic T : ui.Node
 ---@param node T
@@ -59,11 +144,18 @@ function Node:add(node)
 	end
 
 	node.parent = self
-	node.dependencies = self.dependencies
-	node.input_manager = self.input_manager
 	node:load()
+	node.state = State.Loaded
 
 	return node
+end
+
+---@param mouse_x number
+---@param mouse_y number
+---@param imx number
+---@param imy number
+function Node:isMouseOver(mouse_x, mouse_y, imx, imy)
+	return imx >= 0 and imx < self.width and imy >= 0 and imy < self.height
 end
 
 ---@param node ui.Node
@@ -76,20 +168,8 @@ function Node:remove(node)
 	end
 end
 
-function Node:clearTree()
-	for _, child in ipairs(self.children) do
-		child:kill()
-	end
-	self.children = {}
-end
-
 function Node:kill()
-	self.parent:remove(self)
-	self.is_killed = true
-
-	for _, child in ipairs(self.children) do
-		child:kill()
-	end
+	self.state = State.Killed
 end
 
 ---@param e ui.MouseDownEvent
@@ -132,11 +212,7 @@ function Node:onKeyUp(e) end
 ---@param e ui.TextInputEvent
 function Node:onTextInput(e) end
 
----@return ui.Viewport
-function Node:getViewport()
-	self:assert(self.parent, "No viewport")
-	return self.parent:getViewport()
-end
+function Node:onKill() end
 
 ---@param message string
 function Node:error(message)
@@ -157,6 +233,66 @@ end
 ---@param field_name string
 function Node:ensureExist(field_name)
 	self:assert(self[field_name], ("The field `%s` is required"):format(field_name))
+end
+
+---@param axis ui.Axis
+function Node:invalidateAxis(axis)
+	self.invalidate_axis = bit.bor(self.invalidate_axis, axis)
+end
+
+---@return number
+function Node:getLayoutWidth()
+	return self.width - self.padding_left - self.padding_right
+end
+
+---@return number
+function Node:getLayoutHeight()
+	return self.height - self.padding_top - self.padding_bottom
+end
+
+---@return number, number
+function Node:getLayoutDimensions()
+	return self:getLayoutWidth(), self:getLayoutHeight()
+end
+
+---@param x number
+function Node:setX(x)
+	self.x = x
+	self:invalidateAxis(Axis.X)
+end
+
+---@param y number
+function Node:setY(y)
+	self.y = y
+	self:invalidateAxis(Axis.Y)
+end
+
+---@param x number
+---@param y number
+function Node:setPosition(x, y)
+	self.x = x
+	self.y = y
+	self:invalidateAxis(Axis.Both)
+end
+
+---@param width number
+function Node:setWidth(width)
+	self.width = width
+	self:invalidateAxis(Axis.X)
+end
+
+---@param height number
+function Node:setHeight(height)
+	self.height = height
+	self:invalidateAxis(Axis.Y)
+end
+
+---@param width number
+---@param height number
+function Node:setDimensions(width, height)
+	self.width = width
+	self.height = height
+	self:invalidateAxis(Axis.Both)
 end
 
 return Node

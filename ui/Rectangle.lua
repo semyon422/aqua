@@ -1,22 +1,20 @@
-local Drawable = require("ui.Drawable")
+local Node = require("ui.Node")
 local rectangle = require("ui.primitives.rectangle")
 
----@class ui.Rectangle.Params
----@field rounding number
----@field line_width number?
-
----@class ui.Rectangle : ui.Drawable, ui.Rectangle.Params
+---@class ui.Rectangle : ui.Node
 ---@operator call: ui.Rectangle
-local Rectangle = Drawable + {}
+---@field line_width number? border in pixels
+local Rectangle = Node + {}
 
 Rectangle.ClassName = "Rectangle"
 
-function Rectangle:load()
-	self.rounding = self.rounding or 0
+function Rectangle:new(params)
+	self.rounding = 0
+	Node.new(self, params)
 end
 
 function Rectangle:draw()
-	rectangle(self:getWidth(), self:getHeight(), self.rounding, self.line_width)
+	rectangle(self.width, self.height, self.rounding, self.line_width)
 end
 
 return Rectangle
