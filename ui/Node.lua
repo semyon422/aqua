@@ -295,4 +295,12 @@ function Node:setDimensions(width, height)
 	self:invalidateAxis(Axis.Both)
 end
 
+---@param sx number
+---@param sy number
+function Node:setScale(sx, sy)
+	self.scale_x = sx
+	self.scale_y = sy
+	self.invalidate_axis = Axis.Both
+end
+
 return Node

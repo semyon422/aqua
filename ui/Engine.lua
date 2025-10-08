@@ -19,7 +19,7 @@ local RenderingOps = {
 	StencilStart = 2,
 	StencilEnd = 3,
 	BlurStart = 4,
-	BlurEnd = 5
+	BlurEnd = 5,
 }
 
 ---@param root ui.Node
@@ -36,6 +36,17 @@ function Engine:new(root)
 
 	self.layout_engine = LayoutEngine(root)
 	self.input_manager = InputManager()
+
+	self.target_height = self.target_height or 768
+	self:updateRootDimensions()
+end
+
+function Engine:updateRootDimensions()
+	local ww, wh = love.graphics.getDimensions()
+	local s = self.target_height / wh
+	local is = 1 / s
+	self.root:setDimensions(ww * s, self.target_height)
+	self.root:setScale(is, is)
 end
 
 ---@param node ui.Node
@@ -62,6 +73,7 @@ function Engine:updateNode(node)
 	elseif node.state == State.Created then
 		node:load()
 		node:loadComplete()
+		node:invalidateAxis(Axis.Both)
 		node.state = State.Ready
 		self.rebuild_rendering_context = true
 	end
@@ -167,6 +179,13 @@ function Engine:drawTree()
 	local i, n = 1, #ctx
 	while i <= n do
 		i = i + handlers[ctx[i]](ctx, i)
+	end
+end
+
+---@param event { name: string, [number]: any }
+function Engine:receive(event)
+	if event.name ~= "resize" then
+		self:updateRootDimensions()
 	end
 end
 

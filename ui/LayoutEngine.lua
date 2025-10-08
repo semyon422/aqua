@@ -188,15 +188,6 @@ function LayoutEngine:grow(node, axis)
 
 	for _, child in ipairs(node.children) do
 		if child[props.mode] == SizeMode.Grow then
-			local size = child[props.size]
-			size = size - child[props.padding_start] - child[props.padding_end]
-
-			if node.arrange == props.flow then
-				size = size - child.child_gap
-			end
-
-			child[props.size] = math.min(0, size)
-
 			table.insert(self.growables, child)
 		elseif node.arrange == props.flow then
 			available_space = available_space - child[props.size]
@@ -210,6 +201,10 @@ function LayoutEngine:grow(node, axis)
 	if #self.growables > 0 then
 		if node.arrange == props.flow then
 			self:distributeSpaceEvenly(self.growables, available_space, props.size)
+		elseif node.arrange == Arrange.Absolute then
+			for _, child in ipairs(self.growables) do
+				child[props.size] = available_space
+			end
 		else
 			for _, child in ipairs(self.growables) do
 				child[props.size] = available_space
