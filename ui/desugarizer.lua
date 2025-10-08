@@ -1,4 +1,4 @@
-local Drawable = require("ui.Drawable")
+local Node = require("ui.Node")
 
 ---@class ui.Sugar
 ---@field size [number | "fit" | "grow", number | "fit" | "grow"]?
@@ -7,30 +7,30 @@ local Drawable = require("ui.Drawable")
 ---@field pivot "top_left" | "top_center" | "top_right" | "center_left" | "center" | "center_right" | "bottom_left" | "bottom_center" | "bottom_right"
 
 local size_modes = {
-	fixed = Drawable.SizeMode.Fixed,
-	fit = Drawable.SizeMode.Fit,
-	grow = Drawable.SizeMode.Grow
+	fixed = Node.SizeMode.Fixed,
+	fit = Node.SizeMode.Fit,
+	grow = Node.SizeMode.Grow
 }
 
 local arranges = {
-	absolute = Drawable.Arrange.Absolute,
-	flow_h = Drawable.Arrange.FlowH,
-	flow_v = Drawable.Arrange.FlowV,
+	absolute = Node.Arrange.Absolute,
+	flow_h = Node.Arrange.FlowH,
+	flow_v = Node.Arrange.FlowV,
 }
 
 local pivots = {
-	top_left = Drawable.Pivot.TopLeft,
-	top_center = Drawable.Pivot.TopCenter,
-	top_right = Drawable.Pivot.TopRight,
-	center_left = Drawable.Pivot.CenterLeft,
-	center = Drawable.Pivot.Center,
-	center_right = Drawable.Pivot.CenterRight,
-	bottom_left = Drawable.Pivot.BottomLeft,
-	bottom_center = Drawable.Pivot.BottomCenter,
-	bottom_right = Drawable.Pivot.BottomRight,
+	top_left = Node.Pivot.TopLeft,
+	top_center = Node.Pivot.TopCenter,
+	top_right = Node.Pivot.TopRight,
+	center_left = Node.Pivot.CenterLeft,
+	center = Node.Pivot.Center,
+	center_right = Node.Pivot.CenterRight,
+	bottom_left = Node.Pivot.BottomLeft,
+	bottom_center = Node.Pivot.BottomCenter,
+	bottom_right = Node.Pivot.BottomRight,
 }
 
----@param node ui.Drawable
+---@param node ui.Node
 ---@param params ui.Sugar
 local function f(node, params)
 	if params.size then
