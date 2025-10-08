@@ -137,7 +137,7 @@ function Engine:buildRenderingContext(node)
 	end
 
 	if node.stencil_mask then
-		table.insert(self.rendering_context, RenderingOpsperations.StencilStart)
+		table.insert(self.rendering_context, RenderingOps.StencilStart)
 		table.insert(self.rendering_context, node)
 	end
 
@@ -146,7 +146,7 @@ function Engine:buildRenderingContext(node)
 	end
 
 	if node.stencil_mask then
-		table.insert(self.rendering_context, RenderingOpsperations.StencilEnd)
+		table.insert(self.rendering_context, RenderingOps.StencilEnd)
 	end
 end
 
@@ -163,10 +163,28 @@ handlers[RenderingOps.Draw] = function(context, i)
 	return 2
 end
 
-handlers[RenderingOps.StencilStart] = function(context, i) end
-handlers[RenderingOps.StencilEnd] = function(context, i) end
-handlers[RenderingOps.BlurStart] = function(context, i) end
-handlers[RenderingOps.BlurEnd] = function(context, i) end
+handlers[RenderingOps.StencilStart] = function(context, i)
+	local node = context[i + 1]
+	love.graphics.push()
+	love.graphics.applyTransform(node.transform)
+	love.graphics.stencil(node.stencil_mask, "replace", 1)
+	love.graphics.pop()
+	love.graphics.setStencilTest("greater", 0)
+	return 2
+end
+
+handlers[RenderingOps.StencilEnd] = function(context, i)
+	love.graphics.setStencilTest()
+	return 1
+end
+
+handlers[RenderingOps.BlurStart] = function(context, i)
+	return 2
+end
+
+handlers[RenderingOps.BlurEnd] = function(context, i)
+	return 1
+end
 
 function Engine:drawTree()
 	if self.rebuild_rendering_context then

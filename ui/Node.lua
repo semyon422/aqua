@@ -14,6 +14,8 @@ local table_util = require("table_util")
 ---@field children ui.Node[]
 ---@field color ui.Color
 ---@field draw? fun(self: ui.Node)
+---@field stencil_mask? fun(self: ui.Node)
+---@field blur_mask? fun(self: ui.Node)
 local Node = class()
 
 Node.ClassName = "Node"
@@ -131,7 +133,7 @@ function Node:add(node)
 
 	if #self.children ~= 0 then
 		for i, child in ipairs(self.children) do
-			if node.z > child.z then
+			if node.z < child.z then
 				table.insert(self.children, i, node)
 				inserted = true
 				break
