@@ -3,14 +3,17 @@ local Node = require("ui.Node")
 local Axis = Node.Axis
 local SizeMode = Node.SizeMode
 local Arrange = Node.Arrange
+require("table.clear")
 
 ---@class ui.LayoutEngine
 ---@operator call: ui.LayoutEngine
+---@field growables ui.Node[] Used in grow() to avoid creating a new table every time
 local LayoutEngine = class()
 
 ---@param root ui.Node[]
 function LayoutEngine:new(root)
 	self.root = root
+	self.growables = {}
 end
 
 ---@param nodes ui.Node[]
@@ -18,14 +21,14 @@ function LayoutEngine:updateLayout(nodes)
 	local suitable_nodes = {}
 
 	for _, v in ipairs(nodes) do
-		local node = self:findLayoutResolver(v, v.invalidate_axis)
-		suitable_nodes[node] = true
-
-		if node == self.root then
+		if v == self.root then
 			suitable_nodes = {}
 			suitable_nodes[self.root] = true
 			break
 		end
+
+		local node = self:findLayoutResolver(v, v.invalidate_axis)
+		suitable_nodes[node] = true
 	end
 
 	for node, _ in pairs(suitable_nodes) do
@@ -33,11 +36,11 @@ function LayoutEngine:updateLayout(nodes)
 
 		if bit.band(axis, Axis.X) then
 			self:fitX(node)
-			self:growX(node)
+			self:grow(node, Axis.X)
 		end
 		if bit.band(axis, Axis.Y) then
 			self:fitY(node)
-			self:growY(node)
+			self:grow(node, Axis.Y)
 		end
 
 		if node.parent then
@@ -114,6 +117,7 @@ function LayoutEngine:fitX(node)
 			self:fitX(child)
 			w = w + child.width
 		end
+
 		w = w + node.child_gap * (math.max(0, #node.children - 1))
 	end
 
@@ -136,66 +140,118 @@ function LayoutEngine:fitY(node)
 			self:fitY(child)
 			h = math.max(h, child.y + child.height)
 		end
-	elseif self.arrange == Arrange.FlowH then
-		for _, child in ipairs(self.children) do
-			child:fitY(child)
+	elseif node.arrange == Arrange.FlowH then
+		for _, child in ipairs(node.children) do
+			self:fitY(child)
 			h = math.max(h, child.height)
 		end
-	elseif self.arrange == Arrange.FlowV then
-		for _, child in ipairs(self.children) do
-			child:fitY(child)
+	elseif node.arrange == Arrange.FlowV then
+		for _, child in ipairs(node.children) do
+			self:fitY(child)
 			h = h + child.height
 		end
-		h = h + (self.child_gap * (math.max(0, #self.children - 1)))
+
+		h = h + (node.child_gap * (math.max(0, #node.children - 1)))
 	end
 
-	self.height = self.padding_top + h + self.padding_bottom
+	node.height = node.padding_top + h + node.padding_bottom
 end
 
-function LayoutEngine:growX(node)
-	local remaining_width = node.width
-	remaining_width = remaining_width - node.padding_left - node.padding_right
+local grow_props = {
+	[Axis.X] = {
+		size = "width",
+		mode = "width_mode",
+		padding_start = "padding_left",
+		padding_end = "padding_right",
+		flow = Arrange.FlowH
+	},
+	[Axis.Y] = {
+		size = "height",
+		mode = "height_mode",
+		padding_start = "padding_top",
+		padding_end = "padding_bottom",
+		flow = Arrange.FlowV
+	}
+}
 
-	if node.arrange == Arrange.FlowH then
-		remaining_width = remaining_width - (node.child_gap * (math.max(0, #node.children - 1)))
+---@param node ui.Node
+---@param axis ui.Axis
+function LayoutEngine:grow(node, axis)
+	if #node.children == 0 then
+		return
 	end
 
+	local props = grow_props[axis]
+
+	table.clear(self.growables)
+	local available_space = node[props.size] - node[props.padding_start] - node[props.padding_end]
+
 	for _, child in ipairs(node.children) do
-		if child.width_mode ~= SizeMode.Grow then
-			remaining_width = remaining_width - child.width
+		if child[props.mode] == SizeMode.Grow then
+			local size = child[props.size]
+			size = size - child[props.padding_start] - child[props.padding_end]
+
+			if node.arrange == props.flow then
+				size = size - child.child_gap
+			end
+
+			child[props.size] = math.min(0, size)
+
+			table.insert(self.growables, child)
+		elseif node.arrange == props.flow then
+			available_space = available_space - child[props.size]
+		end
+	end
+
+	if node.arrange == props.flow then
+		available_space = available_space - (node.child_gap * math.max(0, #node.children - 1))
+	end
+
+	if #self.growables > 0 then
+		if node.arrange == props.flow then
+			self:distributeSpaceEvenly(self.growables, available_space, props.size)
+		else
+			for _, child in ipairs(self.growables) do
+				child[props.size] = available_space
+			end
 		end
 	end
 
 	for _, child in ipairs(node.children) do
-		if child.width_mode == SizeMode.Grow then
-			child.width = remaining_width
-		end
-		self:growX(child)
+		self:grow(child, axis)
 	end
 end
 
-function LayoutEngine:growY(node)
-	local remaining_height = node.height
-	remaining_height = remaining_height - node.padding_top - node.padding_bottom
+---@param children ui.Node[]
+---@param available_space number
+---@param size_prop string
+function LayoutEngine:distributeSpaceEvenly(children, available_space, size_prop)
+	while available_space > 0 do
+		local smallest = math.huge
+		local second_smallest = math.huge
 
-	if node.arrange == Arrange.FlowV then
-		remaining_height = remaining_height - (node.child_gap * (math.max(0, #node.children - 1)))
-	end
-
-	for _, child in ipairs(node.children) do
-		if child.height_mode ~= SizeMode.Grow then
-			remaining_height = remaining_height - child.height
+		for _, child in ipairs(children) do
+			local size = child[size_prop]
+			if size < smallest then
+				second_smallest = smallest
+				smallest = size
+			elseif size > smallest and size < second_smallest then
+				second_smallest = size
+			end
 		end
-	end
 
-	for _, child in ipairs(node.children) do
-		if child.height_mode == SizeMode.Grow then
-			child.height = remaining_height
+		local size_to_add = math.min(second_smallest - smallest, available_space / #children)
+
+		for _, child in ipairs(children) do
+			if child[size_prop] == smallest then
+				child[size_prop] = child[size_prop] + size_to_add
+				available_space = available_space - size_to_add
+			end
 		end
-		self:growY(child)
 	end
 end
 
+---@param node ui.Node
 function LayoutEngine:positionChildren(node)
 	local x, y = 0, 0
 
@@ -204,19 +260,19 @@ function LayoutEngine:positionChildren(node)
 			self:updateTransform(child)
 			self:positionChildren(child)
 		end
-	elseif self.arrange == Arrange.FlowH then
+	elseif node.arrange == Arrange.FlowH then
 		for _, child in ipairs(node.children) do
 			child:setPosition(x, y)
 			self:updateTransform(child)
 			self:positionChildren(child)
-			x = x + child:getWidth() + node.child_gap
+			x = x + child.width + node.child_gap
 		end
 	elseif node.arrange == Arrange.FlowV then
 		for _, child in ipairs(node.children) do
 			child:setPosition(x, y)
 			self:updateTransform(child)
 			self:positionChildren(child)
-			y = y + child:getHeight() + node.child_gap
+			y = y + child.height + node.child_gap
 		end
 	end
 end
@@ -236,7 +292,7 @@ function LayoutEngine:updateTransform(node)
 
 	if node.parent then
 		-- The code below doesn't create a new transform, that's good
-		-- But it would have been better if there was Transform:apply(other, reverse)
+		-- But it would have been better if there was Transform:apply(other, reverse_order)
 		node.transform:reset()
 		node.transform:apply(node.parent.transform)
 		tf:setTransformation(
@@ -260,6 +316,8 @@ function LayoutEngine:updateTransform(node)
 			node.origin.y * node.height
 		)
 	end
+
+	node.invalidate_axis = Axis.None
 end
 
 return LayoutEngine
