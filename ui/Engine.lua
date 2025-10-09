@@ -1,6 +1,7 @@
 local class = require("class")
 local LayoutEngine = require("ui.LayoutEngine")
 local InputManager = require("ui.InputManager")
+local Renderer = require("ui.Renderer")
 local Node = require("ui.Node")
 local Axis = Node.Axis
 local State = Node.State
@@ -11,16 +12,7 @@ require("table.clear")
 ---@field mouse_target ui.Node?
 ---@field focus_requesters ui.Node[]
 ---@field layout_invalidation_requesters ui.Node[]
----@field rendering_context any[]
 local Engine = class()
-
-local RenderingOps = {
-	Draw = 1,
-	StencilStart = 2,
-	StencilEnd = 3,
-	BlurStart = 4,
-	BlurEnd = 5,
-}
 
 ---@param root ui.Node
 function Engine:new(root)
@@ -31,11 +23,11 @@ function Engine:new(root)
 	self.mouse_target = nil
 	self.focus_requesters = {}
 	self.layout_invalidation_requesters = {}
-	self.rendering_context = {}
 	self.rebuild_rendering_context = false
 
 	self.layout_engine = LayoutEngine(root)
 	self.input_manager = InputManager()
+	self.renderer = Renderer()
 
 	self.target_height = self.target_height or 768
 	self:updateRootDimensions()
@@ -47,6 +39,7 @@ function Engine:updateRootDimensions()
 	local is = 1 / s
 	self.root:setDimensions(ww * s, self.target_height)
 	self.root:setScale(is, is)
+	self.renderer:setViewportScale(is)
 end
 
 ---@param node ui.Node
@@ -129,75 +122,13 @@ function Engine:updateTree(dt)
 	self.layout_engine:updateLayout(self.layout_invalidation_requesters)
 end
 
----@param node ui.Node
-function Engine:buildRenderingContext(node)
-	if node.draw then
-		table.insert(self.rendering_context, RenderingOps.Draw)
-		table.insert(self.rendering_context, node)
-	end
-
-	if node.stencil_mask then
-		table.insert(self.rendering_context, RenderingOps.StencilStart)
-		table.insert(self.rendering_context, node)
-	end
-
-	for _, child in ipairs(node.children) do
-		self:buildRenderingContext(child)
-	end
-
-	if node.stencil_mask then
-		table.insert(self.rendering_context, RenderingOps.StencilEnd)
-	end
-end
-
-local handlers = {}
-
-handlers[RenderingOps.Draw] = function(context, i)
-	local node = context[i + 1]
-	local c = node.color
-	love.graphics.setColor(c[1], c[2], c[3], c[4] * node.alpha)
-	love.graphics.push()
-	love.graphics.applyTransform(node.transform)
-	node:draw()
-	love.graphics.pop()
-	return 2
-end
-
-handlers[RenderingOps.StencilStart] = function(context, i)
-	local node = context[i + 1]
-	love.graphics.push()
-	love.graphics.applyTransform(node.transform)
-	love.graphics.stencil(node.stencil_mask, "replace", 1)
-	love.graphics.pop()
-	love.graphics.setStencilTest("greater", 0)
-	return 2
-end
-
-handlers[RenderingOps.StencilEnd] = function(context, i)
-	love.graphics.setStencilTest()
-	return 1
-end
-
-handlers[RenderingOps.BlurStart] = function(context, i)
-	return 2
-end
-
-handlers[RenderingOps.BlurEnd] = function(context, i)
-	return 1
-end
-
 function Engine:drawTree()
 	if self.rebuild_rendering_context then
-		table.clear(self.rendering_context)
-		self:buildRenderingContext(self.root)
+		self.renderer:build(self.root)
 		self.rebuild_rendering_context = false
 	end
 
-	local ctx = self.rendering_context
-	local i, n = 1, #ctx
-	while i <= n do
-		i = i + handlers[ctx[i]](ctx, i)
-	end
+	self.renderer:draw()
 end
 
 ---@param event { name: string, [number]: any }

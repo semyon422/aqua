@@ -1,5 +1,4 @@
 local class = require("class")
-local table_util = require("table_util")
 
 ---@class ui.Pivot
 ---@field x number
@@ -12,10 +11,12 @@ local table_util = require("table_util")
 ---@field id string?
 ---@field parent ui.Node?
 ---@field children ui.Node[]
+---@field context ui.Context
 ---@field color ui.Color
 ---@field draw? fun(self: ui.Node)
 ---@field stencil_mask? fun(self: ui.Node)
 ---@field blur_mask? fun(self: ui.Node)
+---@field canvas love.Canvas?
 local Node = class()
 
 Node.ClassName = "Node"
@@ -103,6 +104,7 @@ function Node:new(params)
 	self.is_disabled = false
 	self.children = {}
 	self.state = State.Created
+	self.draw_to_canvas = false
 
 	if params then
 		Node.TransformParams(self, params)
@@ -146,6 +148,7 @@ function Node:add(node)
 	end
 
 	node.parent = self
+	node.context = self.context
 	node:load()
 	node.state = State.Loaded
 
