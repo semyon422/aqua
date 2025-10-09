@@ -32,14 +32,25 @@ end
 ---@param scale number
 function Renderer:setViewportScale(scale)
 	self.viewport_scale = scale
+
+	--[[
+	local ww, wh = love.graphics.getDimensions()
+	if not self.canvas or self.canvas:getWidth() ~= ww or self.canvas:getHeight() ~= wh then
+		self.canvas = love.graphics.newCanvas(ww, wh)
+	end
+	]]
 end
 
 function Renderer:draw()
+	--love.graphics.setCanvas(self.canvas)
 	local ctx = self.context
 	local i, n = 1, #ctx
 	while i <= n do
 		i = i + handlers[ctx[i]](self, ctx, i)
 	end
+	--love.graphics.setCanvas()
+	--love.graphics.origin()
+	--love.graphics.draw(self.canvas)
 end
 
 ---@param node ui.Node
@@ -47,7 +58,9 @@ function Renderer:buildRenderingContext(node)
 	if node.draw_to_canvas then
 		table.insert(self.context, Ops.CanvasStart)
 		table.insert(self.context, node)
-		table.insert(self.context, node.transform:inverse())
+		local tf = node.transform:inverse()
+		tf:scale(self.viewport_scale, self.viewport_scale)
+		table.insert(self.context, tf)
 	end
 
 	if node.stencil_mask then
@@ -59,7 +72,6 @@ function Renderer:buildRenderingContext(node)
 		table.insert(self.context, Ops.Draw)
 		table.insert(self.context, node)
 	end
-
 
 	for _, child in ipairs(node.children) do
 		self:buildRenderingContext(child)
@@ -106,7 +118,9 @@ handlers[Ops.CanvasStart] = function(renderer, context, i)
 	local node = context[i + 1]
 	local tf_inverse = context[i + 2]
 
-	local w, h = node.width * renderer.viewport_scale, node.height * renderer.viewport_scale
+	local w = math.ceil(node.width * renderer.viewport_scale)
+	local h = math.ceil(node.height * renderer.viewport_scale)
+
 	if not node.canvas or
 		node.canvas:getWidth() ~= w or
 		node.canvas:getHeight() ~= h
@@ -129,6 +143,7 @@ handlers[Ops.CanvasEnd] = function(renderer, context, i)
 	local c = node.color
 	love.graphics.setColor(c[1] * node.alpha, c[2] * node.alpha, c[3] * node.alpha, c[4] * node.alpha)
 	love.graphics.applyTransform(node.transform)
+	love.graphics.scale(1 / renderer.viewport_scale, 1 / renderer.viewport_scale)
 	love.graphics.setBlendMode("alpha", "premultiplied")
 	love.graphics.draw(canvas)
 	love.graphics.setBlendMode("alpha")
