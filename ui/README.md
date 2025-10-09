@@ -11,6 +11,10 @@ Features:
 
 You can use retained nodes for layout and state, while still dropping into immediate mode just by doing everything inside the `draw` method. It's actually pretty useful, even I do this sometimes.
 
+<p align="center">
+  <img src="https://nimue.mom/wp-content/uploads/2025/10/mashiroiro-symphony-pure-white-symphony-ezgif.com-gif-to-webp-converter-1.webp" />
+</p>
+
 ---
 
 ## Quick Start
