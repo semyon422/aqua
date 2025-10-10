@@ -105,6 +105,7 @@ function Node:new(params)
 	self.children = {}
 	self.state = State.Created
 	self.draw_to_canvas = false
+	self.is_blur_layer = false
 
 	if params then
 		Node.TransformParams(self, params)
