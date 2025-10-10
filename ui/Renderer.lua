@@ -7,30 +7,30 @@ require("table.clear")
 ---@field context any[]
 local Renderer = class()
 
-local blur_scale = 0.5
+local lg = love.graphics
 
-local Ops = {
-	Draw = 1,
-	StencilStart = 2,
-	StencilEnd = 3,
-	CanvasStart = 4,
-	CanvasEnd = 5,
-	BlurStart = 6,
-	BlurEnd = 7,
-	BlurMask = 8
-}
+local BLUR_SCALE = 0.5
+
+local OP_DRAW = 1
+local OP_STENCIL_START = 2
+local OP_STENCIL_END = 3
+local OP_CANVAS_START = 4
+local OP_CANVAS_END = 5
+local OP_BLUR_START = 6
+local OP_BLUR_END = 7
+local OP_BLUR_MASK = 8
 
 local handlers = {}
 
-local f, a, b, c, d, e
+local f, a, b, c
 local function st()
-	f(a, b, c, d, e)
+	f(a, b, c)
 end
 
-local function stencil(func, _a, _b, _c, _d, _e)
+local function stencil(func, _a, _b, _c)
 	f = func
-	a, b, c, d, e = _a, _b, _c, _d, _e
-	love.graphics.stencil(st, "replace", 1)
+	a, b, c = _a, _b, _c
+	lg.stencil(st, "replace", 1)
 end
 
 function Renderer:new()
@@ -38,8 +38,8 @@ function Renderer:new()
 	self.viewport_scale = 1
 
 	local h_blur, v_blur = get_blur_shader_code(8)
-	self.horizontal_blur = love.graphics.newShader(h_blur)
-	self.vertical_blur = love.graphics.newShader(v_blur)
+	self.horizontal_blur = lg.newShader(h_blur)
+	self.vertical_blur = lg.newShader(v_blur)
 end
 
 ---@param node ui.Node
@@ -48,65 +48,76 @@ function Renderer:build(node)
 	self:buildRenderingContext(node)
 end
 
+local tex_size = { 0, 0 }
 ---@param scale number
 function Renderer:setViewportScale(scale)
 	self.viewport_scale = scale
 
-	local ww, wh = love.graphics.getDimensions()
+	local ww, wh = lg.getDimensions()
 	if not self.canvas or self.canvas:getWidth() ~= ww or self.canvas:getHeight() ~= wh then
-		self.canvas = love.graphics.newCanvas(ww, wh)
-		self.horizontal_blur_canvas = love.graphics.newCanvas(ww * blur_scale, wh * blur_scale)
-		self.vertical_blur_canvas = love.graphics.newCanvas(ww * blur_scale, wh * blur_scale)
+		self.canvas = lg.newCanvas(ww, wh)
+		self.horizontal_blur_canvas = lg.newCanvas(ww * BLUR_SCALE, wh * BLUR_SCALE)
+		self.vertical_blur_canvas = lg.newCanvas(ww * BLUR_SCALE, wh * BLUR_SCALE)
 	end
 
-	local tex_size = { ww, wh }
+	tex_size[1] = ww
+	tex_size[2] = wh
 	self.horizontal_blur:send("tex_size", tex_size)
 	self.vertical_blur:send("tex_size", tex_size)
 end
 
 function Renderer:draw()
-	love.graphics.setCanvas({ self.canvas, stencil = true })
-	love.graphics.clear()
+	lg.setCanvas({ self.canvas, stencil = true })
+	lg.clear()
+
 	local ctx = self.context
 	local i, n = 1, #ctx
 	while i <= n do
 		i = i + handlers[ctx[i]](self, ctx, i)
 	end
-	love.graphics.setCanvas()
-	love.graphics.origin()
-	love.graphics.setColor(1, 1, 1)
-	love.graphics.draw(self.canvas)
+
+	lg.setCanvas()
+	lg.origin()
+	lg.setColor(1, 1, 1)
+	lg.draw(self.canvas)
 end
 
 ---@param node ui.Node
 function Renderer:buildRenderingContext(node)
-	if node.draw_to_canvas then
-		table.insert(self.context, Ops.CanvasStart)
-		table.insert(self.context, node)
+	local ctx = self.context
+	local n = #ctx + 1
 
+	if node.draw_to_canvas then
+		ctx[n] = OP_CANVAS_START
+		ctx[n + 1] = node
 		local tf = node.transform:inverse()
 		tf:scale(self.viewport_scale, self.viewport_scale)
-		table.insert(self.context, tf)
+		ctx[n + 2] = tf
+		n = n + 3
 	end
 
 	if node.stencil_mask then
-		table.insert(self.context, Ops.StencilStart)
-		table.insert(self.context, node)
+		ctx[n] = OP_STENCIL_START
+		ctx[n + 1] = node
+		n = n + 2
 	end
 
 	if node.is_blur_layer then
-		table.insert(self.context, Ops.BlurStart)
-		table.insert(self.context, node)
+		ctx[n] = OP_BLUR_START
+		ctx[n + 1] = node
+		n = n + 2
 	end
 
 	if node.blur_mask then
-		table.insert(self.context, Ops.BlurMask)
-		table.insert(self.context, node)
+		ctx[n] = OP_BLUR_MASK
+		ctx[n + 1] = node
+		n = n + 2
 	end
 
 	if node.draw then
-		table.insert(self.context, Ops.Draw)
-		table.insert(self.context, node)
+		ctx[n] = OP_DRAW
+		ctx[n + 1] = node
+		n = n + 2
 	end
 
 	for _, child in ipairs(node.children) do
@@ -115,60 +126,65 @@ function Renderer:buildRenderingContext(node)
 		end
 	end
 
+	n = #ctx + 1
+
 	if node.is_blur_layer then
-		table.insert(self.context, Ops.BlurEnd)
+		ctx[n] = OP_BLUR_END
+		n = n + 1
 	end
 
 	if node.stencil_mask then
-		table.insert(self.context, Ops.StencilEnd)
+		ctx[n] = OP_STENCIL_END
+		n = n + 1
 	end
 
 	if node.draw_to_canvas then
-		table.insert(self.context, Ops.CanvasEnd)
-		table.insert(self.context, node)
+		ctx[n] = OP_CANVAS_END
+		ctx[n + 1] = node
+		n = n + 2
 	end
 end
 
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
-handlers[Ops.Draw] = function(renderer, context, i)
+handlers[OP_DRAW] = function(renderer, context, i)
 	local node = context[i + 1]
-	local c = node.color
-	love.graphics.setColor(c[1], c[2], c[3], c[4] * node.alpha)
-	love.graphics.push()
-	love.graphics.applyTransform(node.transform)
+	local color = node.color
+	lg.setColor(color[1], color[2], color[3], color[4] * node.alpha)
+	lg.push()
+	lg.applyTransform(node.transform)
 	node:draw()
-	love.graphics.pop()
+	lg.pop()
 	return 2
 end
 
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
-handlers[Ops.StencilStart] = function(renderer, context, i)
+handlers[OP_STENCIL_START] = function(renderer, context, i)
 	local node = context[i + 1]
-	love.graphics.push()
-	love.graphics.applyTransform(node.transform)
+	lg.push()
+	lg.applyTransform(node.transform)
 	stencil(node.stencil_mask, node)
-	love.graphics.pop()
-	love.graphics.setStencilTest("greater", 0)
+	lg.pop()
+	lg.setStencilTest("greater", 0)
 	return 2
 end
 
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
-handlers[Ops.StencilEnd] = function(renderer, context, i)
+handlers[OP_STENCIL_END] = function(renderer, context, i)
 	local node = context[i + 1]
-	love.graphics.setStencilTest()
+	lg.setStencilTest()
 	return 1
 end
 
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
-handlers[Ops.CanvasStart] = function(renderer, context, i)
+handlers[OP_CANVAS_START] = function(renderer, context, i)
 	local node = context[i + 1]
 	local tf_inverse = context[i + 2]
 
@@ -179,93 +195,93 @@ handlers[Ops.CanvasStart] = function(renderer, context, i)
 		node.canvas:getWidth() ~= w or
 		node.canvas:getHeight() ~= h
 	then
-		node.canvas = love.graphics.newCanvas(w, h)
+		node.canvas = lg.newCanvas(w, h)
 	end
 
-	love.graphics.push("all")
-	love.graphics.setCanvas({ node.canvas, stencil = true })
-	love.graphics.setBlendMode("alpha", "alphamultiply")
-	love.graphics.applyTransform(tf_inverse)
-	love.graphics.clear()
+	lg.push("all")
+	lg.setCanvas({ node.canvas, stencil = true })
+	lg.setBlendMode("alpha", "alphamultiply")
+	lg.applyTransform(tf_inverse)
+	lg.clear()
 	return 3
 end
 
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
-handlers[Ops.CanvasEnd] = function(renderer, context, i)
+handlers[OP_CANVAS_END] = function(renderer, context, i)
 	local node = context[i + 1]
-	local canvas = love.graphics.getCanvas()
-	love.graphics.pop()
+	local canvas = lg.getCanvas()
+	lg.pop()
 	local c = node.color
-	love.graphics.setColor(c[1] * node.alpha, c[2] * node.alpha, c[3] * node.alpha, c[4] * node.alpha)
-	love.graphics.applyTransform(node.transform)
-	love.graphics.scale(1 / renderer.viewport_scale, 1 / renderer.viewport_scale)
-	love.graphics.setBlendMode("alpha", "premultiplied")
-	love.graphics.draw(canvas)
-	love.graphics.setBlendMode("alpha")
+	lg.setColor(c[1] * node.alpha, c[2] * node.alpha, c[3] * node.alpha, c[4] * node.alpha)
+	lg.applyTransform(node.transform)
+	lg.scale(1 / renderer.viewport_scale, 1 / renderer.viewport_scale)
+	lg.setBlendMode("alpha", "premultiplied")
+	lg.draw(canvas)
+	lg.setBlendMode("alpha")
 	return 2
 end
 
-local blur_mask_stencil = function(renderer, context, i)
-	love.graphics.push()
-	while context[i] ~= Ops.BlurEnd do
-		if context[i] == Ops.BlurMask then
+local function blur_mask_stencil(renderer, context, i)
+	lg.push()
+	while context[i] ~= OP_BLUR_END do
+		if context[i] == OP_BLUR_MASK then
 			local node = context[i + 1]
-			love.graphics.push()
-			love.graphics.applyTransform(node.transform)
+			lg.push()
+			lg.applyTransform(node.transform)
 			node:blur_mask()
-			love.graphics.pop()
+			lg.pop()
 		end
 		i = i + 1
 	end
-	love.graphics.pop()
+	lg.pop()
 end
 
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
-handlers[Ops.BlurStart] = function(renderer, context, i)
-	love.graphics.push("all")
-	love.graphics.origin()
-	love.graphics.setColor(1, 1, 1)
-	love.graphics.setCanvas(renderer.horizontal_blur_canvas)
-	love.graphics.setShader(renderer.horizontal_blur)
-	love.graphics.scale(blur_scale)
-	love.graphics.draw(renderer.canvas)
-	love.graphics.pop()
+handlers[OP_BLUR_START] = function(renderer, context, i)
+	lg.push("all")
+	lg.origin()
+	lg.setColor(1, 1, 1)
+	lg.setCanvas(renderer.horizontal_blur_canvas)
+	lg.setShader(renderer.horizontal_blur)
+	lg.scale(BLUR_SCALE)
+	lg.draw(renderer.canvas)
+	lg.pop()
 
-	love.graphics.push("all")
-	love.graphics.origin()
-	love.graphics.setColor(1, 1, 1)
-	love.graphics.setCanvas(renderer.vertical_blur_canvas)
-	love.graphics.setShader(renderer.vertical_blur)
-	love.graphics.draw(renderer.horizontal_blur_canvas)
-	love.graphics.pop()
+	lg.push("all")
+	lg.origin()
+	lg.setColor(1, 1, 1)
+	lg.setCanvas(renderer.vertical_blur_canvas)
+	lg.setShader(renderer.vertical_blur)
+	lg.draw(renderer.horizontal_blur_canvas)
+	lg.pop()
 
-	love.graphics.push()
+	lg.push()
 	stencil(blur_mask_stencil, renderer, context, i)
-	love.graphics.setStencilTest("greater", 0)
-	love.graphics.origin()
-	love.graphics.setColor(1, 1, 1)
-	love.graphics.scale(1 / blur_scale)
-	love.graphics.draw(renderer.vertical_blur_canvas)
-	love.graphics.setStencilTest()
-	love.graphics.pop()
+	lg.setStencilTest("greater", 0)
+	lg.origin()
+	lg.setColor(1, 1, 1)
+	lg.scale(1 / BLUR_SCALE)
+	lg.draw(renderer.vertical_blur_canvas)
+	lg.setStencilTest()
+	lg.pop()
 	return 2
 end
 
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
-handlers[Ops.BlurEnd] = function(renderer, context, i)
+handlers[OP_BLUR_END] = function(renderer, context, i)
 	return 1
 end
 
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
-handlers[Ops.BlurMask] = function(renderer, context, i)
+handlers[OP_BLUR_MASK] = function(renderer, context, i)
 	return 2
 end
 
