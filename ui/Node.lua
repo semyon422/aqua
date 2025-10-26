@@ -12,11 +12,9 @@ local class = require("class")
 ---@field parent ui.Node?
 ---@field children ui.Node[]
 ---@field context ui.Context
----@field color ui.Color
 ---@field draw? fun(self: ui.Node)
----@field stencil_mask? fun(self: ui.Node)
----@field blur_mask? fun(self: ui.Node)
----@field canvas love.Canvas?
+---@field style ui.Style?
+---@field canvas love.Canvas? Used for style
 local Node = class()
 
 Node.ClassName = "Node"
@@ -88,8 +86,6 @@ function Node:new(params)
 	self.height = 0
 	self.width_mode = SizeMode.Fixed
 	self.height_mode = SizeMode.Fixed
-	self.color = { 1, 1, 1, 1 }
-	self.alpha = 1
 	self.padding_left = 0
 	self.padding_right = 0
 	self.padding_top = 0
@@ -104,18 +100,9 @@ function Node:new(params)
 	self.is_disabled = false
 	self.children = {}
 	self.state = State.Created
-	self.draw_to_canvas = false
-	self.is_blur_layer = false
 
 	if params then
 		Node.TransformParams(self, params)
-	end
-
-	if #self.color < 4 then
-		local missing = 4 - #self.color
-		for _ = 1, missing do
-			table.insert(self.color, 1)
-		end
 	end
 end
 

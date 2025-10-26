@@ -71,7 +71,7 @@ function Engine:updateNode(node)
 		self.rebuild_rendering_context = true
 	end
 
-	if (node.handles_mouse_input or node.handles_keyboard_input) and node.alpha * node.color[4] > 0 then
+	if node.handles_mouse_input or node.handles_keyboard_input then
 		if node.handles_keyboard_input then
 			table.insert(self.focus_requesters, node)
 		end
