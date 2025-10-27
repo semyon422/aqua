@@ -1,50 +1,63 @@
 local class = require("class")
+local BackgroundColor = require("ui.Renderer.Shader.BackgroundColor")
 local LinearGradient = require("ui.Renderer.Shader.LinearGradient")
-local Outline = require("ui.Renderer.Shader.Outline")
+local Brightness = require("ui.Renderer.Shader.Brightness")
 local BorderRadius = require("ui.Renderer.Shader.BorderRadius")
+local Outline = require("ui.Renderer.Shader.Outline")
 require("table.clear")
 
 ---@class ui.ShaderBuilder
 ---@operator call: ui.ShaderBuilder
+---@field feature_set {[ui.ShaderFeature]: boolean} Temporary stores features used in a ui.Style
 local ShaderBuilder = class()
 
-local fields = {
+ShaderBuilder.fields = {
+	[BackgroundColor] = {
+		"background_color"
+	},
 	[LinearGradient] = {
 		"linear_gradient"
+	},
+	[Brightness] = {
+		"brightness"
+	},
+	[BorderRadius] = {
+		"border_radius",
 	},
 	[Outline] = {
 		"border_width",
 		"border_color"
 	},
-	[BorderRadius] = {
-		"border_radius",
-	}
 }
 
 function ShaderBuilder:new()
 	self.cache = {}
+	self.feature_set = {}
 end
 
 ---@param style ui.Style
 ---@return love.Shader?
 function ShaderBuilder:addShader(style)
+	table.clear(self.feature_set)
 	table.clear(style.features)
+	local has_features = false
 
-	for feature, names in pairs(fields) do
+	for feature, names in pairs(ShaderBuilder.fields) do
 		for _, name in ipairs(names) do
 			if style[name] then
-				table.insert(style.features, feature)
+				self:addFeatures(self.feature_set, feature)
+				has_features = true
 				break
 			end
 		end
 	end
 
-	if #style.features == 0 then
+	if not has_features then
 		return
 	end
 
-	for _, feature in ipairs(style.features) do
-		self:addRequires(style.features, feature)
+	for feature, _ in pairs(self.feature_set) do
+		table.insert(style.features, feature)
 	end
 
 	table.sort(style.features, function(a, b)
@@ -61,7 +74,7 @@ function ShaderBuilder:addShader(style)
 		return self.cache[key]
 	end
 
-	local code = ""
+	local code = "#pragma language glsl3\n"
 
 	for _, feature in ipairs(style.features) do
 		if feature.uniforms then
@@ -82,7 +95,6 @@ function ShaderBuilder:addShader(style)
 			vec4 tex_color = Texel(tex, uv);
 	]]
 
-
 	for _, feature in ipairs(style.features) do
 		if feature.apply then
 			code = code .. feature.apply
@@ -90,30 +102,24 @@ function ShaderBuilder:addShader(style)
 	end
 
 	code = code .. [[
-			return tex_color;
+			return tex_color * color;
 		}
 	]]
 
-	print(code)
 	style.shader = love.graphics.newShader(code)
 end
 
----@param list ui.ShaderFeature[]
+---@param list {[ui.ShaderFeature]: boolean}
 ---@param feature ui.ShaderFeature
-function ShaderBuilder:addRequires(list, feature)
+function ShaderBuilder:addFeatures(list, feature)
+	list[feature] = true
+
 	if not feature.requires then
 		return
 	end
 
-	for _, feature in ipairs(feature.requires) do
-		for _, existing_feature in ipairs(list) do
-			if feature == existing_feature then
-				return
-			end
-		end
-
-		table.insert(list, feature)
-		self:addRequires(list, feature)
+	for _, v in ipairs(feature.requires) do
+		self:addFeatures(list, v)
 	end
 end
 

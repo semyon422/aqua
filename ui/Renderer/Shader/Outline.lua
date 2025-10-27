@@ -40,10 +40,9 @@ Outline.apply = [[
 ]]
 
 ---@param style ui.Style
----@param shader love.Shader
-function Outline:passUniforms(style, shader)
-	shader:send("border_color", style.border_color)
-	shader:send("border_width", style.border_width)
+function Outline:passUniforms(style)
+	style.shader:send("border_color", style.border_color)
+	style.shader:send("border_width", style.border_width)
 end
 
 return Outline

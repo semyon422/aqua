@@ -33,9 +33,8 @@ Corners.functions = [[
 ]]
 
 ---@param style ui.Style
----@param shader love.Shader
-function Corners:passUniforms(style, shader)
-	shader:send("corner_radii", style.border_radius)
+function Corners:passUniforms(style)
+	style.shader:send("corner_radii", style.border_radius)
 end
 
 return Corners

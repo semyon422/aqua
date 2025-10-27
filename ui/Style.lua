@@ -42,4 +42,10 @@ function Style:set(field_name, value)
 	self[field_name] = value
 end
 
+function Style:passUniforms()
+	for _, feature in ipairs(self.features) do
+		feature:passUniforms(self)
+	end
+end
+
 return Style

@@ -17,7 +17,7 @@ local size = { 0, 0 }
 function Size:passUniforms(style, shader)
 	size[1] = style.width
 	size[2] = style.height
-	shader:send("size", size)
+	style.shader:send("size", size)
 end
 
 return Size
