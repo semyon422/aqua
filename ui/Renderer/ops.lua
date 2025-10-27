@@ -8,8 +8,8 @@ local t = {
 	BLUR_START = 6,
 	BLUR_END = 7,
 	BLUR_MASK = 8,
-	COLOR = 9,
-	ALPHA = 10
+	DRAW_WITH_STYLE = 9,
+	DRAW_WITH_STYLE_NO_TEXTURE = 10
 }
 
 return t

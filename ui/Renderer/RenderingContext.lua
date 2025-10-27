@@ -1,5 +1,6 @@
 local class = require("class")
 local OP = require("ui.Renderer.ops")
+local ShaderBuilder = require("ui.Renderer.ShaderBuilder")
 
 ---@class ui.RenderingContext
 ---@operator call: ui.RenderingContext
@@ -9,6 +10,7 @@ function RenderingContext:new()
 	self.viewport_scale = 1
 	self.ctx = {}
 	self.ctx_size = 1
+	self.shader_builder = ShaderBuilder()
 end
 
 ---@param root ui.Node
@@ -58,11 +60,6 @@ local pre_draw = {
 		ctx[n + 1] = node
 		return 2
 	end,
-	color = function(_, ctx, n, node)
-		ctx[n] = OP.COLOR
-		ctx[n + 1] = node.style.color
-		return 2
-	end
 }
 
 ---@type {[string]: fun(self: ui.RenderingContext, ctx: any[], n: integer, node: ui.Node): integer}
@@ -90,7 +87,7 @@ function RenderingContext:extractOps(node)
 
 	if style then
 		if not style.shader then
-			-- build shader
+			style.shader = self.shader_builder:getShader(style)
 		end
 
 		for i = 1, #pre_draw_order do
@@ -99,12 +96,18 @@ function RenderingContext:extractOps(node)
 				ctx_size = ctx_size + pre_draw[v](self, ctx, ctx_size, node)
 			end
 		end
-	end
 
-	if node.draw then
-		ctx[ctx_size] = OP.DRAW
-		ctx[ctx_size + 1] = node
-		ctx_size = ctx_size + 2
+		if style.shader then
+			ctx[ctx_size] = node.draw and OP.DRAW_WITH_STYLE or OP.DRAW_WITH_STYLE_NO_TEXTURE
+			ctx[ctx_size + 1] = node
+			ctx_size = ctx_size + 2
+		end
+	else
+		if node.draw then
+			ctx[ctx_size] = OP.DRAW
+			ctx[ctx_size + 1] = node
+			ctx_size = ctx_size + 2
+		end
 	end
 
 	self.ctx_size = ctx_size

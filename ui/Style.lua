@@ -13,7 +13,7 @@ local class = require("class")
 ---@field shadows { offset_x: number, offset_y: number, blur_radius: number }[]?
 ---@field is_backdrop boolean?
 ---@field backdrop_blur fun(node: ui.Node)?
----@field mask fun(node: ui.Node)?
+---@field mask (boolean | fun(node: ui.Node))?
 ---@field is_canvas boolean?
 ---@field blend_mode string?
 ---@field background_color ui.Color?

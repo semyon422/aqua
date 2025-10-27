@@ -32,6 +32,11 @@ function Renderer:new()
 	local h_blur, v_blur = get_blur_shader_code(BLUR_RADIUS)
 	self.horizontal_blur = lg.newShader(h_blur)
 	self.vertical_blur = lg.newShader(v_blur)
+
+	self.pixel = love.graphics.newCanvas(1, 1)
+	lg.setCanvas(self.pixel)
+	lg.clear(0, 0, 0, 0)
+	lg.setCanvas()
 end
 
 ---@param root ui.Node
@@ -86,8 +91,39 @@ handlers[OP.DRAW] = function(renderer, context, i)
 	return 2
 end
 
-handlers[OP.COLOR] = function(renderer, context, i)
-	love.graphics.setColor(context[i + 1])
+---@param renderer ui.Renderer
+---@param context any[]
+---@param i integer
+handlers[OP.DRAW_WITH_STYLE] = function(renderer, context, i)
+	local node = context[i + 1]
+	local style = node.style
+	lg.push()
+	lg.applyTransform(node.transform)
+	lg.setShader(style.shader)
+	style.width = node.width
+	style.height = node.height
+	style:passUniforms()
+	node:draw()
+	lg.setShader()
+	lg.pop()
+	return 2
+end
+
+---@param renderer ui.Renderer
+---@param context any[]
+---@param i integer
+handlers[OP.DRAW_WITH_STYLE_NO_TEXTURE] = function(renderer, context, i)
+	local node = context[i + 1]
+	local style = node.style
+	lg.push()
+	lg.applyTransform(node.transform)
+	lg.setShader(node.style.shader)
+	style.width = node.width
+	style.height = node.height
+	node.style:passUniforms()
+	lg.draw(renderer.pixel, 0, 0, 0, node.width, node.height)
+	lg.setShader()
+	lg.pop()
 	return 2
 end
 
@@ -160,9 +196,14 @@ local function blur_mask_stencil(renderer, context, i)
 	while context[i] ~= OP.BLUR_END do
 		if context[i] == OP.BLUR_MASK then
 			local node = context[i + 1]
+			local style = node.style
 			lg.push()
 			lg.applyTransform(node.transform)
-			node.style.backdrop_blur(node)
+			if type(style.backdrop_blur) == "function" then
+				node.style.backdrop_blur(node)
+			else
+				lg.rectangle("fill", 0, 0, node.width, node.height)
+			end
 			lg.pop()
 		end
 		i = i + 1

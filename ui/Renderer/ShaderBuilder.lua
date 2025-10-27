@@ -4,6 +4,7 @@ local LinearGradient = require("ui.Renderer.Shader.LinearGradient")
 local Brightness = require("ui.Renderer.Shader.Brightness")
 local BorderRadius = require("ui.Renderer.Shader.BorderRadius")
 local Outline = require("ui.Renderer.Shader.Outline")
+local Style = require("ui.Style")
 require("table.clear")
 
 ---@class ui.ShaderBuilder
@@ -37,7 +38,8 @@ end
 
 ---@param style ui.Style
 ---@return love.Shader?
-function ShaderBuilder:addShader(style)
+function ShaderBuilder:getShader(style)
+	assert(getmetatable(style) == Style, "`style` table doesn't have ui.Style metatable")
 	table.clear(self.feature_set)
 	table.clear(style.features)
 	local has_features = false
@@ -106,7 +108,9 @@ function ShaderBuilder:addShader(style)
 		}
 	]]
 
-	style.shader = love.graphics.newShader(code)
+	local shader = love.graphics.newShader(code)
+	self.cache[key] = shader
+	return shader
 end
 
 ---@param list {[ui.ShaderFeature]: boolean}
