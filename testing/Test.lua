@@ -95,8 +95,8 @@ end
 ---@param f function
 ---@return function
 local function build_method(f)
-	return function(self, got, expected)
-		return self:expected_assert(f(got, expected), got, expected)
+	return function(self, got, expected, ...)
+		return self:expected_assert(f(got, expected, ...), got, expected)
 	end
 end
 
@@ -106,6 +106,13 @@ Test.raweq = build_method(function(a, b) return rawequal(a, b) end)
 Test.rawne = build_method(function(a, b) return not rawequal(a, b) end)
 Test.lt = build_method(function(a, b) return a < b end)
 Test.le = build_method(function(a, b) return a <= b end)
+
+Test.aeq = build_method(function(a, b, eps)
+	if type(a) == "number" and type(b) == "number" then
+		return math.abs(a - b) < eps
+	end
+	return a == b
+end)
 
 Test.teq = build_method(table_util.equal)
 Test.tdeq = build_method(table_util.deepequal)
