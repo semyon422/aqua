@@ -1,5 +1,10 @@
 local math_util = {}
 
+---@generic T
+---@param t number
+---@param a T
+---@param b T
+---@return T
 function math_util.lerp(t, a, b)
 	return a * (1 - t) + b * t
 end
