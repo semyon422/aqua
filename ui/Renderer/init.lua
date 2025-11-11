@@ -1,5 +1,4 @@
 local class = require("class")
-local get_blur_shader_code = require("ui.blur_shader_code")
 local OP = require("ui.Renderer.ops")
 local RenderingContext = require("ui.Renderer.RenderingContext")
 
@@ -29,10 +28,6 @@ function Renderer:new()
 	self.context = RenderingContext()
 	self.viewport_scale = 1
 
-	local h_blur, v_blur = get_blur_shader_code(BLUR_RADIUS)
-	self.horizontal_blur = lg.newShader(h_blur)
-	self.vertical_blur = lg.newShader(v_blur)
-
 	self.pixel = love.graphics.newCanvas(1, 1)
 	lg.setCanvas(self.pixel)
 	lg.clear(0, 0, 0, 0)
@@ -53,14 +48,7 @@ function Renderer:setViewportScale(scale)
 	local ww, wh = lg.getDimensions()
 	if not self.canvas or self.canvas:getWidth() ~= ww or self.canvas:getHeight() ~= wh then
 		self.canvas = lg.newCanvas(ww, wh)
-		self.horizontal_blur_canvas = lg.newCanvas(ww * BLUR_SCALE, wh * BLUR_SCALE)
-		self.vertical_blur_canvas = lg.newCanvas(ww * BLUR_SCALE, wh * BLUR_SCALE)
 	end
-
-	tex_size[1] = ww
-	tex_size[2] = wh
-	self.horizontal_blur:send("tex_size", tex_size)
-	self.vertical_blur:send("tex_size", tex_size)
 end
 
 function Renderer:draw()

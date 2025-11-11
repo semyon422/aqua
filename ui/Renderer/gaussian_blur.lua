@@ -21,22 +21,27 @@ end
 ---@param radius number
 ---@param sigma number
 ---@param is_vertical boolean
----@return string
+---@return love.Shader
 local function getShader(radius, sigma, is_vertical)
 	local weights = getWeights(radius, sigma)
 	local step = is_vertical and "vec2(0.0, 1.0 / tex_size.y)" or "vec2(1.0 / tex_size.x, 0.0)"
 
 	local code = ([[
 		extern vec2 tex_size;
+		extern vec2 uv_min;
+		extern vec2 uv_max;
 
 		vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc)
 		{
 			vec2 step = %s;
 			vec4 sum = vec4(0.0);
+			vec2 coord;
 	]]):format(step)
 
 	for i = -radius, radius do
-		code = code .. ("sum += Texel(tex, tc + step * %.1f) * %.9f;\n"):format(i, weights[i])
+		code = code .. ("coord = tc + step * %.1f;\n"):format(i)
+		code = code .. "coord = clamp(coord, uv_min, uv_max);\n"
+		code = code .. ("sum += Texel(tex, coord) * %.9f;\n"):format(weights[i])
 	end
 
 	code = code .. [[
@@ -44,12 +49,12 @@ local function getShader(radius, sigma, is_vertical)
 	}
 	]]
 
-	return code
+	return love.graphics.newShader(code)
 end
 
 ---@param radius number
----@return string horizontal_shader_code
----@return string vertical_shader_code
+---@return love.Shader horizontal
+---@return love.Shader vertical
 return function(radius)
 	local sigma = radius / 2
 	return getShader(radius, sigma, false), getShader(radius, sigma, true)
