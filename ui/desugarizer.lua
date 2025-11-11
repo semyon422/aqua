@@ -1,10 +1,12 @@
 local Node = require("ui.Node")
+local Style = require("ui.Style")
 
 ---@class ui.Sugar
 ---@field size [number | "fit" | "grow", number | "fit" | "grow"]?
 ---@field padding [number, number, number, number]?
 ---@field arrange? "absolute" | "flow_h" | "flow_v"
 ---@field pivot "top_left" | "top_center" | "top_right" | "center_left" | "center" | "center_right" | "bottom_left" | "bottom_center" | "bottom_right"
+---@field style {[string]: string}
 
 local size_modes = {
 	fixed = Node.SizeMode.Fixed,
@@ -77,6 +79,11 @@ local function f(node, params)
 		node.origin = p
 		node.anchor = p
 		params.pivot = nil
+	end
+
+	if params.style then
+		node.style = Style(params.style)
+		params.style = nil
 	end
 
 	for k, v in pairs(params) do

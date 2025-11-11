@@ -1,6 +1,5 @@
 local class = require("class")
 local OP = require("ui.Renderer.ops")
-local ShaderBuilder = require("ui.Renderer.ShaderBuilder")
 
 ---@class ui.RenderingContext
 ---@operator call: ui.RenderingContext
@@ -10,7 +9,6 @@ function RenderingContext:new()
 	self.viewport_scale = 1
 	self.ctx = {}
 	self.ctx_size = 1
-	self.shader_builder = ShaderBuilder()
 end
 
 ---@param root ui.Node
@@ -86,10 +84,6 @@ function RenderingContext:extractOps(node)
 	local style = node.style
 
 	if style then
-		if not style.shader then
-			style.shader = self.shader_builder:getShader(style)
-		end
-
 		for i = 1, #pre_draw_order do
 			local v = pre_draw_order[i]
 			if style[v] then

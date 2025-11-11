@@ -30,7 +30,6 @@ function Engine:new(root)
 	self.renderer = Renderer()
 
 	self.target_height = self.target_height or 768
-	self:updateRootDimensions()
 end
 
 function Engine:updateRootDimensions()

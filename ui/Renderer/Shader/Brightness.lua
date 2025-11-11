@@ -5,26 +5,23 @@ local Feature = require("ui.Renderer.Shader.Feature")
 local Brightness = Feature + {}
 
 Brightness.name = "brightness"
-Brightness.layer = 80000
+Brightness.layer = 080.000
 
 Brightness.uniforms = {
 	brightness = "float"
 }
 
-Brightness.functions = [[
-	vec4 applyBrightness(vec4 color) {
-		color.rgb *= brightness;
-		return color;
-	}
+Brightness.apply = [[
+	tex_color.rgb = tex_color.rgb * brightness;
 ]]
 
-Brightness.apply = [[
-	tex_color = applyBrightness(tex_color);
-]]
+function Brightness:new(value)
+	self.brightness = assert(value, "Number expected in the constuctor")
+end
 
 ---@param style ui.Style
 function Brightness:passUniforms(style)
-	style.shader:send("brightness", style.brightness)
+	style.shader:send("brightness", self.brightness)
 end
 
 return Brightness

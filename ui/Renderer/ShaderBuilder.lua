@@ -1,130 +1,102 @@
-local class = require("class")
-local BackgroundColor = require("ui.Renderer.Shader.BackgroundColor")
-local LinearGradient = require("ui.Renderer.Shader.LinearGradient")
-local Brightness = require("ui.Renderer.Shader.Brightness")
-local BorderRadius = require("ui.Renderer.Shader.BorderRadius")
-local Outline = require("ui.Renderer.Shader.Outline")
-local Style = require("ui.Style")
-require("table.clear")
-
 ---@class ui.ShaderBuilder
----@operator call: ui.ShaderBuilder
----@field feature_set {[ui.ShaderFeature]: boolean} Temporary stores features used in a ui.Style
-local ShaderBuilder = class()
+local ShaderBuilder = {}
 
-ShaderBuilder.fields = {
-	[BackgroundColor] = {
-		"background_color"
-	},
-	[LinearGradient] = {
-		"linear_gradient"
-	},
-	[Brightness] = {
-		"brightness"
-	},
-	[BorderRadius] = {
-		"border_radius",
-	},
-	[Outline] = {
-		"border_width",
-		"border_color"
-	},
-}
+ShaderBuilder.cache = {}
+ShaderBuilder.buffer_name = "style_buffer"
 
-function ShaderBuilder:new()
-	self.cache = {}
-	self.feature_set = {}
-end
+local SHADER_TEMPLATES = {
+	header = [[
+		#pragma language glsl4
+		struct Style {
+			vec2 size;
+	]],
 
----@param style ui.Style
----@return love.Shader?
-function ShaderBuilder:getShader(style)
-	assert(getmetatable(style) == Style, "`style` table doesn't have ui.Style metatable")
-	table.clear(self.feature_set)
-	table.clear(style.features)
-	local has_features = false
+	buffer = ([[};
+		layout(std430) readonly buffer %s {
+			Style _style[];
+		};
+		Style style = _style[0];
+	]]):format(ShaderBuilder.buffer_name),
 
-	for feature, names in pairs(ShaderBuilder.fields) do
-		for _, name in ipairs(names) do
-			if style[name] then
-				self:addFeatures(self.feature_set, feature)
-				has_features = true
-				break
-			end
-		end
-	end
-
-	if not has_features then
-		return
-	end
-
-	for feature, _ in pairs(self.feature_set) do
-		table.insert(style.features, feature)
-	end
-
-	table.sort(style.features, function(a, b)
-		return a.layer < b.layer
-	end)
-
-	local key = ""
-
-	for _, feature in ipairs(style.features) do
-		key = ("%s + %s"):format(key, feature.name)
-	end
-
-	if self.cache[key] then
-		return self.cache[key]
-	end
-
-	local code = "#pragma language glsl3\n"
-
-	for _, feature in ipairs(style.features) do
-		if feature.uniforms then
-			for name, _type in pairs(feature.uniforms) do
-				code = ("%sextern %s %s;\n"):format(code, _type, name)
-			end
-		end
-	end
-
-	for _, feature in ipairs(style.features) do
-		if feature.functions then
-			code = code .. feature.functions
-		end
-	end
-
-	code = code .. [[
+	effect_start = [[
 		vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
 			vec4 tex_color = Texel(tex, uv);
-	]]
+	]],
+	effect_end = [[return tex_color * color;}]]
+}
 
-	for _, feature in ipairs(style.features) do
-		if feature.apply then
-			code = code .. feature.apply
+---@param shader love.Shader
+---@return table
+local function createBuffer(shader)
+	local fmt = shader:getBufferFormat(ShaderBuilder.buffer_name)
+	return love.graphics.newBuffer(fmt, #fmt, { shaderstorage = true })
+end
+
+---@param features ui.ShaderFeature[]
+---@return string
+local function generateCacheKey(features)
+	local parts = {}
+	for i, feature in ipairs(features) do
+		parts[i] = feature.name
+	end
+	return table.concat(parts, "+")
+end
+
+---@param features ui.ShaderFeature[]
+---@return string
+local function buildShaderCode(features)
+	local code = { SHADER_TEMPLATES.header }
+
+	for _, feature in ipairs(features) do
+		if feature.uniforms then
+			for _, uniform in ipairs(feature.uniforms) do
+				table.insert(code, uniform .. ";\n")
+			end
 		end
 	end
 
-	code = code .. [[
-			return tex_color * color;
-		}
-	]]
+	table.insert(code, SHADER_TEMPLATES.buffer)
 
-	local shader = love.graphics.newShader(code)
-	self.cache[key] = shader
-	return shader
+	for _, feature in ipairs(features) do
+		if feature.functions then
+			table.insert(code, feature.functions)
+		end
+	end
+
+	table.insert(code, SHADER_TEMPLATES.effect_start)
+
+	for _, feature in ipairs(features) do
+		if feature.apply then
+			table.insert(code, feature.apply)
+		end
+	end
+
+	table.insert(code, SHADER_TEMPLATES.effect_end)
+
+	return table.concat(code)
 end
 
----@param list {[ui.ShaderFeature]: boolean}
----@param feature ui.ShaderFeature
-function ShaderBuilder:addFeatures(list, feature)
-	list[feature] = true
-
-	if not feature.requires then
+---@param features ui.ShaderFeature[]
+---@return love.Shader?
+---@return table? buffer
+function ShaderBuilder:getShader(features)
+	if #features == 0 then
 		return
 	end
 
-	for _, v in ipairs(feature.requires) do
-		self:addFeatures(list, v)
+	local key = generateCacheKey(features)
+
+	if self.cache[key] then
+		local shader = self.cache[key]
+		return shader, createBuffer(shader)
 	end
+
+	local code = buildShaderCode(features)
+	local shader = love.graphics.newShader(code)
+	self.cache[key] = shader
+
+	print(code)
+	return shader, createBuffer(shader)
 end
 
 return ShaderBuilder

@@ -5,7 +5,7 @@ local Feature = require("ui.Renderer.Shader.Feature")
 local BackgroundColor = Feature + {}
 
 BackgroundColor.name = "background_color"
-BackgroundColor.layer = 0
+BackgroundColor.layer = 001.000
 
 BackgroundColor.uniforms = {
 	background_color = "vec4"
@@ -24,9 +24,15 @@ BackgroundColor.apply = [[
 	tex_color = applyBackgroundColor(tex_color);
 ]]
 
+---@param color ui.Color
+function BackgroundColor:new(color)
+	self.color = color or { 1, 1, 1, 1 }
+	assert(#self.color == 4, "Color table should have 4 numbers")
+end
+
 ---@param style ui.Style
 function BackgroundColor:passUniforms(style)
-	style.shader:send("background_color", style.background_color)
+	style.shader:send("background_color", self.color)
 end
 
 return BackgroundColor

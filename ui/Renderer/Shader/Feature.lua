@@ -11,7 +11,7 @@ local Feature = class()
 Feature.name = "Unnamed"
 Feature.layer = math.huge
 
----@param style ui.Style
-function Feature:passUniforms(style) end
+---@param data any[]
+function Feature:addUniforms(data) end
 
 return Feature

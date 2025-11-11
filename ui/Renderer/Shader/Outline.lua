@@ -5,7 +5,7 @@ local Feature = require("ui.Renderer.Shader.Feature")
 local Outline = Feature + {}
 
 Outline.name = "border"
-Outline.layer = 10000
+Outline.layer = 100.000
 
 Outline.requires = {
 	require("ui.Renderer.Shader.Size"),

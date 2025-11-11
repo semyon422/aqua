@@ -1,46 +1,35 @@
-local Drawable = require("ui.Drawable")
-local Fonts = require("ui.Fonts")
+local Node = require("ui.Node")
 
----@class ui.Label.Params
----@field font_name string
----@field font_size number
+---@class ui.Label : ui.Node
+---@operator call: ui.Label
+---@field font love.Font
 ---@field text string
 ---@field shadow boolean?
----@field shadow_x number?
----@field shadow_y number?
-
----@class ui.Label : ui.Drawable, ui.Label.Params
----@operator call: ui.Label
-local Label = Drawable + {}
+---@field shadow_x number
+---@field shadow_y number
+local Label = Node + {}
 
 Label.ClassName = "Label"
 
-function Label:load()
-	local fonts = self.dependencies:get(Fonts)
+function Label:new(params)
+	self.text = ""
+	self.shadow_x = 1
+	self.shadow_y = 1
+	Node.new(self, params)
+	self:assert(self.font, "No font was provided")
 
-	if not fonts:isFontExist(self.font_name) then
-		self:error("Font doesn't exist")
-	end
-
-	self.font = fonts:get(self.font_name, self.font_size)
 	self.text_batch = love.graphics.newText(self.font, self.text)
-	self.shadow_x = self.shadow_x or -1
-	self.shadow_y = self.shadow_y or 1
-	local width, height = self.text_batch:getWidth(), self.font:getHeight()
-	self:setWidth(width)
-	self:setHeight(height)
+	self:setDimensions(self.text_batch:getDimensions())
 end
 
 ---@param text string
-function Label:replaceText(text)
+function Label:setText(text)
 	if self.text == text then
 		return
 	end
 	self.text = text
 	self.text_batch:set(text)
-	local width, height = self.text_batch:getDimensions()
-	self:setWidth(width)
-	self:setHeight(height)
+	self:setDimensions(self.text_batch:getDimensions())
 end
 
 function Label:draw()

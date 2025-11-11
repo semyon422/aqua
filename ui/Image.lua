@@ -1,34 +1,26 @@
-local Drawable = require("ui.Drawable")
+local Node = require("ui.Node")
 local Assets = require("ui.Assets")
 
----@class ui.Image : ui.Drawable
+---@class ui.Image : ui.Node
 ---@operator call: ui.Image
 ---@field image love.Image
----@field blend_mode love.BlendMode
-local Image = Drawable + {}
+local Image = Node + {}
 
 Image.ClassName = "Image"
 
-function Image:load()
-	self.image = self.image or Assets.getEmptyImage()
-	local iw, ih = self.image:getDimensions()
-	self.blend_mode = self.blend_mode or "alpha"
-	self.width = self.width ~= 0 and self.width or iw
-	self.height = self.height ~= 0 and self.height or ih
+function Image:new(params)
+	self.image = Assets.getEmptyImage()
+	Node.new(self, params)
+	self:setDimensions(self.image:getDimensions())
 end
 
 ---@param image love.Image
----@param width number?
----@param height number?
-function Image:replaceImage(image, width, height)
+function Image:setImage(image)
 	self.image = image
-	local iw, ih = self.image:getDimensions()
-	self:setWidth(width or iw)
-	self:setHeight(height or ih)
+	self:setDimensions(self.image:getDimensions())
 end
 
 function Image:draw()
-	love.graphics.setBlendMode(self.blend_mode)
 	love.graphics.draw(self.image)
 end
 
