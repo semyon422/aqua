@@ -18,64 +18,15 @@ function RenderingContext:build(root)
 	self.ctx_size = self.ctx_size - 1
 end
 
-local pre_draw_order = {
-	"is_canvas",
-	"mask",
-	"is_backdrop",
-	"backdrop_blur",
-	"color",
-	--"alpha"
-}
-
-local post_draw_order = {
-	"is_backdrop",
-	"mask",
-	"is_canvas",
-}
-
----@type {[string]: fun(self: ui.RenderingContext, ctx: any[], n: integer, node: ui.Node): integer}
-local pre_draw = {
-	is_canvas = function(self, ctx, n, node)
-		ctx[n] = OP.CANVAS_START
-		ctx[n + 1] = node
-		local tf = node.transform:inverse()
-		tf:scale(self.viewport_scale, self.viewport_scale)
-		ctx[n + 2] = tf
-		return 3
-	end,
-	mask = function(_, ctx, n, node)
-		ctx[n] = OP.STENCIL_START
-		ctx[n + 1] = node
-		return 2
-	end,
-	is_backdrop = function(_, ctx, n, node)
-		ctx[n] = OP.BLUR_START
-		ctx[n + 1] = node
-		return 2
-	end,
-	backdrop_blur = function(_, ctx, n, node)
-		ctx[n] = OP.BLUR_MASK
-		ctx[n + 1] = node
-		return 2
-	end,
-}
-
----@type {[string]: fun(self: ui.RenderingContext, ctx: any[], n: integer, node: ui.Node): integer}
-local post_draw = {
-	is_canvas = function(_, ctx, n, node)
-		ctx[n] = OP.CANVAS_END
-		ctx[n + 1] = node
-		return 2
-	end,
-	mask = function(_, ctx, n, _)
-		ctx[n] = OP.STENCIL_END
-		return 1
-	end,
-	is_backdrop = function(_, ctx, n, _)
-		ctx[n] = OP.BLUR_END
-		return 1
-	end
-}
+---@param tf love.Transform
+---@return number sx
+---@return number sy
+local function getTransformScale(tf)
+	local e1_1, e1_2, _, _, e2_1, e2_2, _, _, e3_1, e3_2 = tf:getMatrix()
+	local scale_x = math.sqrt(e1_1 * e1_1 + e2_1 * e2_1 + e3_1 * e3_1)
+	local scale_y = math.sqrt(e1_2 * e1_2 + e2_2 * e2_2 + e3_2 * e3_2)
+	return scale_x, scale_y
+end
 
 ---@param node ui.Node
 function RenderingContext:extractOps(node)
@@ -83,25 +34,32 @@ function RenderingContext:extractOps(node)
 	local ctx_size = self.ctx_size
 	local style = node.style
 
-	if style then
-		for i = 1, #pre_draw_order do
-			local v = pre_draw_order[i]
-			if style[v] then
-				ctx_size = ctx_size + pre_draw[v](self, ctx, ctx_size, node)
-			end
-		end
+	if style and style.stencil_mask then
+		ctx[ctx_size] = OP.STENCIL_START
+		ctx[ctx_size + 1] = node
+		ctx_size = ctx_size + 2
+	end
 
-		if style.shader then
-			ctx[ctx_size] = node.draw and OP.DRAW_WITH_STYLE or OP.DRAW_WITH_STYLE_NO_TEXTURE
+	if style then
+		if style.backdrop then
+			local sx, sy = getTransformScale(node.transform)
+			ctx[ctx_size] = OP.DRAW_STYLE_BACKDROP
+			ctx[ctx_size + 1] = node.style
+			ctx[ctx_size + 2] = node.transform
+			ctx[ctx_size + 3] = node.transform:inverse()
+			ctx[ctx_size + 4] = sx
+			ctx[ctx_size + 5] = sy
+			ctx_size = ctx_size + 6
+		end
+		if style.content then
+			ctx[ctx_size] = OP.DRAW_STYLE_CONTENT
 			ctx[ctx_size + 1] = node
 			ctx_size = ctx_size + 2
 		end
-	else
-		if node.draw then
-			ctx[ctx_size] = OP.DRAW
-			ctx[ctx_size + 1] = node
-			ctx_size = ctx_size + 2
-		end
+	elseif node.draw then
+		ctx[ctx_size] = OP.DRAW
+		ctx[ctx_size + 1] = node
+		ctx_size = ctx_size + 2
 	end
 
 	self.ctx_size = ctx_size
@@ -112,13 +70,9 @@ function RenderingContext:extractOps(node)
 
 	ctx_size = self.ctx_size
 
-	if style then
-		for i = 1, #post_draw_order do
-			local v = post_draw_order[i]
-			if style[v] then
-				ctx_size = ctx_size + post_draw[v](self, ctx, ctx_size, node)
-			end
-		end
+	if style and style.stencil_mask then
+		ctx[ctx_size] = OP.STENCIL_END
+		ctx_size = ctx_size + 1
 	end
 
 	self.ctx_size = ctx_size

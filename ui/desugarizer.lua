@@ -1,5 +1,5 @@
 local Node = require("ui.Node")
-local Style = require("ui.Style")
+local Style = require("ui.Renderer.Style")
 
 ---@class ui.Sugar
 ---@field size [number | "fit" | "grow", number | "fit" | "grow"]?

@@ -7,11 +7,6 @@ local Outline = Feature + {}
 Outline.name = "border"
 Outline.layer = 100.000
 
-Outline.requires = {
-	require("ui.Renderer.Shader.Size"),
-	require("ui.Renderer.Shader.Corners")
-}
-
 Outline.uniforms = {
 	border_color = "vec4",
 	border_width = "float"

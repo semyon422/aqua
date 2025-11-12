@@ -1,37 +1,19 @@
 local class = require("class")
 local OP = require("ui.Renderer.ops")
 local RenderingContext = require("ui.Renderer.RenderingContext")
+local RegionEffect = require("ui.Renderer.RegionEffect")
+local ShaderBuilder = require("ui.Renderer.ShaderBuilder")
 
 ---@class ui.Renderer
 ---@operator call: ui.Renderer
 local Renderer = class()
 
 local lg = love.graphics
-
-local BLUR_SCALE = 0.5
-local BLUR_RADIUS = 8
-
 local handlers = {}
-
-local f, a, b, c
-local function st()
-	f(a, b, c)
-end
-
-local function stencil(func, _a, _b, _c)
-	f = func
-	a, b, c = _a, _b, _c
-	lg.stencil(st, "replace", 1)
-end
 
 function Renderer:new()
 	self.context = RenderingContext()
 	self.viewport_scale = 1
-
-	self.pixel = love.graphics.newCanvas(1, 1)
-	lg.setCanvas(self.pixel)
-	lg.clear(0, 0, 0, 0)
-	lg.setCanvas()
 end
 
 ---@param root ui.Node
@@ -39,7 +21,6 @@ function Renderer:build(root)
 	self.context:build(root)
 end
 
-local tex_size = { 0, 0 }
 ---@param scale number
 function Renderer:setViewportScale(scale)
 	self.viewport_scale = scale
@@ -48,6 +29,7 @@ function Renderer:setViewportScale(scale)
 	local ww, wh = lg.getDimensions()
 	if not self.canvas or self.canvas:getWidth() ~= ww or self.canvas:getHeight() ~= wh then
 		self.canvas = lg.newCanvas(ww, wh)
+		self.region_effect = RegionEffect(ww, wh)
 	end
 end
 
@@ -82,37 +64,52 @@ end
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
-handlers[OP.DRAW_WITH_STYLE] = function(renderer, context, i)
-	local node = context[i + 1]
-	local style = node.style
-	lg.push()
-	lg.applyTransform(node.transform)
-	lg.setShader(style.shader)
-	style.width = node.width
-	style.height = node.height
-	style:passUniforms()
-	node:draw()
-	lg.setShader()
-	lg.pop()
-	return 2
-end
+handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
+	local style = context[i + 1] ---@type ui.Style
+	local tf = context[i + 2] ---@type love.Transform
+	local i_tf = context[i + 3] ---@type love.Transform
+	local tf_scale_x = context[i + 4] ---@type number
+	local tf_scale_y = context[i + 5] ---@type number
+	local region_effect = renderer.region_effect ---@type ui.RegionEffect
+	local main_canvas = renderer.canvas ---@type love.Canvas
+	local backdrop = style.backdrop ---@type ui.Style.Backdrop
 
----@param renderer ui.Renderer
----@param context any[]
----@param i integer
-handlers[OP.DRAW_WITH_STYLE_NO_TEXTURE] = function(renderer, context, i)
-	local node = context[i + 1]
-	local style = node.style
+	style:updateMaterials()
+
 	lg.push()
-	lg.applyTransform(node.transform)
-	lg.setShader(node.style.shader)
-	style.width = node.width
-	style.height = node.height
-	node.style:passUniforms()
-	lg.draw(renderer.pixel, 0, 0, 0, node.width, node.height)
-	lg.setShader()
+	lg.scale(tf_scale_x, tf_scale_y)
+	lg.applyTransform(i_tf)
+	region_effect:setCaptureRegion(
+		main_canvas,
+		style.width * tf_scale_x,
+		style.height * tf_scale_y,
+		style.padding
+	)
+	region_effect:captureRegion()
 	lg.pop()
-	return 2
+
+	if backdrop.blur then
+		region_effect:applyBlur(backdrop.blur)
+	end
+
+	lg.push()
+	lg.applyTransform(tf)
+	lg.scale(1 / tf_scale_x, 1 / tf_scale_y)
+
+	if backdrop.material then
+		local shader = backdrop.material.shader
+		shader:send(ShaderBuilder.buffer_name, backdrop.material.buffer)
+		lg.setShader(shader)
+		region_effect:draw()
+		lg.setShader()
+	else
+		region_effect:draw()
+	end
+
+	lg.setColor(1, 1, 1)
+	lg.setBlendMode("alpha")
+	lg.pop()
+	return 6
 end
 
 ---@param renderer ui.Renderer
@@ -137,6 +134,7 @@ handlers[OP.STENCIL_END] = function(renderer, context, i)
 	return 1
 end
 
+--[[
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
@@ -178,72 +176,6 @@ handlers[OP.CANVAS_END] = function(renderer, context, i)
 	lg.setBlendMode("alpha")
 	return 2
 end
-
-local function blur_mask_stencil(renderer, context, i)
-	lg.push()
-	while context[i] ~= OP.BLUR_END do
-		if context[i] == OP.BLUR_MASK then
-			local node = context[i + 1]
-			local style = node.style
-			lg.push()
-			lg.applyTransform(node.transform)
-			if type(style.backdrop_blur) == "function" then
-				node.style.backdrop_blur(node)
-			else
-				lg.rectangle("fill", 0, 0, node.width, node.height)
-			end
-			lg.pop()
-		end
-		i = i + 1
-	end
-	lg.pop()
-end
-
----@param renderer ui.Renderer
----@param context any[]
----@param i integer
-handlers[OP.BLUR_START] = function(renderer, context, i)
-	lg.push("all")
-	lg.origin()
-	lg.setColor(1, 1, 1)
-	lg.setCanvas(renderer.horizontal_blur_canvas)
-	lg.setShader(renderer.horizontal_blur)
-	lg.scale(BLUR_SCALE)
-	lg.draw(renderer.canvas)
-	lg.pop()
-
-	lg.push("all")
-	lg.origin()
-	lg.setColor(1, 1, 1)
-	lg.setCanvas(renderer.vertical_blur_canvas)
-	lg.setShader(renderer.vertical_blur)
-	lg.draw(renderer.horizontal_blur_canvas)
-	lg.pop()
-
-	lg.push()
-	stencil(blur_mask_stencil, renderer, context, i)
-	lg.setStencilTest("greater", 0)
-	lg.origin()
-	lg.setColor(1, 1, 1)
-	lg.scale(1 / BLUR_SCALE)
-	lg.draw(renderer.vertical_blur_canvas)
-	lg.setStencilTest()
-	lg.pop()
-	return 2
-end
-
----@param renderer ui.Renderer
----@param context any[]
----@param i integer
-handlers[OP.BLUR_END] = function(renderer, context, i)
-	return 1
-end
-
----@param renderer ui.Renderer
----@param context any[]
----@param i integer
-handlers[OP.BLUR_MASK] = function(renderer, context, i)
-	return 2
-end
+]]
 
 return Renderer

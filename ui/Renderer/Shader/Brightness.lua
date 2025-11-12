@@ -8,20 +8,20 @@ Brightness.name = "brightness"
 Brightness.layer = 080.000
 
 Brightness.uniforms = {
-	brightness = "float"
+	"float brightness"
 }
 
 Brightness.apply = [[
-	tex_color.rgb = tex_color.rgb * brightness;
+	tex_color.rgb = tex_color.rgb * style.brightness;
 ]]
 
 function Brightness:new(value)
 	self.brightness = assert(value, "Number expected in the constuctor")
 end
 
----@param style ui.Style
-function Brightness:passUniforms(style)
-	style.shader:send("brightness", self.brightness)
+---@param data any[]
+function Brightness:addUniforms(data)
+	table.insert(data, self.brightness)
 end
 
 return Brightness

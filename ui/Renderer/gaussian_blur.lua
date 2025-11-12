@@ -28,10 +28,8 @@ local function getShader(radius, sigma, is_vertical)
 
 	local code = ([[
 		extern vec2 tex_size;
-		extern vec2 uv_min;
-		extern vec2 uv_max;
 
-		vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc)
+		vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc)
 		{
 			vec2 step = %s;
 			vec4 sum = vec4(0.0);
@@ -39,8 +37,7 @@ local function getShader(radius, sigma, is_vertical)
 	]]):format(step)
 
 	for i = -radius, radius do
-		code = code .. ("coord = tc + step * %.1f;\n"):format(i)
-		code = code .. "coord = clamp(coord, uv_min, uv_max);\n"
+		code = code .. ("coord = uv + step * %.1f;\n"):format(i)
 		code = code .. ("sum += Texel(tex, coord) * %.9f;\n"):format(weights[i])
 	end
 

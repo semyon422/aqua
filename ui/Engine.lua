@@ -119,14 +119,14 @@ function Engine:updateTree(dt)
 
 	self:updateNode(self.root)
 	self.layout_engine:updateLayout(self.layout_invalidation_requesters)
-end
 
-function Engine:drawTree()
 	if self.rebuild_rendering_context then
 		self.renderer:build(self.root)
 		self.rebuild_rendering_context = false
 	end
+end
 
+function Engine:drawTree()
 	self.renderer:draw()
 end
 
