@@ -58,7 +58,11 @@ function RenderingContext:extractOps(node)
 
 		if style.content then
 			if style.content.texture then
-				--
+				ctx[ctx_size] = OP.DRAW_STYLE_CONTENT_TEXTURE
+				ctx[ctx_size + 1] = style
+				ctx[ctx_size + 2] = style.content.texture
+				ctx[ctx_size + 3] = node.transform
+				ctx_size = ctx_size + 4
 			elseif node.draw then
 				ctx[ctx_size] = OP.DRAW_STYLE_CONTENT_ANY
 				ctx[ctx_size + 1] = style

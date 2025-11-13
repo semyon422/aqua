@@ -142,6 +142,22 @@ handlers[OP.DRAW_STYLE_CONTENT_ANY] = function(renderer, context, i)
 end
 
 handlers[OP.DRAW_STYLE_CONTENT_TEXTURE] = function(renderer, context, i)
+	local style = context[i + 1] ---@type ui.Style
+	local texture = context[i + 2] ---@type love.Image
+	local tf = context[i + 3] ---@type love.Transform
+
+	lg.push()
+	lg.applyTransform(tf)
+	lg.setShader(style.content.material.shader)
+	lg.setColor(style.color)
+	lg.setBlendMode(style.blend_mode, style.blend_mode_alpha)
+	lg.draw(texture)
+	lg.setColor(1, 1, 1, 1)
+	lg.setBlendMode("alpha")
+	lg.setShader()
+	lg.pop()
+
+	return 4
 end
 
 handlers[OP.DRAW_STYLE_CONTENT_NO_TEXTURE] = function(renderer, context, i)
