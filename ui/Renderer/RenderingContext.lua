@@ -60,12 +60,16 @@ function RenderingContext:extractOps(node)
 			if style.content.texture then
 				--
 			elseif node.draw then
-				--
+				ctx[ctx_size] = OP.DRAW_STYLE_CONTENT_ANY
+				ctx[ctx_size + 1] = style
+				ctx[ctx_size + 2] = node
+				ctx[ctx_size + 3] = node.transform
+				ctx_size = ctx_size + 4
 			else
 				ctx[ctx_size] = OP.DRAW_STYLE_CONTENT_NO_TEXTURE
 				ctx[ctx_size + 1] = node.style
 				ctx[ctx_size + 2] = node.transform
-				ctx_size = ctx_size + 2
+				ctx_size = ctx_size + 3
 			end
 		end
 	elseif node.draw then

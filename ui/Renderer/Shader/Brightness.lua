@@ -5,7 +5,6 @@ local Feature = require("ui.Renderer.Shader.Feature")
 local Brightness = Feature + {}
 
 Brightness.name = "brightness"
-Brightness.layer = 080.000
 
 Brightness.uniforms = {
 	"float brightness"
