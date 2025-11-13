@@ -313,6 +313,7 @@ function LayoutEngine:updateTransform(node)
 	end
 
 	node.invalidate_axis = Axis.None
+	node:dimensionsChanged()
 end
 
 return LayoutEngine

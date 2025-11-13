@@ -41,7 +41,7 @@ function RegionEffect:setCaptureRegion(source_canvas, width, height, padding)
 	self.source_canvas = source_canvas
 	self.capture_width = math.floor(width)
 	self.capture_height = math.floor(height)
-	self.padding = math.max(0, padding or 1)
+	self.padding = math.max(0, padding or 0)
 end
 
 function RegionEffect:captureRegion()
@@ -103,7 +103,7 @@ function RegionEffect:applyGaussianBlur(radius, downsample_scale)
 	lg.setShader(horizontal)
 	lg.push()
 	lg.scale(downsample_scale)
-	lg.setScissor(0, 0, capture_width * downsample_scale, capture_height * downsample_scale)
+	lg.setScissor(0, 0, capture_width, capture_height)
 	lg.draw(self.previous_buffer)
 	lg.pop()
 

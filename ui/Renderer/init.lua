@@ -76,16 +76,18 @@ handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 
 	style:updateMaterials()
 
+	local visual_width, visual_height = style.width * tf_scale_x, style.height * tf_scale_y
+
 	local ww, wh = love.graphics.getDimensions()
-	style:setBackdropUvScale(style.width / ww, style.height / wh)
+	style:setBackdropUvScale(visual_width / ww, visual_height / wh)
 
 	lg.push()
 	lg.scale(tf_scale_x, tf_scale_y)
 	lg.applyTransform(i_tf)
 	region_effect:setCaptureRegion(
 		main_canvas,
-		style.width * tf_scale_x,
-		style.height * tf_scale_y,
+		visual_width,
+		visual_height,
 		style.padding
 	)
 	region_effect:captureRegion()
