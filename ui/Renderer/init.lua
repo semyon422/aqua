@@ -76,6 +76,9 @@ handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 
 	style:updateMaterials()
 
+	local ww, wh = love.graphics.getDimensions()
+	style:setBackdropUvScale(style.width / ww, style.height / wh)
+
 	lg.push()
 	lg.scale(tf_scale_x, tf_scale_y)
 	lg.applyTransform(i_tf)

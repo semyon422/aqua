@@ -67,7 +67,6 @@ function Style:getDimensions()
 end
 
 local empty_border_radius = { 0, 0, 0, 0 }
-local uv_scale = { 0, 0 }
 
 function Style:updateMaterials()
 	if self.backdrop then
@@ -75,9 +74,6 @@ function Style:updateMaterials()
 		if material:isInvalidated() then
 			local w, h = self:getDimensions()
 			material:updateBuffer(w, h, self.border_radius or empty_border_radius)
-			uv_scale[1] = self.width / love.graphics.getWidth()
-			uv_scale[2] = self.height / love.graphics.getHeight()
-			material:setUvScale(uv_scale)
 		end
 	end
 
@@ -86,9 +82,6 @@ function Style:updateMaterials()
 		if material:isInvalidated() then
 			local w, h = self:getDimensions()
 			material:updateBuffer(w, h, self.border_radius or empty_border_radius)
-			uv_scale[1] = 1
-			uv_scale[2] = 1
-			material:setUvScale(uv_scale)
 		end
 	end
 end
@@ -108,6 +101,14 @@ function Style:setDimensions(width, height)
 
 	if self.content then
 		self.content.material:invalidateUniforms()
+	end
+end
+
+---@param scale_x number
+---@param scale_y number
+function Style:setBackdropUvScale(scale_x, scale_y)
+	if self.backdrop then
+		self.backdrop.material:setUvScale(scale_x, scale_y)
 	end
 end
 

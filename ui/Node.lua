@@ -104,6 +104,10 @@ function Node:new(params)
 	if params then
 		Node.TransformParams(self, params)
 	end
+
+	if self.style then
+		self.style:setDimensions(self.width, self.height)
+	end
 end
 
 function Node:load() end
@@ -272,12 +276,20 @@ end
 function Node:setWidth(width)
 	self.width = width
 	self:invalidateAxis(Axis.X)
+
+	if self.style then
+		self.style:setDimensions(self.width, self.height)
+	end
 end
 
 ---@param height number
 function Node:setHeight(height)
 	self.height = height
 	self:invalidateAxis(Axis.Y)
+
+	if self.style then
+		self.style:setDimensions(self.width, self.height)
+	end
 end
 
 ---@param width number
@@ -286,6 +298,10 @@ function Node:setDimensions(width, height)
 	self.width = width
 	self.height = height
 	self:invalidateAxis(Axis.Both)
+
+	if self.style then
+		self.style:setDimensions(self.width, self.height)
+	end
 end
 
 ---@param sx number

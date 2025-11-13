@@ -17,6 +17,7 @@ Material.InvalidationType = {
 function Material:new(features)
 	self.features = {}
 	self.feature_set = {}
+	self.uv_scale = { 1, 1 }
 	self.invalidated = Material.InvalidationType.None
 
 	for _, feature in ipairs(features) do
@@ -60,6 +61,8 @@ function Material:updateBuffer(texture_width, texture_height, border_radius)
 		self.shader, self.buffer = ShaderBuilder:getShader(self.features)
 	end
 
+	self.shader:send("uv_scale", self.uv_scale)
+
 	local data = {
 		texture_width, texture_height,
 		border_radius[1], border_radius[2], border_radius[3], border_radius[4]
@@ -73,11 +76,6 @@ function Material:updateBuffer(texture_width, texture_height, border_radius)
 	self.invalidate = Material.InvalidationType.None
 end
 
----@param uv_scale number
-function Material:setUvScale(uv_scale)
-	self.shader:send("uv_scale", uv_scale)
-end
-
 ---@return boolean
 function Material:isInvalidated()
 	return self.invalidated ~= Material.InvalidationType.None or self.shader == nil
@@ -85,6 +83,21 @@ end
 
 function Material:invalidateUniforms()
 	self.invalidated = Material.InvalidationType.Uniform
+end
+
+---@param scale_x number
+---@param scale_y number
+--- Used only for backdrop effects.
+--- If you work with huge canvases to apply backdrop effects,
+--- the UV will be tied to the texture dimensions, not the region dimensions.
+function Material:setUvScale(scale_x, scale_y)
+	if self.uv_scale[1] == scale_x and self.uv_scale[2] == scale_y then
+		return
+	end
+
+	self.uv_scale[1] = scale_x
+	self.uv_scale[2] = scale_y
+	self.shader:send("uv_scale", self.uv_scale)
 end
 
 return Material
