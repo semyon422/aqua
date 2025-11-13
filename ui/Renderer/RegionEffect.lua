@@ -36,12 +36,12 @@ end
 ---@param source_canvas love.Canvas
 ---@param width number
 ---@param height number
----@param padding number?
+---@param padding number
 function RegionEffect:setCaptureRegion(source_canvas, width, height, padding)
 	self.source_canvas = source_canvas
-	self.capture_width = math.floor(width)
-	self.capture_height = math.floor(height)
-	self.padding = math.max(0, padding or 0)
+	self.capture_width = width
+	self.capture_height = height
+	self.padding = padding
 end
 
 function RegionEffect:captureRegion()

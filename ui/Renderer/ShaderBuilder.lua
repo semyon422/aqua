@@ -49,7 +49,12 @@ local SHADER_TEMPLATES = {
 			vec2 scaled_uv = uv / uv_scale;
 			vec4 tex_color = Texel(tex, uv);
 	]],
-	effect_end = [[return tex_color * color;}]]
+	effect_end = [[
+		if (style.background_color.a == 0) {
+			return vec4(1, 0, 1, 1);
+		}
+		return tex_color * color;
+	}]]
 }
 
 ---@param shader love.Shader

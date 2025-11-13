@@ -8,14 +8,14 @@ BackgroundColor.name = "background_color"
 BackgroundColor.layer = 001.000
 
 BackgroundColor.uniforms = {
-	background_color = "vec4"
+	"vec4 background_color"
 }
 
 BackgroundColor.functions = [[
 	vec4 applyBackgroundColor(vec4 tex_color) {
 		float inv_alpha = 1.0 - tex_color.a;
-		vec3 blended_rgb = mix(background_color.rgb, tex_color.rgb, tex_color.a);
-		float blended_alpha = tex_color.a + background_color.a * inv_alpha;
+		vec3 blended_rgb = mix(style.background_color.rgb, tex_color.rgb, tex_color.a);
+		float blended_alpha = tex_color.a + style.background_color.a * inv_alpha;
 		return vec4(blended_rgb, blended_alpha);
 	}
 ]]
@@ -30,9 +30,12 @@ function BackgroundColor:new(color)
 	assert(#self.color == 4, "Color table should have 4 numbers")
 end
 
----@param style ui.Style
-function BackgroundColor:passUniforms(style)
-	style.shader:send("background_color", self.color)
+---@param data any[]
+function BackgroundColor:addUniforms(data)
+	table.insert(data, self.color[1])
+	table.insert(data, self.color[2])
+	table.insert(data, self.color[3])
+	table.insert(data, self.color[4])
 end
 
 return BackgroundColor

@@ -19,6 +19,7 @@ local Material = require("ui.Renderer.Material")
 ---@class ui.Style.Content
 ---@field effects ui.ShaderFeature[]
 ---@field material ui.Material
+---@field texture love.Image?
 
 ---@class ui.Style
 ---@operator call: ui.Style
@@ -49,6 +50,10 @@ function Style:new(params)
 		self[k] = v
 	end
 
+	self.width = math.max(0, self.width)
+	self.height = math.max(0, self.height)
+	self.padding = math.max(0, self.padding)
+
 	if self.backdrop then
 		self.backdrop.material = Material(self.backdrop.effects)
 	end
@@ -75,6 +80,7 @@ function Style:updateMaterials()
 			local w, h = self:getDimensions()
 			material:updateBuffer(w, h, self.border_radius or empty_border_radius)
 		end
+		material:sendBuffer()
 	end
 
 	if self.content then
@@ -83,12 +89,16 @@ function Style:updateMaterials()
 			local w, h = self:getDimensions()
 			material:updateBuffer(w, h, self.border_radius or empty_border_radius)
 		end
+		material:sendBuffer()
 	end
 end
 
 ---@param width number
 ---@param height number
 function Style:setDimensions(width, height)
+	width = math.max(0, width)
+	height = math.max(0, height)
+
 	if self.width == width and self.height == height then
 		return
 	end

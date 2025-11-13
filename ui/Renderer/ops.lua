@@ -1,11 +1,16 @@
 ---@class ui.Renderer.Ops
 local t = {
-	DRAW = 1,
-	DRAW_STYLE_SHADOW = 2,
-	DRAW_STYLE_BACKDROP = 3,
-	DRAW_STYLE_CONTENT = 4,
-	STENCIL_START = 5,
-	STENCIL_END = 6,
+	UPDATE_STYLE = 1,
+	DRAW = 10,
+	DRAW_STYLE_SHADOW = 11,
+	DRAW_STYLE_BACKDROP = 12,
+	DRAW_STYLE_CONTENT_ANY = 13,     -- node.draw and style.content
+	DRAW_STYLE_CONTENT_TEXTURE = 13, -- style.content.texture
+	DRAW_STYLE_CONTENT_NO_TEXTURE = 15, -- style.content
+	STENCIL_START = 20,
+	STENCIL_END = 21,
+	CANVAS_START = 30,
+	CANVAS_END = 31
 }
 
 return t

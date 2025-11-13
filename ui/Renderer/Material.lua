@@ -76,6 +76,10 @@ function Material:updateBuffer(texture_width, texture_height, border_radius)
 	self.invalidate = Material.InvalidationType.None
 end
 
+function Material:sendBuffer()
+	self.shader:send(ShaderBuilder.buffer_name, self.buffer)
+end
+
 ---@return boolean
 function Material:isInvalidated()
 	return self.invalidated ~= Material.InvalidationType.None or self.shader == nil

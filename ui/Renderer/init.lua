@@ -14,6 +14,8 @@ local handlers = {}
 function Renderer:new()
 	self.context = RenderingContext()
 	self.viewport_scale = 1
+
+	self.pixel = love.graphics.newCanvas(1, 1)
 end
 
 ---@param root ui.Node
@@ -61,6 +63,12 @@ handlers[OP.DRAW] = function(renderer, context, i)
 	return 2
 end
 
+handlers[OP.UPDATE_STYLE] = function(renderer, context, i)
+	local style = context[i + 1] ---@type ui.Style
+	style:updateMaterials()
+	return 2
+end
+
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
@@ -74,10 +82,7 @@ handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 	local main_canvas = renderer.canvas ---@type love.Canvas
 	local backdrop = style.backdrop ---@type ui.Style.Backdrop
 
-	style:updateMaterials()
-
 	local visual_width, visual_height = style.width * tf_scale_x, style.height * tf_scale_y
-
 	local ww, wh = love.graphics.getDimensions()
 	style:setBackdropUvScale(visual_width / ww, visual_height / wh)
 
@@ -115,6 +120,32 @@ handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 	lg.setBlendMode("alpha")
 	lg.pop()
 	return 6
+end
+
+handlers[OP.DRAW_STYLE_CONTENT_ANY] = function(renderer, context, i)
+
+end
+
+handlers[OP.DRAW_STYLE_CONTENT_TEXTURE] = function(renderer, context, i)
+
+end
+
+handlers[OP.DRAW_STYLE_CONTENT_NO_TEXTURE] = function(renderer, context, i)
+	local style = context[i + 1] ---@type ui.Style
+	local tf = context[i + 2] ---@type love.Transform
+
+	lg.push()
+	lg.applyTransform(tf)
+	lg.setShader(style.content.material.shader)
+	lg.setColor(style.color)
+	lg.setBlendMode(style.blend_mode, style.blend_mode_alpha)
+	lg.draw(renderer.pixel, 0, 0, 0, style.width, style.height)
+	lg.setColor(1, 1, 1, 1)
+	lg.setBlendMode("alpha")
+	lg.setShader()
+	lg.pop()
+
+	return 3
 end
 
 ---@param renderer ui.Renderer
