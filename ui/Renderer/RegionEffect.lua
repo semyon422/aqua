@@ -87,7 +87,7 @@ function RegionEffect:applyGaussianBlur(radius, downsample_scale)
 	local canvas_width = self.current_buffer:getWidth()
 	local canvas_height = self.current_buffer:getHeight()
 	local capture_width = self.capture_width + p * 2
-	local capture_height = self.capture_width + p * 2
+	local capture_height = self.capture_height + p * 2
 
 	size[1] = canvas_width
 	size[2] = canvas_height

@@ -46,7 +46,7 @@ function LayoutEngine:updateLayout(nodes)
 		if node.parent then
 			self:positionChildren(node.parent)
 		else
-			self:updateTransform(node)
+			node:updateTransform()
 			self:positionChildren(node)
 		end
 
@@ -252,68 +252,24 @@ function LayoutEngine:positionChildren(node)
 
 	if node.arrange == Arrange.Absolute then
 		for _, child in ipairs(node.children) do
-			self:updateTransform(child)
+			child:updateTransform()
 			self:positionChildren(child)
 		end
 	elseif node.arrange == Arrange.FlowH then
 		for _, child in ipairs(node.children) do
 			child:setPosition(x, y)
-			self:updateTransform(child)
+			child:updateTransform()
 			self:positionChildren(child)
 			x = x + child.width + node.child_gap
 		end
 	elseif node.arrange == Arrange.FlowV then
 		for _, child in ipairs(node.children) do
 			child:setPosition(x, y)
-			self:updateTransform(child)
+			child:updateTransform()
 			self:positionChildren(child)
 			y = y + child.height + node.child_gap
 		end
 	end
-end
-
-local tf = love.math.newTransform()
-
-function LayoutEngine:updateTransform(node)
-	local x, y = 0, 0
-
-	if node.parent then
-		x = node.x + node.anchor.x * node.parent:getLayoutWidth() + node.parent.padding_left
-		y = node.y + node.anchor.y * node.parent:getLayoutHeight() + node.parent.padding_top
-	else
-		x = node.x
-		y = node.y
-	end
-
-	if node.parent then
-		-- The code below doesn't create a new transform, that's good
-		-- But it would have been better if there was Transform:apply(other, reverse_order)
-		node.transform:reset()
-		node.transform:apply(node.parent.transform)
-		tf:setTransformation(
-			x,
-			y,
-			node.angle,
-			node.scale_x,
-			node.scale_y,
-			node.origin.x * node.width,
-			node.origin.y * node.height
-		)
-		node.transform:apply(tf)
-	else
-		node.transform:setTransformation(
-			x,
-			y,
-			node.angle,
-			node.scale_x,
-			node.scale_y,
-			node.origin.x * node.width,
-			node.origin.y * node.height
-		)
-	end
-
-	node.invalidate_axis = Axis.None
-	node:dimensionsChanged()
 end
 
 return LayoutEngine

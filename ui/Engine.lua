@@ -39,6 +39,7 @@ function Engine:updateRootDimensions()
 	self.root:setDimensions(ww * s, self.target_height)
 	self.root:setScale(is, is)
 	self.renderer:setViewportScale(is)
+	self.renderer:build(self.root)
 end
 
 ---@param node ui.Node

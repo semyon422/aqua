@@ -56,11 +56,10 @@ function RenderingContext:extractOps(node)
 			local sx, sy = getTransformScale(node.transform)
 			ctx[ctx_size] = OP.DRAW_STYLE_BACKDROP
 			ctx[ctx_size + 1] = node.style
-			ctx[ctx_size + 2] = node.transform
-			ctx[ctx_size + 3] = node.transform:inverse()
-			ctx[ctx_size + 4] = sx
-			ctx[ctx_size + 5] = sy
-			ctx_size = ctx_size + 6
+			ctx[ctx_size + 2] = node
+			ctx[ctx_size + 3] = sx
+			ctx[ctx_size + 4] = sy
+			ctx_size = ctx_size + 5
 		end
 
 		if style.content then

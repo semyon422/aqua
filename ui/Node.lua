@@ -14,7 +14,6 @@ local class = require("class")
 ---@field context ui.Context
 ---@field draw? fun(self: ui.Node)
 ---@field style ui.Style?
----@field canvas love.Canvas? Used for style
 local Node = class()
 
 Node.ClassName = "Node"
@@ -93,6 +92,7 @@ function Node:new(params)
 	self.child_gap = 0
 	self.arrange = Arrange.Absolute
 	self.transform = love.math.newTransform()
+	self.inverse_transform = self.transform:inverse()
 	self.mouse_over = false
 	self.invalidate_axis = Axis.None
 	self.handles_mouse_input = false
@@ -167,6 +167,54 @@ end
 
 function Node:kill()
 	self.state = State.Killed
+end
+
+local temp_tf = love.math.newTransform()
+
+function Node:updateTransform()
+	local x, y = 0, 0
+
+	if self.parent then
+		x = self.x + self.anchor.x * self.parent:getLayoutWidth() + self.parent.padding_left
+		y = self.y + self.anchor.y * self.parent:getLayoutHeight() + self.parent.padding_top
+	else
+		x = self.x
+		y = self.y
+	end
+
+	if self.parent then
+		-- The code below doesn't create a new transform, that's good
+		-- But it would have been better if there was Transform:apply(other, reverse_order)
+		self.transform:reset()
+		self.transform:apply(self.parent.transform)
+		temp_tf:setTransformation(
+			x,
+			y,
+			self.angle,
+			self.scale_x,
+			self.scale_y,
+			self.origin.x * self.width,
+			self.origin.y * self.height
+		)
+		self.transform:apply(temp_tf)
+	else
+		self.transform:setTransformation(
+			x,
+			y,
+			self.angle,
+			self.scale_x,
+			self.scale_y,
+			self.origin.x * self.width,
+			self.origin.y * self.height
+		)
+	end
+
+	-- But we still need to make a new transform...
+	-- It's used only for backdrop effects.
+	-- TODO: Find a better solution please
+	self.inverse_transform = self.transform:inverse()
+	self.invalidate_axis = Axis.None
+	self:dimensionsChanged()
 end
 
 ---@param e ui.MouseDownEvent
@@ -303,7 +351,13 @@ end
 function Node:setScale(sx, sy)
 	self.scale_x = sx
 	self.scale_y = sy
-	self.invalidate_axis = Axis.Both
+	self:updateTransform() -- TODO: self.invalidate_transform ??
+end
+
+---@param a number
+function Node:setAngle(a)
+	self.angle = a
+	self:updateTransform() -- TODO: self.invalidate_transform ??
 end
 
 return Node

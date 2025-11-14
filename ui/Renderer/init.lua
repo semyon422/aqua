@@ -80,10 +80,11 @@ end
 ---@param i integer
 handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 	local style = context[i + 1] ---@type ui.Style
-	local tf = context[i + 2] ---@type love.Transform
-	local i_tf = context[i + 3] ---@type love.Transform
-	local tf_scale_x = context[i + 4] ---@type number
-	local tf_scale_y = context[i + 5] ---@type number
+	local node = context[i + 2] ---@type ui.Node
+	local tf = node.transform
+	local i_tf = node.inverse_transform
+	local tf_scale_x = context[i + 3] ---@type number
+	local tf_scale_y = context[i + 4] ---@type number
 	local region_effect = renderer.region_effect ---@type ui.RegionEffect
 	local main_canvas = renderer.canvas ---@type love.Canvas
 	local backdrop = style.backdrop ---@type ui.Style.Backdrop
@@ -125,7 +126,7 @@ handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 	lg.setColor(1, 1, 1)
 	lg.setBlendMode("alpha")
 	lg.pop()
-	return 6
+	return 5
 end
 
 ---@param renderer ui.Renderer
