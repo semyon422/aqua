@@ -68,7 +68,7 @@ handlers[OP.DRAW_STYLE_SHADOW] = function(renderer, context, i)
 	lg.push()
 	lg.applyTransform(tf)
 	lg.setShader(style.shadow.material.shader)
-	lg.draw(renderer.pixel, -r, -r, 0, style.width + r * 2, style.height + r * 2)
+	lg.draw(renderer.pixel, shadow.x + -r, shadow.y + -r, 0, style.width + r * 2, style.height + r * 2)
 	lg.setShader()
 	lg.pop()
 

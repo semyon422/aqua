@@ -59,6 +59,8 @@ function Style:new(params)
 	if self.shadow then
 		local c = self.shadow.color or { 0, 0, 0, 0.5 }
 		local r = self.shadow.radius or 2
+		self.shadow.x = self.shadow.x or 0
+		self.shadow.y = self.shadow.y or 0
 		self.shadow.material = Material({ DropShadow(c, r) })
 	end
 
