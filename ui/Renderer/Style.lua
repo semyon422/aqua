@@ -1,11 +1,13 @@
 local class = require("class")
 local Material = require("ui.Renderer.Material")
+local DropShadow = require("ui.Renderer.Shader.DropShadow")
 
 ---@class ui.Style.Shadow
 ---@field x number
 ---@field y number
 ---@field radius number
 ---@field color ui.Color
+---@field material ui.Material
 
 ---@class ui.Style.Blur
 ---@field type "gaussian" | "kawase"
@@ -54,11 +56,17 @@ function Style:new(params)
 	self.height = math.max(0, self.height)
 	self.padding = math.max(0, self.padding)
 
-	if self.backdrop then
+	if self.shadow then
+		local c = self.shadow.color or { 0, 0, 0, 0.5 }
+		local r = self.shadow.radius or 2
+		self.shadow.material = Material({ DropShadow(c, r) })
+	end
+
+	if self.backdrop and self.backdrop.effects then
 		self.backdrop.material = Material(self.backdrop.effects)
 	end
 
-	if self.content then
+	if self.content and self.content.effects then
 		self.content.material = Material(self.content.effects)
 	end
 end
@@ -73,24 +81,23 @@ end
 
 local empty_border_radius = { 0, 0, 0, 0 }
 
-function Style:updateMaterials()
-	if self.backdrop then
-		local material = self.backdrop.material
+---@param container { material: ui.Material }
+---@private
+function Style:updateMaterialInside(container)
+	if container and container.material then
+		local material = container.material
 		if material:isInvalidated() then
 			local w, h = self:getDimensions()
 			material:updateBuffer(w, h, self.border_radius or empty_border_radius)
 		end
 		material:sendBuffer()
 	end
+end
 
-	if self.content then
-		local material = self.content.material
-		if material:isInvalidated() then
-			local w, h = self:getDimensions()
-			material:updateBuffer(w, h, self.border_radius or empty_border_radius)
-		end
-		material:sendBuffer()
-	end
+function Style:updateMaterials()
+	self:updateMaterialInside(self.shadow)
+	self:updateMaterialInside(self.backdrop)
+	self:updateMaterialInside(self.content)
 end
 
 ---@param width number

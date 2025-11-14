@@ -45,6 +45,13 @@ function RenderingContext:extractOps(node)
 		ctx[ctx_size + 1] = style
 		ctx_size = ctx_size + 2
 
+		if style.shadow then
+			ctx[ctx_size] = OP.DRAW_STYLE_SHADOW
+			ctx[ctx_size + 1] = style
+			ctx[ctx_size + 2] = node.transform
+			ctx_size = ctx_size + 3
+		end
+
 		if style.backdrop then
 			local sx, sy = getTransformScale(node.transform)
 			ctx[ctx_size] = OP.DRAW_STYLE_BACKDROP

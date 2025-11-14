@@ -9,6 +9,8 @@ local ShaderBuilder = require("ui.Renderer.ShaderBuilder")
 local Renderer = class()
 
 local lg = love.graphics
+
+---@type fun(renderer: ui.Renderer, context: any[], i: integer)
 local handlers = {}
 
 function Renderer:new()
@@ -51,22 +53,26 @@ function Renderer:draw()
 	lg.draw(self.canvas)
 end
 
----@param renderer ui.Renderer
----@param context any[]
----@param i integer
-handlers[OP.DRAW] = function(renderer, context, i)
-	local node = context[i + 1]
-	lg.push()
-	lg.applyTransform(node.transform)
-	node:draw()
-	lg.pop()
-	return 2
-end
-
 handlers[OP.UPDATE_STYLE] = function(renderer, context, i)
 	local style = context[i + 1] ---@type ui.Style
 	style:updateMaterials()
 	return 2
+end
+
+handlers[OP.DRAW_STYLE_SHADOW] = function(renderer, context, i)
+	local style = context[i + 1] ---@type ui.Style
+	local tf = context[i + 2] ---@type love.Transform
+
+	local shadow = style.shadow ---@cast shadow -?
+	local r = shadow.radius
+	lg.push()
+	lg.applyTransform(tf)
+	lg.setShader(style.shadow.material.shader)
+	lg.draw(renderer.pixel, -r, -r, 0, style.width + r * 2, style.height + r * 2)
+	lg.setShader()
+	lg.pop()
+
+	return 3
 end
 
 ---@param renderer ui.Renderer
@@ -120,6 +126,18 @@ handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 	lg.setBlendMode("alpha")
 	lg.pop()
 	return 6
+end
+
+---@param renderer ui.Renderer
+---@param context any[]
+---@param i integer
+handlers[OP.DRAW] = function(renderer, context, i)
+	local node = context[i + 1]
+	lg.push()
+	lg.applyTransform(node.transform)
+	node:draw()
+	lg.pop()
+	return 2
 end
 
 handlers[OP.DRAW_STYLE_CONTENT_ANY] = function(renderer, context, i)
