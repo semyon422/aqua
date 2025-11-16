@@ -213,8 +213,7 @@ function Node:updateTransform()
 	-- It's used only for backdrop effects.
 	-- TODO: Find a better solution please
 	self.inverse_transform = self.transform:inverse()
-	self.invalidate_axis = Axis.None
-	self:dimensionsChanged()
+	self:onLayoutComplete()
 end
 
 ---@param e ui.MouseDownEvent
@@ -259,6 +258,12 @@ function Node:onTextInput(e) end
 
 function Node:onKill() end
 
+function Node:onLayoutComplete()
+	if self.style then
+		self.style:setDimensions(self.width, self.height)
+	end
+end
+
 ---@param message string
 function Node:error(message)
 	message = ("%s :: %s"):format(self.id or self.ClassName or "unnamed", message)
@@ -283,12 +288,6 @@ end
 ---@param axis ui.Axis
 function Node:invalidateAxis(axis)
 	self.invalidate_axis = bit.bor(self.invalidate_axis, axis)
-end
-
-function Node:dimensionsChanged()
-	if self.style then
-		self.style:setDimensions(self.width, self.height)
-	end
 end
 
 ---@return number

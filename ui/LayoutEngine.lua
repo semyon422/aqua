@@ -18,6 +18,10 @@ end
 
 ---@param nodes ui.Node[]
 function LayoutEngine:updateLayout(nodes)
+	if #nodes == 0 then
+		return
+	end
+
 	local suitable_nodes = {}
 
 	for _, v in ipairs(nodes) do
@@ -253,12 +257,14 @@ function LayoutEngine:positionChildren(node)
 	if node.arrange == Arrange.Absolute then
 		for _, child in ipairs(node.children) do
 			child:updateTransform()
+			child.invalidate_axis = Axis.None
 			self:positionChildren(child)
 		end
 	elseif node.arrange == Arrange.FlowH then
 		for _, child in ipairs(node.children) do
 			child:setPosition(x, y)
 			child:updateTransform()
+			child.invalidate_axis = Axis.None
 			self:positionChildren(child)
 			x = x + child.width + node.child_gap
 		end
@@ -266,6 +272,7 @@ function LayoutEngine:positionChildren(node)
 		for _, child in ipairs(node.children) do
 			child:setPosition(x, y)
 			child:updateTransform()
+			child.invalidate_axis = Axis.None
 			self:positionChildren(child)
 			y = y + child.height + node.child_gap
 		end
