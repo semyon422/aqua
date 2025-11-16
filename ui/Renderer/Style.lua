@@ -1,4 +1,5 @@
 local class = require("class")
+local table_util = require("table_util")
 local Material = require("ui.Renderer.Material")
 local DropShadow = require("ui.Renderer.Shader.DropShadow")
 
@@ -22,6 +23,10 @@ local DropShadow = require("ui.Renderer.Shader.DropShadow")
 ---@field effects ui.ShaderFeature[]
 ---@field material ui.Material
 ---@field texture love.Image?
+---@field color ui.Color
+---@field alpha number
+---@field blend_mode string
+---@field blend_mode_alpha "alphamultiply" | "premultiplied"
 
 ---@class ui.Style
 ---@operator call: ui.Style
@@ -29,10 +34,7 @@ local DropShadow = require("ui.Renderer.Shader.DropShadow")
 ---@field height number
 ---@field padding number
 ---@field border_radius [number, number, number, number]? left top bottom right
----@field color ui.Color
----@field alpha number
----@field blend_mode string
----@field blend_mode_alpha "alphamultiply" | "premultiplied"
+---@field render_children_on_texture boolean?
 ---@field shadow ui.Style.Shadow?
 ---@field backdrop ui.Style.Backdrop?
 ---@field content ui.Style.Content?
@@ -43,33 +45,42 @@ function Style:new(params)
 	self.width = 0
 	self.height = 0
 	self.padding = 0
-	self.color = { 1, 1, 1, 1 }
-	self.alpha = 1
-	self.blend_mode = "alpha"
-	self.blend_mode_alpha = "alphamultiply"
 
-	for k, v in pairs(params) do
-		self[k] = v
+	self.width = math.max(0, params.width or 0)
+	self.height = math.max(0, params.height or 0)
+	self.padding = math.max(0, params.padding or 0)
+	self.border_radius = params.border_radius
+
+	if params.shadow then
+		local src = params.shadow
+		local shadow = {}
+		shadow.color = src.color or { 0, 0, 0, 0.5 }
+		shadow.radius = src.radius or 2
+		shadow.x = src.x or 0
+		shadow.y = src.y or 0
+		shadow.material = Material({ DropShadow(shadow.color, shadow.radius) })
+		self.shadow = shadow
 	end
 
-	self.width = math.max(0, self.width)
-	self.height = math.max(0, self.height)
-	self.padding = math.max(0, self.padding)
-
-	if self.shadow then
-		local c = self.shadow.color or { 0, 0, 0, 0.5 }
-		local r = self.shadow.radius or 2
-		self.shadow.x = self.shadow.x or 0
-		self.shadow.y = self.shadow.y or 0
-		self.shadow.material = Material({ DropShadow(c, r) })
+	if params.backdrop then
+		local src = params.backdrop
+		local backdrop = {}
+		backdrop.blur = src.blur
+		backdrop.effects = src.effects or {}
+		backdrop.material = Material(backdrop.effects)
+		self.backdrop = backdrop
 	end
 
-	if self.backdrop and self.backdrop.effects then
-		self.backdrop.material = Material(self.backdrop.effects)
-	end
-
-	if self.content and self.content.effects then
-		self.content.material = Material(self.content.effects)
+	if params.content then
+		local src = params.content
+		local content = {}
+		content.effects = src.effects or {}
+		content.color = src.color or { 1, 1, 1, 1 }
+		content.alpha = src.alpha or 1
+		content.blend_mode = src.blend_mode or "alpha"
+		content.blend_mode_alpha = src.blend_mode_alpha or "alphamultiply"
+		content.material = Material(content.effects)
+		self.content = content
 	end
 end
 
