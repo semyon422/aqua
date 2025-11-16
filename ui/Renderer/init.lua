@@ -134,7 +134,7 @@ end
 ---@param i integer
 handlers[OP.DRAW] = function(renderer, context, i)
 	local node = context[i + 1]
-	lg.push()
+	lg.push("all")
 	lg.applyTransform(node.transform)
 	node:draw()
 	lg.pop()
