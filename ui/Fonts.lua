@@ -3,51 +3,45 @@ local class = require("class")
 ---@class ui.Fonts
 ---@operator call: ui.Fonts
 ---@field fonts {[string]: string}
----@field sizes {[string]: {[number]: love.Font}}
----@field dpi number
 local Fonts = class()
 
-function Fonts:new()
-	self.fonts = {}
-	self.sizes = {}
-	self.dpi = 1
-end
+Fonts.FontSize = 50 -- Don't change at runtime
 
----@param dpi number
-function Fonts:setDPI(dpi)
-	if self.dpi ~= dpi then
-		for k, _ in pairs(self.sizes) do
-			self.sizes[k] = {}
-		end
-	end
-	self.dpi = dpi
+function Fonts:new()
+	self.font_paths = {}
+	self.instances = {}
 end
 
 ---@param name string
 ---@param font_filepath string
 function Fonts:add(name, font_filepath)
-	self.fonts[name] = font_filepath
-	self.sizes[name] = self.sizes[name] or {}
+	self.font_paths[name] = font_filepath
 end
 
 ---@param name string
 ---@return boolean
 function Fonts:isFontExist(name)
-	return self.fonts[name] ~= nil
+	return self.font_paths[name] ~= nil
 end
+
+local font_params = { sdf = true, hinting = "normal" }
 
 ---@param name string
 ---@param size number
 ---@return love.Font
-function Fonts:get(name, size)
-	local cached = self.sizes[name][size]
+function Fonts:get(name)
+	if not self:isFontExist(name) then
+		error("Font doesn't exist")
+	end
+
+	local cached = self.instances[name]
 	if cached then
 		return cached
 	end
 
-	local path = self.fonts[name]
-	local font = love.graphics.newFont(path, size, "light", self.dpi)
-	self.sizes[name][size] = font
+	local path = self.font_paths[name]
+	local font = love.graphics.newFont(path, Fonts.FontSize, font_params)
+	self.instances[name] = font
 	return font
 end
 

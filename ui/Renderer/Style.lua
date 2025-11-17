@@ -1,5 +1,4 @@
 local class = require("class")
-local table_util = require("table_util")
 local Material = require("ui.Renderer.Material")
 local DropShadow = require("ui.Renderer.Shader.DropShadow")
 
@@ -34,7 +33,6 @@ local DropShadow = require("ui.Renderer.Shader.DropShadow")
 ---@field height number
 ---@field padding number
 ---@field border_radius [number, number, number, number]? left top bottom right
----@field render_children_on_texture boolean?
 ---@field shadow ui.Style.Shadow?
 ---@field backdrop ui.Style.Backdrop?
 ---@field content ui.Style.Content?

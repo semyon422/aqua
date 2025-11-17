@@ -106,6 +106,7 @@ function Node:new(params)
 	end
 
 	if self.style then
+		assert(getmetatable(self.style), "Style class expected, got a regular table instead.")
 		self.style:setDimensions(self.width, self.height)
 	end
 end
@@ -213,6 +214,11 @@ function Node:updateTransform()
 	-- It's used only for backdrop effects.
 	-- TODO: Find a better solution please
 	self.inverse_transform = self.transform:inverse()
+
+	if self.style then
+		self.style:setDimensions(self.width, self.height)
+	end
+
 	self:onLayoutComplete()
 end
 
@@ -258,11 +264,7 @@ function Node:onTextInput(e) end
 
 function Node:onKill() end
 
-function Node:onLayoutComplete()
-	if self.style then
-		self.style:setDimensions(self.width, self.height)
-	end
-end
+function Node:onLayoutComplete() end
 
 ---@param message string
 function Node:error(message)

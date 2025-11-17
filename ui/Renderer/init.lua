@@ -113,14 +113,10 @@ handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 	lg.applyTransform(tf)
 	lg.scale(1 / tf_scale_x, 1 / tf_scale_y)
 
-	if backdrop.material then
-		local shader = backdrop.material.shader
-		lg.setShader(shader)
-		region_effect:draw()
-		lg.setShader()
-	else
-		region_effect:draw()
-	end
+	local shader = backdrop.material.shader
+	lg.setShader(shader)
+	region_effect:draw()
+	lg.setShader()
 
 	lg.setColor(1, 1, 1)
 	lg.setBlendMode("alpha")
@@ -162,8 +158,7 @@ end
 
 handlers[OP.DRAW_STYLE_CONTENT_TEXTURE] = function(renderer, context, i)
 	local style = context[i + 1] ---@type ui.Style
-	local texture = context[i + 2] ---@type love.Image
-	local tf = context[i + 3] ---@type love.Transform
+	local tf = context[i + 2] ---@type love.Transform
 	local content = style.content ---@cast content -?
 
 	lg.push()
@@ -171,13 +166,13 @@ handlers[OP.DRAW_STYLE_CONTENT_TEXTURE] = function(renderer, context, i)
 	lg.setShader(content.material.shader)
 	lg.setColor(content.color)
 	lg.setBlendMode(content.blend_mode, content.blend_mode_alpha)
-	lg.draw(texture)
+	lg.draw(content.texture)
 	lg.setColor(1, 1, 1, 1)
 	lg.setBlendMode("alpha")
 	lg.setShader()
 	lg.pop()
 
-	return 4
+	return 3
 end
 
 handlers[OP.DRAW_STYLE_CONTENT_NO_TEXTURE] = function(renderer, context, i)

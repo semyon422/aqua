@@ -77,7 +77,9 @@ function Material:updateBuffer(texture_width, texture_height, border_radius)
 end
 
 function Material:sendBuffer()
-	self.shader:send(ShaderBuilder.buffer_name, self.buffer)
+	if self.shader then
+		self.shader:send(ShaderBuilder.buffer_name, self.buffer)
+	end
 end
 
 ---@return boolean
@@ -95,6 +97,10 @@ end
 --- If you work with huge canvases to apply backdrop effects,
 --- the UV will be tied to the texture dimensions, not the region dimensions.
 function Material:setUvScale(scale_x, scale_y)
+	if not self.shader then
+		return
+	end
+
 	if self.uv_scale[1] == scale_x and self.uv_scale[2] == scale_y then
 		return
 	end
