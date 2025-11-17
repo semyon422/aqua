@@ -16,7 +16,6 @@ local handlers = {}
 function Renderer:new()
 	self.context = RenderingContext()
 	self.viewport_scale = 1
-
 	self.pixel = love.graphics.newCanvas(1, 1)
 end
 
@@ -32,13 +31,14 @@ function Renderer:setViewportScale(scale)
 
 	local ww, wh = lg.getDimensions()
 	if not self.canvas or self.canvas:getWidth() ~= ww or self.canvas:getHeight() ~= wh then
-		self.canvas = lg.newCanvas(ww, wh)
+		self.main_canvas = lg.newCanvas(ww, wh)
 		self.region_effect = RegionEffect(ww, wh)
 	end
 end
 
 function Renderer:draw()
-	lg.setCanvas({ self.canvas, stencil = true })
+	self.current_canvas = self.main_canvas
+	lg.setCanvas({ self.current_canvas, stencil = true })
 	lg.clear()
 
 	local ctx = self.context.ctx
@@ -50,7 +50,17 @@ function Renderer:draw()
 	lg.setCanvas()
 	lg.origin()
 	lg.setColor(1, 1, 1)
-	lg.draw(self.canvas)
+	lg.draw(self.main_canvas)
+end
+
+---@param tf love.Transform
+---@return number sx
+---@return number sy
+local function getTransformScale(tf)
+	local e1_1, e1_2, _, _, e2_1, e2_2, _, _, e3_1, e3_2 = tf:getMatrix()
+	local scale_x = math.sqrt(e1_1 * e1_1 + e2_1 * e2_1 + e3_1 * e3_1)
+	local scale_y = math.sqrt(e1_2 * e1_2 + e2_2 * e2_2 + e3_2 * e3_2)
+	return scale_x, scale_y
 end
 
 handlers[OP.UPDATE_STYLE] = function(renderer, context, i)
@@ -86,7 +96,7 @@ handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 	local tf_scale_x = context[i + 3] ---@type number
 	local tf_scale_y = context[i + 4] ---@type number
 	local region_effect = renderer.region_effect ---@type ui.RegionEffect
-	local main_canvas = renderer.canvas ---@type love.Canvas
+	local current_canvas = renderer.current_canvas ---@type love.Canvas
 	local backdrop = style.backdrop ---@type ui.Style.Backdrop
 
 	local visual_width, visual_height = style.width * tf_scale_x, style.height * tf_scale_y
@@ -97,7 +107,7 @@ handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 	lg.scale(tf_scale_x, tf_scale_y)
 	lg.applyTransform(i_tf)
 	region_effect:setCaptureRegion(
-		main_canvas,
+		current_canvas,
 		visual_width,
 		visual_height,
 		style.padding
@@ -136,7 +146,7 @@ handlers[OP.DRAW] = function(renderer, context, i)
 	return 2
 end
 
-handlers[OP.DRAW_STYLE_CONTENT_ANY] = function(renderer, context, i)
+handlers[OP.DRAW_STYLE_CONTENT_SELF_DRAW] = function(renderer, context, i)
 	local style = context[i + 1] ---@type ui.Style
 	local node = context[i + 2] ---@type ui.Node
 	local tf = context[i + 3] ---@type love.Transform
@@ -156,26 +166,7 @@ handlers[OP.DRAW_STYLE_CONTENT_ANY] = function(renderer, context, i)
 	return 4
 end
 
-handlers[OP.DRAW_STYLE_CONTENT_TEXTURE] = function(renderer, context, i)
-	local style = context[i + 1] ---@type ui.Style
-	local tf = context[i + 2] ---@type love.Transform
-	local content = style.content ---@cast content -?
-
-	lg.push()
-	lg.applyTransform(tf)
-	lg.setShader(content.material.shader)
-	lg.setColor(content.color)
-	lg.setBlendMode(content.blend_mode, content.blend_mode_alpha)
-	lg.draw(content.texture)
-	lg.setColor(1, 1, 1, 1)
-	lg.setBlendMode("alpha")
-	lg.setShader()
-	lg.pop()
-
-	return 3
-end
-
-handlers[OP.DRAW_STYLE_CONTENT_NO_TEXTURE] = function(renderer, context, i)
+handlers[OP.DRAW_STYLE_CONTENT] = function(renderer, context, i)
 	local style = context[i + 1] ---@type ui.Style
 	local tf = context[i + 2] ---@type love.Transform
 	local content = style.content ---@cast content -?
@@ -186,6 +177,27 @@ handlers[OP.DRAW_STYLE_CONTENT_NO_TEXTURE] = function(renderer, context, i)
 	lg.setColor(content.color)
 	lg.setBlendMode(content.blend_mode, content.blend_mode_alpha)
 	lg.draw(renderer.pixel, 0, 0, 0, style.width, style.height)
+	lg.setColor(1, 1, 1, 1)
+	lg.setBlendMode("alpha")
+	lg.setShader()
+	lg.pop()
+
+	return 3
+end
+
+handlers[OP.DRAW_STYLE_CONTENT_CACHE] = function(renderer, context, i)
+	local style = context[i + 1] ---@type ui.Style
+	local tf = context[i + 2] ---@type love.Transform
+	local cache = style.content_cache ---@cast cache -?
+
+	local tf_x, tf_y = getTransformScale(tf)
+	lg.push()
+	lg.scale(1 / tf_x, 1 / tf_y)
+	lg.applyTransform(tf)
+	lg.setShader(cache.material.shader)
+	lg.setColor(cache.color)
+	lg.setBlendMode(cache.blend_mode, cache.blend_mode_alpha)
+	lg.draw(cache.canvas)
 	lg.setColor(1, 1, 1, 1)
 	lg.setBlendMode("alpha")
 	lg.setShader()
@@ -216,48 +228,53 @@ handlers[OP.STENCIL_END] = function(renderer, context, i)
 	return 1
 end
 
---[[
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
-handlers[OP.CANVAS_START] = function(renderer, context, i)
-	local node = context[i + 1]
-	local tf_inverse = context[i + 2]
+handlers[OP.STYLE_CONTENT_CACHE_BEGIN] = function(renderer, context, i)
+	local node = context[i + 1] ---@type ui.Node
+	local style = node.style ---@cast style -?
+	local cache = style.content_cache ---@cast cache -?
 
-	local w = math.ceil(node.width * renderer.viewport_scale)
-	local h = math.ceil(node.height * renderer.viewport_scale)
+	if not cache.needs_redraw then
+		local end_index = i
+		while context[end_index] ~= OP.STYLE_CONTENT_CACHE_END do
+			end_index = end_index + 1
+		end
+		return end_index - i + 1
+	end
 
-	if not node.canvas or
-		node.canvas:getWidth() ~= w or
-		node.canvas:getHeight() ~= h
+	local tf_x, tf_y = getTransformScale(node.transform)
+	local tf_inverse = node.inverse_transform
+	local w = math.ceil(style.width * renderer.viewport_scale)
+	local h = math.ceil(style.height * renderer.viewport_scale)
+
+	if not cache.canvas or
+		cache.canvas:getWidth() ~= w or
+		cache.canvas:getHeight() ~= h
 	then
-		node.canvas = lg.newCanvas(w, h)
+		cache.canvas = lg.newCanvas(w, h)
 	end
 
 	lg.push("all")
-	lg.setCanvas({ node.canvas, stencil = true })
+	renderer.current_canvas = cache.canvas
+	lg.setCanvas({ cache.canvas, stencil = true })
 	lg.setBlendMode("alpha", "alphamultiply")
+	lg.scale(1 / tf_x, 1 / tf_y)
 	lg.applyTransform(tf_inverse)
 	lg.clear()
-	return 3
+
+	cache.needs_redraw = false
+	return 2
 end
 
 ---@param renderer ui.Renderer
 ---@param context any[]
 ---@param i integer
-handlers[OP.CANVAS_END] = function(renderer, context, i)
-	local node = context[i + 1]
-	local canvas = lg.getCanvas()
+handlers[OP.STYLE_CONTENT_CACHE_END] = function(renderer, context, i)
 	lg.pop()
-	--local c = node.color
-	--lg.setColor(c[1] * node.alpha, c[2] * node.alpha, c[3] * node.alpha, c[4] * node.alpha)
-	lg.applyTransform(node.transform)
-	lg.scale(1 / renderer.viewport_scale, 1 / renderer.viewport_scale)
-	lg.setBlendMode("alpha", "premultiplied")
-	lg.draw(canvas)
-	lg.setBlendMode("alpha")
-	return 2
+	renderer.current_canvas = renderer.main_canvas
+	return 1
 end
-]]
 
 return Renderer

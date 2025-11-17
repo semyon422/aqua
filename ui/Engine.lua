@@ -133,7 +133,7 @@ end
 
 ---@param event { name: string, [number]: any }
 function Engine:receive(event)
-	if event.name ~= "resize" then
+	if event.name == "resize" then
 		self:updateRootDimensions()
 	end
 end

@@ -1,4 +1,5 @@
 local class = require("class")
+local table_util = require("table_util")
 local Material = require("ui.Renderer.Material")
 local DropShadow = require("ui.Renderer.Shader.DropShadow")
 
@@ -21,7 +22,16 @@ local DropShadow = require("ui.Renderer.Shader.DropShadow")
 ---@class ui.Style.Content
 ---@field effects ui.ShaderFeature[]
 ---@field material ui.Material
----@field texture love.Image?
+---@field color ui.Color
+---@field alpha number
+---@field blend_mode string
+---@field blend_mode_alpha "alphamultiply" | "premultiplied"
+
+---@class ui.Style.ContentCache
+---@field canvas love.Canvas?
+---@field needs_redraw boolean
+---@field effects ui.ShaderFeature[]
+---@field material ui.Material
 ---@field color ui.Color
 ---@field alpha number
 ---@field blend_mode string
@@ -40,46 +50,104 @@ local DropShadow = require("ui.Renderer.Shader.DropShadow")
 local Style = class()
 
 function Style:new(params)
-	self.width = 0
-	self.height = 0
-	self.padding = 0
-
 	self.width = math.max(0, params.width or 0)
 	self.height = math.max(0, params.height or 0)
 	self.padding = math.max(0, params.padding or 0)
 	self.border_radius = params.border_radius
+	self:createShadow(params.shadow)
+	self:createBackdrop(params.backdrop)
+	self:createContent(params.content)
+	self:createContentCache(params.content_cache)
+end
 
-	if params.shadow then
-		local src = params.shadow
-		local shadow = {}
-		shadow.color = src.color or { 0, 0, 0, 0.5 }
-		shadow.radius = src.radius or 2
-		shadow.x = src.x or 0
-		shadow.y = src.y or 0
-		shadow.material = Material({ DropShadow(shadow.color, shadow.radius) })
-		self.shadow = shadow
+---@param params table
+---@param defaults table
+---@return table?
+local function applyDefaults(params, defaults)
+	if not params then
+		return
+	end
+	local result = {}
+	for k, default in pairs(defaults) do
+		if params[k] then
+			result[k] = params[k]
+		else
+			result[k] = type(default) == "table" and table_util.copy(default) or default
+		end
+	end
+	for k, v in pairs(params) do
+		result[k] = v
+	end
+	return result
+end
+
+local DEFAULT_SHADOW = {
+	color = { 0, 0, 0, 0.5 },
+	radius = 2,
+	x = 0,
+	y = 0,
+}
+
+---@param params ui.Style.Shadow
+function Style:createShadow(params)
+	if not params then
+		return
 	end
 
-	if params.backdrop then
-		local src = params.backdrop
-		local backdrop = {}
-		backdrop.blur = src.blur
-		backdrop.effects = src.effects or {}
-		backdrop.material = Material(backdrop.effects)
-		self.backdrop = backdrop
+	self.shadow = applyDefaults(params, DEFAULT_SHADOW)
+	self.shadow.material = Material({
+		DropShadow(self.shadow.color, self.shadow.radius)
+	})
+end
+
+---@param params ui.Style.Backdrop
+function Style:createBackdrop(params)
+	if not params then
+		return
 	end
 
-	if params.content then
-		local src = params.content
-		local content = {}
-		content.effects = src.effects or {}
-		content.color = src.color or { 1, 1, 1, 1 }
-		content.alpha = src.alpha or 1
-		content.blend_mode = src.blend_mode or "alpha"
-		content.blend_mode_alpha = src.blend_mode_alpha or "alphamultiply"
-		content.material = Material(content.effects)
-		self.content = content
+	local t = {}
+	t.blur = params.blur
+	t.effects = params.effects or {}
+	t.material = Material(self.backdrop.effects)
+	self.backdrop = t
+end
+
+local DEFAULT_CONTENT = {
+	color = { 1, 1, 1, 1 },
+	alpha = 1,
+	blend_mode = "alpha",
+	blend_mode_alpha = "alphamultiply",
+	effects = {}
+}
+
+---@param params ui.Style.Content
+function Style:createContent(params)
+	if not params then
+		return
 	end
+
+	self.content = applyDefaults(params, DEFAULT_CONTENT)
+	self.content.material = Material(self.content.effects)
+end
+
+local DEFAULT_CONTENT_CACHE = {
+	needs_redraw = true,
+	color = { 1, 1, 1, 1 },
+	alpha = 1,
+	blend_mode = "alpha",
+	blend_mode_alpha = "alphamultiply",
+	effects = {}
+}
+
+---@param params ui.Style.ContentCache
+function Style:createContentCache(params)
+	if not params then
+		return
+	end
+
+	self.content_cache = applyDefaults(params, DEFAULT_CONTENT_CACHE)
+	self.content_cache.material = Material(self.content_cache.effects)
 end
 
 ---@return number
@@ -109,6 +177,7 @@ function Style:updateMaterials()
 	self:updateMaterialInside(self.shadow)
 	self:updateMaterialInside(self.backdrop)
 	self:updateMaterialInside(self.content)
+	self:updateMaterialInside(self.content_cache)
 end
 
 ---@param width number

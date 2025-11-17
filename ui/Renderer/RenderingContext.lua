@@ -62,20 +62,21 @@ function RenderingContext:extractOps(node)
 			ctx_size = ctx_size + 5
 		end
 
+		if style.content_cache then
+			ctx[ctx_size] = OP.STYLE_CONTENT_CACHE_BEGIN
+			ctx[ctx_size + 1] = node
+			ctx_size = ctx_size + 2
+		end
+
 		if style.content then
-			if style.content.texture then
-				ctx[ctx_size] = OP.DRAW_STYLE_CONTENT_TEXTURE
-				ctx[ctx_size + 1] = style
-				ctx[ctx_size + 2] = node.transform
-				ctx_size = ctx_size + 3
-			elseif node.draw then
-				ctx[ctx_size] = OP.DRAW_STYLE_CONTENT_ANY
+			if node.draw then
+				ctx[ctx_size] = OP.DRAW_STYLE_CONTENT_SELF_DRAW
 				ctx[ctx_size + 1] = style
 				ctx[ctx_size + 2] = node
 				ctx[ctx_size + 3] = node.transform
 				ctx_size = ctx_size + 4
 			else
-				ctx[ctx_size] = OP.DRAW_STYLE_CONTENT_NO_TEXTURE
+				ctx[ctx_size] = OP.DRAW_STYLE_CONTENT
 				ctx[ctx_size + 1] = node.style
 				ctx[ctx_size + 2] = node.transform
 				ctx_size = ctx_size + 3
@@ -95,9 +96,21 @@ function RenderingContext:extractOps(node)
 
 	ctx_size = self.ctx_size
 
-	if style and style.stencil_mask then
-		ctx[ctx_size] = OP.STENCIL_END
-		ctx_size = ctx_size + 1
+	if style then
+		if style.content_cache then
+			ctx[ctx_size] = OP.STYLE_CONTENT_CACHE_END
+			ctx_size = ctx_size + 1
+
+			ctx[ctx_size] = OP.DRAW_STYLE_CONTENT_CACHE
+			ctx[ctx_size + 1] = node.style
+			ctx[ctx_size + 2] = node.transform
+			ctx_size = ctx_size + 3
+		end
+
+		if style.stencil_mask then
+			ctx[ctx_size] = OP.STENCIL_END
+			ctx_size = ctx_size + 1
+		end
 	end
 
 	self.ctx_size = ctx_size
