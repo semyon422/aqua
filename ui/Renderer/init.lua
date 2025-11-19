@@ -53,16 +53,6 @@ function Renderer:draw()
 	lg.draw(self.main_canvas)
 end
 
----@param tf love.Transform
----@return number sx
----@return number sy
-local function getTransformScale(tf)
-	local e1_1, e1_2, _, _, e2_1, e2_2, _, _, e3_1, e3_2 = tf:getMatrix()
-	local scale_x = math.sqrt(e1_1 * e1_1 + e2_1 * e2_1 + e3_1 * e3_1)
-	local scale_y = math.sqrt(e1_2 * e1_2 + e2_2 * e2_2 + e3_2 * e3_2)
-	return scale_x, scale_y
-end
-
 handlers[OP.UPDATE_STYLE] = function(renderer, context, i)
 	local style = context[i + 1] ---@type ui.Style
 	style:updateMaterials()
@@ -172,7 +162,7 @@ handlers[OP.DRAW_STYLE_CONTENT] = function(renderer, context, i)
 	local content = style.content ---@cast content -?
 
 	lg.push()
-	lg.applyTransform(tf)
+	lg.applyTransform(tf:get())
 	lg.setShader(content.material.shader)
 	lg.setColor(content.color)
 	lg.setBlendMode(content.blend_mode, content.blend_mode_alpha)
@@ -190,10 +180,10 @@ handlers[OP.DRAW_STYLE_CONTENT_CACHE] = function(renderer, context, i)
 	local tf = context[i + 2] ---@type love.Transform
 	local cache = style.content_cache ---@cast cache -?
 
-	local tf_x, tf_y = getTransformScale(tf)
+	local tf_x, tf_y = tf.transform_scale_x, tf.transform_scale_y
 	lg.push()
 	lg.scale(1 / tf_x, 1 / tf_y)
-	lg.applyTransform(tf)
+	lg.applyTransform(tf:get())
 	lg.setShader(cache.material.shader)
 	lg.setColor(cache.color)
 	lg.setBlendMode(cache.blend_mode, cache.blend_mode_alpha)
@@ -244,8 +234,8 @@ handlers[OP.STYLE_CONTENT_CACHE_BEGIN] = function(renderer, context, i)
 		return end_index - i + 1
 	end
 
-	local tf_x, tf_y = getTransformScale(node.transform)
-	local tf_inverse = node.inverse_transform
+	local tf_x, tf_y = node.transform.transform_scale_x, node.transform.transform_scale_y
+	local tf_inverse = node.transform:getInverse()
 	local w = math.ceil(style.width * renderer.viewport_scale)
 	local h = math.ceil(style.height * renderer.viewport_scale)
 

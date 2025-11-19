@@ -37,7 +37,7 @@ function Engine:updateRootDimensions()
 	local s = self.target_height / wh
 	local is = 1 / s
 	self.root:setDimensions(ww * s, self.target_height)
-	self.root:setScale(is, is)
+	self.root.transform:setScale(is, is)
 	self.renderer:setViewportScale(is)
 	self.renderer:build(self.root)
 end
@@ -52,7 +52,7 @@ function Engine:updateNode(node)
 		-- Do nothing
 	elseif node.state == State.Loaded then
 		node:loadComplete()
-		node:invalidateAxis(Axis.Both)
+		node:invalidateLayoutAxis(Axis.Both)
 		node.state = State.Ready
 		self.rebuild_rendering_context = true
 	elseif node.state == State.Killed then
@@ -66,7 +66,7 @@ function Engine:updateNode(node)
 	elseif node.state == State.Created then
 		node:load()
 		node:loadComplete()
-		node:invalidateAxis(Axis.Both)
+		node:invalidateLayoutAxis(Axis.Both)
 		node.state = State.Ready
 		self.rebuild_rendering_context = true
 	end
@@ -105,8 +105,15 @@ function Engine:updateNode(node)
 		self:updateNode(child)
 	end
 
-	if node.invalidate_axis ~= Axis.None then
+	if node.layout_axis_invalidated ~= Axis.None then
 		table.insert(self.layout_invalidation_requesters, node)
+	end
+
+	if node.transform.invalidated then
+		-- This can be true only if the node.transform was changed with setters (animations)
+		-- This will never be true HERE if layout was changed
+		-- Layout engine calls this function internally itself
+		node:updateTreeTransform()
 	end
 end
 
@@ -119,7 +126,15 @@ function Engine:updateTree(dt)
 	table.clear(self.layout_invalidation_requesters)
 
 	self:updateNode(self.root)
-	self.layout_engine:updateLayout(self.layout_invalidation_requesters)
+
+	local updated_layout_roots = self.layout_engine:updateLayout(self.layout_invalidation_requesters)
+
+	if updated_layout_roots then
+		for node, _ in pairs(updated_layout_roots) do
+			node:updateTreeLayout()
+			node:updateTreeTransform()
+		end
+	end
 
 	if self.rebuild_rendering_context then
 		self.renderer:build(self.root)

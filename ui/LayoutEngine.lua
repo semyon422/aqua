@@ -5,6 +5,10 @@ local SizeMode = Node.SizeMode
 local Arrange = Node.Arrange
 require("table.clear")
 
+local math_min     = math.min
+local math_max     = math.max
+local bit_band     = bit.band
+
 ---@class ui.LayoutEngine
 ---@operator call: ui.LayoutEngine
 ---@field growables ui.Node[] Used in grow() to avoid creating a new table every time
@@ -16,79 +20,77 @@ function LayoutEngine:new(root)
 	self.growables = {}
 end
 
----@param nodes ui.Node[]
-function LayoutEngine:updateLayout(nodes)
-	if #nodes == 0 then
+---@param dirty_nodes ui.Node[]
+---@return {[ui.Node]: boolean}? updated_layout_roots
+function LayoutEngine:updateLayout(dirty_nodes)
+	if #dirty_nodes == 0 then
 		return
 	end
 
-	local suitable_nodes = {}
+	local layout_roots = {}
 
-	for _, v in ipairs(nodes) do
+	for _, v in ipairs(dirty_nodes) do
 		if v == self.root then
-			suitable_nodes = {}
-			suitable_nodes[self.root] = true
+			layout_roots = {}
+			layout_roots[self.root] = true
 			break
 		end
 
-		local node = self:findLayoutResolver(v, v.invalidate_axis)
-		suitable_nodes[node] = true
+		local node = self:findLayoutBoundary(v, v.layout_axis_invalidated)
+		layout_roots[node] = true
 	end
 
-	for node, _ in pairs(suitable_nodes) do
-		local axis = node.invalidate_axis
+	for node, _ in pairs(layout_roots) do
+		local axis_flags = node.layout_axis_invalidated
 
-		if bit.band(axis, Axis.X) then
-			self:fitX(node)
+		if bit_band(axis_flags, Axis.X) then
+			self:measureX(node)
 			self:grow(node, Axis.X)
 		end
-		if bit.band(axis, Axis.Y) then
-			self:fitY(node)
+
+		if bit_band(axis_flags, Axis.Y) then
+			self:measureY(node)
 			self:grow(node, Axis.Y)
 		end
 
-		if node.parent then
-			self:positionChildren(node.parent)
-		else
-			node:updateTransform()
-			self:positionChildren(node)
-		end
-
-		node.invalidate_axis = Axis.None
+		local target = node.parent and node.parent or node
+		self:arrangeChildren(target)
 	end
+
+	return layout_roots
 end
 
 ---@param node ui.Node
 ---@param axis ui.Axis
---- Finds a suitable node that can handle relayout
-function LayoutEngine:findLayoutResolver(node, axis)
+--- Finds a node that can handle relayout
+function LayoutEngine:findLayoutBoundary(node, axis)
 	if not node.parent then
 		return node
 	end
 
-	if self:canResolveLayout(node.parent, axis) then
+	if self:isStableBoundary(node.parent, axis) then
 		return node.parent
-	else
-		return self:findLayoutResolver(node.parent, axis)
 	end
+
+	return self:findLayoutBoundary(node.parent, axis)
 end
 
 ---@param node ui.Node
 ---@param axis ui.Axis
 ---@return boolean
---- It's safe to use nodes that have fixed width/height for layout recalculation without going to the root and recalculating the whole thing from scratch
-function LayoutEngine:canResolveLayout(node, axis)
-	if bit.band(node.invalidate_axis, axis) ~= 0 then
+--- Determines if a node has fixed dimensions for the requested axis, preventing layout shifts from bubbling up
+function LayoutEngine:isStableBoundary(node, axis)
+	if bit_band(node.layout_axis_invalidated, axis) ~= 0 then
 		return true
 	end
 
 	local x_fixed = node.width_mode == SizeMode.Fixed
 	local y_fixed = node.height_mode == SizeMode.Fixed
 
-	if bit.band(axis, Axis.X) ~= 0 and not x_fixed then
+	if bit_band(axis, Axis.X) ~= 0 and not x_fixed then
 		return false
 	end
-	if bit.band(axis, Axis.Y) ~= 0 and not y_fixed then
+	if bit_band(axis, Axis.Y) ~= 0 and not y_fixed then
 		return false
 	end
 
@@ -96,10 +98,10 @@ function LayoutEngine:canResolveLayout(node, axis)
 end
 
 ---@param node ui.Node
-function LayoutEngine:fitX(node)
+function LayoutEngine:measureX(node)
 	if node.width_mode == SizeMode.Fixed then
 		for _, child in ipairs(node.children) do
-			self:fitX(child)
+			self:measureX(child)
 		end
 		return
 	end
@@ -108,31 +110,31 @@ function LayoutEngine:fitX(node)
 
 	if node.arrange == Arrange.Absolute then
 		for _, child in ipairs(node.children) do
-			self:fitX(child)
-			w = math.max(w, child.x + child.width)
+			self:measureX(child)
+			w = math_max(w, child.x + child.width)
 		end
 	elseif node.arrange == Arrange.FlowV then
 		for _, child in ipairs(node.children) do
-			self:fitX(child)
-			w = math.max(w, child.width)
+			self:measureX(child)
+			w = math_max(w, child.width)
 		end
 	elseif node.arrange == Arrange.FlowH then
 		for _, child in ipairs(node.children) do
-			self:fitX(child)
+			self:measureX(child)
 			w = w + child.width
 		end
 
-		w = w + node.child_gap * (math.max(0, #node.children - 1))
+		w = w + node.child_gap * (math_max(0, #node.children - 1))
 	end
 
 	node.width = node.padding_left + w + node.padding_right
 end
 
 ---@param node ui.Node
-function LayoutEngine:fitY(node)
+function LayoutEngine:measureY(node)
 	if node.height_mode == SizeMode.Fixed then
 		for _, child in ipairs(node.children) do
-			self:fitY(child)
+			self:measureY(child)
 		end
 		return
 	end
@@ -141,21 +143,21 @@ function LayoutEngine:fitY(node)
 
 	if node.arrange == Arrange.Absolute then
 		for _, child in ipairs(node.children) do
-			self:fitY(child)
-			h = math.max(h, child.y + child.height)
+			self:measureY(child)
+			h = math_max(h, child.y + child.height)
 		end
 	elseif node.arrange == Arrange.FlowH then
 		for _, child in ipairs(node.children) do
-			self:fitY(child)
-			h = math.max(h, child.height)
+			self:measureY(child)
+			h = math_max(h, child.height)
 		end
 	elseif node.arrange == Arrange.FlowV then
 		for _, child in ipairs(node.children) do
-			self:fitY(child)
+			self:measureY(child)
 			h = h + child.height
 		end
 
-		h = h + (node.child_gap * (math.max(0, #node.children - 1)))
+		h = h + (node.child_gap * (math_max(0, #node.children - 1)))
 	end
 
 	node.height = node.padding_top + h + node.padding_bottom
@@ -199,7 +201,7 @@ function LayoutEngine:grow(node, axis)
 	end
 
 	if node.arrange == props.flow then
-		available_space = available_space - (node.child_gap * math.max(0, #node.children - 1))
+		available_space = available_space - (node.child_gap * math_max(0, #node.children - 1))
 	end
 
 	if #self.growables > 0 then
@@ -239,7 +241,7 @@ function LayoutEngine:distributeSpaceEvenly(children, available_space, size_prop
 			end
 		end
 
-		local size_to_add = math.min(second_smallest - smallest, available_space / #children)
+		local size_to_add = math_min(second_smallest - smallest, available_space / #children)
 
 		for _, child in ipairs(children) do
 			if child[size_prop] == smallest then
@@ -251,29 +253,25 @@ function LayoutEngine:distributeSpaceEvenly(children, available_space, size_prop
 end
 
 ---@param node ui.Node
-function LayoutEngine:positionChildren(node)
+function LayoutEngine:arrangeChildren(node)
 	local x, y = 0, 0
 
 	if node.arrange == Arrange.Absolute then
 		for _, child in ipairs(node.children) do
-			child:updateTransform()
-			child.invalidate_axis = Axis.None
-			self:positionChildren(child)
+			self:arrangeChildren(child)
 		end
 	elseif node.arrange == Arrange.FlowH then
 		for _, child in ipairs(node.children) do
-			child:setPosition(x, y)
-			child:updateTransform()
-			child.invalidate_axis = Axis.None
-			self:positionChildren(child)
+			child.x = x
+			child.y = y
+			self:arrangeChildren(child)
 			x = x + child.width + node.child_gap
 		end
 	elseif node.arrange == Arrange.FlowV then
 		for _, child in ipairs(node.children) do
-			child:setPosition(x, y)
-			child:updateTransform()
-			child.invalidate_axis = Axis.None
-			self:positionChildren(child)
+			child.x = x
+			child.y = y
+			self:arrangeChildren(child)
 			y = y + child.height + node.child_gap
 		end
 	end

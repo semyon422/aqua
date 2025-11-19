@@ -1,4 +1,5 @@
 local class = require("class")
+local NodeTransform = require("ui.NodeTransform")
 
 ---@class ui.Pivot
 ---@field x number
@@ -14,6 +15,13 @@ local class = require("class")
 ---@field context ui.Context
 ---@field draw? fun(self: ui.Node)
 ---@field style ui.Style?
+--- Position can be changed only if the node is inside a container with Absolute arrange.
+--- Use `node.transform` for translating inside containers with `Flow`.
+---@field x number
+---@field y number
+--- Dimensions can be changed only if the size mode is `Fixed`.
+---@field width number
+---@field height number
 local Node = class()
 
 Node.ClassName = "Node"
@@ -73,16 +81,16 @@ end
 
 ---@param params {[string]: any}?
 function Node:new(params)
+	self.z = 0
+	self.transform = NodeTransform()
+
+	-- TODO:  Move to NodeLayout class ???
 	self.x = 0
 	self.y = 0
-	self.z = 0
-	self.angle = 0
-	self.scale_x = 1
-	self.scale_y = 1
-	self.origin = Pivot.TopLeft
-	self.anchor = Pivot.TopLeft
 	self.width = 0
 	self.height = 0
+	self.origin = Pivot.TopLeft
+	self.anchor = Pivot.TopLeft
 	self.width_mode = SizeMode.Fixed
 	self.height_mode = SizeMode.Fixed
 	self.padding_left = 0
@@ -91,10 +99,9 @@ function Node:new(params)
 	self.padding_bottom = 0
 	self.child_gap = 0
 	self.arrange = Arrange.Absolute
-	self.transform = love.math.newTransform()
-	self.inverse_transform = self.transform:inverse()
+	self.layout_axis_invalidated = Axis.None
+
 	self.mouse_over = false
-	self.invalidate_axis = Axis.None
 	self.handles_mouse_input = false
 	self.handles_keyboard_input = false
 	self.is_disabled = false
@@ -170,56 +177,44 @@ function Node:kill()
 	self.state = State.Killed
 end
 
-local temp_tf = love.math.newTransform()
-
-function Node:updateTransform()
+--- Sets layout X, layout Y and origins with anchors in the ui.Transform
+function Node:updateTreeLayout()
 	local x, y = 0, 0
+	local parent_tf ---@type love.Transform?
 
 	if self.parent then
 		x = self.x + self.anchor.x * self.parent:getLayoutWidth() + self.parent.padding_left
 		y = self.y + self.anchor.y * self.parent:getLayoutHeight() + self.parent.padding_top
+		parent_tf = self.parent.transform:get()
 	else
 		x = self.x
 		y = self.y
 	end
 
-	if self.parent then
-		-- The code below doesn't create a new transform, that's good
-		-- But it would have been better if there was Transform:apply(other, reverse_order)
-		self.transform:reset()
-		self.transform:apply(self.parent.transform)
-		temp_tf:setTransformation(
-			x,
-			y,
-			self.angle,
-			self.scale_x,
-			self.scale_y,
-			self.origin.x * self.width,
-			self.origin.y * self.height
-		)
-		self.transform:apply(temp_tf)
-	else
-		self.transform:setTransformation(
-			x,
-			y,
-			self.angle,
-			self.scale_x,
-			self.scale_y,
-			self.origin.x * self.width,
-			self.origin.y * self.height
-		)
-	end
+	local origin_x = self.origin.x * self.width
+	local origin_y = self.origin.y * self.height
 
-	-- But we still need to make a new transform...
-	-- It's used only for backdrop effects.
-	-- TODO: Find a better solution please
-	self.inverse_transform = self.transform:inverse()
+	self.transform:setLayout(parent_tf, x, y, origin_x, origin_y)
 
 	if self.style then
 		self.style:setDimensions(self.width, self.height)
 	end
 
-	self:onLayoutComplete()
+	self.layout_axis_invalidated = Axis.None
+
+	for _, child in ipairs(self.children) do
+		child:updateTreeLayout()
+	end
+end
+
+--- Updates the transform objects of the entire branch.
+--- Must be called after ui.Transform was modified.
+--- Must be called after changing: x, y, width, height, anchor or origin
+function Node:updateTreeTransform()
+	self.transform:update()
+	for _, v in ipairs(self.children) do
+		v:updateTreeTransform()
+	end
 end
 
 ---@param e ui.MouseDownEvent
@@ -264,8 +259,6 @@ function Node:onTextInput(e) end
 
 function Node:onKill() end
 
-function Node:onLayoutComplete() end
-
 ---@param message string
 function Node:error(message)
 	message = ("%s :: %s"):format(self.id or self.ClassName or "unnamed", message)
@@ -288,8 +281,8 @@ function Node:ensureExist(field_name)
 end
 
 ---@param axis ui.Axis
-function Node:invalidateAxis(axis)
-	self.invalidate_axis = bit.bor(self.invalidate_axis, axis)
+function Node:invalidateLayoutAxis(axis)
+	self.layout_axis_invalidated = bit.bor(self.layout_axis_invalidated, axis)
 end
 
 ---@return number
@@ -308,35 +301,23 @@ function Node:getLayoutDimensions()
 end
 
 ---@param x number
-function Node:setX(x)
-	self.x = x
-	self:invalidateAxis(Axis.X)
-end
-
----@param y number
-function Node:setY(y)
-	self.y = y
-	self:invalidateAxis(Axis.Y)
-end
-
----@param x number
 ---@param y number
 function Node:setPosition(x, y)
 	self.x = x
 	self.y = y
-	self:invalidateAxis(Axis.Both)
+	self:invalidateLayoutAxis(Axis.Both)
 end
 
 ---@param width number
 function Node:setWidth(width)
 	self.width = width
-	self:invalidateAxis(Axis.X)
+	self:invalidateLayoutAxis(Axis.X)
 end
 
 ---@param height number
 function Node:setHeight(height)
 	self.height = height
-	self:invalidateAxis(Axis.Y)
+	self:invalidateLayoutAxis(Axis.Y)
 end
 
 ---@param width number
@@ -344,21 +325,7 @@ end
 function Node:setDimensions(width, height)
 	self.width = width
 	self.height = height
-	self:invalidateAxis(Axis.Both)
-end
-
----@param sx number
----@param sy number
-function Node:setScale(sx, sy)
-	self.scale_x = sx
-	self.scale_y = sy
-	self:updateTransform() -- TODO: self.invalidate_transform ??
-end
-
----@param a number
-function Node:setAngle(a)
-	self.angle = a
-	self:updateTransform() -- TODO: self.invalidate_transform ??
+	self:invalidateLayoutAxis(Axis.Both)
 end
 
 return Node
