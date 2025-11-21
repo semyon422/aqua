@@ -6,6 +6,7 @@ local class = require("class")
 local INode = class()
 
 ---@param node ui.INode
+---@return ui.INode
 function INode:add(node) end
 
 ---@param node ui.INode

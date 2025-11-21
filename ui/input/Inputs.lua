@@ -14,12 +14,12 @@ local TextInputEvent = require("ui.input.events.TextInputEvent")
 
 ---@class ui.Inputs
 ---@operator call: ui.Inputs
----@field last_mouse_up_event ui.MouseDownEvent
+---@field last_mouse_down_event ui.MouseDownEvent
 local Inputs = class()
 
 ---@alias ui.Inputs.Node (ui.INode | ui.IInputHandler)
 
-local MOUSE_CLICK_MAX_DISTANCE = 30
+Inputs.MOUSE_CLICK_MAX_DISTANCE = 30
 
 local mouse_events = {
 	mousepressed = true,
@@ -53,60 +53,102 @@ function Inputs:setKeyboardFocus(node)
 	self.keyboard_focus = node
 end
 
+---@private
+---@param event {name: string, [integer]: any}
+---@param traversal_ctx ui.TraversalContext
+---@return ui.MouseDownEvent
+function Inputs:handleMouseDown(event, traversal_ctx)
+	local e = MouseDownEvent()
+	e.button = event[3]
+	self.last_mouse_down_event = e
+	return e
+end
+
+---@private
+---@param event {name: string, [integer]: any}
+---@param traversal_ctx ui.TraversalContext
+---@return ui.MouseUpEvent?
+function Inputs:handleMouseUp(event, traversal_ctx)
+	if not self.last_mouse_down_event then
+		return
+	end
+
+	local dx = (self.last_mouse_down_event.x - traversal_ctx.mouse_x)
+	local dy = (self.last_mouse_down_event.y - traversal_ctx.mouse_y)
+	local distance = math.sqrt(dx * dx + dy * dy)
+	if distance < self.MOUSE_CLICK_MAX_DISTANCE then
+		local ce = MouseClickEvent()
+		ce.target = self.last_mouse_down_event.target
+		ce.x = traversal_ctx.mouse_x
+		ce.y = traversal_ctx.mouse_y
+		ce.button = event[3]
+		self:dispatchEvent(ce)
+	end
+
+	if self.last_drag_event then
+		local de = DragEndEvent()
+		de.target = self.last_drag_event.target
+		de.x = traversal_ctx.mouse_x
+		de.y = traversal_ctx.mouse_y
+		self:dispatchEvent(de)
+		self.last_drag_event = nil
+	end
+
+	local e = MouseUpEvent(traversal_ctx.mouse_target)
+	e.button = event[3]
+	self.last_mouse_down_event = nil
+	return e
+end
+
+---@private
+---@param event {name: string, [integer]: any}
+---@param traversal_ctx ui.TraversalContext
+---@return ui.ScrollEvent
+function Inputs:handleWheel(event, traversal_ctx)
+	local e = ScrollEvent()
+	e.direction_x = event[1]
+	e.direction_y = event[2]
+	return e
+end
+
+---@private
+---@param event {name: string, [integer]: any}
+---@param traversal_ctx ui.TraversalContext
+---@return ui.MouseEvent?
+function Inputs:handleMouseMove(event, traversal_ctx)
+	if not self.last_mouse_down_event then
+		return
+	end
+
+	local e
+	if not self.last_drag_event then
+		e = DragStartEvent()
+		self.last_drag_event = e
+	else
+		e = DragEvent()
+		e.target = self.last_drag_event.target
+	end
+	return e
+end
+
+---@private
 ---@param event {name: string, [integer]: any}
 ---@param traversal_ctx ui.TraversalContext
 ---@return ui.MouseEvent?
 function Inputs:dispatchMouseEvent(event, traversal_ctx)
-	local e = nil ---@type ui.MouseEvent
+	local e = nil ---@type ui.MouseEvent?
 
 	if event.name == "mousepressed" then
-		e = MouseDownEvent()
-		e.button = event[3]
-		self.last_mouse_down_event = e
+		e = self:handleMouseDown(event, traversal_ctx)
 	elseif event.name == "mousereleased" then
-		if not self.last_mouse_down_event then
-			return
-		end
-
-		local dx = (self.last_mouse_down_event.x - traversal_ctx.mouse_x)
-		local dy = (self.last_mouse_down_event.y - traversal_ctx.mouse_y)
-		local distance = math.sqrt(dx * dx + dy * dy)
-		if distance < MOUSE_CLICK_MAX_DISTANCE then
-			-- TODO: don't dispatch here
-			local ce = MouseClickEvent()
-			ce.target = self.last_mouse_down_event.target
-			ce.x = traversal_ctx.mouse_x
-			ce.y = traversal_ctx.mouse_y
-			ce.button = event[3]
-			self:dispatchEvent(ce)
-		end
-
-		if self.last_drag_event then
-			-- TODO: don't dispatch here
-			local de = DragEndEvent()
-			de.target = self.last_drag_event.target
-			de.x = traversal_ctx.mouse_x
-			de.y = traversal_ctx.mouse_y
-			self:dispatchEvent(de)
-			self.last_drag_event = nil
-		end
-
-		e = MouseUpEvent(traversal_ctx.mouse_target)
-		e.button = event[3]
-		self.last_mouse_down_event = nil
+		e = self:handleMouseUp(event, traversal_ctx)
 	elseif event.name == "wheelmoved" then
-		e = ScrollEvent()
-		e.direction_x = event[1]
-		e.direction_y = event[2]
-	elseif event.name == "mousemoved" and self.last_mouse_down_event then
-		if not self.last_drag_event then
-			e = DragStartEvent()
-			self.last_drag_event = e
-		else
-			e = DragEvent()
-			e.target = self.last_drag_event.target
-		end
-	else
+		e = self:handleWheel(event, traversal_ctx)
+	elseif event.name == "mousemoved" then
+		e = self:handleMouseMove(event, traversal_ctx)
+	end
+
+	if not e then
 		return
 	end
 
@@ -114,8 +156,10 @@ function Inputs:dispatchMouseEvent(event, traversal_ctx)
 	e.x = traversal_ctx.mouse_x
 	e.y = traversal_ctx.mouse_y
 	self:dispatchEvent(e)
+	return e
 end
 
+---@private
 ---@param event {name: string, [integer]: any}
 ---@param traversal_ctx ui.TraversalContext
 function Inputs:dispatchKeyboardEvent(event, traversal_ctx)
@@ -146,8 +190,6 @@ function Inputs:dispatchKeyboardEvent(event, traversal_ctx)
 		if handled then
 			break
 		end
-		-- TODO: onKeyUp should go to the node that handled the event
-		-- Maybe it's unnecessary
 	end
 end
 
@@ -166,9 +208,6 @@ end
 ---@param e ui.UIEvent
 ---@return boolean? handled
 function Inputs:dispatchEvent(e)
-	-- TODO: who cares about capture phase
-	-- create your own InputManager if you need it
-
 	local handled = false ---@type boolean?
 	e.current_target = e.target
 	while e.current_target do

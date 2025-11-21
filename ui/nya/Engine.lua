@@ -3,7 +3,7 @@ local LayoutEngine = require("ui.layout.LayoutEngine")
 local LayoutBox = require("ui.layout.LayoutBox")
 local Renderer = require("ui.nya.Renderer")
 local Node = require("ui.nya.Node")
-local InputManager = require("ui.input.InputManager")
+local Inputs = require("ui.input.Inputs")
 local TraversalContext = require("ui.input.TraversalContext")
 local HoverEvent = require("ui.input.events.HoverEvent")
 local HoverLostEvent = require("ui.input.events.HoverLostEvent")
@@ -26,7 +26,7 @@ function Engine:new(root)
 
 	self.layout_engine = LayoutEngine(root)
 	self.renderer = Renderer()
-	self.input_manager = InputManager()
+	self.inputs = Inputs()
 	self.traversal_context = TraversalContext()
 
 	self.target_height = self.target_height or 768
@@ -89,11 +89,11 @@ function Engine:updateNode(node)
 			if not had_focus and node.mouse_over then
 				local e = HoverEvent()
 				e.target = node
-				self.input_manager:dispatchEvent(e)
+				self.inputs:dispatchEvent(e)
 			elseif had_focus and not node.mouse_over then
 				local e = HoverLostEvent()
 				e.target = node
-				self.input_manager:dispatchEvent(e)
+				self.inputs:dispatchEvent(e)
 			end
 		else
 			if node.mouse_over then
@@ -101,7 +101,7 @@ function Engine:updateNode(node)
 
 				local e = HoverLostEvent()
 				e.target = node
-				self.input_manager:dispatchEvent(e)
+				self.inputs:dispatchEvent(e)
 			end
 		end
 	end
@@ -158,7 +158,7 @@ function Engine:receive(event)
 		self:updateRootDimensions()
 	end
 
-	self.input_manager:receive(event, self.traversal_context)
+	self.inputs:receive(event, self.traversal_context)
 end
 
 return Engine
