@@ -3,6 +3,10 @@ local LayoutEngine = require("ui.layout.LayoutEngine")
 local LayoutBox = require("ui.layout.LayoutBox")
 local Renderer = require("ui.nya.Renderer")
 local Node = require("ui.nya.Node")
+local InputManager = require("ui.input.InputManager")
+local TraversalContext = require("ui.input.TraversalContext")
+local HoverEvent = require("ui.input.events.HoverEvent")
+local HoverLostEvent = require("ui.input.events.HoverLostEvent")
 
 local Axis = LayoutBox.Axis
 local State = Node.State
@@ -10,24 +14,20 @@ require("table.clear")
 
 ---@class nya.Engine
 ---@operator call: nya.Engine
----@field mouse_target nya.Node?
----@field focus_requesters nya.Node[]
 ---@field layout_invalidation_requesters nya.Node[]
 local Engine = class()
 
 ---@param root nya.Node
 function Engine:new(root)
 	self.root = root
-	self.mouse_x = 0
-	self.mouse_y = 0
 	self.delta_time = 0
-	self.mouse_target = nil
-	self.focus_requesters = {}
 	self.layout_invalidation_requesters = {}
 	self.rebuild_rendering_context = false
 
 	self.layout_engine = LayoutEngine(root)
 	self.renderer = Renderer()
+	self.input_manager = InputManager()
+	self.traversal_context = TraversalContext()
 
 	self.target_height = self.target_height or 768
 end
@@ -73,32 +73,43 @@ function Engine:updateNode(node)
 
 	if node.handles_mouse_input or node.handles_keyboard_input then
 		if node.handles_keyboard_input then
-			table.insert(self.focus_requesters, node)
+			table.insert(self.traversal_context.focus_requesters, node)
 		end
 
-		if not self.mouse_target and node.handles_mouse_input then
+		if not self.traversal_context.mouse_target and node.handles_mouse_input then
 			local had_focus = node.mouse_over
-			local imx, imy = node.transform:inverseTransformPoint(self.mouse_x, self.mouse_y)
-			node.mouse_over = node:isMouseOver(self.mouse_x, self.mouse_y, imx, imy)
+			local imx, imy = node.transform:get():inverseTransformPoint(self.traversal_context.mouse_x,
+				self.traversal_context.mouse_y)
+			node.mouse_over = node:isMouseOver(self.traversal_context.mouse_x, self.traversal_context.mouse_y, imx, imy)
+
+			---@cast node -nya.Node, +ui.Inputs.Node
 
 			if node.mouse_over then
-				self.mouse_target = node
+				self.traversal_context.mouse_target = node
 			end
 
-			-- TODO: dispatch an event
 			if not had_focus and node.mouse_over then
-				node:onHover()
+				local e = HoverEvent()
+				e.target = node
+				self.input_manager:dispatchEvent(e)
 			elseif had_focus and not node.mouse_over then
-				node:onHoverLost()
+				local e = HoverLostEvent()
+				e.target = node
+				self.input_manager:dispatchEvent(e)
 			end
 		else
 			if node.mouse_over then
-				node:onHoverLost()
 				node.mouse_over = false
+
+				---@cast node -nya.Node, +ui.Inputs.Node
+				local e = HoverLostEvent()
+				e.target = node
+				self.input_manager:dispatchEvent(e)
 			end
 		end
 	end
 
+	---@cast node +nya.Node, -ui.Inputs.Node
 	node:update(self.delta_time)
 
 	for _, child in ipairs(node.children) do
@@ -118,10 +129,9 @@ end
 
 ---@param dt number
 function Engine:updateTree(dt)
-	self.mouse_x, self.mouse_y = love.mouse.getPosition()
+	self.traversal_context.mouse_x, self.traversal_context.mouse_y = love.mouse.getPosition()
 	self.delta_time = dt
-	self.mouse_target = nil
-	table.clear(self.focus_requesters)
+	self.traversal_context:reset()
 	table.clear(self.layout_invalidation_requesters)
 
 	self:updateNode(self.root)
@@ -129,7 +139,7 @@ function Engine:updateTree(dt)
 	local updated_layout_roots = self.layout_engine:updateLayout(self.layout_invalidation_requesters)
 
 	if updated_layout_roots then
-		---@cast updated_layout_roots ui.Node
+		---@cast updated_layout_roots nya.Node
 		for node, _ in pairs(updated_layout_roots) do
 			node:updateTreeLayout()
 			node:updateTreeTransform()
@@ -151,6 +161,8 @@ function Engine:receive(event)
 	if event.name == "resize" then
 		self:updateRootDimensions()
 	end
+
+	self.input_manager:receive(event, self.traversal_context)
 end
 
 return Engine

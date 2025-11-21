@@ -25,6 +25,7 @@ Node.State = {
 	Killed = 4,
 }
 
+--[[
 local x = {}
 
 local PARAMS = {
@@ -45,6 +46,7 @@ local PARAMS = {
 	layout_box = x.forbidden(),
 	state = x.forbidden()
 }
+]]
 
 local State = Node.State
 
@@ -107,7 +109,7 @@ end
 ---@param imx number
 ---@param imy number
 function Node:isMouseOver(mouse_x, mouse_y, imx, imy)
-	return imx >= 0 and imx < self.width and imy >= 0 and imy < self.height
+	return imx >= 0 and imx < self.layout_box.width and imy >= 0 and imy < self.layout_box.height
 end
 
 ---@param node nya.Node

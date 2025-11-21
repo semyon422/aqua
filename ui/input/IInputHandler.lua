@@ -24,9 +24,11 @@ function IInputHandler:onDrag(e) end
 ---@param e ui.DragEndEvent
 function IInputHandler:onDragEnd(e) end
 
-function IInputHandler:onHover() end
+---@param e ui.HoverEvent
+function IInputHandler:onHover(e) end
 
-function IInputHandler:onHoverLost() end
+---@param e ui.HoverLostEvent
+function IInputHandler:onHoverLost(e) end
 
 ---@param e ui.FocusEvent
 function IInputHandler:onFocus(e) end

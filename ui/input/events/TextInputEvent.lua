@@ -1,4 +1,4 @@
-local KeyboardEvent = require("ui.input_events.KeyboardEvent")
+local KeyboardEvent = require("ui.input.events.KeyboardEvent")
 
 ---@class ui.TextInputEvent : ui.KeyboardEvent
 ---@operator call: ui.TextInputEvent

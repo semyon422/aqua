@@ -1,4 +1,4 @@
-local MouseEvent = require("ui.input_events.MouseEvent")
+local MouseEvent = require("ui.input.events.MouseEvent")
 
 ---@class ui.ScrollEvent : ui.MouseEvent
 ---@operator call: ui.ScrollEvent

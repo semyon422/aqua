@@ -12,10 +12,14 @@ local KeyDownEvent = require("ui.input.events.KeyDownEvent")
 local KeyUpEvent = require("ui.input.events.KeyUpEvent")
 local TextInputEvent = require("ui.input.events.TextInputEvent")
 
----@class ui.InputManager
----@operator call: ui.InputManager
+---@class ui.Inputs
+---@operator call: ui.Inputs
 ---@field last_mouse_up_event ui.MouseDownEvent
-local InputManager = class()
+local Inputs = class()
+
+---@class ui.Inputs.Node : ui.INode, ui.IInputHandler
+---@field parent ui.Inputs.Node?
+---@field children ui.Inputs.Node[]
 
 local MOUSE_CLICK_MAX_DISTANCE = 30
 
@@ -32,8 +36,8 @@ local keyboard_events = {
 	textinput = true
 }
 
----@param node ui.Node?
-function InputManager:setKeyboardFocus(node)
+---@param node ui.Inputs.Node?
+function Inputs:setKeyboardFocus(node)
 	if self.keyboard_focus then
 		local e = FocusLostEvent()
 		e.target = self.keyboard_focus
@@ -54,7 +58,7 @@ end
 ---@param event {name: string, [integer]: any}
 ---@param traversal_ctx ui.TraversalContext
 ---@return ui.MouseEvent?
-function InputManager:dispatchMouseEvent(event, traversal_ctx)
+function Inputs:dispatchMouseEvent(event, traversal_ctx)
 	local e = nil ---@type ui.MouseEvent
 
 	if event.name == "mousepressed" then
@@ -116,7 +120,7 @@ end
 
 ---@param event {name: string, [integer]: any}
 ---@param traversal_ctx ui.TraversalContext
-function InputManager:dispatchKeyboardEvent(event, traversal_ctx)
+function Inputs:dispatchKeyboardEvent(event, traversal_ctx)
 	local e = nil ---@type ui.KeyboardEvent?
 
 	if event.name == "keypressed" then
@@ -151,7 +155,7 @@ end
 
 ---@param event {name: string, [integer]: any}
 ---@param traversal_ctx ui.TraversalContext
-function InputManager:receive(event, traversal_ctx)
+function Inputs:receive(event, traversal_ctx)
 	if mouse_events[event.name] then
 		self:dispatchMouseEvent(event, traversal_ctx)
 	elseif keyboard_events[event.name] then
@@ -163,12 +167,11 @@ end
 
 ---@param e ui.UIEvent
 ---@return boolean? handled
----@private
-function InputManager:dispatchEvent(e)
+function Inputs:dispatchEvent(e)
 	-- TODO: who cares about capture phase
 	-- create your own InputManager if you need it
 
-	local handled = false
+	local handled = false ---@type boolean?
 	e.current_target = e.target
 	while e.current_target do
 		handled = handled or e:trigger()
@@ -181,4 +184,4 @@ function InputManager:dispatchEvent(e)
 	return handled
 end
 
-return InputManager
+return Inputs
