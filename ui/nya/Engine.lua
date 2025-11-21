@@ -82,8 +82,6 @@ function Engine:updateNode(node)
 				self.traversal_context.mouse_y)
 			node.mouse_over = node:isMouseOver(self.traversal_context.mouse_x, self.traversal_context.mouse_y, imx, imy)
 
-			---@cast node -nya.Node, +ui.Inputs.Node
-
 			if node.mouse_over then
 				self.traversal_context.mouse_target = node
 			end
@@ -101,7 +99,6 @@ function Engine:updateNode(node)
 			if node.mouse_over then
 				node.mouse_over = false
 
-				---@cast node -nya.Node, +ui.Inputs.Node
 				local e = HoverLostEvent()
 				e.target = node
 				self.input_manager:dispatchEvent(e)
@@ -109,7 +106,6 @@ function Engine:updateNode(node)
 		end
 	end
 
-	---@cast node +nya.Node, -ui.Inputs.Node
 	node:update(self.delta_time)
 
 	for _, child in ipairs(node.children) do

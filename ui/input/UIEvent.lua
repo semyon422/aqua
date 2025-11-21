@@ -2,7 +2,7 @@ local class = require("class")
 
 ---@class ui.UIEvent
 ---@operator call: ui.UIEvent
----@field target ui.Inputs.Node?
+---@field target ui.Inputs.Node
 ---@field current_target ui.Inputs.Node
 ---@field control_pressed boolean
 ---@field shift_pressed boolean

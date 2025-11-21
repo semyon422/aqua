@@ -17,9 +17,7 @@ local TextInputEvent = require("ui.input.events.TextInputEvent")
 ---@field last_mouse_up_event ui.MouseDownEvent
 local Inputs = class()
 
----@class ui.Inputs.Node : ui.INode, ui.IInputHandler
----@field parent ui.Inputs.Node?
----@field children ui.Inputs.Node[]
+---@alias ui.Inputs.Node (ui.INode | ui.IInputHandler)
 
 local MOUSE_CLICK_MAX_DISTANCE = 30
 
