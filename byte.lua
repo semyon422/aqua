@@ -37,7 +37,7 @@ assert(not pcall(byte.assert_numeric, "0"))
 function byte.copy_reverse(dst, src, len)
 	---@type byte.Pointer
 	dst, src = ffi.cast("uint8_t*", dst), ffi.cast("uint8_t*", src)
-	for i = 0, len / 2 - 1 do
+	for i = 0, math.ceil(len / 2) - 1 do
 		local j = len - 1 - i
 		dst[i], dst[j] = src[j], src[i]
 	end
@@ -58,104 +58,9 @@ do
 
 	byte.copy_reverse(buf1, buf1, 1)
 	assert(ffi.string(buf1, 4) == "\x34\x56\x78\x12")
-end
 
---------------------------------------------------------------------------------
-
-ffi.cdef([[
-	typedef union {
-		int8_t int8;
-		uint8_t uint8;
-		int16_t int16;
-		uint16_t uint16;
-		int32_t int32;
-		uint32_t uint32;
-		int64_t int64;
-		uint64_t uint64;
-		float _float;
-		double _double;
-	} byte_ConvUnion;
-]])
-
----@alias byte.Pointer ffi.cdata*|{[integer]: integer}
-
----@class byte.ConvUnion
----@field int8 integer
----@field uint8 integer
----@field int16 integer
----@field uint16 integer
----@field int32 integer
----@field uint32 integer
----@field int64 integer
----@field uint64 integer
----@field _float number
----@field _double number
-
----@enum (key) byte.Types
-local key_bytes = {
-	int8 = 1,
-	uint8 = 1,
-	int16 = 2,
-	uint16 = 2,
-	int32 = 4,
-	uint32 = 4,
-	int64 = 8,
-	uint64 = 8,
-	_float = 4,
-	_double = 8,
-}
-
-local conv_union = ffi.new("byte_ConvUnion")
----@cast conv_union -ffi.cdata*, +byte.ConvUnion
-
-local fallback_buf = ffi.new("uint8_t[?]", ffi.sizeof("byte_ConvUnion"))
----@cast fallback_buf -ffi.cdata*, +byte.ConvUnion
-
----@type {[integer]: byte.Pointer}
-local conv_union_byte_p = ffi.new("uint8_t*[1]")
-local conv_union_p = ffi.cast("byte_ConvUnion**", conv_union_byte_p)
-
----@param p byte.Pointer?
----@return byte.ConvUnion
-function byte.union_le(p)
-	conv_union_byte_p[0] = p or fallback_buf
-	return conv_union_p[0][0]
-end
-
-do
-	byte.union_le().int16 = -1
-	assert(byte.union_le().int16 == -1)
-	assert(byte.union_le().uint16 == 65535)
-end
-
----@type byte.ConvUnion|{[1]: byte.Pointer}
-local conv_be_proxy = setmetatable({fallback_buf}, {
-	---@param t {[1]: byte.Pointer}
-	---@param k byte.Types
-	__index = function(t, k)
-		byte.copy_reverse(conv_union, t[1], assert(key_bytes[k]))
-		return conv_union[k]
-	end,
-	---@param t {[1]: byte.Pointer}
-	---@param k byte.Types
-	---@param v number
-	__newindex = function(t, k, v)
-		conv_union[k] = v ---@diagnostic disable-line: no-unknown
-		byte.copy_reverse(t[1], conv_union, assert(key_bytes[k]))
-	end
-})
-
----@param p byte.Pointer?
----@return byte.ConvUnion
-function byte.union_be(p)
-	conv_be_proxy[1] = p or fallback_buf
-	return conv_be_proxy
-end
-
-do
-	byte.union_be().int16 = -1
-	assert(byte.union_be().int16 == -1)
-	assert(byte.union_be().uint16 == 65535)
+	byte.copy_reverse(buf1, buf2, 1)
+	assert(ffi.string(buf1, 4) == "\x78\x56\x78\x12")
 end
 
 --------------------------------------------------------------------------------
@@ -166,10 +71,11 @@ end
 ---@param b integer bytes
 ---@return integer
 function byte.to_signed(n, b)
-	if b == 4 or b < 4 and n < bit.lshift(0x80, (b - 1) * 8) then
+	local mask = bit.lshift(1, b * 8 - 1)
+	if b == 4 or bit.band(n, mask) == 0 then
 		return bit.tobit(n)
 	end
-	return bit.bor(n, bit.bnot(bit.lshift(1, b * 8 - 1) - 1))
+	return bit.bxor(n, mask) - mask
 end
 
 assert(byte.to_signed(0x7F, 1) == 0x7F)
@@ -178,9 +84,9 @@ assert(byte.to_signed(0x7FFFFFFF, 4) == 0x7FFFFFFF)
 assert(byte.to_signed(0xFF, 1) == -1)
 assert(byte.to_signed(0xFFFF, 2) == -1)
 assert(byte.to_signed(0xFFFFFFFF, 4) == -1)
-assert(byte.to_signed(0x80, 1) == -128)
-assert(byte.to_signed(0x8000, 2) == -32768)
-assert(byte.to_signed(0x80000000, 4) == -2147483648)
+assert(byte.to_signed(0x80, 1) == -0x80)
+assert(byte.to_signed(0x8000, 2) == -0x8000)
+assert(byte.to_signed(0x80000000, 4) == -0x80000000)
 
 ---@param n integer
 ---@param b integer bytes
@@ -198,9 +104,187 @@ assert(byte.to_unsigned(0x7FFFFFFF, 4) == 0x7FFFFFFF)
 assert(byte.to_unsigned(-1, 1) == 0xFF)
 assert(byte.to_unsigned(-1, 2) == 0xFFFF)
 assert(byte.to_unsigned(-1, 4) == 0xFFFFFFFF)
-assert(byte.to_unsigned(-128, 1) == 0x80)
-assert(byte.to_unsigned(-32768, 2) == 0x8000)
-assert(byte.to_unsigned(-2147483648, 4) == 0x80000000)
+assert(byte.to_unsigned(-0x80, 1) == 0x80)
+assert(byte.to_unsigned(-0x8000, 2) == 0x8000)
+assert(byte.to_unsigned(-0x80000000, 4) == 0x80000000)
+
+--------------------------------------------------------------------------------
+
+ffi.cdef([[
+	typedef union {
+		int8_t i8;
+		uint8_t u8;
+		int16_t i16;
+		uint16_t u16;
+		int32_t i32;
+		uint32_t u32;
+		int64_t i64;
+		uint64_t u64;
+		float f32;
+		double f64;
+	} byte_ConvUnion;
+]])
+
+---@alias byte.Pointer ffi.cdata*|{[integer]: integer}
+
+---@class byte.ConvUnion
+---@field i8 integer
+---@field u8 integer
+---@field i16 integer
+---@field u16 integer
+---@field i32 integer
+---@field u32 integer
+---@field i64 integer
+---@field u64 integer
+---@field f32 number
+---@field f64 number
+
+---@enum (key) byte.Type
+local type_bytes = {
+	i8 = 1,
+	u8 = 1,
+	i16 = 2,
+	u16 = 2,
+	i32 = 4,
+	u32 = 4,
+	i64 = 8,
+	u64 = 8,
+	f32 = 4,
+	f64 = 8,
+}
+
+---@param k string
+---@return integer
+local function sizeof(k)
+	return assert(type_bytes[k])
+end
+
+local conv_union = ffi.new("byte_ConvUnion")
+---@cast conv_union -ffi.cdata*, +byte.ConvUnion
+
+local fallback_buf = ffi.new("uint8_t[?]", ffi.sizeof("byte_ConvUnion"))
+---@cast fallback_buf -ffi.cdata*, +byte.ConvUnion
+
+---@type {[integer]: byte.Pointer}
+local conv_union_byte_p = ffi.new("uint8_t*[1]")
+local conv_union_p = ffi.cast("byte_ConvUnion**", conv_union_byte_p)
+
+function byte.hex(p, bytes)
+	p = ffi.cast("uint8_t*", p)
+	---@type string[]
+	local t = {}
+	for i = 1, bytes do
+		t[i] = ("%02X"):format(p[i - 1])
+	end
+	return table.concat(t)
+end
+
+---@param p byte.Pointer?
+---@return byte.ConvUnion
+function byte.union_le(p)
+	conv_union_byte_p[0] = p or fallback_buf
+	return conv_union_p[0][0]
+end
+
+do
+	local union = byte.union_le()
+
+	union.u64 = 0x8300000082008180ULL
+	assert(byte.hex(union, 8) == "8081008200000083")
+
+	assert(union.u8 == 0x80)
+	assert(union.u16 == 0x8180)
+	assert(union.u32 == 0x82008180)
+	assert(union.u64 == 0x8300000082008180ULL)
+
+	assert(union.i8 == byte.to_signed(0x80, 1))
+	assert(union.i16 == byte.to_signed(0x8180, 2))
+	assert(union.i32 == byte.to_signed(0x82008180, 4))
+	assert(union.i64 == 0x8300000082008180LL)
+
+	union.u64 = 0x7300000072007170ULL
+	assert(byte.hex(union, 8) == "7071007200000073")
+
+	assert(union.u8 == 0x70)
+	assert(union.u16 == 0x7170)
+	assert(union.u32 == 0x72007170)
+	assert(union.u64 == 0x7300000072007170ULL)
+
+	assert(union.i8 == byte.to_signed(0x70, 1))
+	assert(union.i16 == byte.to_signed(0x7170, 2))
+	assert(union.i32 == byte.to_signed(0x72007170, 4))
+	assert(union.i64 == 0x7300000072007170LL)
+
+	union.f32 = 1.125
+	assert(byte.hex(union, 4) == "0000903F")
+	assert(union.u32 == 0x3F900000)
+
+	union.f64 = 1.125
+	assert(byte.hex(union, 8) == "000000000000F23F")
+	assert(union.u64 == 0x3FF2000000000000ULL)
+end
+
+---@type byte.ConvUnion|{[1]: byte.Pointer}
+local conv_be_proxy = setmetatable({fallback_buf}, {
+	---@param t {[1]: byte.Pointer}
+	---@param k string
+	__index = function(t, k)
+		byte.copy_reverse(conv_union, t[1], sizeof(k))
+		return conv_union[k]
+	end,
+	---@param t {[1]: byte.Pointer}
+	---@param k string
+	---@param v number
+	__newindex = function(t, k, v)
+		conv_union[k] = v ---@diagnostic disable-line: no-unknown
+		byte.copy_reverse(t[1], conv_union, sizeof(k))
+	end
+})
+
+---@param p byte.Pointer?
+---@return byte.ConvUnion
+function byte.union_be(p)
+	conv_be_proxy[1] = p or fallback_buf
+	return conv_be_proxy
+end
+
+do
+	local union = byte.union_be()
+
+	union.u64 = 0x8081008200000083ULL
+	assert(byte.hex(union[1], 8) == "8081008200000083")
+
+	assert(union.u8 == 0x80)
+	assert(union.u16 == 0x8081)
+	assert(union.u32 == 0x80810082)
+	assert(union.u64 == 0x8081008200000083ULL)
+
+	assert(union.i8 == byte.to_signed(0x80, 1))
+	assert(union.i16 == byte.to_signed(0x8081, 2))
+	assert(union.i32 == byte.to_signed(0x80810082, 4))
+	assert(union.i64 == 0x8081008200000083LL)
+
+	union.u64 = 0x7071007200000073ULL
+	assert(byte.hex(union[1], 8) == "7071007200000073")
+
+	assert(union.u8 == 0x70)
+	assert(union.u16 == 0x7071)
+	assert(union.u32 == 0x70710072)
+	assert(union.u64 == 0x7071007200000073ULL)
+
+	assert(union.i8 == byte.to_signed(0x70, 1))
+	assert(union.i16 == byte.to_signed(0x7071, 2))
+	assert(union.i32 == byte.to_signed(0x70710072, 4))
+	assert(union.i64 == 0x7071007200000073LL)
+
+	union.f32 = 1.125
+	assert(byte.hex(union[1], 4) == "3F900000")
+	assert(union.u32 == 0x3F900000)
+
+	union.f64 = 1.125
+	assert(byte.hex(union[1], 8) == "3FF2000000000000")
+	assert(union.u64 == 0x3FF2000000000000ULL)
+end
 
 --------------------------------------------------------------------------------
 
@@ -309,6 +393,10 @@ end
 --------------------------------------------------------------------------------
 
 ---@class byte.Buffer: ffi.cdata*
+---@field char byte.Pointer
+---@field size integer
+---@field offset integer
+---@field endianness integer
 local Buffer = {}
 
 function Buffer:assert_freed()
@@ -433,32 +521,36 @@ function Buffer:cstring(length)
 	return s
 end
 
-local types = {
-	[1] = {"uint8", "int8"},
-	[2] = {"uint16_le", "uint16_be", "int16_le", "int16_be"},
-	[4] = {"uint32_le", "uint32_be", "int32_le", "int32_be", "_float_le", "_float_be"},
-	[8] = {"uint64_le", "uint64_be", "int64_le", "int64_be", "_double_le", "_double_be"},
-}
+function Buffer:is_be()
+	return self.endianness == 1
+end
 
-for bytes, _types in pairs(types) do
-	for _, _type in ipairs(_types) do
-		local t, en = _type:match("^(.+)_(.+)$")
-		t = t or _type
-		local is_be = en == "be"
-		Buffer[_type:gsub("^_", "")] = function(self, n) ---@diagnostic disable-line: no-unknown
-			---@type byte.Pointer
-			local p = self.ptr + self.offset
-			self:seek(self.offset + bytes)
+function Buffer:set_be(is_be)
+	self.endianness = (not not is_be and 1 or 0)
+end
 
-			local union = is_be and byte.union_be(p) or byte.union_le(p)
+function Buffer:get_union()
+	---@type byte.Pointer
+	local p = self.ptr + self.offset
+	return self:is_be() and byte.union_be(p) or byte.union_le(p)
+end
 
-			if n then
-				union[t] = n
-				return self
-			end
-			return union[t]
-		end
-	end
+---@param t byte.Type
+---@return number
+function Buffer:read(t)
+	local union = self:get_union()
+	self:seek(self.offset + sizeof(t))
+	return union[t]
+end
+
+---@param t byte.Type
+---@param n number
+---@return byte.Buffer
+function Buffer:write(t, n)
+	local union = self:get_union()
+	self:seek(self.offset + sizeof(t))
+	union[t] = n ---@diagnostic disable-line: no-unknown
+	return self
 end
 
 --------------------------------------------------------------------------------
@@ -467,7 +559,14 @@ ffi.cdef("void * malloc(size_t size);")
 ffi.cdef("void * realloc(void * ptr, size_t newsize);")
 ffi.cdef("void free(void * ptr);")
 
-ffi.cdef("typedef struct {unsigned char * ptr; size_t size; size_t offset;} byte_Buffer;")
+ffi.cdef([[
+	typedef struct {
+		unsigned char * ptr;
+		size_t size;
+		size_t offset;
+		uint8_t endianness;
+	} byte_Buffer;
+]])
 
 local mt = {}
 
@@ -483,7 +582,7 @@ byte.buffer_t = ffi.metatype(ffi.typeof("byte_Buffer"), mt)
 
 -- buffer constructor
 ---@param size integer
----@return ffi.cdata*
+---@return byte.Buffer
 function byte.buffer(size)
 	byte.assert_numeric(size)
 	assert(size > 0, "buffer size must be greater than zero")
@@ -494,60 +593,31 @@ function byte.buffer(size)
 
 	local b = byte.buffer_t(p, size, 0)
 	ffi.gc(b, b.free)
+	---@cast b byte.Buffer
 
 	_total = _total + size
 
 	return b
 end
 
-local b = byte.buffer(#types * 8)
-ffi.fill(b.ptr, b.size, 0x80)
+local b = byte.buffer(16)
+b:fill("\x01\x23\x45\x67\x89\xAB\xCD\xEF")
+assert(b.offset == 8)
 
-assert(b:uint8() == 0x80)
-assert(b:uint16_le() == 0x8080)
-assert(b:uint16_be() == 0x8080)
-assert(b:uint32_le() == 0x80808080)
-assert(b:uint32_be() == 0x80808080)
-assert(b:uint64_le() == 0x8080808080808080ULL)
-assert(b:uint64_be() == 0x8080808080808080ULL)
-assert(b:int8() == byte.to_signed(0x80, 1))
-assert(b:int16_le() == byte.to_signed(0x8080, 2))
-assert(b:int16_be() == byte.to_signed(0x8080, 2))
-assert(b:int32_le() == byte.to_signed(0x80808080, 4))
-assert(b:int32_be() == byte.to_signed(0x80808080, 4))
-assert(b:int64_le() == 0x8080808080808080LL)
-assert(b:int64_be() == 0x8080808080808080LL)
-
-ffi.fill(b.ptr, b.size, 0x7F)
-b:seek(0)
-
-assert(b:uint8() == 0x7F)
-assert(b:uint16_le() == 0x7F7F)
-assert(b:uint16_be() == 0x7F7F)
-assert(b:uint32_le() == 0x7F7F7F7F)
-assert(b:uint32_be() == 0x7F7F7F7F)
-assert(b:uint64_le() == 0x7F7F7F7F7F7F7F7FULL)
-assert(b:uint64_be() == 0x7F7F7F7F7F7F7F7FULL)
-assert(b:int8() == 0x7F)
-assert(b:int16_le() == 0x7F7F)
-assert(b:int16_be() == 0x7F7F)
-assert(b:int32_le() == 0x7F7F7F7F)
-assert(b:int32_be() == 0x7F7F7F7F)
-assert(b:int64_le() == 0x7F7F7F7F7F7F7F7FLL)
-assert(b:int64_be() == 0x7F7F7F7F7F7F7F7FLL)
-
-b:seek(0):float_le(1.125):float_be(1.125):seek(0)
-assert(b:float_le() == 1.125)
-assert(b:float_be() == 1.125)
-
-b:seek(0):double_le(1.125):double_be(1.125):seek(0)
-assert(b:double_le() == 1.125)
-assert(b:double_be() == 1.125)
+b:fill("\x01\x23\x45\x67\x89\xAB\xCD\xEF")
+assert(b.offset == 16)
 
 b:seek(0)
-b:uint64_be(0x0123456789ABCDEFULL)
-assert(b:seek(0):uint16_le() == 0x2301)
-assert(b:seek(0):uint32_le() == 0x67452301)
-assert(b:seek(0):uint64_le() == 0xEFCDAB8967452301ULL)
+assert(b.offset == 0)
+
+assert(b:read("i32") == 0x67452301)
+assert(b.offset == 4)
+
+assert(not b:is_be())
+b:set_be(true)
+assert(b:is_be())
+
+assert(b:read("i32") == byte.to_signed(0x89ABCDEF, 4))
+assert(b.offset == 8)
 
 return byte
