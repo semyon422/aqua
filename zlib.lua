@@ -253,8 +253,9 @@ end
 ---@param s string
 ---@param filter function
 ---@param chunk_size integer?
+---@param ... any
 ---@return string
-function zlib.apply_filter(s, filter, chunk_size)
+function zlib.apply_filter(s, filter, chunk_size, ...)
 	chunk_size = chunk_size or 8192
 
 	local src_p = ffi.cast("const unsigned char *", s)
@@ -269,10 +270,12 @@ function zlib.apply_filter(s, filter, chunk_size)
 
 	local co = coroutine.create(filter)
 
+	---@type boolean, "read"|"write"|"error"?, integer?
+	local _, action, avail_out = assert(coroutine.resume(co, ...))
+
 	---@type ffi.cdata*, integer
 	local buf, buf_size
 	while coroutine.status(co) ~= "dead" do
-		local _, action, avail_out = assert(coroutine.resume(co, buf, buf_size))
 		if action == "read" then
 			buf, buf_size = src_p, src_size
 			---@type ffi.cdata*, integer
@@ -286,6 +289,7 @@ function zlib.apply_filter(s, filter, chunk_size)
 		elseif action == "error" then
 			error(avail_out)
 		end
+		_, action, avail_out = assert(coroutine.resume(co, buf, buf_size))
 	end
 
 	return table.concat(out)
@@ -296,8 +300,7 @@ end
 ---@param level zlib.level?
 ---@return string
 function zlib.deflate(s, chunk_size, level)
-	local function filter() return zlib.deflate_async(level) end
-	return zlib.apply_filter(s, filter, chunk_size)
+	return zlib.apply_filter(s, zlib.deflate_async, chunk_size, level)
 end
 
 ---@param s string
@@ -307,12 +310,12 @@ function zlib.inflate(s, chunk_size)
 	return zlib.apply_filter(s, zlib.inflate_async, chunk_size)
 end
 
-local test_string = ("test"):rep(1000)
+local test_string = ("test"):rep(100)
 
--- assert(zlib.uncompress(zlib.compress(test_string), #test_string) == test_string)
--- assert(zlib.inflate(zlib.deflate(test_string, 10), 10) == test_string)
--- assert(zlib.inflate(zlib.deflate(test_string, 10, 0), 10) == test_string)
--- assert(zlib.inflate(zlib.deflate(test_string, 10, 9), 10) == test_string)
--- assert(zlib.inflate(zlib.deflate(test_string)) == test_string)
+assert(zlib.uncompress(zlib.compress(test_string), #test_string) == test_string)
+assert(zlib.inflate(zlib.deflate(test_string, 10), 10) == test_string)
+assert(zlib.inflate(zlib.deflate(test_string, 10, 0), 10) == test_string)
+assert(zlib.inflate(zlib.deflate(test_string, 10, 9), 10) == test_string)
+assert(zlib.inflate(zlib.deflate(test_string)) == test_string)
 
 return zlib

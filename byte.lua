@@ -375,14 +375,9 @@ function byte.apply(seek, proc, ...)
 		ret = pack(proc(...))
 	end)
 
+	local s = iter(...)
+
 	while true do
-		---@type integer
-		local s
-		if not _p then
-			s = iter(...)
-		else
-			s = iter(_p)
-		end
 		if not s then
 			break
 		end
@@ -392,6 +387,7 @@ function byte.apply(seek, proc, ...)
 			break
 		end
 		offset = offset + s
+		s = iter(_p)
 	end
 
 	return ok, offset, unpack(ret, 1, ret.n)
