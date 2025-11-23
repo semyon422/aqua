@@ -154,7 +154,7 @@ function Wave:decode(data)
 	---@type {[integer]: integer}
 	self.data_buf = ffi.new("int16_t[?]", self.samples_count * self.channels_count)
 
-	ffi.copy(self.data_buf, buf.ptr + buf.offset, data_size)
+	ffi.copy(self.data_buf, buf:cur(), data_size)
 end
 
 return Wave

@@ -348,7 +348,7 @@ function byte.stretchy_seeker(buf, max_size)
 			buf:resize(math.min(math.max(size * 2, offset), max_size))
 		end
 		---@type any
-		local p = buf.ptr + buf.offset
+		local p = buf:cur()
 		buf:seek(offset)
 		return p
 	end
@@ -500,6 +500,11 @@ function Buffer:seek(offset)
 	return self
 end
 
+---@return ffi.cdata*
+function Buffer:cur()
+	return self.ptr + self.offset
+end
+
 ---@param s string
 ---@param len integer?
 ---@return byte.Buffer
@@ -510,9 +515,9 @@ function Buffer:fill(s, len)
 	local offset = self.offset ---@diagnostic disable-line: no-unknown
 	assert(offset + length <= self.size, "attempt to write outside buffer bounds")
 
-	self.offset = offset + length
+	ffi.copy(self:cur(), s, length)
 
-	ffi.copy(self.ptr + offset, s, length)
+	self.offset = offset + length
 
 	return self
 end
@@ -529,10 +534,8 @@ function Buffer:string(length, cstr)
 	assert(length >= 0, "length cannot be less than zero")
 	assert(offset + length <= self.size, "attempt to read after end of buffer")
 
+	local p = self:cur()
 	self.offset = offset + length
-
-	---@type byte.Pointer
-	local p = self.ptr + offset
 
 	if cstr then
 		length = tonumber(ffi.C.strnlen(p, length))
@@ -550,8 +553,7 @@ function Buffer:set_be(is_be)
 end
 
 function Buffer:get_union()
-	---@type byte.Pointer
-	local p = self.ptr + self.offset
+	local p = self:cur()
 	return self:is_be() and byte.union_be(p) or byte.union_le(p)
 end
 
