@@ -3,6 +3,8 @@ local LayoutBox = require("ui.layout.LayoutBox")
 local Axis = LayoutBox.Axis
 local SizeMode = LayoutBox.SizeMode
 local Arrange = LayoutBox.Arrange
+local JustifyContent = LayoutBox.JustifyContent
+local AlignItems = LayoutBox.AlignItems
 require("table.clear")
 
 local math_min = math.min
@@ -18,9 +20,7 @@ local bit_band = bit.band
 ---@field growables ui.LayoutEngine.Node[] Used in grow() to avoid creating a new table every time
 local LayoutEngine = class()
 
----@param root ui.LayoutEngine.Node[]
-function LayoutEngine:new(root)
-	self.root = root
+function LayoutEngine:new()
 	self.growables = {}
 end
 
@@ -35,9 +35,9 @@ function LayoutEngine:updateLayout(dirty_nodes)
 	local layout_roots = {}
 
 	for _, v in ipairs(dirty_nodes) do
-		if v == self.root then
+		if not v.parent then -- Reached the root
 			layout_roots = {}
-			layout_roots[self.root] = true
+			layout_roots[v] = true
 			break
 		end
 
@@ -264,26 +264,82 @@ end
 
 ---@param node ui.LayoutEngine.Node
 function LayoutEngine:arrangeChildren(node)
-	local x, y = 0, 0
 	local layout_box = node.layout_box
+	local justify = layout_box.justify_content
+	local align = layout_box.align_items
+	local child_count = #node.children
 
 	if layout_box.arrange == Arrange.Absolute then
 		for _, child in ipairs(node.children) do
 			self:arrangeChildren(child)
 		end
 	elseif layout_box.arrange == Arrange.FlowH then
+		local total_width = 0
 		for _, child in ipairs(node.children) do
+			total_width = total_width + child.layout_box.width
+		end
+
+		local available_width = layout_box:getLayoutWidth()
+		local x = 0
+		local gap = layout_box.child_gap
+
+		if justify == JustifyContent.End then
+			x = available_width - (total_width + gap * (child_count - 1))
+		elseif justify == JustifyContent.Center then
+			x = (available_width - (total_width + gap * (child_count - 1))) / 2
+		elseif justify == JustifyContent.SpaceBetween and child_count > 1 then
+			gap = (available_width - total_width) / (child_count - 1)
+			x = 0
+		end
+
+		for _, child in ipairs(node.children) do
+			local child_y = 0
+			local available_height = layout_box:getLayoutHeight()
+
+			if align == AlignItems.End then
+				child_y = available_height - child.layout_box.height
+			elseif align == AlignItems.Center then
+				child_y = (available_height - child.layout_box.height) / 2
+			end
+
 			child.layout_box.x = x
-			child.layout_box.y = y
+			child.layout_box.y = child_y
 			self:arrangeChildren(child)
-			x = x + child.layout_box.width + layout_box.child_gap
+			x = x + child.layout_box.width + gap
 		end
 	elseif layout_box.arrange == Arrange.FlowV then
+		local total_height = 0
 		for _, child in ipairs(node.children) do
-			child.layout_box.x = x
+			total_height = total_height + child.layout_box.height
+		end
+
+		local available_height = layout_box:getLayoutHeight()
+		local y = 0
+		local gap = layout_box.child_gap
+
+		if justify == JustifyContent.End then
+			y = available_height - (total_height + gap * (child_count - 1))
+		elseif justify == JustifyContent.Center then
+			y = (available_height - (total_height + gap * (child_count - 1))) / 2
+		elseif justify == JustifyContent.SpaceBetween and child_count > 1 then
+			gap = (available_height - total_height) / (child_count - 1)
+			y = 0
+		end
+
+		for _, child in ipairs(node.children) do
+			local child_x = 0
+			local available_width = layout_box:getLayoutWidth()
+
+			if align == AlignItems.End then
+				child_x = available_width - child.layout_box.width
+			elseif align == AlignItems.Center then
+				child_x = (available_width - child.layout_box.width) / 2
+			end
+
+			child.layout_box.x = child_x
 			child.layout_box.y = y
 			self:arrangeChildren(child)
-			y = y + child.layout_box.height + layout_box.child_gap
+			y = y + child.layout_box.height + gap
 		end
 	end
 end

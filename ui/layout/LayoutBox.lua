@@ -15,6 +15,8 @@ local Pivot = require("ui.layout.Pivot")
 ---@field padding_bottom number
 ---@field child_gap number
 ---@field arrange ui.Arrange
+---@field justify_content ui.JustifyContent
+---@field align_items ui.AlignItems
 ---@field origin ui.Pivot
 ---@field anchor ui.Pivot
 ---@field axis_invalidated ui.Axis
@@ -45,9 +47,26 @@ LayoutBox.Axis = {
 	Both = 3,
 }
 
+---@enum ui.JustifyContent
+LayoutBox.JustifyContent = {
+	Start = 1,
+	End = 2,
+	Center = 3,
+	SpaceBetween = 4,
+}
+
+---@enum ui.AlignItems
+LayoutBox.AlignItems = {
+	Start = 1,
+	End = 2,
+	Center = 3,
+}
+
 local SizeMode = LayoutBox.SizeMode
 local Arrange = LayoutBox.Arrange
 local Axis = LayoutBox.Axis
+local JustifyContent = LayoutBox.JustifyContent
+local AlignItems = LayoutBox.AlignItems
 
 function LayoutBox:new()
 	self.x = 0
@@ -64,6 +83,8 @@ function LayoutBox:new()
 	self.padding_bottom = 0
 	self.child_gap = 0
 	self.arrange = Arrange.Absolute
+	self.justify_content = JustifyContent.Start
+	self.align_items = AlignItems.Start
 	self.axis_invalidated = Axis.None
 end
 

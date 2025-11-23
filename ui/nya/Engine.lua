@@ -24,7 +24,7 @@ function Engine:new(root)
 	self.layout_invalidation_requesters = {}
 	self.rebuild_rendering_context = false
 
-	self.layout_engine = LayoutEngine(root)
+	self.layout_engine = LayoutEngine()
 	self.renderer = Renderer()
 	self.inputs = Inputs()
 	self.traversal_context = TraversalContext()

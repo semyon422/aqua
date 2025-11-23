@@ -62,8 +62,10 @@ function Node:new(params)
 	self.is_disabled = false
 	self.state = State.Created
 
-	for k, v in pairs(params) do
-		self[k] = v
+	if params then
+		for k, v in pairs(params) do
+			self[k] = v
+		end
 	end
 end
 
