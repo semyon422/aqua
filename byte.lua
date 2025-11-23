@@ -485,8 +485,9 @@ function Buffer:fill(s, len)
 end
 
 ---@param length integer
+---@param cstr boolean?
 ---@return string
-function Buffer:string(length)
+function Buffer:string(length, cstr)
 	self:assert_freed()
 	byte.assert_numeric(length)
 
@@ -497,28 +498,14 @@ function Buffer:string(length)
 
 	self.offset = offset + length
 
-	return ffi.string(self.ptr + offset, length)
-end
+	---@type byte.Pointer
+	local p = self.ptr + offset
 
----@param length integer
----@return string
-function Buffer:cstring(length)
-	self:assert_freed()
-	byte.assert_numeric(length)
-
-	local offset = self.offset
-
-	assert(length >= 0, "length cannot be less than zero")
-	assert(offset + length <= self.size, "attempt to read after end of buffer")
-
-	self.offset = offset + length
-
-	local s = ffi.string(self.ptr + offset) -- !!!
-	if #s > length then
-		return ffi.string(self.ptr + offset, length)
+	if cstr then
+		length = tonumber(ffi.C.strnlen(p, length))
 	end
 
-	return s
+	return ffi.string(p, length)
 end
 
 function Buffer:is_be()
@@ -558,6 +545,7 @@ end
 ffi.cdef("void * malloc(size_t size);")
 ffi.cdef("void * realloc(void * ptr, size_t newsize);")
 ffi.cdef("void free(void * ptr);")
+ffi.cdef("size_t strnlen(const char * str, size_t strsz);")
 
 ffi.cdef([[
 	typedef struct {
@@ -600,11 +588,18 @@ function byte.buffer(size)
 	return b
 end
 
-local b = byte.buffer(16)
+local b = byte.buffer(8)
+assert(b.size == 8)
+assert(Buffer.total(), 8)
+
 b:fill("\x01\x23\x45\x67\x89\xAB\xCD\xEF")
 assert(b.offset == 8)
 
-b:fill("\x01\x23\x45\x67\x89\xAB\xCD\xEF")
+b:resize(16)
+assert(b.size == 16)
+assert(Buffer.total(), 16)
+
+b:fill("\x62\x79\x74\x65\0\0\0\0")
 assert(b.offset == 16)
 
 b:seek(0)
@@ -619,5 +614,18 @@ assert(b:is_be())
 
 assert(b:read("i32") == byte.to_signed(0x89ABCDEF, 4))
 assert(b.offset == 8)
+
+b:seek(0)
+b:write("f64", math.pi)
+b:seek(0)
+assert(b:read("f64") == math.pi)
+
+assert(b:string(8, true) == "byte")
+b:seek(8)
+assert(b:string(8) == "byte\0\0\0\0")
+
+b:free()
+
+assert(Buffer.total(), 0)
 
 return byte
