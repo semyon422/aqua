@@ -166,7 +166,7 @@ local fallback_buf = ffi.new("uint8_t[?]", ffi.sizeof("byte_ConvUnion"))
 ---@cast fallback_buf -ffi.cdata*, +byte.ConvUnion
 
 ---@type {[integer]: byte.Pointer}
-local conv_union_byte_p = ffi.new("uint8_t*[1]")
+local conv_union_byte_p = ffi.new("const uint8_t*[1]")
 local conv_union_p = ffi.cast("byte_ConvUnion**", conv_union_byte_p)
 
 function byte.hex(p, bytes)
@@ -179,7 +179,7 @@ function byte.hex(p, bytes)
 	return table.concat(t)
 end
 
----@param p byte.Pointer?
+---@param p byte.Pointer|string?
 ---@return byte.ConvUnion
 function byte.union_le(p)
 	conv_union_byte_p[0] = p or fallback_buf
@@ -222,9 +222,11 @@ do
 	union.f64 = 1.125
 	assert(byte.hex(union, 8) == "000000000000F23F")
 	assert(union.u64 == 0x3FF2000000000000ULL)
+
+	assert(byte.union_le("\xFF").i8 == -1)
 end
 
----@type byte.ConvUnion|{[1]: byte.Pointer}
+---@type byte.ConvUnion|{[1]: byte.Pointer|string}
 local conv_be_proxy = setmetatable({fallback_buf}, {
 	---@param t {[1]: byte.Pointer}
 	---@param k string
@@ -241,7 +243,7 @@ local conv_be_proxy = setmetatable({fallback_buf}, {
 	end
 })
 
----@param p byte.Pointer?
+---@param p byte.Pointer|string?
 ---@return byte.ConvUnion
 function byte.union_be(p)
 	conv_be_proxy[1] = p or fallback_buf
@@ -284,6 +286,8 @@ do
 	union.f64 = 1.125
 	assert(byte.hex(union[1], 8) == "3FF2000000000000")
 	assert(union.u64 == 0x3FF2000000000000ULL)
+
+	assert(byte.union_be("\xFF").i8 == -1)
 end
 
 --------------------------------------------------------------------------------
@@ -326,13 +330,39 @@ do
 	assert(f(-2) == nil)
 end
 
+---@generic T
+---@param buf byte.Buffer
+---@param max_size integer
+---@return fun(bytes: integer): T?, string?
+function byte.stretchy_seeker(buf, max_size)
+	---@param bytes integer
+	return function(bytes)
+		local offset = tonumber(buf.offset + bytes)
+		---@cast offset -?
+		if offset > max_size or offset < 0 then
+			return
+		end
+		local size = tonumber(buf.size)
+		---@cast size -?
+		if offset > size then
+			buf:resize(math.min(math.max(size * 2, offset), max_size))
+		end
+		---@type any
+		local p = buf.ptr + buf.offset
+		buf:seek(offset)
+		return p
+	end
+end
+
 ---@param seek fun(bytes: integer): byte.Pointer?, string?
 ---@param proc function
+---@param ... any
 ---@return boolean
 ---@return integer size total processed size
 ---@return any ...
-function byte.apply(seek, proc)
-	local _p = assert(seek(0))
+function byte.apply(seek, proc, ...)
+	---@type byte.Pointer
+	local _p
 
 	local ok = true
 	local offset = 0
@@ -341,12 +371,18 @@ function byte.apply(seek, proc)
 	local ret = {}
 
 	---@type fun(p: byte.Pointer): integer?
-	local iter = coroutine.wrap(function()
-		ret = pack(proc())
+	local iter = coroutine.wrap(function(...)
+		ret = pack(proc(...))
 	end)
 
 	while true do
-		local s = iter(_p)
+		---@type integer
+		local s
+		if not _p then
+			s = iter(...)
+		else
+			s = iter(_p)
+		end
 		if not s then
 			break
 		end
@@ -366,13 +402,13 @@ do
 	local ok, size, ret1, ret2 = byte.apply(function(bytes)
 		if bytes == 0 then return {} end
 		return table.remove(rets)
-	end, function()
-		return coroutine.yield(1) + coroutine.yield(2), "test"
-	end)
+	end, function(init)
+		return init + coroutine.yield(1) + coroutine.yield(2), "test"
+	end, 1000)
 
 	assert(ok == true)
 	assert(size == 3)
-	assert(ret1 == 110)
+	assert(ret1 == 1110)
 	assert(ret2 == "test")
 end
 
@@ -438,6 +474,7 @@ function Buffer:free()
 
 	_total = _total - self.size
 
+	self.offset = 0
 	self.size = 0
 end
 
@@ -625,7 +662,30 @@ b:seek(8)
 assert(b:string(8) == "byte\0\0\0\0")
 
 b:free()
+assert(b.offset == 0)
+assert(b.size == 0)
 
 assert(Buffer.total(), 0)
+
+do
+	local buf = byte.buffer(10)
+	local f = byte.stretchy_seeker(buf, 100)
+
+	assert(f(1))
+	assert(buf.offset == 1)
+	assert(buf.size == 10)
+	assert(f(10))
+	assert(buf.offset == 11)
+	assert(buf.size == 20)
+	assert(f(40))
+	assert(buf.offset == 51)
+	assert(buf.size == 51)
+	assert(f(1))
+	assert(buf.offset == 52)
+	assert(buf.size == 100)
+	assert(not f(50))
+	assert(buf.offset == 52)
+	assert(buf.size == 100)
+end
 
 return byte
