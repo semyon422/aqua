@@ -115,186 +115,130 @@ for k, v in pairs(type_enum) do
 	type_enum_inv[v] = k
 end
 
----@type {[stblbin.Type]: fun(p: ffi.cdata*, v: stblbin.Value): integer}
+local y = coroutine.yield
+
+local function u(n)
+	return byte.union_le(y(n))
+end
+
+---@type {[stblbin.Type]: fun(v: stblbin.Value)}
 local encoders = {}
 
----@type {[stblbin.Type]: fun(p: ffi.cdata*): stblbin.Value, integer}
+---@type {[stblbin.Type]: fun(): stblbin.Value}
 local decoders = {}
 
----@param p ffi.cdata*
 ---@param v boolean
----@return integer
-function encoders.boolean(p, v)
-	byte.write_int8(p, v and 1 or 0)
-	return 1
+function encoders.boolean(v)
+	u(1).i8 = v and 1 or 0
 end
 
----@param p ffi.cdata*
----@param v number
----@return integer
-function encoders.number(p, v)
-	byte.write_double_be(p, v)
-	return 8
-end
-
----@param p ffi.cdata*
 ---@return boolean
----@return integer
-function decoders.boolean(p)
-	return byte.read_int8(p) == 1, 1
+function decoders.boolean()
+	return u(1).i8 ~= 0
 end
 
----@param p ffi.cdata*
+---@param v number
+function encoders.number(v)
+	u(8).f64 = v
+end
+
 ---@return number
----@return integer
-function decoders.number(p)
-	return byte.read_double_be(p), 8
+function decoders.number()
+	return u(8).f64
 end
 
----@param p ffi.cdata*
 ---@param v string
 ---@return integer
-function encoders.string(p, v)
-	byte.write_uint16_be(p, #v)
-	ffi.copy(p + 2, v, #v)
-	return #v + 2
+function encoders.string(v)
+	u(2).u16 = #v
+	ffi.copy(y(#v), v, #v)
 end
 
----@param p ffi.cdata*
 ---@return string
----@return integer
-function decoders.string(p)
-	local size = byte.read_uint16_be(p)
-	return ffi.string(p + 2, size), size + 2
+function decoders.string()
+	local size = u(2).i16
+	return ffi.string(y(size), size)
 end
 
----@param p ffi.cdata*
 ---@param tbl table
----@return integer
-function encoders.table(p, tbl)
-	local p_0 = p
+function encoders.table(tbl)
 	local keys = sorted_keys(tbl)
-	byte.write_uint32_be(p_0, #keys)
-	p = ptr_add(p, 4)
+	u(4).u32 = #keys
 	for _, k in ipairs(keys) do
-		local key_size = stblbin.encode(p, k)
-		p = ptr_add(p, key_size)
-		local value_size = stblbin.encode(p, tbl[k])
-		p = ptr_add(p, value_size)
+		stblbin.encode_async(k)
+		stblbin.encode_async(tbl[k])
 	end
-	return ptr_sub(p, p_0)
 end
 
----@param p ffi.cdata*
 ---@return stblbin.Table
----@return integer
-function decoders.table(p)
-	local p_0 = p
-	local count = byte.read_uint32_be(p)
-	p = ptr_add(p, 4)
+function decoders.table()
+	local count = u(4).u32
 	---@type {[stblbin.Key]: stblbin.Value}
 	local tbl = {}
 	for _ = 1, count do
-		local k, key_size = stblbin.decode(p)
-		p = ptr_add(p, key_size)
-		local v, value_size = stblbin.decode(p)
-		p = ptr_add(p, value_size)
+		local k = stblbin.decode_async()
+		local v = stblbin.decode_async()
 		tbl[assert_key_type(k)] = v
 	end
-	return tbl, ptr_sub(p, p_0)
+	return tbl
 end
 
----@type {[stblbin.Type]: fun(v: stblbin.Value): integer}}
-local sizers = {}
-
-function sizers.boolean() return 1 end
-function sizers.number() return 8 end
-function sizers.string(s) return 2 + #s end
-
----@return stblbin.Table
----@return integer
-function sizers.table(tbl)
-	local size = 4
-	for k, v in pairs(tbl) do
-		size = size + stblbin.size(k) + stblbin.size(v)
-	end
-	return size
-end
-
----@type {[stblbin.Type|"bound"]: function}
-local bounders = {}
-
-function bounders.boolean() coroutine.yield(1) end
-function bounders.number() coroutine.yield(8) end
-
-function bounders.string()
-	local p = coroutine.yield(2)
-	local size = byte.read_uint16_be(p)
-	coroutine.yield(size)
-end
-
-function bounders.table()
-	local p = coroutine.yield(4)
-	local count = byte.read_uint32_be(p)
-	for _ = 1, count do
-		bounders.bound()
-		bounders.bound()
-	end
-end
-
-function bounders.bound()
-	local p = coroutine.yield(1)
-	local _type = type_enum_inv[byte.read_uint8(p)]
-	bounders[_type](p)
-end
-
----@param p ffi.cdata*
 ---@return stblbin.Value
----@return integer size total read size
-function stblbin.decode(p)
-	local _type = type_enum_inv[byte.read_uint8(p)]
-	local decode = decoders[_type]
-	local obj, size = decode(p + 1)
-	return obj, 1 + size
+function stblbin.decode_async()
+	local t = type_enum_inv[u(1).u8]
+	return decoders[t]()
 end
 
----@param p ffi.cdata*
----@param obj stblbin.Value
----@return integer size total write size
-function stblbin.encode(p, obj)
-	local _type = value_type(obj)
-	byte.write_uint8(p, type_enum[_type])
-	local encode = encoders[_type]
-	local size = encode(p + 1, obj)
-	return 1 + size
-end
-
----@param obj stblbin.Value
----@return integer
-function stblbin.size(obj)
-	local _type = value_type(obj)
-	local sizer = sizers[_type]
-	local size = sizer(obj)
-	return size + 1
+---@param v stblbin.Value
+function stblbin.encode_async(v)
+	local t = value_type(v)
+	u(1).u8 = type_enum[t]
+	encoders[t](v)
 end
 
 ---@param p ffi.cdata*
 ---@param size integer
----@return integer?
-function stblbin.bound(p, size)
-	local offset, ps = 0, 0
-	local bound = coroutine.wrap(bounders.bound)
-	while true do
-		---@type integer?
-		local s = bound(p + offset - ps)
-		if not s then
-			return offset
-		end
-		if offset + s > size then
-			return
-		end
-		offset, ps = offset + s, s
+---@return stblbin.Value
+---@return integer size total read size
+function stblbin.decode(p, size)
+	local ok, bytes, value = byte.apply(byte.seeker(p, size), stblbin.decode_async)
+	assert(ok, "invalid data")
+	return value, bytes
+end
+
+---@param p ffi.cdata*
+---@param size integer
+---@param obj stblbin.Value
+---@return integer size total write size
+function stblbin.encode(p, size, obj)
+	local ok, bytes = byte.apply(byte.seeker(p, size), stblbin.encode_async, obj)
+	assert(ok, "invalid data")
+	return bytes
+end
+
+---@param s string
+---@return stblbin.Value
+function stblbin.decode_s(s)
+	return (stblbin.decode(ffi.cast("const char *", s), #s))
+end
+
+---@param obj stblbin.Value
+---@param max_size integer
+---@return string?
+function stblbin.encode_s(obj, max_size)
+	local buf = byte.buffer(8192)
+	local f = byte.stretchy_seeker(buf, max_size)
+
+	local ok, bytes = byte.apply(f, stblbin.encode_async, obj)
+	if not ok then
+		buf:free()
+		return
 	end
+
+	local s = ffi.string(buf.ptr, bytes)
+	buf:free()
+
+	return s
 end
 
 -- tests
@@ -314,88 +258,82 @@ local t = {
 	20,
 }
 
+
 local buf = byte.buffer(1e4) -- manual encode
-buf:uint8(type_enum.table)
+buf:write("u8", type_enum.table)
 do
-	buf:uint32_be(6) -- size
-	buf:uint8(type_enum.number)
-	buf:double_be(1)
-	buf:uint8(type_enum.number)
-	buf:double_be(10)
-	buf:uint8(type_enum.number)
-	buf:double_be(2)
-	buf:uint8(type_enum.number)
-	buf:double_be(20)
-	buf:uint8(type_enum.string)
-	buf:uint16_be(1)
+	buf:write("u32", 6)
+	buf:write("u8", type_enum.number)
+	buf:write("f64", 1)
+	buf:write("u8", type_enum.number)
+	buf:write("f64", 10)
+	buf:write("u8", type_enum.number)
+	buf:write("f64", 2)
+	buf:write("u8", type_enum.number)
+	buf:write("f64", 20)
+	buf:write("u8", type_enum.string)
+	buf:write("u16", 1)
 	buf:fill("a")
-	buf:uint8(type_enum.number)
-	buf:double_be(1)
-	buf:uint8(type_enum.string)
-	buf:uint16_be(1)
+	buf:write("u8", type_enum.number)
+	buf:write("f64", 1)
+	buf:write("u8", type_enum.string)
+	buf:write("u16", 1)
 	buf:fill("b")
-	buf:uint8(type_enum.string)
-	buf:uint16_be(2)
+	buf:write("u8", type_enum.string)
+	buf:write("u16", 2)
 	buf:fill("hi")
-	buf:uint8(type_enum.string)
-	buf:uint16_be(1)
+	buf:write("u8", type_enum.string)
+	buf:write("u16", 1)
 	buf:fill("c")
-	buf:uint8(type_enum.boolean)
-	buf:uint8(1)
-	buf:uint8(type_enum.string)
-	buf:uint16_be(1)
+	buf:write("u8", type_enum.boolean)
+	buf:write("u8", 1)
+	buf:write("u8", type_enum.string)
+	buf:write("u16", 1)
 	buf:fill("d")
-	buf:uint8(type_enum.table)
+	buf:write("u8", type_enum.table)
 	do
-		buf:uint32_be(3)
-		buf:uint8(type_enum.number)
-		buf:double_be(1)
-		buf:uint8(type_enum.number)
-		buf:double_be(1)
-		buf:uint8(type_enum.number)
-		buf:double_be(2)
-		buf:uint8(type_enum.number)
-		buf:double_be(2)
-		buf:uint8(type_enum.string)
-		buf:uint16_be(1)
+		buf:write("u32", 3)
+		buf:write("u8", type_enum.number)
+		buf:write("f64", 1)
+		buf:write("u8", type_enum.number)
+		buf:write("f64", 1)
+		buf:write("u8", type_enum.number)
+		buf:write("f64", 2)
+		buf:write("u8", type_enum.number)
+		buf:write("f64", 2)
+		buf:write("u8", type_enum.string)
+		buf:write("u16", 1)
 		buf:fill("q")
-		buf:uint8(type_enum.table)
+		buf:write("u8", type_enum.table)
 		do
-			buf:uint32_be(2)
-			buf:uint8(type_enum.number)
-			buf:double_be(1)
-			buf:uint8(type_enum.number)
-			buf:double_be(1)
-			buf:uint8(type_enum.number)
-			buf:double_be(2)
-			buf:uint8(type_enum.number)
-			buf:double_be(2)
+			buf:write("u32", 2)
+			buf:write("u8", type_enum.number)
+			buf:write("f64", 1)
+			buf:write("u8", type_enum.number)
+			buf:write("f64", 1)
+			buf:write("u8", type_enum.number)
+			buf:write("f64", 2)
+			buf:write("u8", type_enum.number)
+			buf:write("f64", 2)
 		end
 	end
 end
 
-local buf_size = tonumber(buf.offset)
+local buf_size = assert(tonumber(buf.offset))
 buf:seek(0)
 local buf_str = buf:string(buf_size)
 
-local size_encoded = stblbin.encode(p, t)
+local size_encoded = stblbin.encode(p, buf_size, t)
 assert(size_encoded == buf_size)
 
 local ptr_str = ffi.string(p, size_encoded)
 
 assert(#buf_str == #ptr_str)
 assert(buf_str == ptr_str)
+assert(buf_str == stblbin.encode_s(t, 1000))
+assert(buf_str == stblbin.encode_s(stblbin.decode_s(buf_str), 1000))
 
-local size_computed = stblbin.size(t)
-assert(size_encoded == size_computed)
-
-local size_bound = stblbin.bound(p, size_encoded)
-assert(size_bound == size_encoded)
-assert(stblbin.bound(p, size_encoded + 1) == size_encoded)
-assert(not stblbin.bound(p, size_encoded - 1))
-assert(not stblbin.bound(p, 0))
-
-local _t = stblbin.decode(p)
+local _t = stblbin.decode(p, buf_size)
 ---@cast _t stblbin.Table
 
 local table_util = require("table_util")

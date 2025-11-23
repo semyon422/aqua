@@ -97,23 +97,23 @@ function Wave:encode()
 	local header_buf = byte.buffer(44)
 
 	header_buf:fill("RIFF") -- chunkId
-	header_buf:int32_le(44 - 8 + data_size) -- chunkSize
+	header_buf:write("i32", 44 - 8 + data_size) -- chunkSize
 	header_buf:fill("WAVE") -- format
 	header_buf:fill("fmt ") -- subchunk1Id
-	header_buf:int32_le(16) -- subchunk1Size - 16 for PCM
-	header_buf:int16_le(1) -- audioFormat - no compression
-	header_buf:int16_le(self.channels_count) -- numChannels
-	header_buf:int32_le(self.sample_rate)
-	header_buf:int32_le(self.sample_rate * self.channels_count * self.bytes_per_sample) -- byteRate
-	header_buf:int16_le(self.channels_count * self.bytes_per_sample) -- blockAlign
-	header_buf:int16_le(self.bytes_per_sample * 8)
+	header_buf:write("i32", 16) -- subchunk1Size - 16 for PCM
+	header_buf:write("i16", 1) -- audioFormat - no compression
+	header_buf:write("i16", self.channels_count) -- numChannels
+	header_buf:write("i32", self.sample_rate)
+	header_buf:write("i32", self.sample_rate * self.channels_count * self.bytes_per_sample) -- byteRate
+	header_buf:write("i16", self.channels_count * self.bytes_per_sample) -- blockAlign
+	header_buf:write("i16", self.bytes_per_sample * 8)
 	header_buf:fill("data") -- subchunk2ID
-	header_buf:int32_le(data_size) -- Subchunk2Size
+	header_buf:write("i32", data_size) -- Subchunk2Size
 
 	assert(header_buf.offset == 44)
 
 	local out_buf = buffer.new(44 + data_size)
-	out_buf:putcdata(header_buf.pointer, 44)
+	out_buf:putcdata(header_buf.ptr, 44)
 	out_buf:putcdata(self.data_buf, data_size)
 
 	return out_buf:tostring()
@@ -126,35 +126,35 @@ function Wave:decode(data)
 
 	assert(buf:string(4) == "RIFF")
 
-	local data_size = buf:int32_le()
+	local data_size = buf:read("i32")
 	assert(data_size == #data - 8)
 
 	assert(buf:string(4) == "WAVE")
 	assert(buf:string(4) == "fmt ")
 
-	local subchunk1Size = buf:int32_le()
+	local subchunk1Size = buf:read("i32")
 	assert(subchunk1Size == 16)
 
-	local audioFormat = buf:int16_le()
+	local audioFormat = buf:read("i16")
 	assert(audioFormat == 1)
 
-	self.channels_count = buf:int16_le()
-	self.sample_rate = buf:int32_le()
-	buf:int32_le()
-	buf:int16_le()
-	self.bytes_per_sample = buf:int16_le() / 8
+	self.channels_count = buf:read("i16")
+	self.sample_rate = buf:read("i32")
+	buf:read("i32")
+	buf:read("i16")
+	self.bytes_per_sample = buf:read("i16") / 8
 	assert(self.bytes_per_sample == 2)
 
 	assert(buf:string(4) == "data")
 
-	local data_size = buf:int32_le()
+	data_size = buf:read("i32")
 
 	self.samples_count = 1 / self.bytes_per_sample * data_size / self.channels_count
 
 	---@type {[integer]: integer}
 	self.data_buf = ffi.new("int16_t[?]", self.samples_count * self.channels_count)
 
-	ffi.copy(self.data_buf, buf.pointer + buf.offset, data_size)
+	ffi.copy(self.data_buf, buf.ptr + buf.offset, data_size)
 end
 
 return Wave

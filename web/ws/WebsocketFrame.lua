@@ -125,11 +125,11 @@ function WebsocketFrame:build()
 		offset = 2
 	elseif payload_len <= 65535 then
 		buf[1] = 126
-		byte.write_uint16_be(buf + 2, payload_len)
+		byte.union_be(buf + 2).u16 = payload_len
 		offset = 4
 	else
 		buf[1] = 127
-		byte.write_uint64_be(buf + 2, payload_len)
+		byte.union_be(buf + 2).u64 = payload_len
 		offset = 10
 	end
 
@@ -201,7 +201,7 @@ function WebsocketFrame:receive(soc, max_payload_len)
 		if not data then
 			return nil, err
 		end
-		payload_len = tonumber(byte.read_uint64_be(data --[[@as ffi.cdata*]]))
+		payload_len = tonumber(byte.union_be(data).u64)
 	end
 
 	---@cast payload_len integer
