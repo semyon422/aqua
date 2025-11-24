@@ -165,7 +165,7 @@ local conv_union = ffi.new("byte_ConvUnion")
 local fallback_buf = ffi.new("uint8_t[?]", ffi.sizeof("byte_ConvUnion"))
 ---@cast fallback_buf -ffi.cdata*, +byte.ConvUnion
 
----@type {[integer]: byte.Pointer}
+---@type {[integer]: byte.Pointer|string}
 local conv_union_byte_p = ffi.new("const uint8_t*[1]")
 local conv_union_p = ffi.cast("byte_ConvUnion**", conv_union_byte_p)
 
@@ -420,6 +420,64 @@ do
 	assert(ok == false)
 	assert(size == 1)
 	assert(ret == nil)
+end
+
+--------------------------------------------------------------------------------
+
+---@class byte.YieldUnion: byte.ConvUnion
+---@field is_be boolean
+---@field char string
+local YieldUnion = {}
+
+---@param t byte.YieldUnion
+---@param k string
+---@return any?
+function YieldUnion.__index(t, k)
+	if k == "char" then
+		error("use string method")
+	end
+
+	local bytes = type_bytes[k]
+	if not bytes then
+		return YieldUnion[k]
+	end
+
+	local p = coroutine.yield(bytes)
+	local u = t.is_be and byte.union_be(p) or byte.union_le(p)
+	return u[k]
+end
+
+---@param t byte.YieldUnion
+---@param k string
+---@param v any
+function YieldUnion.__newindex(t, k, v)
+	if k == "char" then
+		local p = coroutine.yield(#v)
+		ffi.copy(p, v, #v)
+		return
+	end
+
+	local bytes = type_bytes[k]
+	if not bytes then
+		return
+	end
+
+	local p = coroutine.yield(bytes)
+	local u = t.is_be and byte.union_be(p) or byte.union_le(p)
+	u[k] = v ---@diagnostic disable-line: no-unknown
+end
+
+---@param n integer
+---@return string
+function YieldUnion:string(n)
+	local p = coroutine.yield(n)
+	return ffi.string(p, n)
+end
+
+---@param is_be boolean?
+---@return byte.YieldUnion
+function byte.yield_union(is_be)
+	return setmetatable({is_be = not not is_be}, YieldUnion)
 end
 
 --------------------------------------------------------------------------------

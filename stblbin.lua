@@ -34,20 +34,6 @@ local stblbin = {}
 		{Key key, Value value}[size]
 ]]
 
----@param p ffi.cdata*
----@param n integer
----@return ffi.cdata*
-local function ptr_add(p, n)
-	return p + n
-end
-
----@param a ffi.cdata*
----@param b ffi.cdata*
----@return integer
-local function ptr_sub(a, b)
-	return tonumber(a - b) --[[@as integer]]
-end
-
 ---@param k any
 ---@return stblbin.Key
 local function assert_key_type(k)
@@ -115,11 +101,7 @@ for k, v in pairs(type_enum) do
 	type_enum_inv[v] = k
 end
 
-local y = coroutine.yield
-
-local function u(n)
-	return byte.union_le(y(n))
-end
+local u = byte.yield_union()
 
 ---@type {[stblbin.Type]: fun(v: stblbin.Value)}
 local encoders = {}
@@ -129,41 +111,41 @@ local decoders = {}
 
 ---@param v boolean
 function encoders.boolean(v)
-	u(1).i8 = v and 1 or 0
+	u.i8 = v and 1 or 0
 end
 
 ---@return boolean
 function decoders.boolean()
-	return u(1).i8 ~= 0
+	return u.i8 ~= 0
 end
 
 ---@param v number
 function encoders.number(v)
-	u(8).f64 = v
+	u.f64 = v
 end
 
 ---@return number
 function decoders.number()
-	return u(8).f64
+	return u.f64
 end
 
 ---@param v string
 ---@return integer
 function encoders.string(v)
-	u(2).u16 = #v
-	ffi.copy(y(#v), v, #v)
+	u.u16 = #v
+	u.char = v
 end
 
 ---@return string
 function decoders.string()
-	local size = u(2).i16
-	return ffi.string(y(size), size)
+	local size = u.i16
+	return u:string(size)
 end
 
 ---@param tbl table
 function encoders.table(tbl)
 	local keys = sorted_keys(tbl)
-	u(4).u32 = #keys
+	u.u32 = #keys
 	for _, k in ipairs(keys) do
 		stblbin.encode_async(k)
 		stblbin.encode_async(tbl[k])
@@ -172,7 +154,7 @@ end
 
 ---@return stblbin.Table
 function decoders.table()
-	local count = u(4).u32
+	local count = u.u32
 	---@type {[stblbin.Key]: stblbin.Value}
 	local tbl = {}
 	for _ = 1, count do
@@ -185,14 +167,14 @@ end
 
 ---@return stblbin.Value
 function stblbin.decode_async()
-	local t = type_enum_inv[u(1).u8]
+	local t = type_enum_inv[u.u8]
 	return decoders[t]()
 end
 
 ---@param v stblbin.Value
 function stblbin.encode_async(v)
 	local t = value_type(v)
-	u(1).u8 = type_enum[t]
+	u.u8 = type_enum[t]
 	encoders[t](v)
 end
 
