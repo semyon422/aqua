@@ -1,22 +1,16 @@
 local class = require("class")
-local Pivot = require("ui.layout.Pivot")
+local LayoutAxis = require("ui.layout.LayoutAxis")
+local Enums = require("ui.layout.Enums")
 
 ---@class ui.LayoutBox
 ---@operator call: ui.LayoutBox
----@field x number
----@field y number
----@field width number
----@field height number
----@field width_mode ui.SizeMode
----@field height_mode ui.SizeMode
----@field padding_left number
----@field padding_right number
----@field padding_top number
----@field padding_bottom number
+---@field x ui.LayoutAxis
+---@field y ui.LayoutAxis
 ---@field child_gap number
 ---@field arrange ui.Arrange
 ---@field justify_content ui.JustifyContent
 ---@field align_items ui.AlignItems
+---@field align_self ui.AlignItems?
 ---@field origin ui.Pivot
 ---@field anchor ui.Pivot
 ---@field axis_invalidated ui.Axis
@@ -25,62 +19,27 @@ local LayoutBox = class()
 ---@class ui.HasLayoutBox
 ---@field layout_box ui.LayoutBox
 
----@enum ui.SizeMode
-LayoutBox.SizeMode = {
-	Fixed = 1,
-	Fit = 2,
-	Grow = 3,
-}
+LayoutBox.Pivot = Enums.Pivot
+LayoutBox.SizeMode = Enums.SizeMode
+LayoutBox.Arrange = Enums.Arrange
+LayoutBox.Axis = Enums.Axis
+LayoutBox.JustifyContent = Enums.JustifyContent
+LayoutBox.AlignItems = Enums.AlignItems
 
----@enum ui.Arrange
-LayoutBox.Arrange = {
-	Absolute = 1,
-	FlowH = 2,
-	FlowV = 3,
-}
-
----@enum ui.Axis
-LayoutBox.Axis = {
-	None = 0,
-	X = 1,
-	Y = 2,
-	Both = 3,
-}
-
----@enum ui.JustifyContent
-LayoutBox.JustifyContent = {
-	Start = 1,
-	End = 2,
-	Center = 3,
-	SpaceBetween = 4,
-}
-
----@enum ui.AlignItems
-LayoutBox.AlignItems = {
-	Start = 1,
-	End = 2,
-	Center = 3,
-}
-
-local SizeMode = LayoutBox.SizeMode
-local Arrange = LayoutBox.Arrange
-local Axis = LayoutBox.Axis
-local JustifyContent = LayoutBox.JustifyContent
-local AlignItems = LayoutBox.AlignItems
+local Pivot = Enums.Pivot
+local SizeMode = Enums.SizeMode
+local Arrange = Enums.Arrange
+local Axis = Enums.Axis
+local JustifyContent = Enums.JustifyContent
+local AlignItems = Enums.AlignItems
 
 function LayoutBox:new()
-	self.x = 0
-	self.y = 0
-	self.width = 0
-	self.height = 0
+	self.x = LayoutAxis()
+	self.y = LayoutAxis()
+
+	self.flex_grow = 0
 	self.origin = Pivot.TopLeft
 	self.anchor = Pivot.TopLeft
-	self.width_mode = SizeMode.Fixed
-	self.height_mode = SizeMode.Fixed
-	self.padding_left = 0
-	self.padding_right = 0
-	self.padding_top = 0
-	self.padding_bottom = 0
 	self.child_gap = 0
 	self.arrange = Arrange.Absolute
 	self.justify_content = JustifyContent.Start
@@ -104,12 +63,12 @@ end
 
 ---@return number
 function LayoutBox:getLayoutWidth()
-	return self.width - self.padding_left - self.padding_right
+	return self.x.size - self.x.padding_start - self.x.padding_end
 end
 
 ---@return number
 function LayoutBox:getLayoutHeight()
-	return self.height - self.padding_top - self.padding_bottom
+	return self.y.size - self.y.padding_start - self.y.padding_end
 end
 
 ---@return number, number
@@ -120,28 +79,49 @@ end
 ---@param x number
 ---@param y number
 function LayoutBox:setPosition(x, y)
-	self.x = x
-	self.y = y
+	self.x.pos = x
+	self.y.pos = y
 	self:markDirty(Axis.Both)
 end
 
 ---@param width number
 function LayoutBox:setWidth(width)
-	self.width = width
+	self.x:setSize(width)
+	self.x.mode = SizeMode.Fixed
 	self:markDirty(Axis.X)
 end
 
 ---@param height number
 function LayoutBox:setHeight(height)
-	self.height = height
+	self.y:setSize(height)
+	self.y.mode = SizeMode.Fixed
 	self:markDirty(Axis.Y)
 end
 
 ---@param width number
 ---@param height number
 function LayoutBox:setDimensions(width, height)
-	self.width = width
-	self.height = height
+	self:setWidth(width)
+	self:setHeight(height)
+end
+
+---@param min_width number
+---@param max_width number
+function LayoutBox:setWidthLimits(min_width, max_width)
+	self.x:setLimits(min_width, max_width)
+	self:markDirty(Axis.X)
+end
+
+---@param min_height number
+---@param max_height number
+function LayoutBox:setHeightLimits(min_height, max_height)
+	self.y:setLimits(min_height, max_height)
+	self:markDirty(Axis.Y)
+end
+
+---@param grow number
+function LayoutBox:setFlexGrow(grow)
+	self.flex_grow = grow
 	self:markDirty(Axis.Both)
 end
 
