@@ -111,7 +111,7 @@ end
 ---@param imx number
 ---@param imy number
 function Node:isMouseOver(mouse_x, mouse_y, imx, imy)
-	return imx >= 0 and imx < self.layout_box.width and imy >= 0 and imy < self.layout_box.height
+	return imx >= 0 and imx < self.layout_box.x.size and imy >= 0 and imy < self.layout_box.y.size
 end
 
 ---@param node nya.Node
@@ -139,25 +139,25 @@ function Node:updateTreeLayout()
 
 	if self.parent then
 		local plb = self.parent.layout_box
-		x = layout_box.x + layout_box.anchor.x * plb:getLayoutWidth() + plb.padding_left
-		y = layout_box.y + layout_box.anchor.y * plb:getLayoutHeight() + plb.padding_top
+		x = layout_box.x.pos + layout_box.anchor.x * plb:getLayoutWidth() + plb.x.padding_start
+		y = layout_box.y.pos + layout_box.anchor.y * plb:getLayoutHeight() + plb.y.padding_start
 		parent_tf = self.parent.transform:get()
 	else
-		x = layout_box.x
-		y = layout_box.y
+		x = layout_box.x.pos
+		y = layout_box.y.pos
 	end
 
 	local tf = self.transform
 	tf.layout_x = x
 	tf.layout_y = y
-	tf.origin_x = layout_box.origin.x * layout_box.width
-	tf.origin_y = layout_box.origin.y * layout_box.height
+	tf.origin_x = layout_box.origin.x * layout_box.x.size
+	tf.origin_y = layout_box.origin.y * layout_box.y.size
 	tf.parent_transform = parent_tf
 
 	layout_box:markValid()
 
 	if self.style then
-		self.style:setDimensions(layout_box.width, layout_box.height)
+		self.style:setDimensions(layout_box.x.size, layout_box.y.size)
 	end
 
 	for _, child in ipairs(self.children) do

@@ -18,6 +18,7 @@ local DropShadow = require("ui.style.Shader.DropShadow")
 ---@field blur ui.Style.Blur?
 ---@field effects ui.ShaderFeature[]
 ---@field material ui.Material
+---@field padding number
 
 ---@class ui.Style.Content
 ---@field effects ui.ShaderFeature[]
@@ -41,7 +42,6 @@ local DropShadow = require("ui.style.Shader.DropShadow")
 ---@operator call: ui.Style
 ---@field width number
 ---@field height number
----@field padding number
 ---@field border_radius [number, number, number, number]? left top bottom right
 ---@field shadow ui.Style.Shadow?
 ---@field backdrop ui.Style.Backdrop?
@@ -52,7 +52,6 @@ local Style = class()
 function Style:new(params)
 	self.width = math.max(0, params.width or 0)
 	self.height = math.max(0, params.height or 0)
-	self.padding = math.max(0, params.padding or 0)
 	self.border_radius = params.border_radius
 	self:createShadow(params.shadow)
 	self:createBackdrop(params.backdrop)
@@ -109,7 +108,8 @@ function Style:createBackdrop(params)
 	local t = {}
 	t.blur = params.blur
 	t.effects = params.effects or {}
-	t.material = Material(self.backdrop.effects)
+	t.padding = params.padding or 0
+	t.material = Material(t.effects)
 	self.backdrop = t
 end
 
@@ -153,9 +153,7 @@ end
 ---@return number
 ---@return number
 function Style:getDimensions()
-	local w = self.width + self.padding * 2
-	local h = self.height + self.padding * 2
-	return w, h
+	return self.width, self.height
 end
 
 local empty_border_radius = { 0, 0, 0, 0 }

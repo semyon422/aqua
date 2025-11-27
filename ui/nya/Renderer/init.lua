@@ -60,7 +60,7 @@ end
 
 handlers[OP.DRAW_STYLE_SHADOW] = function(renderer, context, i)
 	local style = context[i + 1] ---@type ui.Style
-	local tf = context[i + 2] ---@type love.Transform
+	local tf = context[i + 2]:get() ---@type nya.NodeTransform
 
 	local shadow = style.shadow ---@cast shadow -?
 	local r = shadow.radius
@@ -80,8 +80,8 @@ end
 handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 	local style = context[i + 1] ---@type ui.Style
 	local node = context[i + 2] ---@type nya.Node
-	local tf = node.transform
-	local i_tf = node.inverse_transform
+	local tf = node.transform:get()
+	local i_tf = node.transform:getInverse()
 	local tf_scale_x = context[i + 3] ---@type number
 	local tf_scale_y = context[i + 4] ---@type number
 	local region_effect = renderer.region_effect ---@type nya.RegionEffect
@@ -99,7 +99,7 @@ handlers[OP.DRAW_STYLE_BACKDROP] = function(renderer, context, i)
 		current_canvas,
 		visual_width,
 		visual_height,
-		style.padding
+		backdrop.padding
 	)
 	region_effect:captureRegion()
 	lg.pop()
@@ -129,7 +129,7 @@ end
 handlers[OP.DRAW] = function(renderer, context, i)
 	local node = context[i + 1]
 	lg.push("all")
-	lg.applyTransform(node.transform)
+	lg.applyTransform(node.transform:get())
 	node:draw()
 	lg.pop()
 	return 2
@@ -138,11 +138,11 @@ end
 handlers[OP.DRAW_STYLE_CONTENT_SELF_DRAW] = function(renderer, context, i)
 	local style = context[i + 1] ---@type ui.Style
 	local node = context[i + 2] ---@type nya.Node
-	local tf = context[i + 3] ---@type love.Transform
+	local tf = context[i + 3] ---@type nya.NodeTransform
 	local content = style.content ---@cast content -?
 
 	lg.push()
-	lg.applyTransform(tf)
+	lg.applyTransform(tf:get())
 	lg.setShader(content.material.shader)
 	lg.setColor(content.color)
 	lg.setBlendMode(content.blend_mode, content.blend_mode_alpha)
@@ -163,7 +163,8 @@ handlers[OP.DRAW_STYLE_CONTENT] = function(renderer, context, i)
 	lg.push()
 	lg.applyTransform(tf:get())
 	lg.setShader(content.material.shader)
-	lg.setColor(content.color)
+	local c = content.color
+	lg.setColor(c[1], c[2], c[3], c[4] * content.alpha)
 	lg.setBlendMode(content.blend_mode, content.blend_mode_alpha)
 	lg.draw(renderer.pixel, 0, 0, 0, style.width, style.height)
 	lg.setColor(1, 1, 1, 1)
