@@ -332,9 +332,10 @@ end
 
 ---@generic T
 ---@param buf byte.Buffer
----@param max_size integer
+---@param max_size integer?
 ---@return fun(bytes: integer): T?, string?
 function byte.stretchy_seeker(buf, max_size)
+	max_size = max_size or math.huge
 	---@param bytes integer
 	return function(bytes)
 		local offset = tonumber(buf.offset + bytes)
