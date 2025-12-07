@@ -23,18 +23,18 @@ local default_shader_code = [[
 local default_shader ---@type love.Shader
 
 ---@param params { text: string?, font: love.Font, font_size: number }
-function Label:new(params)
-	Node.new(self)
-	self.text = params.text or ""
+function Label:init(params)
+	self.text = ""
+	Node.init(self, params)
+
 	self.font = assert(params.font, "Expected font, got nil")
 	self.font_size = assert(params.font_size, "Expected font_size, got nil")
+	self.text_batch = love.graphics.newTextBatch(self.font, self.text)
+	self:updateDimensions()
 
 	if not default_shader then
 		default_shader = love.graphics.newShader(default_shader_code)
 	end
-
-	self.text_batch = love.graphics.newTextBatch(self.font, self.text)
-	self:updateDimensions()
 end
 
 function Label:updateDimensions()

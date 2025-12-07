@@ -22,15 +22,6 @@ local Outline = require("ui.style.Shader.Outline")
 ---@overload fun(metatable: view.Node, params: {[string]: any}, childen: view.Node[]?): nya.Node
 local LuvX = {}
 
----@type {[string]: love.Font}
-LuvX.fonts = {}
-
----@param name string
----@param font love.Font
-function LuvX.addFont(name, font)
-	LuvX.fonts[name] = font
-end
-
 LuvX.layout_props = {
 	---@param node view.Node
 	---@param size number | string
@@ -343,15 +334,7 @@ function LuvX.createElement(metatable, params, children)
 
 	---@cast params {[string]: any}
 
-	if type(metatable) == "table" then
-		if Label / metatable then
-			local font_name = assert(params.font, "Expected font, got nil")
-			assert(type(font_name) == "string", "Expected font to be a string")
-			params.font = assert(LuvX.fonts[font_name], "Font doesn't exist")
-		end
-	end
-
-	local instance = metatable(params)
+	local instance = metatable()
 
 	local style_table = {
 		main = {},
@@ -361,6 +344,8 @@ function LuvX.createElement(metatable, params, children)
 		backdrop_effects = {}
 	}
 
+	local leftovers = {}
+
 	for k, v in pairs(params) do
 		if LuvX.layout_props[k] then
 			LuvX.layout_props[k](instance, v)
@@ -368,8 +353,12 @@ function LuvX.createElement(metatable, params, children)
 			LuvX.style_props[k](style_table, v)
 		elseif LuvX.node_props[k] then
 			LuvX.node_props[k](instance, v)
+		else
+			leftovers[k] = v
 		end
 	end
+
+	instance:init(leftovers)
 
 	local has_styles = false
 	local has_backdrop = false

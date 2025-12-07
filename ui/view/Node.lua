@@ -38,6 +38,17 @@ function Node:new()
 	self.state = State.Created
 end
 
+---@param params {[string]: any}
+function Node:init(params)
+	if not params then
+		return
+	end
+
+	for k, v in pairs(params) do
+		self[k] = v
+	end
+end
+
 function Node:load() end
 
 --- Will be called once right before the update method after the node was loaded

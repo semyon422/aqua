@@ -8,9 +8,9 @@ local Image = Node + {}
 Image.ClassName = "Image"
 
 ---@param params { image: love.Image }
-function Image:new(params)
-	Node.new(self)
-	self.image = assert(params.image, "Expected image, got nil")
+function Image:init(params)
+	Node.init(self, params)
+	assert(self.image, "Expected image, got nil")
 	self.layout_box:setDimensions(self.image:getDimensions())
 end
 
