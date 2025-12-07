@@ -1,5 +1,5 @@
 local class = require("class")
-local gaussian_blur = require("ui.nya.Renderer.gaussian_blur")
+local gaussian_blur = require("ui.renderer.gaussian_blur")
 
 ---@class nya.RegionEffect
 ---@operator call: nya.RegionEffect

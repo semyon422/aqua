@@ -1,7 +1,7 @@
 local class = require("class")
-local OP = require("ui.nya.Renderer.ops")
-local RenderingContext = require("ui.nya.Renderer.RenderingContext")
-local RegionEffect = require("ui.nya.Renderer.RegionEffect")
+local OP = require("ui.renderer.ops")
+local RenderingContext = require("ui.renderer.RenderingContext")
+local RegionEffect = require("ui.renderer.RegionEffect")
 
 ---@class nya.Renderer
 ---@operator call: nya.Renderer
@@ -144,7 +144,8 @@ handlers[OP.DRAW_STYLE_CONTENT_SELF_DRAW] = function(renderer, context, i)
 	lg.push()
 	lg.applyTransform(tf:get())
 	lg.setShader(content.material.shader)
-	lg.setColor(content.color)
+	local c = content.color
+	lg.setColor(c[1], c[2], c[3], c[4] * content.alpha)
 	lg.setBlendMode(content.blend_mode, content.blend_mode_alpha)
 	node:draw()
 	lg.setColor(1, 1, 1, 1)

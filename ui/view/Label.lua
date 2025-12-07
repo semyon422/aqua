@@ -1,8 +1,7 @@
-local Node = require("ui.Node")
-local Fonts = require("ui.Fonts")
+local Node = require("ui.view.Node")
 
----@class ui.Label : ui.Node
----@operator call: ui.Label
+---@class view.Label : view.Node
+---@operator call: view.Label
 ---@field font love.Font
 ---@field font_size number
 ---@field text string
@@ -23,25 +22,25 @@ local default_shader_code = [[
 
 local default_shader ---@type love.Shader
 
+---@param params { text: string?, font: love.Font, font_size: number }
 function Label:new(params)
-	self.text = ""
-	Node.new(self, params)
-	self:assert(self.font, "Font expected")
-	self:assert(self.font_size, "Font size expected")
+	Node.new(self)
+	self.text = params.text or ""
+	self.font = assert(params.font, "Expected font, got nil")
+	self.font_size = assert(params.font_size, "Expected font_size, got nil")
 
 	if not default_shader then
 		default_shader = love.graphics.newShader(default_shader_code)
 	end
 
 	self.text_batch = love.graphics.newTextBatch(self.font, self.text)
-	self:setDimensions(self.text_batch:getDimensions())
+	self:updateDimensions()
 end
 
----@param w number
----@param h number
-function Label:setDimensions(w, h)
-	self.scale = self.font_size / Fonts.FontSize
-	Node.setDimensions(self, w * self.scale, h * self.scale)
+function Label:updateDimensions()
+	local w, h = self.text_batch:getDimensions()
+	self.scale = self.font_size / self.font:getHeight()
+	self.layout_box:setDimensions(w * self.scale, h * self.scale)
 end
 
 ---@param text string
@@ -51,7 +50,7 @@ function Label:setText(text)
 	end
 	self.text = text
 	self.text_batch:set(text)
-	self:setDimensions(self.text_batch:getDimensions())
+	self:updateDimensions()
 end
 
 function Label:draw()

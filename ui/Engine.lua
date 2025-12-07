@@ -1,8 +1,8 @@
 local class = require("class")
 local LayoutEngine = require("ui.layout.LayoutEngine")
 local LayoutBox = require("ui.layout.LayoutBox")
-local Renderer = require("ui.nya.Renderer")
-local Node = require("ui.nya.Node")
+local Renderer = require("ui.renderer")
+local Node = require("ui.view.Node")
 local Inputs = require("ui.input.Inputs")
 local TraversalContext = require("ui.input.TraversalContext")
 local HoverEvent = require("ui.input.events.HoverEvent")
@@ -12,12 +12,12 @@ local Axis = LayoutBox.Axis
 local State = Node.State
 require("table.clear")
 
----@class nya.Engine
----@operator call: nya.Engine
----@field layout_invalidation_requesters nya.Node[]
+---@class ui.Engine
+---@operator call: ui.Engine
+---@field layout_invalidation_requesters view.Node[]
 local Engine = class()
 
----@param root nya.Node
+---@param root view.Node
 function Engine:new(root)
 	self.root = root
 	self.delta_time = 0
@@ -42,7 +42,7 @@ function Engine:updateRootDimensions()
 	self.renderer:build(self.root)
 end
 
----@param node nya.Node
+---@param node view.Node
 function Engine:updateNode(node)
 	if node.is_disabled then
 		return
@@ -135,7 +135,7 @@ function Engine:updateTree(dt)
 	local updated_layout_roots = self.layout_engine:updateLayout(self.layout_invalidation_requesters)
 
 	if updated_layout_roots then
-		---@cast updated_layout_roots nya.Node
+		---@cast updated_layout_roots view.Node
 		for node, _ in pairs(updated_layout_roots) do
 			node:updateTreeLayout()
 			node:updateTreeTransform()

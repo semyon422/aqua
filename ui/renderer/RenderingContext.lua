@@ -1,5 +1,5 @@
 local class = require("class")
-local OP = require("ui.nya.Renderer.ops")
+local OP = require("ui.renderer.ops")
 
 ---@class nya.RenderingContext
 ---@operator call: nya.RenderingContext

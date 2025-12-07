@@ -2,17 +2,16 @@ local class = require("class")
 local INode = require("ui.INode")
 local LayoutBox = require("ui.layout.LayoutBox")
 local IInputHandler = require("ui.input.IInputHandler")
-local NodeTransform = require("ui.nya.NodeTransform")
+local Transform = require("ui.Transform")
 
 ---@alias ui.Color [number, number, number, number]
 
----@class nya.Node : ui.INode, ui.HasLayoutBox, ui.IInputHandler
----@operator call: nya.Node
+---@class view.Node : ui.INode, ui.HasLayoutBox, ui.IInputHandler
+---@operator call: view.Node
 ---@field id string?
----@field parent nya.Node
----@field children nya.Node[]
----@field context nya.Context
----@field draw? fun(self: nya.Node)
+---@field parent view.Node
+---@field children view.Node[]
+---@field draw? fun(self: view.Node)
 ---@field style ui.Style?
 local Node = class() + INode + IInputHandler
 
@@ -25,35 +24,11 @@ Node.State = {
 	Killed = 4,
 }
 
---[[
-local x = {}
-
-local PARAMS = {
-	id = x.string().optional(),
-	z = x.number().optional(),
-	is_disabled = x.boolean().optional(),
-	handles_mouse_input = x.boolean().optional(),
-	handles_keyboard_input = x.boolean().optional(),
-
-	draw = x.func().optional(),
-	update = x.func().optional(),
-
-	mouse_over = x.forbidden(),
-	context = x.forbidden(),
-	parent = x.forbidden(),
-	children = x.forbidden(),
-	transform = x.forbidden(),
-	layout_box = x.forbidden(),
-	state = x.forbidden()
-}
-]]
-
 local State = Node.State
 
----@param params {[string]: any}
-function Node:new(params)
+function Node:new()
 	self.layout_box = LayoutBox()
-	self.transform = NodeTransform()
+	self.transform = Transform()
 	self.z = 0
 	self.children = {}
 	self.mouse_over = false
@@ -61,12 +36,6 @@ function Node:new(params)
 	self.handles_keyboard_input = false
 	self.is_disabled = false
 	self.state = State.Created
-
-	if params then
-		for k, v in pairs(params) do
-			self[k] = v
-		end
-	end
 end
 
 function Node:load() end
@@ -77,11 +46,11 @@ function Node:loadComplete() end
 ---@param dt number
 function Node:update(dt) end
 
----@generic T : nya.Node
+---@generic T : view.Node
 ---@param node T
 ---@return T
 function Node:add(node)
-	---@cast node nya.Node
+	---@cast node view.Node
 	local inserted = false
 
 	if #self.children ~= 0 then
@@ -99,7 +68,6 @@ function Node:add(node)
 	end
 
 	node.parent = self
-	node.context = self.context
 	node:load()
 	node.state = State.Loaded
 
@@ -114,7 +82,7 @@ function Node:isMouseOver(mouse_x, mouse_y, imx, imy)
 	return imx >= 0 and imx < self.layout_box.x.size and imy >= 0 and imy < self.layout_box.y.size
 end
 
----@param node nya.Node
+---@param node view.Node
 function Node:remove(node)
 	for i, child in ipairs(self.children) do
 		if child == node then

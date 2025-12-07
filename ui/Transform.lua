@@ -1,6 +1,6 @@
 local class = require("class")
 
----@class nya.NodeTransform
+---@class ui.Transform
 --- Local to this node:
 ---@field x number
 ---@field y number
@@ -20,9 +20,9 @@ local class = require("class")
 ---@field origin_x number In pixels
 ---@field origin_y number In pixels
 ---@field parent_transform love.Transform?
-local NodeTransform = class()
+local Transform = class()
 
-function NodeTransform:new()
+function Transform:new()
 	self.x = 0
 	self.y = 0
 	self.angle = 0
@@ -55,7 +55,7 @@ end
 
 local temp_tf = love.math.newTransform()
 
-function NodeTransform:update()
+function Transform:update()
 	if self.parent_transform then
 		-- The code below doesn't create a new transform, that's good
 		-- But it would have been better if there was Transform:apply(other, reverse_order)
@@ -93,12 +93,12 @@ function NodeTransform:update()
 end
 
 ---@return love.Transform
-function NodeTransform:get()
+function Transform:get()
 	return self.transform
 end
 
 ---@return love.Transform
-function NodeTransform:getInverse()
+function Transform:getInverse()
 	if self.inverse_transform then
 		return self.inverse_transform
 	end
@@ -109,29 +109,46 @@ end
 
 ---@param x number
 ---@param y number
-function NodeTransform:setPosition(x, y)
+function Transform:setPosition(x, y)
 	self.x, self.y = x, y
 	self.invalidated = true
 end
 
 ---@param x number
 ---@param y number
-function NodeTransform:setScale(x, y)
+function Transform:setScale(x, y)
 	self.scale_x, self.scale_y = x, y
 	self.invalidated = true
 end
 
 ---@param x number
 ---@param y number
-function NodeTransform:setShear(x, y)
+function Transform:setShear(x, y)
 	self.shear_x, self.shear_y = x, y
 	self.invalidated = true
 end
 
 ---@param a number
-function NodeTransform:setAngle(a)
+function Transform:setAngle(a)
 	self.angle = a
 	self.invalidated = true
 end
 
-return NodeTransform
+---@param x number
+---@param y number
+---@param angle number
+---@param scale_x number
+---@param scale_y number
+---@param shear_x number
+---@param shear_y number
+function Transform:setEverything(x, y, angle, scale_x, scale_y, shear_x, shear_y)
+	self.x = x
+	self.y = y
+	self.angle = angle
+	self.scale_x = scale_x
+	self.scale_y = scale_y
+	self.shear_x = shear_x
+	self.shear_y = shear_y
+end
+
+return Transform

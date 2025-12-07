@@ -34,9 +34,9 @@ Outline.apply = [[
 	tex_color = border(uv, tex_color);
 ]]
 
-function Outline:new(color, radius)
+function Outline:new(color, thickness)
 	self.color = assert(color, "Color expected")
-	self.radius = assert(radius, "Radius expected")
+	self.thickness = assert(thickness, "Thickness expected")
 	assert(#self.color == 4, "4 values in color expected")
 end
 
@@ -46,7 +46,7 @@ function Outline:addUniforms(data)
 	table.insert(data, self.color[2])
 	table.insert(data, self.color[3])
 	table.insert(data, self.color[4])
-	table.insert(data, self.radius)
+	table.insert(data, self.thickness)
 end
 
 return Outline
