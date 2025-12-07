@@ -18,6 +18,8 @@ local Contrast = require("ui.style.Shader.Contrast")
 local Saturation = require("ui.style.Shader.Saturation")
 local Outline = require("ui.style.Shader.Outline")
 
+require("table.clear")
+
 ---@class core.LuvX
 ---@overload fun(metatable: view.Node, params: {[string]: any}, childen: view.Node[]?): nya.Node
 local LuvX = {}
@@ -305,46 +307,62 @@ LuvX.node_props = {
 	end,
 }
 
----@param metatable view.Node
----@param params ({[string]: any}?) | ({[string]: any}[]?)
----@param children view.Node[]?
+-- Temporary tables
+local params = {}   -- Mixed styles and props
+local children = {} -- Mixed children
+local style_table = {
+	main = {},
+	content_props = {},
+	content_effects = {},
+	backdrop_props = {},
+	backdrop_effects = {}
+}
+
+local leftovers = {} -- Leftover props from styles
+
+---@param element view.Node | function
+---@param ... ...
 ---@return view.Node
-function LuvX.createElement(metatable, params, children)
-	if not params then
-		local instance = metatable()
-		if children then
-			for _, child in ipairs(children) do
-				instance:add(child)
+function LuvX.createElement(element, ...)
+	local instance
+
+	if type(element) == "function" then
+		instance = element()
+	elseif type(element) == "table" and not element.state then
+		instance = element()
+	else
+		instance = element
+	end
+
+	table.clear(params)
+	table.clear(children)
+	table.clear(leftovers)
+
+	for i = 1, select("#", ...) do
+		local t = select(i, ...)
+
+		if t.ClassName then -- is a node
+			table.insert(children, t)
+		else
+			for k, v in pairs(t) do
+				params[k] = v
 			end
+		end
+	end
+
+	if not next(params) then
+		instance:init(leftovers)
+		for _, v in ipairs(children) do
+			instance:add(v)
 		end
 		return instance
 	end
 
-	if #params > 0 then
-		local mixed = {}
-
-		for _, t in ipairs(params) do
-			for k, v in pairs(t) do
-				mixed[k] = v
-			end
-		end
-
-		params = mixed
-	end
-
-	---@cast params {[string]: any}
-
-	local instance = metatable()
-
-	local style_table = {
-		main = {},
-		content_props = {},
-		content_effects = {},
-		backdrop_props = {},
-		backdrop_effects = {}
-	}
-
-	local leftovers = {}
+	table.clear(style_table.main)
+	table.clear(style_table.content_props)
+	table.clear(style_table.content_effects)
+	table.clear(style_table.backdrop_props)
+	table.clear(style_table.backdrop_effects)
 
 	for k, v in pairs(params) do
 		if LuvX.layout_props[k] then
@@ -418,10 +436,8 @@ function LuvX.createElement(metatable, params, children)
 		instance.style = Style(style)
 	end
 
-	if children then
-		for _, child in ipairs(children) do
-			instance:add(child)
-		end
+	for _, child in ipairs(children) do
+		instance:add(child)
 	end
 
 	return instance
