@@ -63,6 +63,14 @@ function TableOrm:query(query, bind_vals)
 	return self.db:query(query, bind_vals)
 end
 
+---@param query string
+---@param bind_vals any[]?
+---@return integer
+function TableOrm:query_count(query, bind_vals)
+	assert(not query:upper():find("^%s*SELECT"), "SELECT queries are not supported")
+	return self.db:exec_count(query, bind_vals)
+end
+
 function TableOrm:begin()
 	self.db:exec("BEGIN")
 end
@@ -141,8 +149,8 @@ end
 ---@param table_name string
 ---@param values_array rdb.Row[]
 ---@param on_duplicate "ignore"|"replace"?
----@return rdb.Row[]
-function TableOrm:insert(table_name, values_array, on_duplicate)
+---@return string, any[]
+function TableOrm:_insert_query(table_name, values_array, on_duplicate)
 	local columns = assert(self:columns(table_name), "no such table: " .. table_name)
 	assert(#values_array > 0, "missing values")
 
@@ -195,18 +203,26 @@ function TableOrm:insert(table_name, values_array, on_duplicate)
 		insert = ("INSERT OR %s"):format(on_duplicate:upper())
 	end
 
-	return self:query(("%s INTO %s %s VALUES %s"):format(
+	return ("%s INTO %s %s VALUES %s"):format(
 		insert,
 		sql_util.escape_identifier(table_name),
 		keys, values_q
-	), query_values)
+	), query_values
+end
+
+---@param table_name string
+---@param values_array rdb.Row[]
+---@param on_duplicate "ignore"|"replace"?
+---@return rdb.Row[]
+function TableOrm:insert(table_name, values_array, on_duplicate)
+	return self:query(self:_insert_query(table_name, values_array, on_duplicate))
 end
 
 ---@param table_name string
 ---@param values rdb.Row
 ---@param conditions rdb.Conditions?
----@return rdb.Row[]
-function TableOrm:update(table_name, values, conditions)
+---@return string?, any[]?
+function TableOrm:_update_query(table_name, values, conditions)
 	local columns = assert(self:columns(table_name), "no such table: " .. table_name)
 
 	---@type {[string]: any}
@@ -219,15 +235,15 @@ function TableOrm:update(table_name, values, conditions)
 		end
 	end
 	if not next(filtered_values) then
-		return {}
+		return nil
 	end
 	local assigns, vals_a = sql_util.assigns(filtered_values)
 
 	if not conditions or not next(conditions) then
-		return self:query(("UPDATE %s SET %s"):format(
+		return ("UPDATE %s SET %s"):format(
 			sql_util.escape_identifier(table_name),
 			assigns
-		), vals_a)
+		), vals_a
 	end
 
 	local conds, vals_b = sql_util.conditions(conditions)
@@ -241,27 +257,46 @@ function TableOrm:update(table_name, values, conditions)
 		table.insert(vals, v)
 	end
 
-	return self:query(("UPDATE %s SET %s WHERE %s"):format(
+	return ("UPDATE %s SET %s WHERE %s"):format(
 		sql_util.escape_identifier(table_name),
 		assigns, conds
-	), vals)
+	), vals
+end
+
+---@param table_name string
+---@param values rdb.Row
+---@param conditions rdb.Conditions?
+---@return rdb.Row[]
+function TableOrm:update(table_name, values, conditions)
+	local query, query_values = self:_update_query(table_name, values, conditions)
+	if not query then
+		return {}
+	end
+	return self:query(query, query_values)
+end
+
+---@param table_name string
+---@param conditions rdb.Conditions?
+---@return string, any[]?
+function TableOrm:_delete_query(table_name, conditions)
+	if not conditions or not next(conditions) then
+		return ("DELETE FROM %s"):format(
+			sql_util.escape_identifier(table_name)
+		)
+	end
+
+	local conds, vals = sql_util.conditions(conditions)
+	return ("DELETE FROM %s WHERE %s"):format(
+		sql_util.escape_identifier(table_name),
+		conds
+	), vals
 end
 
 ---@param table_name string
 ---@param conditions rdb.Conditions?
 ---@return rdb.Row[]
 function TableOrm:delete(table_name, conditions)
-	if not conditions or not next(conditions) then
-		return self:query(("DELETE FROM %s"):format(
-			sql_util.escape_identifier(table_name)
-		))
-	end
-
-	local conds, vals = sql_util.conditions(conditions)
-	return self:query(("DELETE FROM %s WHERE %s"):format(
-		sql_util.escape_identifier(table_name),
-		conds
-	), vals)
+	return self:query(self:_delete_query(table_name, conditions))
 end
 
 ---@param table_name string
@@ -272,6 +307,35 @@ function TableOrm:count(table_name, conditions, options)
 	local opts = table_util.copy(options) or {}
 	opts.format = ("SELECT COUNT(*) as c FROM (%s)"):format(opts.format or "%s")
 	return self:select(table_name, conditions, opts)[1].c
+end
+
+---@param table_name string
+---@param values_array rdb.Row[]
+---@param on_duplicate "ignore"|"replace"?
+---@return integer
+function TableOrm:insert_count(table_name, values_array, on_duplicate)
+	local query, query_values = self:_insert_query(table_name, values_array, on_duplicate)
+	return self:query_count(query, query_values)
+end
+
+---@param table_name string
+---@param values rdb.Row
+---@param conditions rdb.Conditions?
+---@return integer
+function TableOrm:update_count(table_name, values, conditions)
+	local query, query_values = self:_update_query(table_name, values, conditions)
+	if not query then
+		return 0
+	end
+	return self:query_count(query, query_values)
+end
+
+---@param table_name string
+---@param conditions rdb.Conditions?
+---@return integer
+function TableOrm:delete_count(table_name, conditions)
+	local query, query_values = self:_delete_query(table_name, conditions)
+	return self:query_count(query, query_values)
 end
 
 return TableOrm
