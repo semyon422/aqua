@@ -36,6 +36,7 @@ assert(is_error(0ULL - 4))
 
 function lz4f.decompress(s)
 	local dctx = ffi.new("LZ4F_dctx*[1]")
+	---@type integer
 	local status = _lz4.LZ4F_createDecompressionContext(dctx, LZ4F_VERSION)
 	if is_error(status) then
 		print("LZ4F_dctx creation error:", get_error_name(status))
@@ -44,6 +45,8 @@ function lz4f.decompress(s)
 	local dst = ffi.new("uint8_t[?]", outbuff_size)
 
 	local src_ptr = ffi.cast("const char*", s)
+
+	---@type ffi.cdata*
 	local src_end = src_ptr + #s
 
 	local out = {}
@@ -51,15 +54,22 @@ function lz4f.decompress(s)
 	local ret = 1
 	while true do
 		-- while src_ptr < src_end and tonumber(ret) ~= 0 do
+		---@type {[0]: integer}
 		local dst_size = ffi.new("size_t[1]", {outbuff_size})
+		---@type {[0]: integer}
 		local src_size = ffi.new("size_t[1]", {src_end - src_ptr})
+
+		---@type integer
 		ret = _lz4.LZ4F_decompress(dctx[0], dst, dst_size, src_ptr, src_size, nil)
 		if is_error(ret) then
 			print("LZ4F_dctx creation error:", get_error_name(ret))
 		end
+
 		if dst_size[0] > 0 then
 			table.insert(out, ffi.string(dst, dst_size[0]))
 		end
+
+		---@type ffi.cdata*
 		src_ptr = src_ptr + src_size[0]
 		if src_size[0] == 0 and dst_size[0] == 0 then
 			break

@@ -7,6 +7,9 @@ local ExtendedSocket = require("web.socket.ExtendedSocket")
 local Request = require("web.http.Request")
 local Response = require("web.http.Response")
 
+---@diagnostic disable: undefined-doc-name, need-check-nil, param-type-mismatch
+-- TODO: fix
+
 ---@class web.LuasocketServer
 ---@operator call: web.LuasocketServer
 local LuasocketServer = class()

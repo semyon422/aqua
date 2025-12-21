@@ -1,4 +1,5 @@
 local ffi = require("ffi")
+local table_util = require("table_util")
 
 local stbl = {}
 
@@ -36,16 +37,12 @@ encoders["ctype<uint64_t>"] = function(v)
 	return tostring(v)
 end
 
-local keywords = {
+local keywords = table_util.invert({
 	"and", "break", "do", "else", "elseif",
 	"end", "false", "for", "function", "if",
 	"in", "local", "nil", "not", "or",
 	"repeat", "return", "then", "true", "until", "while",
-}
-
-for _, keyword in ipairs(keywords) do
-	keywords[keyword] = true
-end
+})
 
 local function tkey(k)
 	local plain = k:match("^[%l%u_][%w_]*$") and not keywords[k]
@@ -60,6 +57,7 @@ function encoders.table(t, tables, safe)
 		return ("tables[%d]"):format(tables[t])
 	end
 
+	---@type string[]
 	local out = {}
 	tables.count = tables.count + 1
 	tables[t] = tables.count
@@ -68,9 +66,16 @@ function encoders.table(t, tables, safe)
 		return "{}"
 	end
 
+	---@cast t {[any]: any}
+
 	local max_int_key = 0
+
+	---@type number[]
 	local float_keys = {}
+
+	---@type string[]
 	local str_keys = {}
+
 	for k in pairs(t) do
 		if type(k) == "number" then
 			if k > 0 and k % 1 == 0 then
@@ -120,6 +125,7 @@ function stbl.encode(v, tables, safe)
 	if tv == "cdata" then
 		tv = tostring(ffi.typeof(v))
 	end
+	---@type function
 	local encoder = encoders[tv]
 	if not encoder then
 		if safe then

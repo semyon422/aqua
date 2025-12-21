@@ -16,6 +16,7 @@ function ls.iter(path)
 	local pipe = assert(io.popen(cmd:format(path)))
 	local lines = pipe:lines()
 	return function()
+		---@type string
 		local line = lines()
 		if not line then
 			return

@@ -1,5 +1,6 @@
 local bit = require("bit")
 
+---@type integer[]
 local crc32_table = {}
 for i = 1, 0x100 do
 	local crc = i - 1

@@ -2,11 +2,12 @@ local cmath = require("cmath")
 
 local fft = {}
 
----@param sample_count number
----@param sample_rate number
----@param waves table
----@return table
+---@param sample_count integer
+---@param sample_rate integer
+---@param waves {a: number, f: number, p: number}[]
+---@return {[integer]: number}
 function fft.gen_wave(sample_count, sample_rate, waves)
+	---@type {[integer]: number}
 	local wave = {}
 	for i = 0, sample_count - 1 do
 		wave[i] = 0

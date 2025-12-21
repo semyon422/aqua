@@ -22,6 +22,8 @@ local function rotate_left(tree, x)
 	local p = x.parent
 	local y = x.right
 
+	---@cast y -?
+
 	if y.left then
 		y.left.parent = x
 	end
@@ -45,6 +47,8 @@ end
 local function rotate_right(tree, x)
 	local p = x.parent
 	local y = x.left
+
+	---@cast y -?
 
 	if y.right then
 		y.right.parent = x
@@ -80,6 +84,13 @@ local function transplant(tree, x, y)
 	end
 end
 
+---@generic T
+---@param v T?
+---@return T
+local function no_opt(v)
+	return v
+end
+
 ---@param tree rbtree.Tree
 ---@param x rbtree.Node
 local function fix_insert(tree, x)
@@ -90,10 +101,10 @@ local function fix_insert(tree, x)
 				u.color = 0
 				x.parent.color = 0
 				x.parent.parent.color = 1
-				x = x.parent.parent
+				x = no_opt(x.parent.parent)
 			else
 				if x == x.parent.left then
-					x = x.parent
+					x = no_opt(x.parent)
 					rotate_right(tree, x)
 				end
 				x.parent.color = 0
@@ -106,10 +117,10 @@ local function fix_insert(tree, x)
 				u.color = 0
 				x.parent.color = 0
 				x.parent.parent.color = 1
-				x = x.parent.parent
+				x = no_opt(x.parent.parent)
 			else
 				if x == x.parent.right then
-					x = x.parent
+					x = no_opt(x.parent)
 					rotate_left(tree, x)
 				end
 				x.parent.color = 0
@@ -129,15 +140,18 @@ end
 ---@param xp rbtree.Node?
 local function fix_remove(tree, x, xp) -- x may be nil (nil node), xp may be nil (parent of root node)
 	while xp or x ~= tree.root and x.color == 0 do
+		---@cast x -?
 		local p = xp or x.parent
+		---@cast p rbtree.Node
 		xp = nil
 		if x == p.left then
 			local s = p.right
+			---@cast s -?
 			if s.color == 1 then
 				s.color = 0
 				p.color = 1
 				rotate_left(tree, p)
-				s = p.right
+				s = no_opt(p.right)
 			end
 			if (not s.left or s.left.color == 0) and (not s.right or s.right.color == 0) then
 				s.color = 1
@@ -147,7 +161,7 @@ local function fix_remove(tree, x, xp) -- x may be nil (nil node), xp may be nil
 					s.left.color = 0
 					s.color = 1
 					rotate_right(tree, s)
-					s = p.right
+					s = no_opt(p.right)
 				end
 				s.color = p.color
 				p.color = 0
@@ -159,11 +173,12 @@ local function fix_remove(tree, x, xp) -- x may be nil (nil node), xp may be nil
 			end
 		else
 			local s = p.left
+			---@cast s -?
 			if s.color == 1 then
 				s.color = 0
 				p.color = 1
 				rotate_right(tree, p)
-				s = p.left
+				s = no_opt(p.left)
 			end
 			if (not s.left or s.left.color == 0) and (not s.right or s.right.color == 0) then
 				s.color = 1
@@ -173,7 +188,7 @@ local function fix_remove(tree, x, xp) -- x may be nil (nil node), xp may be nil
 					s.right.color = 0
 					s.color = 1
 					rotate_left(tree, s)
-					s = p.left
+					s = no_opt(p.left)
 				end
 				s.color = p.color
 				p.color = 0

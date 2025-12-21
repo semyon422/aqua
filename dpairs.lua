@@ -17,6 +17,8 @@ end
 ---@return fun(table: {[K]: V}, index?: K): K, V
 ---@return T
 local function dpairs(t)
+	---@cast t {[any]: any}
+	---@type {[any]: any}
 	local _t = {}
 	for k in pairs(t) do
 		table.insert(_t, k)

@@ -6,7 +6,7 @@ local mergesort = {}
 ---@param a T[]
 ---@return T[]
 local function copy_array(a)
-	---@type T[]
+	---@type any[]
 	local b = {}
 	for i = 1, #a do
 		b[i] = a[i]

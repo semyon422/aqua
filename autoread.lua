@@ -1,6 +1,6 @@
 local mt = {}
 
----@param t table
+---@param t {[string]: string}
 ---@param k string
 ---@return any?
 function mt.__index(t, k)

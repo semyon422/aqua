@@ -2,6 +2,7 @@ local class = require("class")
 
 ---@class util.RingBuffer
 ---@operator call: util.RingBuffer
+---@field [integer] any
 local RingBuffer = class()
 
 ---@param size number

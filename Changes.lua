@@ -2,6 +2,7 @@ local class = require("class")
 
 ---@class util.Changes
 ---@operator call: util.Changes
+---@field [integer] integer
 local Changes = class()
 
 function Changes:new()
@@ -83,9 +84,10 @@ end
 
 ---@return string
 function Changes:__tostring()
+	---@type string[]
 	local t = {}
 	for i = 1, #self do
-		t[i] = self[i]
+		t[i] = tostring(self[i])
 		if i == self.index then
 			t[i] = ("[%s]"):format(self[i])
 		end

@@ -14,7 +14,10 @@ local shader_code = [[
 	}
 ]]
 
----@return table
+---@class s3dc.Array
+---@field [integer] number
+
+---@return s3dc.Array
 local function identity()
 	return {
 		1, 0, 0, 0,
@@ -24,9 +27,9 @@ local function identity()
 	}
 end
 
----@param out table
----@param a table
----@param b table
+---@param out s3dc.Array
+---@param a s3dc.Array
+---@param b s3dc.Array
 local function cross(out, a, b)
 	local x = a[2] * b[3] - a[3] * b[2]
 	local y = a[3] * b[1] - a[1] * b[3]
@@ -36,8 +39,8 @@ local function cross(out, a, b)
 	out[3] = z
 end
 
----@param out table
----@param a table
+---@param out s3dc.Array
+---@param a s3dc.Array
 ---@param b number
 local function mul(out, a, b)
 	out[1] = a[1] * b
@@ -45,24 +48,28 @@ local function mul(out, a, b)
 	out[3] = a[3] * b
 end
 
----@param out table
----@param a table
----@param b table
+---@param out s3dc.Array
+---@param a s3dc.Array
+---@param b s3dc.Array
 local function add(out, a, b)
 	out[1] = a[1] + b[1]
 	out[2] = a[2] + b[2]
 	out[3] = a[3] + b[3]
 end
 
----@param out table
----@param a table
+---@param out s3dc.Array
+---@param a s3dc.Array
 local function norm(out, a)
 	local k = math.sqrt(a[1] ^ 2 + a[2] ^ 2 + a[3] ^ 2)
 	mul(out, a, k == 0 and 0 or 1 / k)
 end
 
+---@type love.Shader
 local shader
+
+---@type s3dc.Array, s3dc.Array, s3dc.Array, s3dc.Array
 local projection, inv_translate, inv_rotate_y, inv_rotate_x
+
 function s3dc.load()
 	s3dc.pos = {0, 0, 0}
 	s3dc.angle = {pitch = 0, yaw = 0}
@@ -141,7 +148,10 @@ local function from_perspective(fovy, aspect, near, far)
 end
 
 local drawing = false
+
+---@type integer, integer
 local width, height
+
 function s3dc.draw_start()
 	assert(not drawing, "Calling s3dc.draw_start() twice")
 	drawing = true
@@ -195,6 +205,7 @@ function s3dc.rotate(dx, dy)
 	norm(front, front)
 end
 
+---@type s3dc.Array
 local tmp_vec3 = {}
 
 ---@param delta number

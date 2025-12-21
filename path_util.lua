@@ -31,6 +31,7 @@ end
 ---@param lower boolean?
 ---@return string?
 function path_util.ext(name, lower)
+	---@type string?
 	local ext = name:match("^.+%.(.-)$")
 	if ext and lower then
 		ext = ext:lower()

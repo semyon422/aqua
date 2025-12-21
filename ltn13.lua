@@ -21,6 +21,8 @@ end
 ---@param f function?
 ---@return function
 function ltn13.newtry(f)
+	---@param ... any
+	---@return any ...
 	return function(...)
 		local ok, err = ...
 		if ok then return ... end

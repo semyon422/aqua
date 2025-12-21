@@ -1,3 +1,6 @@
+
+---@param x number[]
+---@return number
 local function avg(x)
 	local s = 0
 	for i = 1, #x do
@@ -6,6 +9,8 @@ local function avg(x)
 	return s / #x
 end
 
+---@param x number[]
+---@return number
 local function avg2(x)
 	local s = 0
 	for i = 1, #x do
@@ -14,6 +19,9 @@ local function avg2(x)
 	return s / #x
 end
 
+---@param x number[]
+---@param y number[]
+---@return number
 local function avgp(x, y)
 	local s = 0
 	for i = 1, #x do
@@ -22,6 +30,8 @@ local function avgp(x, y)
 	return s / #x
 end
 
+---@param x number[]
+---@param y number[]
 return function(x, y)
 	local sxy = avgp(x, y)
 	local sx = avg(x)

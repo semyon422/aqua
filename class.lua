@@ -49,6 +49,7 @@ local function type_of_class(T, _T)
 		return type_of_class(T, mt.__index)
 	end
 
+	---@type table, table
 	local p, t = unpack(mt.__indexes)
 	return type_of_class(T, p) or type_of_class(T, t)
 end
@@ -83,6 +84,7 @@ local function class(p, t)
 
 	mt.__indexes = {p, t}
 	function mt.__index(_, k)
+		---@type any, any
 		local a, b = p[k], t[k]
 		if a ~= nil then
 			return a
@@ -93,24 +95,6 @@ local function class(p, t)
 	return setmetatable(T, mt)
 end
 
-local function not_implemented()
-	error("not implemented", 2)
-end
-
-local function inteface_newindex(t, k, v)
-	if type(v) == "function" then
-		rawset(t, k, not_implemented)
-	else
-		rawset(t, k, v)
-	end
-end
-
-local function to_interface(T)
-	local mt = getmetatable(T)
-	mt.__call = not_implemented
-	mt.__newindex = inteface_newindex
-end
-
 -- tests
 
 do
@@ -118,7 +102,7 @@ do
 	assert(is_class(A))
 	assert(not is_instance(A))
 
-	local a = A()
+	local a = A() ---@type any
 	assert(is_instance(a))
 	assert(not is_class(a))
 
@@ -130,10 +114,10 @@ end
 
 do
 	local A = class()
-	local B = A + {}
+	local B = A + {} ---@type any
 
-	local a = A()
-	local b = B()
+	local a = A() ---@type any
+	local b = B() ---@type any
 
 	assert(A / A)
 	assert(A / B)
@@ -150,9 +134,9 @@ do
 	local A = class()
 	local B = class()
 	local C = class()
-	local X = A + B + C
+	local X = A + B + C ---@type any
 
-	local x = X()
+	local x = X() ---@type any
 
 	assert(A / X)
 	assert(B / X)
@@ -169,7 +153,6 @@ end
 local M = {
 	is_class = is_class,
 	is_instance = is_instance,
-	to_interface = to_interface,
 }
 
 setmetatable(M, {__call = class})

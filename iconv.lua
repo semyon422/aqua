@@ -9,6 +9,8 @@ ffi.cdef [[
 
 local libiconv = ffi.load("iconv")
 
+---@class util.Iconv
+---@field cd ffi.cdata*
 local iconv = {}
 iconv.__index = iconv
 
@@ -17,15 +19,20 @@ iconv.__index = iconv
 ---@return table?
 ---@return string?
 function iconv:open(tocode, fromcode)
+	---@type integer
 	local cd = libiconv.libiconv_open(tocode, fromcode)
 
 	if cd == -1 then
 		return nil, "iconv open error"
 	end
 
+	---@cast cd -integer, +ffi.cdata*
+
 	ffi.gc(cd, libiconv.libiconv_close)
 
-	return setmetatable({cd = cd}, self)
+	local obj = setmetatable({cd = cd}, self)
+
+	return obj
 end
 
 function iconv:close()
@@ -36,16 +43,24 @@ end
 
 local outbuff_size = 1024
 local outbuff = ffi.new("char[?]", outbuff_size)
+
+---@type {[0]: ffi.cdata*}
 local outbuff_ptr = ffi.new("char*[1]", outbuff)
+
+---@type {[0]: integer}
 local outbytesleft = ffi.new("size_t[1]", outbuff_size)
 
+---@type {[0]: string}
 local inbuff_ptr = ffi.new("const char*[1]")
+
+---@type {[0]: integer}
 local inbytesleft = ffi.new("size_t[1]")
 
 ---@param instr string
 ---@return string?
 ---@return string?
 function iconv:convert(instr)
+	---@type string[]
 	local out = {}
 
 	inbuff_ptr[0] = instr
@@ -54,6 +69,7 @@ function iconv:convert(instr)
 	local cd = self.cd
 	repeat
 		local inbytesleft0 = inbytesleft[0]
+		---@type integer
 		local ok = libiconv.libiconv(cd, inbuff_ptr, inbytesleft, outbuff_ptr, outbytesleft)
 		-- if ok == -1ull then
 		-- 	print("error", ffi.errno()) -- errno doesn't work
@@ -61,7 +77,7 @@ function iconv:convert(instr)
 		if inbytesleft[0] - inbytesleft0 == 0 and inbytesleft[0] ~= 0 then
 			return nil, "failed"
 		end
-		out[#out + 1] = ffi.string(outbuff, outbuff_size - outbytesleft[0])
+		table.insert(out, ffi.string(outbuff, outbuff_size - outbytesleft[0]))
 		outbuff_ptr[0] = outbuff
 		outbytesleft[0] = outbuff_size
 	until inbytesleft[0] == 0

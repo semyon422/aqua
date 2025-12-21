@@ -1,3 +1,4 @@
+---@diagnostic disable-next-line: different-requires
 local pkg = require("aqua.pkg")
 
 pkg.add()

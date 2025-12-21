@@ -1,6 +1,7 @@
 local class = require("class")
 
 ---@class util.Vec
+---@field [integer] number
 ---@operator call: util.Vec
 ---@operator unm: util.Vec
 ---@operator add: util.Vec
@@ -14,6 +15,7 @@ local Vec = class()
 function Vec:abs2()
 	local sum = 0
 	for i = 1, #self do
+		---@type number
 		sum = sum + self[i] ^ 2
 	end
 	return sum
@@ -26,6 +28,7 @@ end
 
 ---@return util.Vec
 function Vec:copy()
+	---@type number[]
 	local c = {}
 	for i = 1, #self do
 		c[i] = self[i]
@@ -39,6 +42,7 @@ function Vec:norm()
 	if r ~= 0 then
 		return self / r
 	end
+	---@type number[]
 	local c = {}
 	for i = 1, #self do
 		c[i] = 0
@@ -48,6 +52,7 @@ end
 
 ---@return util.Vec
 function Vec:floor()
+	---@type number[]
 	local c = {}
 	for i = 1, #self do
 		c[i] = math.floor(self[i])
@@ -59,12 +64,13 @@ end
 ---@param b util.Vec
 ---@return boolean
 function Vec.__eq(a, b)
-	return (a - b):abs() < 1e-12
+	return (a - b):abs() == 0
 end
 
 ---@param a util.Vec
 ---@return util.Vec
 function Vec.__unm(a)
+	---@type number[]
 	local c = {}
 	for i = 1, #a do
 		c[i] = -a[i]
@@ -76,6 +82,7 @@ end
 ---@param b util.Vec
 ---@return util.Vec
 function Vec.__add(a, b)
+	---@type number[]
 	local c = {}
 	for i = 1, #a do
 		c[i] = a[i] + b[i]
@@ -87,6 +94,7 @@ end
 ---@param b util.Vec
 ---@return util.Vec
 function Vec.__sub(a, b)
+	---@type number[]
 	local c = {}
 	for i = 1, #a do
 		c[i] = a[i] - b[i]
@@ -98,8 +106,10 @@ end
 ---@param b util.Vec
 ---@return util.Vec
 function Vec.__mul(a, b)
+	---@type number[]
 	local c = {}
 	for i = 1, #a do
+		---@type number[]
 		c[i] = a[i] * b
 	end
 	return Vec(c)
@@ -109,8 +119,10 @@ end
 ---@param b util.Vec
 ---@return util.Vec
 function Vec.__div(a, b)
+	---@type util.Vec
 	local c = {}
 	for i = 1, #a do
+		---@type number[]
 		c[i] = a[i] / b
 	end
 	return Vec(c)

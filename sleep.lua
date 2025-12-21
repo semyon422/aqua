@@ -18,6 +18,11 @@ ffi.cdef [[
 	int nanosleep(const struct timespec *__requested_time, struct timespec *__remaining);
 ]]
 
+---@class C.timespec
+---@field tv_sec integer
+---@field tv_nsec integer
+
+---@type {[0]: C.timespec}
 local rt = ffi.new("struct timespec[1]")
 
 ---@param s number

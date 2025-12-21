@@ -9,6 +9,7 @@ ExpireTable.timeout = 1
 ExpireTable.length = 0
 
 function ExpireTable:new()
+	---@type {[any]: {[1]: any, time: number}}
 	self.data = {}
 end
 

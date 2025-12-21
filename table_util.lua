@@ -3,7 +3,7 @@ local table_util = {}
 table_util.new = require("table.new")
 table_util.clear = require("table.clear")
 
----@generic T: {[any]: any}
+---@generic T: table
 ---@param t T
 ---@param keys any[]
 ---@return T
@@ -16,8 +16,8 @@ function table_util.sub(t, keys)
 	return _t
 end
 
----@param a table
----@param b table
+---@param a {[any]: any}
+---@param b {[any]: any}
 ---@return boolean
 function table_util.equal(a, b)
 	local size, _size = 0, 0
@@ -34,8 +34,8 @@ function table_util.equal(a, b)
 	return size == _size
 end
 
----@param a table
----@param b table
+---@param a {[any]: any}
+---@param b {[any]: any}
 ---@return boolean
 function table_util.deepequal(a, b)
 	local size, _size = 0, 0
@@ -85,7 +85,7 @@ assert(not table_util.subequal({a = {1, 2}, 0}, {a = {1, 2}}, {"a"}))
 assert(not table_util.subequal({a = {1, 2}, 0}, {a = {1, 3}}, {"a"}, table_util.deepequal))
 assert(table_util.subequal({a = {1, 2}, 0}, {a = {1, 2}}, {"a"}, table_util.deepequal))
 
----@generic T
+---@generic T: table
 ---@param src T?
 ---@param dst T?
 ---@return T
@@ -93,20 +93,25 @@ function table_util.copy(src, dst)
 	if not src then
 		return {}
 	end
+	---@type {[any]: any}
 	dst = dst or {}
+	---@cast src {[any]: any}
 	for k, v in pairs(src) do
 		dst[k] = v
 	end
 	return dst
 end
 
----@param t table
----@return table
+---@generic T: table
+---@param t T
+---@return T
 function table_util.deepcopy(t)
 	if type(t) ~= "table" then
 		return t
 	end
+	---@type {[any]: any}
 	local out = {}
+	---@cast t {[any]: any}
 	for k, v in pairs(t) do
 		if type(v) == "table" then
 			out[k] = table_util.deepcopy(v)
@@ -117,20 +122,26 @@ function table_util.deepcopy(t)
 	return out
 end
 
----@param new table
----@param old table
----@param new_f function?
----@param old_f function?
----@return table
----@return table
----@return table
+---@generic T
+---@param new T[]
+---@param old T[]
+---@param new_f (fun(v: T): T)?
+---@param old_f (fun(v: T): T)?
+---@return T[]
+---@return T[]
+---@return T[]
 function table_util.array_update(new, old, new_f, old_f)
+	---@cast new any[]
+	---@cast old any[]
+
+	---@type {[any]: true}
 	local _new = {}
 	for _, v in ipairs(new) do
 		if new_f then v = new_f(v) end
 		_new[v] = true
 	end
 
+	---@type {[any]: true}
 	local _old = {}
 	for _, v in ipairs(old) do
 		if old_f then v = old_f(v) end
@@ -161,15 +172,18 @@ end
 ---@return T[]
 ---@return T[]
 function table_util.array_update2(new, old)
+	---@cast new any[]
+	---@cast old any[]
+
 	---@type {[any]: true}
 	local _new = {}
-	for _, v in ipairs(new) do ---@diagnostic disable-line: no-unknown
+	for _, v in ipairs(new) do
 		_new[v] = true
 	end
 
 	---@type {[any]: true}
 	local _old = {}
-	for _, v in ipairs(old) do ---@diagnostic disable-line: no-unknown
+	for _, v in ipairs(old) do
 		_old[v] = true
 	end
 
@@ -193,7 +207,7 @@ function table_util.array_update2(new, old)
 end
 
 ---@param t table
----@param key any?
+---@param key (string|[string, function])[]|string?
 ---@return any?
 function table_util.inside(t, key)
 	local subvalue = t
@@ -219,6 +233,7 @@ function table_util.inside(t, key)
 			if type(subvalue) ~= "table" then
 				return
 			end
+			---@type any
 			subvalue = subvalue[subkey]
 		end
 		return subvalue
@@ -250,10 +265,12 @@ function table_util.pack(...)
 	return {n = select("#", ...), ...}
 end
 
----@param f function
+---@generic T: function
+---@param f T
 ---@param index number?
----@return function
+---@return T
 function table_util.cache(f, index)
+	---@type {[any]: any[]}
 	local cache = {}
 	return function(...)
 		local k = select(index or 1, ...)
@@ -267,11 +284,13 @@ function table_util.cache(f, index)
 	end
 end
 
----@param t table
----@param v any
----@param f function?
+---@generic T
+---@param t T[]
+---@param v T
+---@param f (fun(v: T): T)?
 ---@return number?
 function table_util.indexof(t, v, f)
+	---@cast t any[]
 	for i, _v in ipairs(t) do
 		if not f and _v == v or f and f(_v) == v then
 			return i
@@ -279,26 +298,16 @@ function table_util.indexof(t, v, f)
 	end
 end
 
----@param t table
----@param v any
----@param f function?
----@return any?
+---@generic K, V
+---@param t {[K]: V}
+---@param v V
+---@param f (fun(v: V): V)?
+---@return K?
 function table_util.keyof(t, v, f)
+	---@cast t {[any]: any}
 	for k, _v in pairs(t) do
 		if not f and _v == v or f and f(_v) == v then
 			return k
-		end
-	end
-end
-
----@param t table
----@param k any
----@param v any
----@return any?
-function table_util.value_by_field(t, k, v)
-	for _, _v in pairs(t) do
-		if _v[k] == v then
-			return _v
 		end
 	end
 end
@@ -308,6 +317,8 @@ end
 ---@param t {[K]: V}
 ---@return {[V]: K}
 function table_util.invert(t)
+	---@cast t {[any]: any}
+	---@type {[any]: any}
 	local _t = {}
 	for k, v in pairs(t) do
 		assert(not _t[v], "duplicate value '" .. tostring(v) .. "'")
@@ -316,27 +327,17 @@ function table_util.invert(t)
 	return _t
 end
 
----@generic V
----@param t V[]
----@param append V[]
----@return V[]
+---@generic T
+---@param t T[]
+---@param append T[]
+---@return T[]
 function table_util.append(t, append)
+	---@cast t {[any]: any}
+	---@cast append {[any]: any}
 	for i, v in ipairs(append) do
 		table.insert(t, v)
 	end
 	return t
-end
-
----@param t table
----@return number
-function table_util.max_index(t)
-	local max_i = 0
-	for i in pairs(t) do
-		if type(i) == "number" then
-			max_i = math.max(max_i, i)
-		end
-	end
-	return max_i
 end
 
 ---@param t {[string]: number}
@@ -351,11 +352,18 @@ function table_util.keyofenum(t, v)
 	end
 end
 
+---@class table_util.LinkedNode
+---@field prev table_util.LinkedNode?
+---@field next table_util.LinkedNode?
+
 ---@generic T
 ---@param a T
 ---@param _prev T?
 ---@param _next T?
 function table_util.insert_linked(a, _prev, _next)
+	---@cast a table_util.LinkedNode
+	---@cast _prev table_util.LinkedNode
+	---@cast _next table_util.LinkedNode
 	a.prev, a.next = nil, nil
 	if _prev then
 		_prev.next = a
@@ -372,6 +380,7 @@ end
 ---@return T?
 ---@return T?
 function table_util.remove_linked(a)
+	---@cast a table_util.LinkedNode
 	local prev, next = a.prev, a.next
 	if prev then prev.next = next end
 	if next then next.prev = prev end
@@ -381,15 +390,12 @@ end
 
 ---@generic T
 ---@param t T[]
----@param pk string?
----@param nk string?
 ---@return T
-function table_util.to_linked(t, pk, nk)
-	pk = pk or "prev"
-	nk = nk or "next"
+function table_util.to_linked(t)
+	---@cast t table_util.LinkedNode[]
 	for i = 1, #t do
-		t[i][pk] = t[i - 1]
-		t[i][nk] = t[i + 1]
+		t[i].prev = t[i - 1] ---@diagnostic disable-line: no-unknown
+		t[i].next = t[i + 1] ---@diagnostic disable-line: no-unknown
 	end
 	return t[1]
 end
@@ -397,21 +403,19 @@ end
 ---@generic T
 ---@param head T
 ---@param unlink boolean?
----@param pk string?
----@param nk string?
 ---@return T[]
-function table_util.to_array(head, unlink, pk, nk)
-	pk = pk or "prev"
-	nk = nk or "next"
+function table_util.to_array(head, unlink)
+	---@cast head table_util.LinkedNode
+	---@type any[]
 	local t = {}
 	local i = 0
 	while head do
 		i = i + 1
 		t[i] = head
-		local _next = head[nk]
+		local _next = head.next
 		if unlink then
-			head[pk] = nil
-			head[nk] = nil
+			head.prev = nil
+			head.next = nil
 		end
 		head = _next
 	end
@@ -429,6 +433,7 @@ function table_util.get_or_create(t, k, f, ...)
 	if v then
 		return v
 	end
+	---@type any
 	v = f(...)
 	t[k] = v
 	return v
@@ -488,6 +493,7 @@ assert(table_util.deepequal(
 ---@param t {[T]: any}
 ---@return T[]
 function table_util.keys(t)
+	---@cast t {[any]: any}
 	local keys = {}
 	for k in pairs(t) do
 		table.insert(keys, k)
@@ -550,5 +556,21 @@ end
 
 assert(table_util.equal(table_util.range(3), {1, 2, 3}))
 assert(table_util.equal(table_util.range(2, 4), {2, 3, 4}))
+
+---@generic T
+---@param ... T
+---@return fun(a: T, b: T): boolean
+function table_util.sortby(...)
+	local t = {...}
+	return function(a, b)
+		for i = 1, #t do
+			local ti = t[i]
+			if a[ti] ~= b[ti] then
+				return a[ti] < b[ti]
+			end
+		end
+	end
+end
+
 
 return table_util

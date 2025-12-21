@@ -2,9 +2,11 @@ local time_util = {}
 
 -- https://leafo.net/lapis/reference/utilities.html
 
+-- TODO: rewrite
+
 ---@param later number
 ---@param sooner number
----@return table
+---@return ["years"|"days"|"hours"|"minutes"|"seconds", integer][]
 function time_util.date_diff(later, sooner)
 	if later < sooner then
 		sooner, later = later, sooner
@@ -61,7 +63,6 @@ function time_util.date_diff(later, sooner)
 end
 
 ---@param time number
----@return table
 function time_util.time_ago(time)
 	return time_util.date_diff(os.time(), time)
 end
@@ -85,7 +86,7 @@ function time_util.time_ago_in_words(time, parts, suffix)
 	if not suffix then
 		suffix = "ago"
 	end
-	local ago = type(time) == "table" and time or time_util.time_ago(time)
+	local ago = time_util.time_ago(time)
 	local out = ""
 	local i = 1
 	while parts > 0 do
@@ -123,6 +124,7 @@ function time_util.format(time, decimals)
 	local minutes = math.floor(time % 3600 / 60)
 	local seconds = math.floor(time % 60)
 
+	---@type string
 	local s
 	if time >= 3600 then
 		s = ("%d:%02d:%02d"):format(hours, minutes, seconds)

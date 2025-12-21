@@ -1,5 +1,6 @@
 local ffi = require("ffi")
 
+---@diagnostic disable-next-line: param-type-mismatch
 local complex = ffi.typeof(1i)
 
 local function iscomplex(z) return ffi.istype(complex, z) end
@@ -50,9 +51,15 @@ function mt.__sub(z, c) return complex(z[0] - c[0], z[1] - c[1]) end
 function mt.__mul(z, c) return complex(z[0] * c[0] - z[1] * c[1], z[0] * c[1] + z[1] * c[0]) end
 function mt.__div(z, c) return complex((z[0] * c[0] + z[1] * c[1]) / c:abs2(), (z[1] * c[0] - z[0] * c[1]) / c:abs2()) end
 
-for k, v in pairs(mt) do
-	mt[k] = function(z, c) return v(tocomplex(z), tocomplex(c)) end
+---@generic T: function
+---@param f T
+---@return T
+local function wrap(f)
+	return function(z, c) return f(tocomplex(z), tocomplex(c)) end
 end
+
+---@diagnostic disable-next-line: no-unknown
+for k, v in pairs(mt) do mt[k] = wrap(v) end
 
 function mt.__index(_, key) return cplex[key] end
 function mt.__unm(z) return complex(-z[0], -z[1]) end
