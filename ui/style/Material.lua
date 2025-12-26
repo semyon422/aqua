@@ -1,8 +1,8 @@
 local class = require("class")
 local ShaderBuilder = require("ui.style.ShaderBuilder")
 
----@class ui.Material A.K.A Shader Material
----@operator call: ui.Material
+---@class ui.OldMaterial A.K.A Shader Material
+---@operator call: ui.OldMaterial
 ---@field shader love.Shader?
 local Material = class()
 
