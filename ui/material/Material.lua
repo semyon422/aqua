@@ -19,6 +19,7 @@ end
 ---@param feature ui.IFeature
 ---@param config ui.FeatureConfig
 function Material:set(feature, config)
+	feature.validateConfig(config)
 	self.features[feature] = { config }
 	self.is_dirty = true
 	self.requires_sorting = true
@@ -27,6 +28,7 @@ end
 ---@param feature ui.IFeature
 ---@param config ui.FeatureConfig
 function Material:push(feature, config)
+	feature.validateConfig(config)
 	local configs = self.features[feature] or {}
 	table.insert(configs, config)
 	self.features[feature] = configs
@@ -54,9 +56,7 @@ function Material:getShaderHash()
 	local names = {}
 	for _, feature in ipairs(self.sorted_features) do
 		local configs = self.features[feature]
-		for _, cfg in ipairs(configs) do
-			table.insert(names, feature.getHash(cfg))
-		end
+		table.insert(names, feature.getHash(configs))
 	end
 	return table.concat(names, "+")
 end
@@ -103,6 +103,7 @@ function Material:updateShader()
 			-- TODO: Use fallback shader	
 		else
 			local shader = love.graphics.newShader(code)
+			print(code)
 			self.shader, self.ssbo = shader, createBuffer(shader)
 		end
 	end

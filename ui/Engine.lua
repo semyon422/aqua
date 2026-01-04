@@ -39,7 +39,6 @@ function Engine:updateRootDimensions()
 	self.root.layout_box:setDimensions(ww * s, self.target_height)
 	self.root.transform:setScale(is, is)
 	self.renderer:setViewportScale(is)
-	self.renderer:build(self.root)
 end
 
 ---@param node view.Node
@@ -48,27 +47,24 @@ function Engine:updateNode(node)
 		return
 	end
 
-	if node.state == State.Ready then
+	local state = node.state
+
+	if state == State.Ready then
 		-- Do nothing
-	elseif node.state == State.Loaded then
+	elseif state == State.Loaded then
 		node:loadComplete()
 		node.layout_box:markDirty(Axis.Both)
 		node.state = State.Ready
-		self.rebuild_rendering_context = true
-	elseif node.state == State.Killed then
+	elseif state == State.Killed then
 		node:onKill()
-
 		if node.parent then
 			node.parent.layout_box:markDirty(Axis.Both)
 		end
-
-		self.rebuild_rendering_context = true
-	elseif node.state == State.Created then
+	elseif state == State.Created then
 		node:load()
 		node:loadComplete()
 		node.layout_box:markDirty(Axis.Both)
 		node.state = State.Ready
-		self.rebuild_rendering_context = true
 	end
 
 	if node.handles_mouse_input or node.handles_keyboard_input then
@@ -140,11 +136,6 @@ function Engine:updateTree(dt)
 			node:updateTreeLayout()
 			node:updateTreeTransform()
 		end
-	end
-
-	if self.rebuild_rendering_context then
-		self.renderer:build(self.root)
-		self.rebuild_rendering_context = false
 	end
 end
 

@@ -9,6 +9,11 @@ local IFeature = class()
 IFeature.id = "feature_id"
 IFeature.layer = 1
 
+---@param configs ui.FeatureConfig
+function IFeature.validateConfig(config)
+	error("Not implemented")
+end
+
 ---@param configs ui.FeatureConfig[]
 ---@return string
 function IFeature.getHash(configs)
@@ -29,6 +34,8 @@ function IFeature.tableInsertArray(dest, src)
 	end
 end
 
+---@param config table
+---@param data number[]
 function IFeature.packArrayData(config, data) end
 
 return IFeature

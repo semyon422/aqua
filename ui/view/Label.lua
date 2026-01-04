@@ -9,7 +9,7 @@ local Label = Node + {}
 
 Label.ClassName = "Label"
 
-local default_shader_code = [[
+local shader = love.graphics.newShader([[
 	vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
 		float dist = Texel(tex, uv).a;
 		float edge_width = length(vec2(dFdx(dist), dFdy(dist)));
@@ -18,7 +18,7 @@ local default_shader_code = [[
 		color.a *= opacity;
 		return color;
 	}
-]]
+]])
 
 local default_shader ---@type love.Shader
 
@@ -31,10 +31,6 @@ function Label:init(params)
 	self.font_size = assert(params.font_size, "Expected font_size, got nil")
 	self.text_batch = love.graphics.newTextBatch(self.font, self.text)
 	self:updateDimensions()
-
-	if not default_shader then
-		default_shader = love.graphics.newShader(default_shader_code)
-	end
 end
 
 function Label:updateDimensions()
@@ -54,7 +50,7 @@ function Label:setText(text)
 end
 
 function Label:draw()
-	love.graphics.setShader(love.graphics.getShader() or default_shader)
+	love.graphics.setShader(shader)
 	love.graphics.draw(self.text_batch, 0, 0, 0, self.scale, self.scale)
 end
 

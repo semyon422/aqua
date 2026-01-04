@@ -12,7 +12,6 @@ local Transform = require("ui.Transform")
 ---@field parent view.Node
 ---@field children view.Node[]
 ---@field draw? fun(self: view.Node)
----@field style ui.Style?
 local Node = class() + INode + IInputHandler
 
 Node.ClassName = "Node"
@@ -134,10 +133,6 @@ function Node:updateTreeLayout()
 	tf.parent_transform = parent_tf
 
 	layout_box:markValid()
-
-	if self.style then
-		self.style:setDimensions(layout_box.x.size, layout_box.y.size)
-	end
 
 	for _, child in ipairs(self.children) do
 		child:updateTreeLayout()

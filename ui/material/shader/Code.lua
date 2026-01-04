@@ -37,7 +37,6 @@ local template = [[
 // ==== BUFFER ====
 %s
 
-
 layout(std430) readonly buffer material_buffer {
 	Material _material[];
 };

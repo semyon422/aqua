@@ -2,31 +2,34 @@ local IFeature           = require("ui.material.IFeature")
 local Struct             = require("ui.material.shader.Struct")
 local LinearGradientCode = require("ui.material.LinearGradientCode")
 
----@class ui.BackgroundColor : ui.IFeature
+---@class ui.material.BackgroundColor : ui.IFeature
 local BackgroundColor    = IFeature + {}
 
 BackgroundColor.id       = "background_color"
 BackgroundColor.layer    = 0
 
----@class ui.BackgroundColor.Config
+---@class ui.material.BackgroundColor.Config
 ---@field fill "solid" | "linear_gradient"
 
----@class ui.BackgroundColor.Config.Solid : ui.BackgroundColor.Config
+---@class ui.material.BackgroundColor.Config.Solid : ui.material.BackgroundColor.Config
 ---@field color ui.Color
 
----@class ui.BackgroundColor.Config.Gradient : ui.BackgroundColor.Config
+---@class ui.material.BackgroundColor.Config.Gradient : ui.material.BackgroundColor.Config
 ---@field colors ui.Color[]
 ---@field positions number[]
 ---@field angle number
 
-function BackgroundColor.getConfigTemplate()
-	return {
-		fill = "solid",
-		color = { 1, 1, 1, 1 },
-		colors = {},
-		positions = {},
-		angle = 0
-	}
+---@param configs ui.BackgroundColor.Config[]
+function BackgroundColor.validateConfig(config)
+	config.fill = config.fill or "solid"
+
+	if config.fill == "solid" then
+		config.color = config.color or { 1, 1, 1, 1 }
+	else
+		config.colors = config.colors or {}
+		config.positions = config.positions or {}
+		config.angle = config.angle or 0
+	end
 end
 
 ---@param configs ui.BackgroundColor.Config[]
