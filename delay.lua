@@ -1,10 +1,14 @@
 local delay = {}
 
+---@type {[thread]: number}
 local timers = {}
+
+---@type {[thread]: function}
 local waiters = {}
 
----@type function
-local get_time
+local function get_time()
+	return 0
+end
 
 ---@param f function|table
 function delay.set_timer(f)
@@ -54,7 +58,7 @@ function delay.wait(func)
 	coroutine.yield()
 end
 
----@param object table
+---@param object {[any]: any}
 ---@param key any
 ---@param duration number
 ---@param func function
@@ -62,6 +66,7 @@ end
 ---@return function?
 function delay.debounce(object, key, duration, func, ...)
 	local time = get_time()
+	---@type any
 	local c = object[key]
 	if c then
 		if not timers[c] then

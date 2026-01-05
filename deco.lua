@@ -7,6 +7,8 @@ local deco = {}
 local Decorator = class()
 deco.Decorator = Decorator
 
+---@param line string
+---@return string?
 function Decorator:next(line) end
 
 ---@class deco.FunctionDecorator: deco.Decorator
@@ -15,6 +17,7 @@ function Decorator:next(line) end
 local FunctionDecorator = class(Decorator)
 deco.FunctionDecorator = FunctionDecorator
 
+---@param line string
 function FunctionDecorator:next(line)
 	local matched =
 		line:match("^function ([%w%.:_]+)%(") or
@@ -43,30 +46,39 @@ function deco.read_file(path)
 	error("not implemented")
 end
 
+---@type string[]
 deco.blacklist = {}
 
+---@type deco.Decorator[]
 deco.decorators = {}
 
 function deco.add(f)
 	table.insert(deco.decorators, f)
 end
 
+---@param s string
+---@param p integer
+---@return integer?
+---@return string?
 local function split(s, p)
 	if not p then
 		return
 	end
 	local a, b = s:find("\n", p, true)
 	if not a then
-		return false, s:sub(p)
+		return nil, s:sub(p)
 	end
 	return b + 1, s:sub(p, a - 1)
 end
 
+---@param s string
+---@return string
 function deco.process(s)
 	if #deco.decorators == 0 then
 		return s
 	end
 
+	---@type string[]
 	local lines = {}
 	for _, line in split, s, 1 do
 		local base_line = line
@@ -79,10 +91,11 @@ function deco.process(s)
 		table.insert(lines, line)
 	end
 
-	s = table.concat(lines, "\n")
-	return s
+	return table.concat(lines, "\n")
 end
 
+---@param name string
+---@return function|string
 local function lua_loader(name)
 	name = name:gsub("%.", "/")
 

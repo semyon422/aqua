@@ -9,6 +9,7 @@ local Tree = {}
 local Tree_mt = {__index = Tree}
 
 ---@class rbtree.Node
+---@field key rbtree.Key
 ---@field color 0|1
 ---@field parent rbtree.Node?
 ---@field left rbtree.Node?
