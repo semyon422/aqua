@@ -47,17 +47,18 @@ function Testing:test(file_pattern, method_pattern)
 	for path in tio:iterFiles("") do
 		if path:match("_test%.lua$") and (not file_pattern or path:match(file_pattern)) then
 			tio:writeStdout(path)
+			tio:writeStdout(': ')
 
 			local start_time = tio:getTime()
 			local tmod = tio:dofile(path)
 			if tmod and (not tmod.__check or tmod.__check(self.t)) then
 				local total = self.total
 				self:testMod(tmod, method_pattern)
-				tio:writeStdout((" - %d"):format(self.total - total))
+				tio:writeStdout(("%d"):format(self.total - total))
 			end
 			local dt = tio:getTime() - start_time
 
-			tio:writeStdout((": %0.3fs\n"):format(dt))
+			tio:writeStdout((" - %0.3fs\n"):format(dt))
 		end
 	end
 
