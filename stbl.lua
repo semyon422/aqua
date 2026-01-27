@@ -21,8 +21,30 @@ function encoders.number(v)
 	return ("%.17g"):format(v)
 end
 
-function encoders.string(v)
-	return (("%q"):format(v):gsub("\n", "n"))
+
+local char_escape = {
+	["\\"] = "\\\\",
+	["\a"] = "\\a",
+	["\b"] = "\\b",
+	["\f"] = "\\f",
+	["\n"] = "\\n",
+	["\r"] = "\\r",
+	["\t"] = "\\t",
+	["\v"] = "\\v",
+	["\""] = "\\\"",
+	["\'"] = "\\\'",
+	["\0"] = "\\0",
+}
+
+---@param s string
+---@return string
+function encoders.string(s)
+	-- %c - control characters
+	-- %z - zero byte
+	local res = s:gsub("[%c\\\"\'%z]", function(c)
+		return char_escape[c] or ("\\%03d"):format(c:byte())
+	end)
+	return '"' .. res .. '"'
 end
 
 function encoders.boolean(v)
