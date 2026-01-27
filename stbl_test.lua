@@ -10,11 +10,11 @@ function test.all(t)
 		math.huge,
 		[-math.huge] = 0 / 0,
 		a = "qwe",
-		t = {[2] = {}},
+		t = {[2] = {0ULL, -1LL}},
 		["true"] = false,
 		["\n"] = "\a \b \f \n \r \t \v \\ \" \' \0",
 	}
-	local s = [[{1,2,nil,1/0,[-1/0]=0/0,["\n"]="\a \b \f \n \r \t \v \\ \" \' \0",a="qwe",t={nil,{}},["true"]=false}]]
+	local s = [[{1,2,nil,1/0,[-1/0]=0/0,["\n"]="\a \b \f \n \r \t \v \\ \" \' \0",a="qwe",t={nil,{0ULL,-1LL}},["true"]=false}]]
 
 	t:eq(stbl.encode(tbl), s)
 	t:tdeq(stbl.decode(s), tbl)

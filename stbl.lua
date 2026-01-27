@@ -8,9 +8,11 @@ local stbl = {}
 
 stbl.space = ""
 
-local encoders = {}
+stbl.enc = {}
 
-function encoders.number(v)
+---@param v number
+---@return string
+function stbl.enc.number(v)
 	if v ~= v then
 		return "0/0"
 	elseif v == math.huge then
@@ -20,7 +22,6 @@ function encoders.number(v)
 	end
 	return ("%.17g"):format(v)
 end
-
 
 local char_escape = {
 	["\\"] = "\\\\",
@@ -38,7 +39,7 @@ local char_escape = {
 
 ---@param s string
 ---@return string
-function encoders.string(s)
+function stbl.enc.string(s)
 	-- %c - control characters
 	-- %z - zero byte
 	local res = s:gsub("[%c\\\"\'%z]", function(c)
@@ -47,15 +48,21 @@ function encoders.string(s)
 	return '"' .. res .. '"'
 end
 
-function encoders.boolean(v)
+---@param v boolean
+---@return string
+function stbl.enc.boolean(v)
 	return tostring(v)
 end
 
-encoders["ctype<int64_t>"] = function(v)
+---@param v integer
+---@return string
+stbl.enc["ctype<int64_t>"] = function(v)
 	return tostring(v)
 end
 
-encoders["ctype<uint64_t>"] = function(v)
+---@param v integer
+---@return string
+stbl.enc["ctype<uint64_t>"] = function(v)
 	return tostring(v)
 end
 
@@ -66,15 +73,17 @@ local keywords = table_util.invert({
 	"repeat", "return", "then", "true", "until", "while",
 })
 
-local function tkey(k)
+---@param k string
+---@return string
+function stbl.skey(k)
 	local plain = k:match("^[%l%u_][%w_]*$") and not keywords[k]
-	return plain and k or ("[%s]"):format(encoders.string(k))
+	return plain and k or ("[%s]"):format(stbl.enc.string(k))
 end
 
 ---@param t table
 ---@param tables {[table]: number, count: number}
 ---@param safe boolean?
-function encoders.table(t, tables, safe)
+function stbl.enc.table(t, tables, safe)
 	if tables[t] then
 		return ("tables[%d]"):format(tables[t])
 	end
@@ -129,7 +138,7 @@ function encoders.table(t, tables, safe)
 	end
 
 	for _, k in ipairs(str_keys) do
-		table.insert(out, ("%s%s%s"):format(tkey(k), eq, stbl.encode(t[k], tables, safe)))
+		table.insert(out, ("%s%s%s"):format(stbl.skey(k), eq, stbl.encode(t[k], tables, safe)))
 	end
 
 	return table.concat({"{", table.concat(out, "," .. stbl.space), "}"})
@@ -148,7 +157,7 @@ function stbl.encode(v, tables, safe)
 		tv = tostring(ffi.typeof(v))
 	end
 	---@type function
-	local encoder = encoders[tv]
+	local encoder = stbl.enc[tv]
 	if not encoder then
 		if safe then
 			return ("%q"):format(v)
