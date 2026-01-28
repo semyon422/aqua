@@ -1,10 +1,13 @@
-local ffi = require("ffi")
 local table_util = require("table_util")
 
 local stbl = {}
 
 -- String-TaBLe / STaBLe
 -- simple lua serializer with determined output
+
+---@class stbl.ParseState
+---@field pos integer
+---@field str string
 
 stbl.space = ""
 
@@ -14,11 +17,9 @@ stbl.enc = {}
 ---@return string
 function stbl.enc.number(v)
 	if v ~= v then
-		return "0/0"
-	elseif v == math.huge then
-		return "1/0"
-	elseif v == -math.huge then
-		return "-1/0"
+		error("stbl: NaN not supported")
+	elseif math.abs(v) == math.huge then
+		error("stbl: infinity not supported")
 	end
 	return ("%.17g"):format(v)
 end
@@ -54,18 +55,6 @@ function stbl.enc.boolean(v)
 	return tostring(v)
 end
 
----@param v integer
----@return string
-stbl.enc["ctype<int64_t>"] = function(v)
-	return tostring(v)
-end
-
----@param v integer
----@return string
-stbl.enc["ctype<uint64_t>"] = function(v)
-	return tostring(v)
-end
-
 local keywords = table_util.invert({
 	"and", "break", "do", "else", "elseif",
 	"end", "false", "for", "function", "if",
@@ -81,17 +70,16 @@ function stbl.skey(k)
 end
 
 ---@param t table
----@param tables {[table]: number, count: number}
+---@param tables {[table]: boolean}
 ---@param safe boolean?
 function stbl.enc.table(t, tables, safe)
 	if tables[t] then
-		return ("tables[%d]"):format(tables[t])
+		return "nil"
 	end
 
 	---@type string[]
 	local out = {}
-	tables.count = tables.count + 1
-	tables[t] = tables.count
+	tables[t] = true
 
 	if next(t) == nil then
 		return "{}"
@@ -120,13 +108,14 @@ function stbl.enc.table(t, tables, safe)
 			error("unsupported key type '" .. type(k) .. "'")
 		end
 	end
+
 	table.sort(float_keys)
 	table.sort(str_keys)
 
 	for i = 1, max_int_key do
 		local v = t[i]
 		if v ~= nil then
-			table.insert(out, ("%s"):format(stbl.encode(v, tables, safe)))
+			table.insert(out, stbl.encode(v, tables, safe))
 		else
 			table.insert(out, "nil")
 		end
@@ -141,11 +130,11 @@ function stbl.enc.table(t, tables, safe)
 		table.insert(out, ("%s%s%s"):format(stbl.skey(k), eq, stbl.encode(t[k], tables, safe)))
 	end
 
-	return table.concat({"{", table.concat(out, "," .. stbl.space), "}"})
+	return "{" .. table.concat(out, "," .. stbl.space) .. "}"
 end
 
 ---@param v any
----@param tables {[table]: number, count: number}?
+---@param tables {[table]: boolean}?
 ---@param safe boolean?
 ---@return string
 function stbl.encode(v, tables, safe)
@@ -153,29 +142,147 @@ function stbl.encode(v, tables, safe)
 		return ""
 	end
 	local tv = type(v)
-	if tv == "cdata" then
-		tv = tostring(ffi.typeof(v))
-	end
 	---@type function
 	local encoder = stbl.enc[tv]
 	if not encoder then
-		if safe then
-			return ("%q"):format(v)
-		end
+		if safe then return "nil" end
 		error("unsupported value type '" .. tv .. "'")
 	end
-	tables = tables or {count = 0}
+	tables = tables or {}
 	return encoder(v, tables, safe)
 end
 
----@param v string
----@param chunkname string?
+---@param state stbl.ParseState
+local function skip_whitespace(state)
+	state.pos = state.str:find("%S", state.pos) or state.pos
+end
+
+---@param state stbl.ParseState
 ---@return any
-function stbl.decode(v, chunkname)
-	local env = {}
-	local f = assert(load(("return %s"):format(v), chunkname, "t"))
-	setfenv(f, env)
-	return f()
+local function parse_value(state)
+	skip_whitespace(state)
+	local c = state.str:sub(state.pos, state.pos)
+	if c == "{" then return stbl._parse_table(state) end
+	if c == '"' or c == "'" then return stbl._parse_string(state) end
+	return stbl._parse_literal(state)
+end
+
+local escapes = {
+	a = "\a",
+	b = "\b",
+	f = "\f",
+	n = "\n",
+	r = "\r",
+	t = "\t",
+	v = "\v",
+	["\\"] = "\\",
+	['"'] = '"',
+	["'"] = "'",
+}
+
+---@param state stbl.ParseState
+---@return string
+function stbl._parse_string(state)
+	local quote = state.str:sub(state.pos, state.pos)
+	state.pos = state.pos + 1
+	local buffer = {}
+
+	while state.pos <= #state.str do
+		local c = state.str:sub(state.pos, state.pos)
+
+		if c == "\\" then
+			state.pos = state.pos + 1
+			local next_c = state.str:sub(state.pos, state.pos)
+
+			if escapes[next_c] then
+				table.insert(buffer, escapes[next_c])
+				state.pos = state.pos + 1
+			elseif next_c:match("%d") then
+				local digits = state.str:match("^%d%d?%d?", state.pos)
+				local num = tonumber(digits)
+				---@cast num -?
+				table.insert(buffer, string.char(num))
+				state.pos = state.pos + #digits
+			else
+				table.insert(buffer, "\\") -- fallback
+			end
+		elseif c == quote then
+			state.pos = state.pos + 1
+			return table.concat(buffer)
+		else
+			table.insert(buffer, c)
+			state.pos = state.pos + 1
+		end
+	end
+	error("stbl: unfinished string")
+end
+
+---@param state stbl.ParseState
+---@return any
+function stbl._parse_literal(state)
+	local word = state.str:match("^[%w%.%-%/+]+", state.pos)
+
+	if not word then error("stbl: unexpected character at " .. state.pos) end
+
+	state.pos = state.pos + #word
+
+	if word == "nil" then return nil end
+	if word == "true" then return true end
+	if word == "false" then return false end
+
+	local n = tonumber(word)
+	if not n then error("stbl: invalid literal '" .. word .. "'") end
+	return n
+end
+
+---@param state stbl.ParseState
+---@return table
+function stbl._parse_table(state)
+	---@type {[any]: any}
+	local t = {}
+	state.pos = state.pos + 1
+	local array_idx = 1
+
+	while true do
+		skip_whitespace(state)
+		local c = state.str:sub(state.pos, state.pos)
+
+		if c == "}" then
+			state.pos = state.pos + 1
+			return t
+		end
+
+		---@type any, any
+		local key, val
+		if c == "[" then
+			state.pos = state.pos + 1
+			key = parse_value(state)
+			state.pos = state.str:find("]", state.pos, true) + 1
+			state.pos = state.str:find("=", state.pos, true) + 1
+			val = parse_value(state)
+		elseif state.str:match("^[%l%u_][%w_]*%s*=", state.pos) then
+			key = state.str:match("^([%l%u_][%w_]*)", state.pos)
+			state.pos = state.pos + #key
+			state.pos = state.str:find("=", state.pos, true) + 1
+			val = parse_value(state)
+		else
+			key = array_idx
+			array_idx = array_idx + 1
+			val = parse_value(state)
+		end
+
+		t[key] = val
+
+		skip_whitespace(state)
+		if state.str:sub(state.pos, state.pos) == "," then
+			state.pos = state.pos + 1
+		end
+	end
+end
+
+function stbl.decode(v)
+	if not v or v == "" then return nil end
+	return parse_value({str = v, pos = 1})
 end
 
 return stbl
