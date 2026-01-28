@@ -3,6 +3,31 @@ local stbl = require("stbl")
 ---@overload fun(v: any)
 local pprint = {}
 
+pprint.colored = true
+
+-- https://github.com/fidian/ansi
+---@enum (key) pprint.Color
+local colors = {
+	reset = "\27[0m",
+	bracket = "\27[38;5;230m",
+	key = "\27[38;5;117m",
+	type = "\27[38;5;78m",
+	address = "\27[38;5;244m",
+	number = "\27[38;5;228m",
+	string = "\27[38;5;214m",
+	boolean = "\27[38;5;75m",
+}
+
+---@param color pprint.Color
+---@param text any
+---@return string
+local function c(color, text)
+	if not pprint.colored then
+		return text
+	end
+	return colors[color] .. tostring(text) .. colors.reset
+end
+
 function pprint.export()
 	_G.pprint = pprint
 end
@@ -12,13 +37,6 @@ setmetatable(pprint --[[@as table]], {__call = function(t, v)
 end})
 
 local ARRAY_LIMIT = 10
-
----@param v any
----@return string
-local function get_addr(v)
-	if v == nil then return "nil" end
-	return ("%p"):format(v)
-end
 
 local type_priority = {
 	['boolean'] = 1,
@@ -37,17 +55,10 @@ local function sorter(a, b)
 	local ta, tb = type(a), type(b)
 	local pa, pb = type_priority[ta] or 0, type_priority[tb] or 0
 
-	if pa ~= pb then
-		return pa < pb
-	end
-
-	if ta == 'number' or ta == 'string' then
-		return a < b
-	elseif ta == 'boolean' then
-		return (not a) and b -- false < true
-	else
-		return get_addr(a) < get_addr(b)
-	end
+	if pa ~= pb then return pa < pb end
+	if ta == 'number' or ta == 'string' then return a < b end
+	if ta == 'boolean' then return (not a) and b end
+	return ("%p"):format(a) < ("%p"):format(b)
 end
 
 ---@param t any
@@ -78,46 +89,41 @@ function pprint.dump(value, indent_level, visited)
 		local info = debug.getinfo(value, "S")
 		local src = info and info.short_src or "C"
 		local line = info and info.linedefined or -1
-		return ("<function: %s:%d | %s>"):format(src, line, get_addr(value))
+		return c("address", ("<function: %s:%s | %p>"):format(src, line, value))
 	elseif t == "table" then
 		if visited[value] then
-			return "<table (recursive): " .. get_addr(value) .. ">"
+			return c("address", ("<table (recursive): %p>"):format(value))
 		end
 		visited[value] = true
 
-		local addr = get_addr(value)
 		local mt = getmetatable(value)
 
 		if indent_level > 0 and mt then
-			return ("<table (has mt): %s>"):format(addr)
+			return c("address", ("<table (has mt): %p>"):format(value))
 		end
 
 		if next(value) == nil then
-			return ("<table: %s> {}"):format(addr)
+			return c("address", ("<table: %p> "):format(value)) .. c("bracket", "{}")
 		end
 
 		if is_array(value) then
-			---@cast value any[]
-
-			---@type string[]
 			local parts = {}
 			local len = #value
-
 			if len <= ARRAY_LIMIT + 2 then
-				for i, v in ipairs(value) do
-					table.insert(parts, pprint.dump(v, indent_level + 1, visited))
+				for i = 1, len do
+					table.insert(parts, pprint.dump(value[i], indent_level + 1, visited))
 				end
 			else
 				local half = math.floor(ARRAY_LIMIT / 2)
 				for i = 1, half do
 					table.insert(parts, pprint.dump(value[i], indent_level + 1, visited))
 				end
-				table.insert(parts, ("<%d more>"):format(len - ARRAY_LIMIT))
+				table.insert(parts, c("address", ("<%d more>"):format(len - ARRAY_LIMIT)))
 				for i = len - half + 1, len do
 					table.insert(parts, pprint.dump(value[i], indent_level + 1, visited))
 				end
 			end
-			return ("{%s}"):format(table.concat(parts, ", "))
+			return c("bracket", "{") .. table.concat(parts, ", ") .. c("bracket", "}")
 		end
 
 		---@cast value {[any]: any}
@@ -129,7 +135,7 @@ function pprint.dump(value, indent_level, visited)
 
 		---@type string[]
 		local lines = {}
-		table.insert(lines, ("<table: %s> {"):format(addr))
+		table.insert(lines, c("address", ("<table: %p> "):format(value)) .. c("bracket", "{"))
 
 		for _, k in ipairs(keys) do
 			---@type string
@@ -137,24 +143,33 @@ function pprint.dump(value, indent_level, visited)
 			local kt = type(k)
 
 			if kt == "string" then
-				key_str = stbl.skey(k)
+				if stbl.is_plain_key(k) then
+					key_str = c("key", k)
+				else
+					key_str = c("bracket", "[") .. c("string", stbl.encode(k)) .. c("bracket", "]")
+				end
 			elseif kt == "number" or kt == "boolean" then
-				key_str = ("[%s]"):format(stbl.encode(k))
+				local clr = (kt == "number") and "number" or "boolean"
+				key_str = c("bracket", "[") .. c(clr, stbl.encode(k)) .. c("bracket", "]")
 			else
-				key_str = ("[<%s: %s>]"):format(kt, get_addr(k))
+				key_str = c("bracket", "[") .. c("address", ("<%s: %p>"):format(kt, k)) .. c("bracket", "]")
 			end
 
-			local v = value[k]
-			local val_str = pprint.dump(v, indent_level + 1, visited)
-			table.insert(lines, ("%s  %s = %s,"):format(indent_str, key_str, val_str))
+			local val_str = pprint.dump(value[k], indent_level + 1, visited)
+			table.insert(lines, ("%s  %s = %s%s"):format(indent_str, key_str, val_str, c("bracket", ",")))
 		end
 
-		table.insert(lines, indent_str .. "}")
+		table.insert(lines, indent_str .. c("bracket", "}"))
 		return table.concat(lines, "\n")
 	elseif stbl.enc[t] then
-		return stbl.enc[t](value)
+		---@type any
+		local val = stbl.enc[t](value)
+		if t == "string" then return c("string", val) end
+		if t == "number" then return c("number", val) end
+		if t == "boolean" then return c("boolean", val) end
+		return val
 	else
-		return ("<%s: %s>"):format(t, get_addr(value))
+		return c("address", ("<%s: %p>"):format(t, value))
 	end
 end
 

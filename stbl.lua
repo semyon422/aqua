@@ -63,10 +63,15 @@ local keywords = table_util.invert({
 })
 
 ---@param k string
+---@return boolean
+function stbl.is_plain_key(k)
+	return k:match("^[%l%u_][%w_]*$") and not keywords[k]
+end
+
+---@param k string
 ---@return string
 function stbl.skey(k)
-	local plain = k:match("^[%l%u_][%w_]*$") and not keywords[k]
-	return plain and k or ("[%s]"):format(stbl.enc.string(k))
+	return stbl.is_plain_key(k) and k or ("[%s]"):format(stbl.enc.string(k))
 end
 
 ---@param t table

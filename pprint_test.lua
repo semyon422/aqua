@@ -17,14 +17,18 @@ function test.all(t)
 		["true"] = "true",
 		escape_test = "line 1\nline 2\ttabbed\rreturn",
 		[function() end] = "func key",
+		func = function() end,
 		[{}] = "table key",
 		nested = {a = 1, b = {}},
 		nested_mt = t_with_mt,
 		arr = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14},
 		tbl_arr = {{}, {}, {}},
 	}
+	tbl.ref = tbl
 
+	pprint.colored = false
 	local s = pprint.dump(tbl):gsub("0x[%x]+", "0x0")
+	pprint.colored = true
 
 	t:eq(s, [[
 <table: 0x0> {
@@ -35,11 +39,13 @@ function test.all(t)
   arr = {1, 2, 3, 4, 5, <4 more>, 10, 11, 12, 13, 14},
   ["complex\nkey"] = "val",
   escape_test = "line 1\nline 2\ttabbed\rreturn",
+  func = <function: aqua/pprint_test.lua:20 | 0x0>,
   nested = <table: 0x0> {
     a = 1,
     b = <table: 0x0> {},
   },
   nested_mt = <table (has mt): 0x0>,
+  ref = <table (recursive): 0x0>,
   simple_key = "value",
   tbl_arr = {<table: 0x0> {}, <table: 0x0> {}, <table: 0x0> {}},
   ["true"] = "true",
