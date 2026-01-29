@@ -56,7 +56,8 @@ function RemoteHandler:handle(ctx, path, is_method, ...)
 			if not _wl then
 				error(("attempt to get field '%s' (not whitelisted)"):format(k))
 			end
-			whitelist = _wl
+			---@cast _wl -true
+			whitelist = _wl ---@diagnostic disable-line: no-unknown
 		end
 
 		_self, value, prev_key = value, value[k], k

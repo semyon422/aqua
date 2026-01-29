@@ -18,6 +18,7 @@ function RequestCookie:new(s)
 		return
 	end
 
+	---@diagnostic disable-next-line: no-unknown
 	for k, v in s:gmatch("([^=%s]*)=([^;]*)") do
 		self:set(socket_url.unescape(k), socket_url.unescape(v))
 	end

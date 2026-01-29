@@ -31,7 +31,12 @@ local remote = Remote(task_handler, peer)
 
 task_handler.timeout = 60
 
-function remote_handler.transform(_, ctx, obj, ...)
+---@param ctx icc.IPeerContext
+---@param obj {[any]: any}
+---@param ... any
+---@return table
+---@return any
+function remote_handler:transform(ctx, obj, ...)
 	local _obj = setmetatable({}, {
 		__index = obj,
 		__newindex = function(t, k, v) obj[k] = v end,

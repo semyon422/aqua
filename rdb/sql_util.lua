@@ -116,6 +116,7 @@ local function format_cond(op, k, v, ident)
 	if type(fmt) == "function" then
 		return fmt(k, v)
 	end
+	---@cast fmt -function
 	local has_binds = fmt:find("?") ~= nil
 	if not has_binds and not v then -- *__isnull = false
 		return nil, {}
@@ -139,7 +140,7 @@ function sql_util.conditions(t)
 	local conds = {}
 	local vals = {}
 
-	for k, v in pairs(t) do
+	for k, v in pairs(t --[[@as {[string|table|1]: any}]]) do
 		---@type string?, any[]?
 		local cd, vs
 		if type(k) == "string" then
@@ -216,7 +217,7 @@ function sql_util.conditions_for_db(t, types)
 	if not t then
 		return _t
 	end
-	for k, v in pairs(t) do
+	for k, v in pairs(t --[[@as {[string|table|1]: any}]]) do
 		if type(k) == "string" then
 			local _k, op = k:match("^(.-)__(.+)$")
 			if not _k then

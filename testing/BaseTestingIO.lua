@@ -1,6 +1,7 @@
 local ls = require("ls")
 local ITestingIO = require("testing.ITestingIO")
 
+---@type Socket?
 local socket
 do
 	local ok, err = pcall(require, "socket")

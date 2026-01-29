@@ -19,6 +19,7 @@ function MimeType:new(str)
 	local params = {}
 	self.params = params
 
+	---@diagnostic disable-next-line: no-unknown
 	for param, value in parameters_values:gmatch(";%s*([^;]-)%s*=%s*([^;]+)%s*") do
 		params[param] = value
 	end

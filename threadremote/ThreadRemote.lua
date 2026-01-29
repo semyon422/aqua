@@ -43,6 +43,11 @@ function ThreadRemote:new(id, t)
 
 	self.thread = love.thread.newThread(getCodeString(id))
 
+	---@param ctx icc.IPeerContext
+	---@param obj {[any]: any}
+	---@param ... any
+	---@return table
+	---@return any
 	function self.remote_handler.transform(_, ctx, obj, ...)
 		local _obj = setmetatable({}, {
 			__index = obj,

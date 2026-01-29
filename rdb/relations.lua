@@ -22,6 +22,7 @@ local function preload_relation(model, objects, rel_name)
 	local rel_objs, rel_model
 	if rel.belongs_to then
 		local tbl_name = rel.belongs_to
+		---@cast tbl_name -?
 		rel_model = models[tbl_name]
 		---@type integer[]
 		local rel_ids = {}
@@ -40,6 +41,7 @@ local function preload_relation(model, objects, rel_name)
 		end
 	elseif rel.has_many then
 		local tbl_name = rel.has_many
+		---@cast tbl_name -?
 		rel_model = models[tbl_name]
 		---@type {[integer]: rdb.Row}
 		local objs_map = {}
@@ -64,7 +66,7 @@ local function preload_relation(model, objects, rel_name)
 end
 
 ---@param model rdb.Model
----@param sub_rels {[rdb.PreloadSpec]: rdb.Row[]}
+---@param sub_rels {[rdb.PreloadSpec]: {[integer]: rdb.Row, model: rdb.Model}}
 ---@param objects rdb.Row[]
 ---@param spec rdb.PreloadSpec
 ---@param ... any
@@ -101,7 +103,7 @@ function relations.preload(model, objects, ...)
 	if #objects == 0 then
 		return
 	end
-	---@type {[rdb.PreloadSpec]: rdb.Row[]}
+	---@type {[rdb.PreloadSpec]: {[integer]: rdb.Row, model: rdb.Model}}
 	local sub_rels = {}
 	preload_step(model, sub_rels, objects, ...)
 	for sub_spec, sub_objects in pairs(sub_rels) do
