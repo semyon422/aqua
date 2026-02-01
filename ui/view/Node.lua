@@ -5,6 +5,7 @@ local IInputHandler = require("ui.input.IInputHandler")
 local Transform = require("ui.Transform")
 
 ---@alias ui.Color [number, number, number, number]
+---@alias ui.BlendMode { color: string, alpha: string }
 
 ---@class view.Node : ui.INode, ui.HasLayoutBox, ui.IInputHandler
 ---@operator call: view.Node
@@ -12,6 +13,11 @@ local Transform = require("ui.Transform")
 ---@field parent view.Node
 ---@field children view.Node[]
 ---@field draw? fun(self: view.Node)
+---@field color ui.Color?
+---@field blend_mode ui.BlendMode?
+---@field stencil (fun(self: view.Node) | boolean)?
+---@field draw_to_canvas boolean?
+---@field canvas love.Canvas?
 local Node = class() + INode + IInputHandler
 
 Node.ClassName = "Node"
@@ -38,15 +44,7 @@ function Node:new()
 end
 
 ---@param params {[string]: any}
-function Node:init(params)
-	if not params then
-		return
-	end
-
-	for k, v in pairs(params) do
-		self[k] = v
-	end
-end
+function Node:init(params) end
 
 function Node:load() end
 
@@ -62,6 +60,7 @@ function Node:update(dt) end
 function Node:add(node)
 	---@cast node view.Node
 	local inserted = false
+	node:assert(node.state == State.Created, "Did you forgot to call a base Node:new()?")
 
 	if #self.children ~= 0 then
 		for i, child in ipairs(self.children) do

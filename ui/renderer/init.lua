@@ -1,5 +1,4 @@
 local class = require("class")
-local OP = require("ui.renderer.ops")
 local RenderingContext = require("ui.renderer.RenderingContext")
 
 ---@class nya.Renderer
@@ -7,14 +6,15 @@ local RenderingContext = require("ui.renderer.RenderingContext")
 local Renderer = class()
 
 local lg = love.graphics
+local lg_push = lg.push
+local lg_pop = lg.pop
+local lg_applyTransform = lg.applyTransform
+local lg_setColor = lg.setColor
+local lg_setBlendMode = lg.setBlendMode
 
 function Renderer:new()
 	self.viewport_scale = 1
 	self.pixel = love.graphics.newCanvas(1, 1)
-end
-
----@param root view.Node
-function Renderer:build(root)
 end
 
 ---@param scale number
@@ -27,26 +27,54 @@ function Renderer:setViewportScale(scale)
 	end
 end
 
----@param node view.Node
-local function drawNode(node)
-	lg.push("all")
-	lg.applyTransform(node.transform:get())
-	node:draw()
-	lg.pop()
+---@param root view.Node
+function Renderer:build(root)
+	self.ctx = RenderingContext:build(root)
 end
 
-local function ()
-	
-end
+local canvas_apply = { stencil = true }
 
 function Renderer:draw()
 	self.current_canvas = self.main_canvas
-	lg.setCanvas({ self.current_canvas, stencil = true })
+	canvas_apply[1] = self.current_canvas
+	lg.setCanvas(canvas_apply)
 	lg.clear()
-
-	lg.setCanvas()
 	lg.origin()
 	lg.setColor(1, 1, 1)
+
+	local OP = RenderingContext.Operations
+	local ctx = self.ctx
+	local l = #ctx
+	local i = 1
+	while i <= l do
+		local v = ctx[i]
+
+		if v == OP.PUSH_STATE then
+			lg_push("all")
+			i = i + 1
+		elseif v == OP.POP_STATE then
+			lg_pop()
+			i = i + 1
+		elseif v == OP.DRAW then
+			local node = ctx[i + 1]
+			lg_applyTransform(node.transform:get())
+			node:draw()
+			i = i + 2
+		elseif v == OP.SET_COLOR then
+			lg_setColor(ctx[i + 1])
+			i = i + 2
+		elseif v == OP.SET_BLEND_MODE then
+			lg_setBlendMode(
+				ctx[i + 1],
+				ctx[i + 2]
+			)
+			i = i + 3
+		else
+			error("Unknown operation")
+		end
+	end
+
+	lg.setCanvas()
 	lg.draw(self.main_canvas)
 end
 

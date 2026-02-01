@@ -1,22 +1,12 @@
 local fields = require("ui.luvx.validation")
 
-local Style = require("ui.style.Style")
-local LayoutEnums = require("ui.layout.Enums")
-local SizeMode = LayoutEnums.SizeMode
-local Arrange = LayoutEnums.Arrange
-local JustifyContent = LayoutEnums.JustifyContent
-local AlignItems = LayoutEnums.AlignItems
-local Pivot = LayoutEnums.Pivot
-
-local Label = require("ui.view.Label")
-
 require("table.clear")
 
 ---@class core.LuvX
 ---@overload fun(metatable: view.Node, params: {[string]: any}, childen: view.Node[]?): nya.Node
 local LuvX = {}
 
-LuvX.layout_props = {
+LuvX.props = {
 	---@param node view.Node
 	---@param size number | string
 	width = function(node, size)
@@ -92,8 +82,8 @@ LuvX.layout_props = {
 
 	---@param node view.Node
 	---@param value number
-	flex_grow = function(node, value)
-		node.layout_box.flex_grow = fields.flex_grow(value)
+	grow = function(node, value)
+		node.layout_box.grow = fields.grow(value)
 	end,
 
 	---@param node view.Node
@@ -120,10 +110,8 @@ LuvX.layout_props = {
 		local p = fields.pivot(pivot)
 		node.layout_box.origin = p
 		node.layout_box.anchor = p
-	end
-}
+	end,
 
-LuvX.node_props = {
 	---@param node view.Node
 	---@param id string
 	id = function(node, id)
@@ -146,6 +134,24 @@ LuvX.node_props = {
 	z = function(node, z)
 		node.z = fields.z(z)
 	end,
+
+	---@param node view.Node
+	---@param color ui.Color
+	color = function(node, color)
+		node.color = fields.color(color)
+	end,
+
+	---@param node view.Node
+	---@param v boolean
+	handles_mouse_input = function(node, v)
+		node.handles_mouse_input = fields.handles_mouse_input(v)
+	end,
+
+	---@param node view.Node
+	---@param v boolean
+	handles_keyboard_input = function(node, v)
+		node.handles_keyboard_input = fields.handles_keyboard_input(v)
+	end
 }
 
 -- Temporary tables
@@ -192,10 +198,8 @@ function LuvX.createElement(element, ...)
 	end
 
 	for k, v in pairs(params) do
-		if LuvX.layout_props[k] then
-			LuvX.layout_props[k](instance, v)
-		elseif LuvX.node_props[k] then
-			LuvX.node_props[k](instance, v)
+		if LuvX.props[k] then
+			LuvX.props[k](instance, v)
 		else
 			leftovers[k] = v
 		end

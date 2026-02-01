@@ -214,8 +214,8 @@ end
 
 ---@param v number
 ---@return number
-function validation.flex_grow(v)
-	return number_min_zero(v, "Expected flex_grow to be a number")
+function validation.grow(v)
+	return number_min_zero(v, "Expected grow to be a number")
 end
 
 ---@param v number
@@ -285,6 +285,27 @@ function validation.transform(v)
 	v.kx = asrt_type(v.kx or 0, 0, "number", "Expected transform.kx to be a number")
 	v.ky = asrt_type(v.ky or 0, 0, "number", "Expected transform.ky to be a number")
 	return v
+end
+
+---@param v ui.Color
+---@return ui.Color
+function validation.color(v)
+	if not is_array_of_type(v, "number", 4, "Expected color to be an array of 4 numbers") then
+		return { 1, 1, 1, 1 }
+	end
+	return v
+end
+
+---@param v boolean
+---@return boolean
+function validation.handles_mouse_input(v)
+	return asrt_type(v, false, "boolean", "Expected handles_mouse_input to be a boolean")
+end
+
+---@param v boolean
+---@return boolean
+function validation.handles_keyboard_input(v)
+	return asrt_type(v, false, "boolean", "Expected handles_keyboard_input to be a boolean")
 end
 
 return validation

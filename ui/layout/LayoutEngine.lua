@@ -189,9 +189,9 @@ function LayoutEngine:grow(node, axis_idx)
 		if is_main_axis then
 			available_space = available_space - child_axis.size
 
-			if child.layout_box.flex_grow > 0 then
+			if child.layout_box.grow > 0 then
 				table.insert(self.growables, child)
-				total_grow = total_grow + child.layout_box.flex_grow
+				total_grow = total_grow + child.layout_box.grow
 			end
 		elseif is_cross_axis then
 			local align = child.layout_box.align_self or layout_box.align_items
@@ -204,9 +204,9 @@ function LayoutEngine:grow(node, axis_idx)
 		else
 			-- Absolute
 			-- Will inherit the size of the parent
-			if child.layout_box.flex_grow > 0 then
+			if child.layout_box.grow > 0 and child_axis.mode == SizeMode.Auto then
 				table.insert(self.growables, child)
-				total_grow = total_grow + child.layout_box.flex_grow
+				total_grow = total_grow + child.layout_box.grow
 			end
 		end
 	end
@@ -247,7 +247,7 @@ end
 function LayoutEngine:distributeFlexSpace(children, available_space, total_grow, axis_key)
 	for _, child in ipairs(children) do
 		local child_axis = child.layout_box[axis_key]
-		local grow_factor = child.layout_box.flex_grow / total_grow
+		local grow_factor = child.layout_box.grow / total_grow
 		local add_size = available_space * grow_factor
 		local current_size = child_axis.size
 		local new_size = current_size + add_size

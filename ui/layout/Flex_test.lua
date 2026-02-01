@@ -65,7 +65,7 @@ function test.auto_size(t)
 end
 
 ---@param t testing.T
-function test.flex_grow(t)
+function test.grow(t)
 	local root = new_node()
 	root.layout_box:setWidth(200)
 	root.layout_box:setHeight(100)
@@ -73,11 +73,11 @@ function test.flex_grow(t)
 
 	local c1 = root:add(new_node())
 	c1.layout_box:setWidth(50)
-	c1.layout_box:setFlexGrow(1)
+	c1.layout_box:setGrow(1)
 
 	local c2 = root:add(new_node())
 	c2.layout_box:setWidth(50)
-	c2.layout_box:setFlexGrow(1)
+	c2.layout_box:setGrow(1)
 
 	local engine = LayoutEngine(root)
 	engine:updateLayout(root.children)
@@ -96,12 +96,12 @@ function test.min_max_constraints(t)
 
 	local c1 = root:add(new_node())
 	c1.layout_box:setWidth(50)
-	c1.layout_box:setFlexGrow(1)
+	c1.layout_box:setGrow(1)
 	c1.layout_box:setWidthLimits(0, 80)
 
 	local c2 = root:add(new_node())
 	c2.layout_box:setWidth(50)
-	c2.layout_box:setFlexGrow(1)
+	c2.layout_box:setGrow(1)
 
 	local engine = LayoutEngine(root)
 	engine:updateLayout(root.children)

@@ -1,12 +1,12 @@
-local IFeature           = require("ui.material.IFeature")
-local Struct             = require("ui.material.shader.Struct")
+local IFeature = require("ui.material.IFeature")
+local Struct = require("ui.material.shader.Struct")
 local LinearGradientCode = require("ui.material.LinearGradientCode")
 
 ---@class ui.material.BackgroundColor : ui.IFeature
-local BackgroundColor    = IFeature + {}
+local BackgroundColor = IFeature + {}
 
-BackgroundColor.id       = "background_color"
-BackgroundColor.layer    = 0
+BackgroundColor.id = "background_color"
+BackgroundColor.layer = 0
 
 ---@class ui.material.BackgroundColor.Config
 ---@field fill "solid" | "linear_gradient"

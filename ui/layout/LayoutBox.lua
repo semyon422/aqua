@@ -37,7 +37,7 @@ function LayoutBox:new()
 	self.x = LayoutAxis()
 	self.y = LayoutAxis()
 
-	self.flex_grow = 0
+	self.grow = 0
 	self.origin = Pivot.TopLeft
 	self.anchor = Pivot.TopLeft
 	self.child_gap = 0
@@ -120,8 +120,8 @@ function LayoutBox:setHeightLimits(min_height, max_height)
 end
 
 ---@param grow number
-function LayoutBox:setFlexGrow(grow)
-	self.flex_grow = grow
+function LayoutBox:setGrow(grow)
+	self.grow = grow
 	self:markDirty(Axis.Both)
 end
 

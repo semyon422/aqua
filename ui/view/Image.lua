@@ -5,13 +5,20 @@ local Node = require("ui.view.Node")
 ---@field image love.Image
 local Image = Node + {}
 
+-- Rounded corners SDF
+-- Outline SDF
+-- Grayscale Rec. 709 weights
+-- Pixelate
+-- Chromatic Aberration
+-- Vignette (Highlighing something)
+
 Image.ClassName = "Image"
 
 ---@param params { image: love.Image }
 function Image:init(params)
-	Node.init(self, params)
-	assert(self.image, "Expected image, got nil")
-	self.layout_box:setDimensions(self.image:getDimensions())
+	if params.image then
+		self:setImage(params.image)
+	end
 end
 
 ---@param image love.Image

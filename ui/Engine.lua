@@ -55,16 +55,19 @@ function Engine:updateNode(node)
 		node:loadComplete()
 		node.layout_box:markDirty(Axis.Both)
 		node.state = State.Ready
+		self.rebuild_rendering_context = true
 	elseif state == State.Killed then
 		node:onKill()
 		if node.parent then
 			node.parent.layout_box:markDirty(Axis.Both)
 		end
+		self.rebuild_rendering_context = true
 	elseif state == State.Created then
 		node:load()
 		node:loadComplete()
 		node.layout_box:markDirty(Axis.Both)
 		node.state = State.Ready
+		self.rebuild_rendering_context = true
 	end
 
 	if node.handles_mouse_input or node.handles_keyboard_input then
@@ -137,10 +140,15 @@ function Engine:updateTree(dt)
 			node:updateTreeTransform()
 		end
 	end
+
+	if self.rebuild_rendering_context then
+		self.renderer:build(self.root)
+		self.rebuild_rendering_context = false
+	end
 end
 
 function Engine:drawTree()
-	self.renderer:draw()
+	self.renderer:draw(self.root)
 end
 
 ---@param event { name: string, [number]: any }

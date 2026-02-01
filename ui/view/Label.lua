@@ -7,6 +7,11 @@ local Node = require("ui.view.Node")
 ---@field text string
 local Label = Node + {}
 
+-- Thickness
+-- Outline
+-- Glow
+-- Drop shadow
+
 Label.ClassName = "Label"
 
 local shader = love.graphics.newShader([[
@@ -20,13 +25,9 @@ local shader = love.graphics.newShader([[
 	}
 ]])
 
-local default_shader ---@type love.Shader
-
 ---@param params { text: string?, font: love.Font, font_size: number }
 function Label:init(params)
-	self.text = ""
-	Node.init(self, params)
-
+	self.text = params.text or ""
 	self.font = assert(params.font, "Expected font, got nil")
 	self.font_size = assert(params.font_size, "Expected font_size, got nil")
 	self.text_batch = love.graphics.newTextBatch(self.font, self.text)

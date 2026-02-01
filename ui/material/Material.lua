@@ -103,7 +103,6 @@ function Material:updateShader()
 			-- TODO: Use fallback shader	
 		else
 			local shader = love.graphics.newShader(code)
-			print(code)
 			self.shader, self.ssbo = shader, createBuffer(shader)
 		end
 	end
