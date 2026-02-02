@@ -7,12 +7,36 @@ local Node = require("ui.view.Node")
 ---@field text string
 local Label = Node + {}
 
+---@class view.Label.Setters : view.Node.Setters
+Label.Set = Node.Set + {}
+
+-- TODO:
 -- Thickness
 -- Outline
 -- Glow
 -- Drop shadow
 
-Label.ClassName = "Label"
+---@param label view.Label
+---@param v love.Font
+Label.Set.font = function(label, v)
+	label.font = v
+	label.text_batch_dirty = true
+end
+
+---@param label view.Label
+---@param v number
+Label.Set.font_size = function(label, v)
+	label.font_size = v
+	label.text_batch_dirty = true -- TODO: don't mark it dirty, just update the scale
+end
+
+Label.Set.text = function(label, v)
+	if label.text == v then
+		return
+	end
+	label.text = v
+	label.text_batch_dirty = true
+end
 
 local shader = love.graphics.newShader([[
 	vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
@@ -25,34 +49,42 @@ local shader = love.graphics.newShader([[
 	}
 ]])
 
----@param params { text: string?, font: love.Font, font_size: number }
-function Label:init(params)
-	self.text = params.text or ""
-	self.font = assert(params.font, "Expected font, got nil")
-	self.font_size = assert(params.font_size, "Expected font_size, got nil")
-	self.text_batch = love.graphics.newTextBatch(self.font, self.text)
-	self:updateDimensions()
+function Label:new()
+	Node.new(self)
+	self.text_batch_dirty = false
 end
 
-function Label:updateDimensions()
-	local w, h = self.text_batch:getDimensions()
-	self.scale = self.font_size / self.font:getHeight()
-	self.layout_box:setDimensions(w * self.scale, h * self.scale)
-end
+local function nop() end
 
----@param text string
-function Label:setText(text)
-	if self.text == text then
-		return
-	end
-	self.text = text
-	self.text_batch:set(text)
-	self:updateDimensions()
-end
-
-function Label:draw()
+local function draw(self)
 	love.graphics.setShader(shader)
 	love.graphics.draw(self.text_batch, 0, 0, 0, self.scale, self.scale)
 end
+
+function Label:updateTextBatch()
+	if not self.font or not self.text then
+		self.draw = nop
+		return
+	end
+
+	if self.text_batch then
+		self.text_batch:set(self.text)
+	else
+		self.text_batch = love.graphics.newTextBatch(self.font, self.text)
+	end
+
+	local w, h = self.text_batch:getDimensions()
+	self.scale = self.font_size / self.font:getHeight()
+	self.layout_box:setDimensions(w * self.scale, h * self.scale)
+	self.draw = draw
+	self.text_batch_dirty = false
+end
+
+function Label:update()
+	if self.text_batch_dirty then
+		self:updateTextBatch()
+	end
+end
+
 
 return Label

@@ -108,6 +108,30 @@ function Transform:getInverse()
 end
 
 ---@param x number
+function Transform:setX(x)
+	self.x = x
+	self.invalidated = true
+end
+
+---@param y number
+function Transform:setY(y)
+	self.y = y
+	self.invalidated = true
+end
+
+---@param sx number
+function Transform:setScaleX(sx)
+	self.scale_x = sx
+	self.invalidated = true
+end
+
+---@param sy number
+function Transform:setScaleY(sy)
+	self.scale_y = sy
+	self.invalidated = true
+end
+
+---@param x number
 ---@param y number
 function Transform:setPosition(x, y)
 	self.x, self.y = x, y

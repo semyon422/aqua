@@ -121,7 +121,46 @@ end
 
 ---@param grow number
 function LayoutBox:setGrow(grow)
+	if self.grow == grow then
+		return
+	end
 	self.grow = grow
+	self:markDirty(Axis.Both)
+end
+
+---@param arrange ui.Arrange
+function LayoutBox:setArrange(arrange)
+	if self.arrange == arrange then
+		return
+	end
+	self.arrange = arrange
+	self:markDirty(Axis.Both)
+end
+
+---@param align ui.AlignItems
+function LayoutBox:setAlignItems(align)
+	if self.align_items == align then
+		return
+	end
+	self.align_items = align
+	self:markDirty(Axis.Both)
+end
+
+---@param align ui.AlignItems?
+function LayoutBox:setAlignSelf(align)
+	if self.align_self == align then
+		return
+	end
+	self.align_self = align
+	self:markDirty(Axis.Both)
+end
+
+---@param justify_content ui.JustifyContent
+function LayoutBox:setJustifyContent(justify_content)
+	if self.justify_content	== justify_content then
+		return
+	end
+	self.justify_content = justify_content
 	self:markDirty(Axis.Both)
 end
 

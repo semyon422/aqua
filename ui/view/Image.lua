@@ -12,8 +12,6 @@ local Image = Node + {}
 -- Chromatic Aberration
 -- Vignette (Highlighing something)
 
-Image.ClassName = "Image"
-
 ---@param params { image: love.Image }
 function Image:init(params)
 	if params.image then

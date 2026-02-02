@@ -3,6 +3,7 @@ local INode = require("ui.INode")
 local LayoutBox = require("ui.layout.LayoutBox")
 local IInputHandler = require("ui.input.IInputHandler")
 local Transform = require("ui.Transform")
+local Props = require("ui.view.Node_props")
 
 ---@alias ui.Color [number, number, number, number]
 ---@alias ui.BlendMode { color: string, alpha: string }
@@ -20,7 +21,8 @@ local Transform = require("ui.Transform")
 ---@field canvas love.Canvas?
 local Node = class() + INode + IInputHandler
 
-Node.ClassName = "Node"
+Node.Get = Props.get -- Easier access to fields
+Node.Set = Props.set -- Easier access to fields
 
 Node.State = {
 	Created = 1,
@@ -44,7 +46,15 @@ function Node:new()
 end
 
 ---@param params {[string]: any}
-function Node:init(params) end
+function Node:init(params)
+	for k, v in pairs(params) do
+		local prop = self.Set[k]
+
+		if prop then
+			prop(self, v)
+		end
+	end
+end
 
 function Node:load() end
 
@@ -60,7 +70,7 @@ function Node:update(dt) end
 function Node:add(node)
 	---@cast node view.Node
 	local inserted = false
-	node:assert(node.state == State.Created, "Did you forgot to call a base Node:new()?")
+	assert(node.state == State.Created, "Did you forgot to call a base Node:new()?")
 
 	if #self.children ~= 0 then
 		for i, child in ipairs(self.children) do
@@ -145,22 +155,6 @@ function Node:updateTreeTransform()
 	self.transform:update()
 	for _, v in ipairs(self.children) do
 		v:updateTreeTransform()
-	end
-end
-
----@param message string
-function Node:error(message)
-	message = ("%s :: %s"):format(self.id or self.ClassName or "unnamed", message)
-	if self.parent then
-		self.parent:error(message)
-	else
-		error(message)
-	end
-end
-
-function Node:assert(condition, message)
-	if not condition then
-		self:error(message)
 	end
 end
 
