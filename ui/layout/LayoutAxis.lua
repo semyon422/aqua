@@ -39,4 +39,14 @@ function LayoutAxis:setLimits(min, max)
 	self.max_size = max
 end
 
+---@param min number
+function LayoutAxis:setMin(min)
+	self.min_size = min
+end
+
+---@param max number
+function LayoutAxis:setMax(max)
+	self.max_size = max
+end
+
 return LayoutAxis

@@ -1,6 +1,7 @@
 local class = require("class")
 
 ---@class ui.Transform
+---@operator call: ui.Transform
 --- Local to this node:
 ---@field x number
 ---@field y number
@@ -19,6 +20,8 @@ local class = require("class")
 ---@field layout_y number
 ---@field origin_x number In pixels
 ---@field origin_y number In pixels
+---@field anchor_x number In pixels
+---@field anchor_y number In pixels
 ---@field parent_transform love.Transform?
 local Transform = class()
 

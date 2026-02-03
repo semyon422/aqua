@@ -3,7 +3,13 @@ local INode = require("ui.INode")
 local LayoutBox = require("ui.layout.LayoutBox")
 local IInputHandler = require("ui.input.IInputHandler")
 local Transform = require("ui.Transform")
-local Props = require("ui.view.Node_props")
+
+local LayoutEnums = require("ui.layout.Enums")
+local SizeMode = LayoutEnums.SizeMode
+local Arrange = LayoutEnums.Arrange
+local JustifyContent = LayoutEnums.JustifyContent
+local AlignItems = LayoutEnums.AlignItems
+local Pivot = LayoutEnums.Pivot
 
 ---@alias ui.Color [number, number, number, number]
 ---@alias ui.BlendMode { color: string, alpha: string }
@@ -19,10 +25,9 @@ local Props = require("ui.view.Node_props")
 ---@field stencil (fun(self: view.Node) | boolean)?
 ---@field draw_to_canvas boolean?
 ---@field canvas love.Canvas?
+---@field origin ui.Pivot
+---@field anchor ui.Pivot
 local Node = class() + INode + IInputHandler
-
-Node.Get = Props.get -- Easier access to fields
-Node.Set = Props.set -- Easier access to fields
 
 Node.State = {
 	Created = 1,
@@ -43,15 +48,24 @@ function Node:new()
 	self.handles_keyboard_input = false
 	self.is_disabled = false
 	self.state = State.Created
+	self.origin = Pivot.TopLeft
+	self.anchor = Pivot.TopLeft
 end
 
 ---@param params {[string]: any}
-function Node:init(params)
+--- Takes a table with parameters and applies them using setters
+--- Look at the Node.Setters at the end of the file, only those can be applied
+--- Classes can extend Setters
+function Node:setup(params)
+	assert(params, "No params passed to init(), don't forget to pass them when you override the function")
 	for k, v in pairs(params) do
-		local prop = self.Set[k]
-
-		if prop then
-			prop(self, v)
+		local f = self.Setters[k]
+		if f then
+			if f == true then
+				self[k] = v
+			else
+				f(self, v)
+			end
 		end
 	end
 end
@@ -126,8 +140,9 @@ function Node:updateTreeLayout()
 
 	if self.parent then
 		local plb = self.parent.layout_box
-		x = layout_box.x.pos + layout_box.anchor.x * plb:getLayoutWidth() + plb.x.padding_start
-		y = layout_box.y.pos + layout_box.anchor.y * plb:getLayoutHeight() + plb.y.padding_start
+		-- TODO: Fix ui.Pivot annotations
+		x = layout_box.x.pos + self.anchor.x * plb:getLayoutWidth() + plb.x.padding_start
+		y = layout_box.y.pos + self.anchor.y * plb:getLayoutHeight() + plb.y.padding_start
 		parent_tf = self.parent.transform:get()
 	else
 		x = layout_box.x.pos
@@ -137,8 +152,8 @@ function Node:updateTreeLayout()
 	local tf = self.transform
 	tf.layout_x = x
 	tf.layout_y = y
-	tf.origin_x = layout_box.origin.x * layout_box.x.size
-	tf.origin_y = layout_box.origin.y * layout_box.y.size
+	tf.origin_x = self.origin.x * layout_box.x.size
+	tf.origin_y = self.origin.y * layout_box.y.size
 	tf.parent_transform = parent_tf
 
 	layout_box:markValid()
@@ -157,5 +172,229 @@ function Node:updateTreeTransform()
 		v:updateTreeTransform()
 	end
 end
+
+---@return number
+function Node:getWidth()
+	return self.layout_box.x.preferred_size
+end
+
+---@return number
+function Node:getHeight()
+	return self.layout_box.y.preferred_size
+end
+
+---@return number
+--- Returns an actual width in the layout
+function Node:getCalculatedWidth()
+	return self.layout_box.x.size
+end
+
+---@return number
+--- Returns an actual height in the layout
+function Node:getCalculatedHeight()
+	return self.layout_box.y.size
+end
+
+---@param v "auto" | "fit" | number
+function Node:setWidth(v)
+	if v == "auto" then
+		self.layout_box:setWidthAuto()
+	elseif v == "fit" then
+		self.layout_box:setWidthFit()
+	elseif type(v) == "number" then
+		self.layout_box:setWidth(v)
+	end
+end
+
+---@param v "auto" | "fit" | number
+function Node:setHeight(v)
+	if v == "auto" then
+		self.layout_box:setHeightAuto()
+	elseif v == "fit" then
+		self.layout_box:setHeightFit()
+	elseif type(v) == "number" then
+		self.layout_box:setHeight(v)
+	end
+end
+
+---@param v number
+function Node:setMinWidth(v)
+	self.layout_box:setMinWidth(v)
+end
+
+---@param v number
+function Node:setMaxWidth(v)
+	self.layout_box:setMaxWidth(v)
+end
+
+---@param v number
+function Node:setMinHeight(v)
+	self.layout_box:setMinHeight(v)
+end
+
+---@param v number
+function Node:setMaxHeight(v)
+	self.layout_box:setMaxHeight(v)
+end
+
+---@enum (key) ui.PivotString
+local pivot = {
+	top_left = Pivot.TopLeft,
+	top_center = Pivot.TopCenter,
+	top_right = Pivot.TopRight,
+	center_left = Pivot.CenterLeft,
+	center = Pivot.Center,
+	center_right = Pivot.CenterRight,
+	bottom_left = Pivot.BottomLeft,
+	bottom_center = Pivot.BottomCenter,
+	bottom_right = Pivot.BottomRight
+}
+
+---@param v ui.PivotString
+function Node:setOrigin(v)
+	self.origin = pivot[v]
+	self.transform.invalidated = true
+end
+
+---@param v ui.PivotString
+function Node:setAnchor(v)
+	self.anchor = pivot[v]
+	self.transform.invalidated = true
+end
+
+---@param v ui.PivotString
+function Node:setPivot(v)
+	self.origin = pivot[v]
+	self.anchor = pivot[v]
+	self.transform.invalidated = true
+end
+
+---@param x number
+function Node:setX(x)
+	self.transform:setX(x)
+end
+
+---@param y number
+function Node:setY(y)
+	self.transform:setY(y)
+end
+
+---@param sx number
+function Node:setScaleX(sx)
+	self.transform:setScaleX(sx)
+end
+
+---@param sy number
+function Node:setScaleY(sy)
+	self.transform:setScaleY(sy)
+end
+
+---@param a number
+function Node:setAngle(a)
+	self.transform:setAngle(a)
+end
+
+---@param v "absolute" | "flow_h" | "flow_v"
+function Node:setArrange(v)
+	local arrange = Arrange.Absolute
+
+	if v == "absolute" then
+		arrange = Arrange.Absolute
+	elseif v == "flow_h" then
+		arrange = Arrange.FlowH
+	elseif v == "flow_v" then
+		arrange = Arrange.FlowV
+	end
+
+	self.layout_box:setArrange(arrange)
+end
+
+---@param v number
+function Node:setChildGap(v)
+	self.layout_box:setChildGap(v)
+end
+
+---@param str string
+---@return ui.AlignItems
+local function str_to_align(str)
+	if str == "center" then
+		return AlignItems.Center
+	elseif str == "end" then
+		return AlignItems.End
+	elseif str == "stretch" then
+		return AlignItems.Stretch
+	end
+	return AlignItems.Start
+end
+
+---@param v "start" | "center" | "end" | "stretch"
+function Node:setAlignItems(v)
+	self.layout_box:setAlignItems(str_to_align(v))
+end
+
+---@param v ("start" | "center" | "end" | "stretch")?
+function Node:setAlignSelf(v)
+	if not v then
+		self.layout_box:setAlignSelf(nil)
+		return
+	end
+	self.layout_box:setAlignSelf(str_to_align(v))
+end
+
+---@param v "start" | "center" | "end" | "space_between"
+function Node:setJustifyContent(v)
+	local j = JustifyContent.Start
+	if v == "center" then
+		j = JustifyContent.Center
+	elseif v == "end" then
+		j = JustifyContent.End
+	elseif v == "space_between" then
+		j = JustifyContent.SpaceBetween
+	end
+	self.layout_box:setJustifyContent(j)
+end
+
+---@param v [number, number, number, number]
+function Node:setPaddings(v)
+	self.layout_box:setPaddings(v)
+end
+
+---@param v number
+function Node:setGrow(v)
+	self.layout_box:setGrow(v)
+end
+
+Node.Setters = {
+	width = Node.setWidth,
+	height = Node.setHeight,
+	min_width = Node.setMinWidth,
+	max_width = Node.setMaxWidth,
+	min_height = Node.setMinHeight,
+	max_height = Node.setMaxHeight,
+	origin = Node.setOrigin,
+	anchor = Node.setAnchor,
+	pivot = Node.setPivot,
+	x = Node.setX,
+	y = Node.setY,
+	scale_x = Node.setScaleX,
+	scale_y = Node.setScaleY,
+	angle = Node.setAngle,
+	arrange = Node.setArrange,
+	child_gap = Node.setChildGap,
+	align_items = Node.setAlignItems,
+	align_self = Node.setAlignSelf,
+	jusify_content = Node.setJustifyContent,
+	padding = Node.setPaddings,
+	grow = Node.setGrow,
+	id = true,
+	color = true,
+	z = true,
+	handles_mouse_input = true,
+	handles_keyboard_input = true,
+	is_disabled = true,
+	blend_mode = true,
+	stencil = true,
+	draw_to_canvas = true
+}
 
 return Node

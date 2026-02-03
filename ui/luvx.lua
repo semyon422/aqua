@@ -47,17 +47,7 @@ function LuvX.createElement(element, ...)
 		return instance
 	end
 
-	--[[
-	for k, v in pairs(params) do
-		if LuvX.props[k] then
-			LuvX.props[k](instance, v)
-		else
-			leftovers[k] = v
-		end
-	end
-	]]
-
-	instance:init(params)
+	instance:setup(params)
 
 	for _, child in ipairs(children) do
 		instance:add(child)

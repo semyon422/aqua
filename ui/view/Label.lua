@@ -1,42 +1,17 @@
 local Node = require("ui.view.Node")
 
----@class view.Label : view.Node
----@operator call: view.Label
----@field font love.Font
----@field font_size number
----@field text string
-local Label = Node + {}
-
----@class view.Label.Setters : view.Node.Setters
-Label.Set = Node.Set + {}
-
 -- TODO:
 -- Thickness
 -- Outline
 -- Glow
 -- Drop shadow
 
----@param label view.Label
----@param v love.Font
-Label.Set.font = function(label, v)
-	label.font = v
-	label.text_batch_dirty = true
-end
-
----@param label view.Label
----@param v number
-Label.Set.font_size = function(label, v)
-	label.font_size = v
-	label.text_batch_dirty = true -- TODO: don't mark it dirty, just update the scale
-end
-
-Label.Set.text = function(label, v)
-	if label.text == v then
-		return
-	end
-	label.text = v
-	label.text_batch_dirty = true
-end
+---@class view.Label : view.Node
+---@operator call: view.Label
+---@field font love.Font
+---@field font_size number
+---@field text string
+local Label = Node + {}
 
 local shader = love.graphics.newShader([[
 	vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
@@ -49,21 +24,38 @@ local shader = love.graphics.newShader([[
 	}
 ]])
 
-function Label:new()
-	Node.new(self)
-	self.text_batch_dirty = false
+---@param v love.Font
+function Label:setFont(v)
+	if self.font == v then
+		return
+	end
+	self.font = v
+	self.text_batch_dirty = true
 end
 
-local function nop() end
+---@param v number
+function Label:setFontSize(v)
+	if self.font_size == v then
+		return
+	end
+	self.font_size = v
+	self.text_batch_dirty = true
+end
 
-local function draw(self)
-	love.graphics.setShader(shader)
-	love.graphics.draw(self.text_batch, 0, 0, 0, self.scale, self.scale)
+---@param v string
+function Label:setText(v)
+	if self.text == v then
+		return
+	end
+	self.text = v
+	self.text_batch_dirty = true
 end
 
 function Label:updateTextBatch()
-	if not self.font or not self.text then
-		self.draw = nop
+	self.text_batch_dirty = false
+	self.text = self.text or ""
+
+	if not self.font then
 		return
 	end
 
@@ -76,8 +68,6 @@ function Label:updateTextBatch()
 	local w, h = self.text_batch:getDimensions()
 	self.scale = self.font_size / self.font:getHeight()
 	self.layout_box:setDimensions(w * self.scale, h * self.scale)
-	self.draw = draw
-	self.text_batch_dirty = false
 end
 
 function Label:update()
@@ -86,5 +76,15 @@ function Label:update()
 	end
 end
 
+function Label:draw()
+	love.graphics.setShader(shader)
+	love.graphics.draw(self.text_batch, 0, 0, 0, self.scale, self.scale)
+end
+
+Label.Setters = setmetatable({
+	font = Label.setFont,
+	font_size = Label.setFontSize,
+	text = Label.setText
+}, { __index = Node.Setters })
 
 return Label

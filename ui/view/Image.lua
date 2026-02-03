@@ -12,13 +12,6 @@ local Image = Node + {}
 -- Chromatic Aberration
 -- Vignette (Highlighing something)
 
----@param params { image: love.Image }
-function Image:init(params)
-	if params.image then
-		self:setImage(params.image)
-	end
-end
-
 ---@param image love.Image
 function Image:setImage(image)
 	self.image = image
@@ -28,5 +21,9 @@ end
 function Image:draw()
 	love.graphics.draw(self.image)
 end
+
+Image.Setters = setmetatable({
+	image = Image.setImage
+}, { __index = Node.Setters })
 
 return Image

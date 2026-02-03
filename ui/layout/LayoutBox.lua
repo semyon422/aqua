@@ -11,8 +11,6 @@ local Enums = require("ui.layout.Enums")
 ---@field justify_content ui.JustifyContent
 ---@field align_items ui.AlignItems
 ---@field align_self ui.AlignItems?
----@field origin ui.Pivot
----@field anchor ui.Pivot
 ---@field axis_invalidated ui.Axis
 local LayoutBox = class()
 
@@ -26,7 +24,6 @@ LayoutBox.Axis = Enums.Axis
 LayoutBox.JustifyContent = Enums.JustifyContent
 LayoutBox.AlignItems = Enums.AlignItems
 
-local Pivot = Enums.Pivot
 local SizeMode = Enums.SizeMode
 local Arrange = Enums.Arrange
 local Axis = Enums.Axis
@@ -38,8 +35,6 @@ function LayoutBox:new()
 	self.y = LayoutAxis()
 
 	self.grow = 0
-	self.origin = Pivot.TopLeft
-	self.anchor = Pivot.TopLeft
 	self.child_gap = 0
 	self.arrange = Arrange.Absolute
 	self.justify_content = JustifyContent.Start
@@ -91,10 +86,30 @@ function LayoutBox:setWidth(width)
 	self:markDirty(Axis.X)
 end
 
+function LayoutBox:setWidthAuto()
+	self.x.mode = SizeMode.Auto
+	self:markDirty(Axis.X)
+end
+
+function LayoutBox:setWidthFit()
+	self.x.mode = SizeMode.Fit
+	self:markDirty(Axis.X)
+end
+
 ---@param height number
 function LayoutBox:setHeight(height)
 	self.y:setSize(height)
 	self.y.mode = SizeMode.Fixed
+	self:markDirty(Axis.Y)
+end
+
+function LayoutBox:setHeightAuto()
+	self.y.mode = SizeMode.Auto
+	self:markDirty(Axis.Y)
+end
+
+function LayoutBox:setHeightFit()
+	self.y.mode = SizeMode.Fit
 	self:markDirty(Axis.Y)
 end
 
@@ -112,10 +127,34 @@ function LayoutBox:setWidthLimits(min_width, max_width)
 	self:markDirty(Axis.X)
 end
 
+---@param min number
+function LayoutBox:setMinWidth(min)
+	self.x:setMin(min)
+	self:markDirty(Axis.X)
+end
+
+---@param max number
+function LayoutBox:setMaxWidth(max)
+	self.x:setMax(max)
+	self:markDirty(Axis.X)
+end
+
 ---@param min_height number
 ---@param max_height number
 function LayoutBox:setHeightLimits(min_height, max_height)
 	self.y:setLimits(min_height, max_height)
+	self:markDirty(Axis.Y)
+end
+
+---@param min number
+function LayoutBox:setMinHeight(min)
+	self.y:setMin(min)
+	self:markDirty(Axis.Y)
+end
+
+---@param max number
+function LayoutBox:setMaxHeight(max)
+	self.y:setMax(max)
 	self:markDirty(Axis.Y)
 end
 
@@ -161,6 +200,21 @@ function LayoutBox:setJustifyContent(justify_content)
 		return
 	end
 	self.justify_content = justify_content
+	self:markDirty(Axis.Both)
+end
+
+---@param gap number
+function LayoutBox:setChildGap(gap)
+	self.child_gap = gap
+	self:markDirty(Axis.Both) -- TODO: You only need to mark dirty one of the axies
+end
+
+---@param t [number, number, number, number]
+function LayoutBox:setPaddings(t)
+	self.y.padding_start = t[1]
+	self.x.padding_end = t[2]
+	self.y.padding_end = t[3]
+	self.x.padding_start = t[4]
 	self:markDirty(Axis.Both)
 end
 
