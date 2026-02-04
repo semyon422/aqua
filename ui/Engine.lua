@@ -15,6 +15,7 @@ require("table.clear")
 ---@class ui.Engine
 ---@operator call: ui.Engine
 ---@field layout_invalidation_requesters view.Node[]
+---@field removal_deferred view.Node[]
 local Engine = class()
 
 ---@param root view.Node
@@ -22,6 +23,7 @@ function Engine:new(root)
 	self.root = root
 	self.delta_time = 0
 	self.layout_invalidation_requesters = {}
+	self.removal_deferred = {}
 	self.rebuild_rendering_context = false
 
 	self.layout_engine = LayoutEngine()
@@ -29,7 +31,7 @@ function Engine:new(root)
 	self.inputs = Inputs()
 	self.traversal_context = TraversalContext()
 
-	self.target_height = self.target_height or 768
+	self.target_height = 768
 end
 
 function Engine:updateRootDimensions()
@@ -58,11 +60,9 @@ function Engine:updateNode(node)
 		self.rebuild_rendering_context = true
 	elseif state == State.Killed then
 		node:onKill()
-		if node.parent then
-			node.parent.layout_box:markDirty(Axis.Both)
-		end
-		self.rebuild_rendering_context = true
-	elseif state == State.Created then
+		table.insert(self.removal_deferred, node)
+		return
+	elseif state == State.Created then -- Only the tree root can trigger this
 		node:load()
 		node:loadComplete()
 		node.layout_box:markDirty(Axis.Both)
@@ -130,6 +130,15 @@ function Engine:updateTree(dt)
 	table.clear(self.layout_invalidation_requesters)
 
 	self:updateNode(self.root)
+
+	for _, v in ipairs(self.removal_deferred) do
+		local parent = v.parent
+		if parent then
+			parent:remove(v)
+			parent.layout_box:markDirty(Axis.Both)
+			self.rebuild_rendering_context = true
+		end
+	end
 
 	local updated_layout_roots = self.layout_engine:updateLayout(self.layout_invalidation_requesters)
 
