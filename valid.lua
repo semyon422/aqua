@@ -7,6 +7,22 @@ local valid = {}
 
 ---@alias util.ValidationFunc fun(v: any?): boolean?, string|valid.Errors?
 
+function valid.index(v)
+	if type(v) ~= "number" then
+		return nil, "not a number"
+	elseif v ~= v then
+		return nil, "NaN"
+	elseif math.abs(v) == math.huge then
+		return nil, "infinity"
+	elseif v ~= math.floor(v) then
+		return nil, "not an integer"
+	elseif v < 1 then
+		return nil, "less than one"
+	end
+
+	return true
+end
+
 ---@param schema {[string]: util.ValidationFunc}
 ---@param table_err string?
 ---@return util.ValidationFunc
@@ -64,9 +80,10 @@ function valid.array(f, max_size, table_err)
 		local max_key = 0
 		local count = 0
 		for k, v in pairs(t) do
-			if type(k) ~= "number" or k ~= math.floor(k) or k <= 0 then
+			if not valid.index(k) then
 				errs[k] = false
 			else
+				---@cast k integer
 				local ok, err = f(v)
 				if not ok then
 					errs[k] = err or true
@@ -81,6 +98,53 @@ function valid.array(f, max_size, table_err)
 		elseif count > max_size then
 			return nil, "too long"
 		elseif next(errs) then
+			return nil, errs
+		end
+
+		return true
+	end
+end
+
+---@param fs util.ValidationFunc[]
+---@param table_err string?
+---@return util.ValidationFunc
+function valid.tuple(fs, table_err)
+	---@param t {[any]: any?}?
+	---@return true?
+	---@return string|valid.Errors?
+	return function(t)
+		if type(t) ~= "table" then
+			return nil, table_err
+		end
+		---@cast t {[any]: any}
+
+		---@type valid.Errors
+		local errs = {}
+
+		for k, v in pairs(t) do
+			local f = fs[k]
+			if not valid.index(k) or not f then
+				errs[k] = false
+			else
+				---@cast k integer
+				local ok, err = f(v)
+				if not ok then
+					errs[k] = err or true
+				end
+			end
+		end
+
+		for i, f in ipairs(fs) do
+			local v = t[i]
+			if v == nil then
+				local ok, err = f(v)
+				if not ok then
+					errs[i] = err or true
+				end
+			end
+		end
+
+		if next(errs) then
 			return nil, errs
 		end
 
@@ -127,6 +191,19 @@ function valid.map(kf, vf, max_size, table_err)
 		end
 
 		return true
+	end
+end
+
+---@param values any[]
+---@return util.ValidationFunc
+function valid.one_of(values)
+	return function(v)
+		for i, _v in ipairs(values) do
+			if v == _v then
+				return true
+			end
+		end
+		return nil, "not one of " .. #values .. " values"
 	end
 end
 

@@ -3,6 +3,18 @@ local valid = require("valid")
 local test = {}
 
 ---@param t testing.T
+function test.index(t)
+	t:tdeq({valid.index(1)}, {true})
+	t:tdeq({valid.index(2)}, {true})
+	t:tdeq({valid.index(0)}, {nil, "less than one"})
+	t:tdeq({valid.index(1.5)}, {nil, "not an integer"})
+	t:tdeq({valid.index("1")}, {nil, "not a number"})
+	t:tdeq({valid.index(1 / 0)}, {nil, "infinity"})
+	t:tdeq({valid.index(-1 / 0)}, {nil, "infinity"})
+	t:tdeq({valid.index(0 / 0)}, {nil, "NaN"})
+end
+
+---@param t testing.T
 function test.string_example(t)
 	local function is_string(v)
 		if type(v) == "string" then
@@ -159,7 +171,7 @@ function test.array_no_err_msg(t)
 	local is_array = valid.array(is_string, 2)
 
 	t:tdeq({is_array({"q", "w"})}, {true})
-	t:tdeq({is_array({[1000] = "w"})}, {nil, "sparse"})
+	t:tdeq({is_array({[10] = "w"})}, {nil, "sparse"})
 	t:tdeq({is_array({"q", 2, "e"})}, {nil, "too long"})
 	t:tdeq({is_array({1, 2})}, {nil, {true, true}})
 	t:tdeq({is_array({"1", 2})}, {nil, {nil, true}})
@@ -181,7 +193,7 @@ function test.array(t)
 	local is_array = valid.array(is_string, 2)
 
 	t:tdeq({is_array({"q", "w"})}, {true})
-	t:tdeq({is_array({[1000] = "w"})}, {nil, "sparse"})
+	t:tdeq({is_array({[10] = "w"})}, {nil, "sparse"})
 	t:tdeq({is_array({"q", 2, "e"})}, {nil, "too long"})
 	t:tdeq({is_array({1, 2})}, {nil, {"not a string", "not a string"}})
 	t:tdeq({is_array({"1", 2})}, {nil, {nil, "not a string"}})
@@ -189,6 +201,49 @@ function test.array(t)
 
 	is_array = valid.array(valid.struct({name = is_string}), 2)
 	t:tdeq({is_array({{name = 1}, 2})}, {nil, {{name = "not a string"}, true}})
+end
+
+---@param t testing.T
+function test.tuple(t)
+	local function is_string(v)
+		if type(v) == "string" then
+			return true
+		end
+		return nil, "not a string"
+	end
+
+	local is_tuple = valid.tuple({is_string, is_string})
+
+	t:tdeq({is_tuple({"q", "w"})}, {true})
+	t:tdeq({is_tuple({[10] = "w"})}, {nil, {"not a string", "not a string", [10] = false}})
+	t:tdeq({is_tuple({"q", 2, "e"})}, {nil, {nil, "not a string", false}})
+	t:tdeq({is_tuple({"q"})}, {nil, {nil, "not a string"}})
+	t:tdeq({is_tuple({1, 2})}, {nil, {"not a string", "not a string"}})
+	t:tdeq({is_tuple({"1", 2})}, {nil, {nil, "not a string"}})
+	t:tdeq({is_tuple({1, k = 2})}, {nil, {"not a string", "not a string", k = false}})
+	t:tdeq({is_tuple({"q", 2, k = 2})}, {nil, {nil, "not a string", k = false}})
+end
+
+---@param t testing.T
+function test.tuple_with_optionals(t)
+	local function is_string(v)
+		if type(v) == "string" then
+			return true
+		end
+		return nil, "not a string"
+	end
+	is_string = valid.optional(is_string)
+
+	local is_tuple = valid.tuple({is_string, is_string})
+
+	t:tdeq({is_tuple({"q", "w"})}, {true})
+	t:tdeq({is_tuple({[10] = "w"})}, {nil, {[10] = false}})
+	t:tdeq({is_tuple({"q", 2, "e"})}, {nil, {nil, "not a string", false}})
+	t:tdeq({is_tuple({"q"})}, {true})
+	t:tdeq({is_tuple({1, 2})}, {nil, {"not a string", "not a string"}})
+	t:tdeq({is_tuple({"1", 2})}, {nil, {nil, "not a string"}})
+	t:tdeq({is_tuple({1, k = 2})}, {nil, {"not a string", nil, k = false}})
+	t:tdeq({is_tuple({"q", 2, k = 2})}, {nil, {nil, "not a string", k = false}})
 end
 
 ---@param t testing.T
@@ -233,6 +288,15 @@ function test.map(t)
 	t:tdeq({is_string_number_map({a = "b"})}, {nil, {a = "not a number"}})
 	t:tdeq({is_string_number_map({[1] = 1})}, {nil, {"not a string"}})
 	t:tdeq({is_string_number_map({[1] = "a"})}, {nil, {"not a string"}})
+end
+
+---@param t testing.T
+function test.one_of(t)
+	local one_of = valid.one_of({1, "q", true})
+	t:tdeq({one_of(1)}, {true})
+	t:tdeq({one_of("q")}, {true})
+	t:tdeq({one_of(false)}, {nil, "not one of 3 values"})
+	t:tdeq({one_of("w")}, {nil, "not one of 3 values"})
 end
 
 ---@param t testing.T
