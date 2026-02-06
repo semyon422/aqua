@@ -122,7 +122,10 @@ function Test:expected_assert(cond, got, expected, level)
 	got = format_got_expected(got)
 	expected = format_got_expected(expected)
 
-	local colored_expected, colored_got = get_dual_diff(tostring(expected), tostring(got))
+	local colored_expected, colored_got = tostring(expected), tostring(got)
+	if #colored_expected * #colored_got <= 1e5 then
+		colored_expected, colored_got = get_dual_diff(tostring(colored_expected), tostring(colored_got))
+	end
 
 	---@type string[]
 	local out = {}
