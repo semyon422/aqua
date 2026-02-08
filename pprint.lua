@@ -162,6 +162,13 @@ function pprint.dump(value, indent_level, visited)
 		table.insert(lines, indent_str .. c("bracket", "}"))
 		return table.concat(lines, "\n")
 	elseif stbl.enc[t] then
+		if t == "number" then
+			if value == math.huge then return c("number", "math.huge")
+			elseif value == -math.huge then return c("number", "-math.huge")
+			elseif value ~= value then return c("number", "NaN")
+			end
+		end
+
 		---@type any
 		local val = stbl.enc[t](value)
 		if t == "string" then return c("string", val) end
