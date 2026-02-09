@@ -5,7 +5,6 @@ local IInputHandler = require("ui.input.IInputHandler")
 local Transform = require("ui.Transform")
 
 local LayoutEnums = require("ui.layout.Enums")
-local SizeMode = LayoutEnums.SizeMode
 local Arrange = LayoutEnums.Arrange
 local JustifyContent = LayoutEnums.JustifyContent
 local AlignItems = LayoutEnums.AlignItems
@@ -27,10 +26,13 @@ local Pivot = LayoutEnums.Pivot
 ---@field canvas love.Canvas?
 ---@field origin ui.Pivot
 ---@field anchor ui.Pivot
+---@field scheduler ui.Scheduler
+---@field inputs ui.Inputs
+---@field mounted boolean Is the node inside a main tree?
 local Node = class() + INode + IInputHandler
 
 Node.State = {
-	Created = 1,
+	AwaitsMount = 1,
 	Loaded = 2,
 	Ready = 3,
 	Killed = 4,
@@ -47,15 +49,15 @@ function Node:new()
 	self.handles_mouse_input = false
 	self.handles_keyboard_input = false
 	self.is_disabled = false
-	self.state = State.Created
+	self.state = State.AwaitsMount
 	self.origin = Pivot.TopLeft
 	self.anchor = Pivot.TopLeft
 end
 
----@param params {[string]: any}
 --- Takes a table with parameters and applies them using setters
 --- Look at the Node.Setters at the end of the file, only those can be applied
 --- Classes can extend Setters
+---@param params {[string]: any}
 function Node:setup(params)
 	assert(params, "No params passed to init(), don't forget to pass them when you override the function")
 	for k, v in pairs(params) do
@@ -70,6 +72,21 @@ function Node:setup(params)
 	end
 end
 
+---@param inputs ui.Inputs
+--- Mounts the node and the entire branch to the main tree.
+--- This gives every node all required dependencies and loads them.
+function Node:mount(inputs)
+	self.inputs = inputs
+	self:load()
+	self.state = State.Loaded
+
+	for _, v in ipairs(self.children) do
+		if v.state == State.AwaitsMount then
+			v:mount(self.inputs)
+		end
+	end
+end
+
 function Node:load() end
 
 --- Will be called once right before the update method after the node was loaded
@@ -80,19 +97,18 @@ function Node:update(dt) end
 
 ---@generic T : view.Node
 ---@param node T
+---@param params {[string]: any}? Passes parameters to Node:setup()
 ---@return T
-function Node:add(node)
+function Node:add(node, params)
 	---@cast node view.Node
 	local inserted = false
-	assert(node.state == State.Created, "Did you forgot to call a base Node:new()?")
+	assert(node.state ~= nil, "Did you forgot to call a base Node:new()?")
 
-	if #self.children ~= 0 then
-		for i, child in ipairs(self.children) do
-			if node.z < child.z then
-				table.insert(self.children, i, node)
-				inserted = true
-				break
-			end
+	for i, child in ipairs(self.children) do
+		if node.z < child.z then
+			table.insert(self.children, i, node)
+			inserted = true
+			break
 		end
 	end
 
@@ -101,8 +117,14 @@ function Node:add(node)
 	end
 
 	node.parent = self
-	node:load()
-	node.state = State.Loaded
+
+	if params then
+		node:setup(params)
+	end
+
+	if self.state ~= State.AwaitsMount then
+		node:mount(self.inputs)
+	end
 
 	return node
 end
@@ -394,7 +416,10 @@ Node.Setters = {
 	is_disabled = true,
 	blend_mode = true,
 	stencil = true,
-	draw_to_canvas = true
+	draw_to_canvas = true,
+
+	-- Events
+	onKeyDown = true,
 }
 
 return Node

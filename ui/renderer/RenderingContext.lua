@@ -31,7 +31,7 @@ local function traverseTree(node, ctx)
 		insert(ctx, OP.PUSH_STATE)
 		if node.color then
 			insert(ctx, OP.SET_COLOR)
-			insert(ctx, node.color)
+			insert(ctx, node)
 		end
 
 		if node.blend_mode then

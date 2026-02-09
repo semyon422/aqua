@@ -26,25 +26,31 @@ function LayoutEngine:new()
 	self.growables = {}
 end
 
+local frame = 0
+
 ---@param dirty_nodes ui.LayoutEngine.Node[]
 ---@return {[ui.LayoutEngine.Node]: boolean}? updated_layout_roots
 function LayoutEngine:updateLayout(dirty_nodes)
+	frame = frame + 1
+
 	if #dirty_nodes == 0 then
 		return
 	end
+
+	local s = love.timer.getTime()
 
 	---@type {[ui.LayoutEngine.Node]: boolean}
 	local layout_roots = {}
 
 	for _, v in ipairs(dirty_nodes) do
-		if not v.parent then -- Reached the root
-			layout_roots = {}
-			layout_roots[v] = true
-			break
-		end
-
 		local node = self:findLayoutBoundary(v, v.layout_box.axis_invalidated)
 		layout_roots[node] = true
+
+		if not node.parent then -- Reached the root
+			layout_roots = {}
+			layout_roots[node] = true
+			break
+		end
 	end
 
 	for node, _ in pairs(layout_roots) do
@@ -63,6 +69,8 @@ function LayoutEngine:updateLayout(dirty_nodes)
 		local target = node.parent and node.parent or node
 		self:arrangeChildren(target)
 	end
+
+	print(("[LAYOUT] frame: %i took: %0.02f MS"):format(frame, (love.timer.getTime() - s) * 1000))
 
 	return layout_roots
 end

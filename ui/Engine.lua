@@ -18,9 +18,7 @@ require("table.clear")
 ---@field removal_deferred view.Node[]
 local Engine = class()
 
----@param root view.Node
-function Engine:new(root)
-	self.root = root
+function Engine:new()
 	self.delta_time = 0
 	self.layout_invalidation_requesters = {}
 	self.removal_deferred = {}
@@ -32,6 +30,13 @@ function Engine:new(root)
 	self.traversal_context = TraversalContext()
 
 	self.target_height = 768
+end
+
+---@param root view.Node
+function Engine:setRoot(root)
+	self.root = root
+	root:mount(self.inputs)
+	self:updateRootDimensions()
 end
 
 function Engine:updateRootDimensions()
@@ -62,12 +67,8 @@ function Engine:updateNode(node)
 		node:onKill()
 		table.insert(self.removal_deferred, node)
 		return
-	elseif state == State.Created then -- Only the tree root can trigger this
-		node:load()
-		node:loadComplete()
-		node.layout_box:markDirty(Axis.Both)
-		node.state = State.Ready
-		self.rebuild_rendering_context = true
+	elseif state == State.AwaitsMount then
+		error("Encountered a non-mounted node. Make sure you used Engine:setRoot() and Node:add() to add nodes to the tree. Do not insert nodes directly into node.children")
 	end
 
 	if node.handles_mouse_input or node.handles_keyboard_input then
@@ -77,8 +78,10 @@ function Engine:updateNode(node)
 
 		if not self.traversal_context.mouse_target and node.handles_mouse_input then
 			local had_focus = node.mouse_over
-			local imx, imy = node.transform:get():inverseTransformPoint(self.traversal_context.mouse_x,
-				self.traversal_context.mouse_y)
+			local imx, imy = node.transform:get():inverseTransformPoint(
+				self.traversal_context.mouse_x,
+				self.traversal_context.mouse_y
+			)
 			node.mouse_over = node:isMouseOver(self.traversal_context.mouse_x, self.traversal_context.mouse_y, imx, imy)
 
 			if node.mouse_over then
@@ -131,13 +134,16 @@ function Engine:updateTree(dt)
 
 	self:updateNode(self.root)
 
-	for _, v in ipairs(self.removal_deferred) do
-		local parent = v.parent
-		if parent then
-			parent:remove(v)
-			parent.layout_box:markDirty(Axis.Both)
-			self.rebuild_rendering_context = true
+	if #self.removal_deferred ~= 0 then
+		for _, v in ipairs(self.removal_deferred) do
+			local parent = v.parent
+			if parent then
+				parent:remove(v)
+				parent.layout_box:markDirty(Axis.Both)
+				self.rebuild_rendering_context = true
+			end
 		end
+		self.removal_deferred = {}
 	end
 
 	local updated_layout_roots = self.layout_engine:updateLayout(self.layout_invalidation_requesters)
@@ -157,7 +163,7 @@ function Engine:updateTree(dt)
 end
 
 function Engine:drawTree()
-	self.renderer:draw(self.root)
+	self.renderer:draw()
 end
 
 ---@param event { name: string, [number]: any }

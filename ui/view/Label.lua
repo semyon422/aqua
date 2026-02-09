@@ -1,11 +1,5 @@
 local Node = require("ui.view.Node")
 
--- TODO:
--- Thickness
--- Outline
--- Glow
--- Drop shadow
-
 ---@class view.Label : view.Node
 ---@operator call: view.Label
 ---@field font love.Font
@@ -13,16 +7,10 @@ local Node = require("ui.view.Node")
 ---@field text string
 local Label = Node + {}
 
-local shader = love.graphics.newShader([[
-	vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
-		float dist = Texel(tex, uv).a;
-		float edge_width = length(vec2(dFdx(dist), dFdy(dist)));
-		float edge_distance = 0.5;
-		float opacity = smoothstep(edge_distance - edge_width, edge_distance + edge_width, dist);
-		color.a *= opacity;
-		return color;
-	}
-]])
+function Label:new()
+	Node.new(self)
+	self.content_dirty = false
+end
 
 ---@param v love.Font
 function Label:setFont(v)
@@ -30,7 +18,7 @@ function Label:setFont(v)
 		return
 	end
 	self.font = v
-	self.text_batch_dirty = true
+	self:updateTextBatch()
 end
 
 ---@param v number
@@ -39,7 +27,7 @@ function Label:setFontSize(v)
 		return
 	end
 	self.font_size = v
-	self.text_batch_dirty = true
+	self:updateTextBatch()
 end
 
 ---@param v string
@@ -48,36 +36,25 @@ function Label:setText(v)
 		return
 	end
 	self.text = v
-	self.text_batch_dirty = true
+	self:updateTextBatch()
 end
 
 function Label:updateTextBatch()
-	self.text_batch_dirty = false
-	self.text = self.text or ""
-
-	if not self.font then
+	if not self.font or not self.text or not self.font_size then
 		return
 	end
 
-	if self.text_batch then
-		self.text_batch:set(self.text)
-	else
-		self.text_batch = love.graphics.newTextBatch(self.font, self.text)
+	if not self.text_batch then
+		self.text_batch = love.graphics.newText(self.font)
 	end
 
+	self.text_batch:set(self.text)
 	local w, h = self.text_batch:getDimensions()
 	self.scale = self.font_size / self.font:getHeight()
 	self.layout_box:setDimensions(w * self.scale, h * self.scale)
 end
 
-function Label:update()
-	if self.text_batch_dirty then
-		self:updateTextBatch()
-	end
-end
-
 function Label:draw()
-	love.graphics.setShader(shader)
 	love.graphics.draw(self.text_batch, 0, 0, 0, self.scale, self.scale)
 end
 

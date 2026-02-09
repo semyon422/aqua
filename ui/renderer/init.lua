@@ -61,7 +61,7 @@ function Renderer:draw()
 			node:draw()
 			i = i + 2
 		elseif v == OP.SET_COLOR then
-			lg_setColor(ctx[i + 1])
+			lg_setColor(ctx[i + 1].color)
 			i = i + 2
 		elseif v == OP.SET_BLEND_MODE then
 			lg_setBlendMode(
