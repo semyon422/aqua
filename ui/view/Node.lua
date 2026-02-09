@@ -217,23 +217,39 @@ function Node:getCalculatedHeight()
 	return self.layout_box.y.size
 end
 
----@param v "auto" | "fit" | number
+---@param v "auto" | "fit" | string | number
 function Node:setWidth(v)
 	if v == "auto" then
 		self.layout_box:setWidthAuto()
 	elseif v == "fit" then
 		self.layout_box:setWidthFit()
+	elseif type(v) == "string" then
+		if v:sub(-1) == "%" then
+			local num_part = v:sub(1, -2)
+			local num = tonumber(num_part)
+			if num then
+				self.layout_box:setWidthPercent(num * 0.01)
+			end
+		end
 	elseif type(v) == "number" then
 		self.layout_box:setWidth(v)
 	end
 end
 
----@param v "auto" | "fit" | number
+---@param v "auto" | "fit" | string | number
 function Node:setHeight(v)
 	if v == "auto" then
 		self.layout_box:setHeightAuto()
 	elseif v == "fit" then
 		self.layout_box:setHeightFit()
+	elseif type(v) == "string" then
+		if v:sub(-1) == "%" then
+			local num_part = v:sub(1, -2)
+			local num = tonumber(num_part)
+			if num then
+				self.layout_box:setHeightPercent(num * 0.01)
+			end
+		end
 	elseif type(v) == "number" then
 		self.layout_box:setHeight(v)
 	end
@@ -331,6 +347,11 @@ function Node:setArrange(v)
 	self.layout_box:setArrange(arrange)
 end
 
+---@param v boolean
+function Node:setReversed(v)
+	self.layout_box:setReversed(v)
+end
+
 ---@param v number
 function Node:setChildGap(v)
 	self.layout_box:setChildGap(v)
@@ -402,6 +423,7 @@ Node.Setters = {
 	scale_y = Node.setScaleY,
 	angle = Node.setAngle,
 	arrange = Node.setArrange,
+	reversed = Node.setReversed,
 	child_gap = Node.setChildGap,
 	align_items = Node.setAlignItems,
 	align_self = Node.setAlignSelf,

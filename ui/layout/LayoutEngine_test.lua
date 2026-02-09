@@ -141,4 +141,76 @@ function test.align_items(t)
 	t:eq(c4.layout_box.y.pos, 0)
 end
 
+---@param t testing.T
+function test.percent_size(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setDimensions(200, 200)
+	container.layout_box.arrange = LayoutBox.Arrange.FlowH
+
+	local c1 = container:add(new_node())
+	c1.layout_box:setWidthPercent(0.5)
+	c1.layout_box:setHeightPercent(0.25)
+
+	local c2 = container:add(new_node())
+	c2.layout_box:setWidthPercent(0.3)
+	c2.layout_box:setHeight(50)
+
+	engine:updateLayout({c1, c2})
+
+	t:eq(c1.layout_box.x.size, 100)
+	t:eq(c1.layout_box.y.size, 50)
+
+	t:eq(c2.layout_box.x.size, 60)
+	t:eq(c2.layout_box.y.size, 50)
+end
+
+---@param t testing.T
+function test.flow_h_reversed(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setArrange(LayoutBox.Arrange.FlowH)
+	container.layout_box:setReversed(true)
+
+	local c1 = container:add(new_node())
+	c1.layout_box:setDimensions(100, 100)
+
+	local c2 = container:add(new_node())
+	c2.layout_box:setDimensions(50, 100)
+
+	local c3 = container:add(new_node())
+	c3.layout_box:setDimensions(100, 100)
+
+	engine:updateLayout(container.children)
+
+	-- Visual order should be c3, c2, c1
+	t:eq(c3.layout_box.x.pos, 0)
+	t:eq(c2.layout_box.x.pos, 100)
+	t:eq(c1.layout_box.x.pos, 150)
+end
+
+---@param t testing.T
+function test.flow_v_reversed(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setArrange(LayoutBox.Arrange.FlowV)
+	container.layout_box:setReversed(true)
+
+	local c1 = container:add(new_node())
+	c1.layout_box:setDimensions(100, 100)
+
+	local c2 = container:add(new_node())
+	c2.layout_box:setDimensions(100, 50)
+
+	local c3 = container:add(new_node())
+	c3.layout_box:setDimensions(100, 100)
+
+	engine:updateLayout(container.children)
+
+	-- Visual order should be c3, c2, c1
+	t:eq(c3.layout_box.y.pos, 0)
+	t:eq(c2.layout_box.y.pos, 100)
+	t:eq(c1.layout_box.y.pos, 150)
+end
+
 return test

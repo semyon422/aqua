@@ -5,6 +5,7 @@ Enums.SizeMode = {
 	Fixed = 1,
 	Fit = 2,
 	Auto = 3,
+	Percent = 4,
 }
 
 ---@enum ui.Arrange

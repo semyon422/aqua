@@ -32,6 +32,12 @@ function LayoutAxis:setSize(size)
 	self.mode = SizeMode.Fixed
 end
 
+---@param percent number
+function LayoutAxis:setPercent(percent)
+	self.preferred_size = percent
+	self.mode = SizeMode.Percent
+end
+
 ---@param min number
 ---@param max number
 function LayoutAxis:setLimits(min, max)

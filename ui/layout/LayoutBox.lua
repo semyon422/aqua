@@ -36,6 +36,7 @@ function LayoutBox:new()
 
 	self.grow = 0
 	self.child_gap = 0
+	self.reversed = false
 	self.arrange = Arrange.Absolute
 	self.justify_content = JustifyContent.Start
 	self.align_items = AlignItems.Start
@@ -79,10 +80,25 @@ function LayoutBox:setPosition(x, y)
 	self:markDirty(Axis.Both)
 end
 
+---@param reversed boolean
+function LayoutBox:setReversed(reversed)
+	if self.reversed == reversed then
+		return
+	end
+	self.reversed = reversed
+	self:markDirty(Axis.Both)
+end
+
 ---@param width number
 function LayoutBox:setWidth(width)
 	self.x:setSize(width)
 	self.x.mode = SizeMode.Fixed
+	self:markDirty(Axis.X)
+end
+
+---@param percent number
+function LayoutBox:setWidthPercent(percent)
+	self.x:setPercent(percent)
 	self:markDirty(Axis.X)
 end
 
@@ -100,6 +116,12 @@ end
 function LayoutBox:setHeight(height)
 	self.y:setSize(height)
 	self.y.mode = SizeMode.Fixed
+	self:markDirty(Axis.Y)
+end
+
+---@param percent number
+function LayoutBox:setHeightPercent(percent)
+	self.y:setPercent(percent)
 	self:markDirty(Axis.Y)
 end
 

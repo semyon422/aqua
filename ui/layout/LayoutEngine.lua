@@ -99,13 +99,13 @@ function LayoutEngine:isStableBoundary(layout_box, axis)
 		return true
 	end
 
-	local x_fixed = layout_box.x.mode == SizeMode.Fixed
-	local y_fixed = layout_box.y.mode == SizeMode.Fixed
+	local x_stable = layout_box.x.mode == SizeMode.Fixed or layout_box.x.mode == SizeMode.Percent
+	local y_stable = layout_box.y.mode == SizeMode.Fixed or layout_box.y.mode == SizeMode.Percent
 
-	if bit_band(axis, Axis.X) ~= 0 and not x_fixed then
+	if bit_band(axis, Axis.X) ~= 0 and not x_stable then
 		return false
 	end
-	if bit_band(axis, Axis.Y) ~= 0 and not y_fixed then
+	if bit_band(axis, Axis.Y) ~= 0 and not y_stable then
 		return false
 	end
 
@@ -120,8 +120,18 @@ function LayoutEngine:measure(node, axis_idx)
 	local min_s = axis.min_size
 	local max_s = axis.max_size
 
-	if axis.mode == SizeMode.Fixed then
-		axis.size = math_clamp(axis.preferred_size, min_s, max_s)
+	if axis.mode == SizeMode.Fixed or axis.mode == SizeMode.Percent then
+		local s = axis.preferred_size
+		if axis.mode == SizeMode.Percent then
+			local parent_size = 0
+			if node.parent then
+				local parent_axis = (axis_idx == Axis.X) and node.parent.layout_box.x or node.parent.layout_box.y
+				parent_size = parent_axis.size - parent_axis.padding_start - parent_axis.padding_end
+			end
+			s = s * parent_size
+		end
+
+		axis.size = math_clamp(s, min_s, max_s)
 		for _, child in ipairs(node.children) do
 			self:measure(child, axis_idx)
 		end
@@ -315,7 +325,17 @@ function LayoutEngine:arrangeChildren(node)
 		pos = 0
 	end
 
-	for _, child in ipairs(node.children) do
+	local start_idx = 1
+	local end_idx = child_count
+	local step = 1
+	if layout_box.reversed then
+		start_idx = child_count
+		end_idx = 1
+		step = -1
+	end
+
+	for i = start_idx, end_idx, step do
+		local child = node.children[i]
 		local child_main = child.layout_box[main_axis_key]
 		local child_cross = child.layout_box[cross_axis_key]
 
