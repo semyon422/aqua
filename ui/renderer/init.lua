@@ -11,6 +11,9 @@ local lg_pop = lg.pop
 local lg_applyTransform = lg.applyTransform
 local lg_setColor = lg.setColor
 local lg_setBlendMode = lg.setBlendMode
+local lg_stencil = lg.stencil
+local lg_setStencilTest = lg.setStencilTest
+local lg_rectangle = lg.rectangle
 
 function Renderer:new()
 	self.viewport_scale = 1
@@ -33,6 +36,16 @@ function Renderer:build(root)
 end
 
 local canvas_apply = { stencil = true }
+local stencil_w = 0
+local stencil_h = 0
+local stencil_tf = nil ---@type love.Transform
+
+local function stencil()
+	lg_push()
+	lg_applyTransform(stencil_tf)
+	lg_rectangle("fill", 0, 0, stencil_w, stencil_h)
+	lg_pop()
+end
 
 function Renderer:draw()
 	self.current_canvas = self.main_canvas
@@ -69,6 +82,14 @@ function Renderer:draw()
 				ctx[i + 2]
 			)
 			i = i + 3
+		elseif v == OP.SET_STENCIL then
+			local node = ctx[i + 1]
+			stencil_w = node:getCalculatedWidth()
+			stencil_h = node:getCalculatedHeight()
+			stencil_tf = node.transform:get()
+			lg_stencil(stencil, "replace", 1)
+			lg_setStencilTest("greater", 0)
+			i = i + 2
 		else
 			error("Unknown operation")
 		end

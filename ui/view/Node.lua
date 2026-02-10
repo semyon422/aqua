@@ -21,7 +21,7 @@ local Pivot = LayoutEnums.Pivot
 ---@field draw? fun(self: view.Node)
 ---@field color ui.Color?
 ---@field blend_mode ui.BlendMode?
----@field stencil (fun(self: view.Node) | boolean)?
+---@field stencil boolean?
 ---@field draw_to_canvas boolean?
 ---@field canvas love.Canvas?
 ---@field origin ui.Pivot
