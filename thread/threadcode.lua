@@ -1,9 +1,10 @@
-local pkg = require("pkg")
+local pkg = require("aqua.pkg")
 pkg.import_love()
 pkg.export_lua()
 
 local synctable = require("synctable")
 local table_util = require("table_util")
+local stbl = require("stbl")
 
 local threadId = "<threadId>"
 
@@ -50,7 +51,7 @@ function thread.handle(event)
 		result.name = "result"
 		outputChannel:push(result)
 	else
-		error("unknown event " .. require("inspect")(event))
+		error("unknown event: " .. stbl.encode(event))
 	end
 end
 

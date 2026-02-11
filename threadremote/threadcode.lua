@@ -1,8 +1,8 @@
----@diagnostic disable-next-line: different-requires
 local pkg = require("aqua.pkg")
 pkg.import_love()
 pkg.export_lua()
 
+local stbl = require("stbl")
 local Remote = require("icc.Remote")
 local TaskHandler = require("icc.TaskHandler")
 local RemoteHandler = require("icc.RemoteHandler")
@@ -58,7 +58,7 @@ local function handle(event)
 		local msg = setmetatable(event.msg, Message)
 		task_handler:handle(peer, {}, msg)
 	else
-		error("unknown event " .. require("inspect")(event))
+		error("unknown event: " .. stbl.encode(event))
 	end
 end
 
