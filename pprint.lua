@@ -111,16 +111,16 @@ function pprint.dump(value, indent_level, visited)
 			local len = #value
 			if len <= ARRAY_LIMIT + 2 then
 				for i = 1, len do
-					table.insert(parts, pprint.dump(value[i], indent_level + 1, visited))
+					table.insert(parts, pprint.dump(value[i], indent_level, visited))
 				end
 			else
 				local half = math.floor(ARRAY_LIMIT / 2)
 				for i = 1, half do
-					table.insert(parts, pprint.dump(value[i], indent_level + 1, visited))
+					table.insert(parts, pprint.dump(value[i], indent_level, visited))
 				end
 				table.insert(parts, c("address", ("<%d more>"):format(len - ARRAY_LIMIT)))
 				for i = len - half + 1, len do
-					table.insert(parts, pprint.dump(value[i], indent_level + 1, visited))
+					table.insert(parts, pprint.dump(value[i], indent_level, visited))
 				end
 			end
 			return c("bracket", "{") .. table.concat(parts, ", ") .. c("bracket", "}")

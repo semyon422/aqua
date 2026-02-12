@@ -22,7 +22,7 @@ function test.all(t)
 		nested = {a = 1, b = {}},
 		nested_mt = t_with_mt,
 		arr = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14},
-		tbl_arr = {{}, {}, {}},
+		tbl_arr = {{}, {t = 1}, {}},
 	}
 	tbl.ref = tbl
 
@@ -47,7 +47,9 @@ function test.all(t)
   nested_mt = <table (has mt): 0x0>,
   ref = <table (recursive): 0x0>,
   simple_key = "value",
-  tbl_arr = {<table: 0x0> {}, <table: 0x0> {}, <table: 0x0> {}},
+  tbl_arr = {<table: 0x0> {}, <table: 0x0> {
+    t = 1,
+  }, <table: 0x0> {}},
   ["true"] = "true",
   [<function: 0x0>] = "func key",
   [<table: 0x0>] = "table key",
