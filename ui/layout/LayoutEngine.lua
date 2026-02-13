@@ -204,6 +204,12 @@ function LayoutEngine:grow(node, axis_idx)
 	for _, child in ipairs(node.children) do
 		local child_axis = child.layout_box[props.axis_key]
 
+		if child_axis.mode == SizeMode.Percent then
+			local parent_size = axis.size - axis.padding_start - axis.padding_end
+			local s = child_axis.preferred_size * parent_size
+			child_axis.size = math_clamp(s, child_axis.min_size, child_axis.max_size)
+		end
+
 		if is_main_axis then
 			available_space = available_space - child_axis.size
 
