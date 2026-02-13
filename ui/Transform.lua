@@ -176,6 +176,7 @@ function Transform:setEverything(x, y, angle, scale_x, scale_y, shear_x, shear_y
 	self.scale_y = scale_y
 	self.shear_x = shear_x
 	self.shear_y = shear_y
+	self.invalidated = true
 end
 
 return Transform

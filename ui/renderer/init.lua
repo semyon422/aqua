@@ -25,7 +25,7 @@ function Renderer:setViewportScale(scale)
 	self.viewport_scale = scale
 
 	local ww, wh = lg.getDimensions()
-	if not self.canvas or self.canvas:getWidth() ~= ww or self.canvas:getHeight() ~= wh then
+	if not self.main_canvas or self.main_canvas:getWidth() ~= ww or self.main_canvas:getHeight() ~= wh then
 		self.main_canvas = lg.newCanvas(ww, wh)
 	end
 end
@@ -70,8 +70,10 @@ function Renderer:draw()
 			i = i + 1
 		elseif v == OP.DRAW then
 			local node = ctx[i + 1]
+			lg_push()
 			lg_applyTransform(node.transform:get())
 			node:draw()
+			lg_pop()
 			i = i + 2
 		elseif v == OP.SET_COLOR then
 			lg_setColor(ctx[i + 1].color)

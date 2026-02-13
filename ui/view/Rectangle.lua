@@ -5,7 +5,7 @@ local Node = require("ui.view.Node")
 local Rectangle = Node + {}
 
 function Rectangle:draw()
-	love.graphics.rectangle("fill", 0, 0, self.layout_box.x.size, self.layout_box.y.size)
+	love.graphics.rectangle("fill", 0, 0, self:getCalculatedWidth(), self:getCalculatedHeight())
 end
 
 return Rectangle

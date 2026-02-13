@@ -104,6 +104,12 @@ function Node:add(node, params)
 	local inserted = false
 	assert(node.state ~= nil, "Did you forgot to call a base Node:new()?")
 
+	node.parent = self
+
+	if params then
+		node:setup(params)
+	end
+
 	for i, child in ipairs(self.children) do
 		if node.z < child.z then
 			table.insert(self.children, i, node)
@@ -114,12 +120,6 @@ function Node:add(node, params)
 
 	if not inserted then
 		table.insert(self.children, node)
-	end
-
-	node.parent = self
-
-	if params then
-		node:setup(params)
 	end
 
 	if self.state ~= State.AwaitsMount then
@@ -427,7 +427,7 @@ Node.Setters = {
 	child_gap = Node.setChildGap,
 	align_items = Node.setAlignItems,
 	align_self = Node.setAlignSelf,
-	jusify_content = Node.setJustifyContent,
+	justify_content = Node.setJustifyContent,
 	padding = Node.setPaddings,
 	grow = Node.setGrow,
 	id = true,
