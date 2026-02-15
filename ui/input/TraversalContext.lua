@@ -1,5 +1,5 @@
 local class = require("class")
-require("table.clear")
+local table_util = require("table_util")
 
 ---@class ui.TraversalContext
 ---@operator call: ui.TraversalContext
@@ -18,7 +18,7 @@ end
 
 function TraversalContext:reset()
 	self.mouse_target = nil
-	table.clear(self.focus_requesters)
+	table_util.clear(self.focus_requesters)
 end
 
 return TraversalContext

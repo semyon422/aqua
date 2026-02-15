@@ -17,7 +17,7 @@ local TextInputEvent = require("ui.input.events.TextInputEvent")
 ---@field last_mouse_down_event ui.MouseDownEvent
 local Inputs = class()
 
----@alias ui.Inputs.Node (ui.INode | ui.IInputHandler)
+---@class ui.Inputs.Node: ui.INode, ui.IInputHandler
 
 Inputs.MOUSE_CLICK_MAX_DISTANCE = 30
 
@@ -120,6 +120,7 @@ function Inputs:handleMouseMove(event, traversal_ctx)
 		return
 	end
 
+	---@type ui.MouseEvent
 	local e
 	if not self.last_drag_event then
 		e = DragStartEvent()
@@ -215,7 +216,9 @@ function Inputs:dispatchEvent(e)
 		if e.stop then
 			return
 		end
-		e.current_target = e.current_target.parent
+		local parent = e.current_target.parent
+		---@cast parent -ui.INode, +ui.Inputs.Node
+		e.current_target = parent
 	end
 
 	return handled

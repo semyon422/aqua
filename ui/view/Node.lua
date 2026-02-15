@@ -13,7 +13,7 @@ local Pivot = LayoutEnums.Pivot
 ---@alias ui.Color [number, number, number, number]
 ---@alias ui.BlendMode { color: string, alpha: string }
 
----@class view.Node : ui.INode, ui.HasLayoutBox, ui.IInputHandler
+---@class view.Node : ui.HasLayoutBox, ui.Inputs.Node
 ---@operator call: view.Node
 ---@field id string?
 ---@field parent view.Node
@@ -26,7 +26,6 @@ local Pivot = LayoutEnums.Pivot
 ---@field canvas love.Canvas?
 ---@field origin ui.Pivot
 ---@field anchor ui.Pivot
----@field scheduler ui.Scheduler
 ---@field inputs ui.Inputs
 ---@field mounted boolean Is the node inside a main tree?
 local Node = class() + INode + IInputHandler
@@ -64,7 +63,7 @@ function Node:setup(params)
 		local f = self.Setters[k]
 		if f then
 			if f == true then
-				self[k] = v
+				self[k] = v ---@diagnostic disable-line: no-unknown
 			else
 				f(self, v)
 			end
@@ -162,7 +161,6 @@ function Node:updateTreeLayout()
 
 	if self.parent then
 		local plb = self.parent.layout_box
-		-- TODO: Fix ui.Pivot annotations
 		x = layout_box.x.pos + self.anchor.x * plb:getLayoutWidth() + plb.x.padding_start
 		y = layout_box.y.pos + self.anchor.y * plb:getLayoutHeight() + plb.y.padding_start
 		parent_tf = self.parent.transform:get()

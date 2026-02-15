@@ -1,8 +1,8 @@
 local class = require("class")
 local RenderingContext = require("ui.renderer.RenderingContext")
 
----@class nya.Renderer
----@operator call: nya.Renderer
+---@class ui.Renderer
+---@operator call: ui.Renderer
 local Renderer = class()
 
 local lg = love.graphics
@@ -35,7 +35,8 @@ function Renderer:build(root)
 	self.ctx = RenderingContext:build(root)
 end
 
-local canvas_apply = { stencil = true }
+---@type {[1]: love.Canvas, stencil: true}
+local canvas_apply = {stencil = true}
 local stencil_w = 0
 local stencil_h = 0
 local stencil_tf = nil ---@type love.Transform
@@ -85,6 +86,7 @@ function Renderer:draw()
 			)
 			i = i + 3
 		elseif v == OP.SET_STENCIL then
+			---@type view.Node
 			local node = ctx[i + 1]
 			stencil_w = node:getCalculatedWidth()
 			stencil_h = node:getCalculatedHeight()

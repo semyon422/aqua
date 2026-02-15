@@ -1,4 +1,5 @@
 local class = require("class")
+local table_util = require("table_util")
 local LayoutEngine = require("ui.layout.LayoutEngine")
 local LayoutBox = require("ui.layout.LayoutBox")
 local Renderer = require("ui.renderer")
@@ -10,7 +11,6 @@ local HoverLostEvent = require("ui.input.events.HoverLostEvent")
 
 local Axis = LayoutBox.Axis
 local State = Node.State
-require("table.clear")
 
 ---@class ui.Engine
 ---@operator call: ui.Engine
@@ -130,7 +130,7 @@ function Engine:updateTree(dt)
 	self.traversal_context.mouse_x, self.traversal_context.mouse_y = love.mouse.getPosition()
 	self.delta_time = dt
 	self.traversal_context:reset()
-	table.clear(self.layout_invalidation_requesters)
+	table_util.clear(self.layout_invalidation_requesters)
 
 	self:updateNode(self.root)
 
@@ -149,8 +149,8 @@ function Engine:updateTree(dt)
 	local updated_layout_roots = self.layout_engine:updateLayout(self.layout_invalidation_requesters)
 
 	if updated_layout_roots then
-		---@cast updated_layout_roots view.Node
 		for node, _ in pairs(updated_layout_roots) do
+			---@cast node -ui.LayoutEngine.Node, +view.Node
 			node:updateTreeLayout()
 			node:updateTreeTransform()
 		end

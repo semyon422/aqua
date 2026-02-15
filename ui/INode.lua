@@ -5,9 +5,10 @@ local class = require("class")
 ---@field children ui.INode[]
 local INode = class()
 
----@param node ui.INode
----@return ui.INode
-function INode:add(node) end
+---@generic T: ui.INode
+---@param node T
+---@return T
+function INode:add(node) return node end
 
 ---@param node ui.INode
 function INode:remove(node) end

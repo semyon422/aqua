@@ -1,6 +1,5 @@
-require("table.clear")
 
----@class nya.RenderingContext
+---@class ui.RenderingContext
 local RenderingContext = {}
 
 ---@enum RenderingContext.Operations

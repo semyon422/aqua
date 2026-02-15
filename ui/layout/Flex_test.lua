@@ -4,6 +4,7 @@ local LayoutEngine = require("ui.layout.LayoutEngine")
 -- This test only tests sizes
 local test = {}
 
+---@return ui.LayoutEngine.Node
 local function new_node()
 	return {
 		children = {},

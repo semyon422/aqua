@@ -34,6 +34,6 @@ end
 Label.Setters = setmetatable({
 	font_size = Label.setFontSize,
 	text = Label.setText
-}, { __index = Node.Setters })
+}, {__index = Node.Setters})
 
 return Label

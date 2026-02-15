@@ -24,6 +24,6 @@ end
 
 Image.Setters = setmetatable({
 	image = Image.setImage
-}, { __index = Node.Setters })
+}, {__index = Node.Setters})
 
 return Image

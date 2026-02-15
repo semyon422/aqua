@@ -1,4 +1,5 @@
 local class = require("class")
+local table_util = require("table_util")
 local math_util = require("math_util")
 local Enums = require("ui.layout.Enums")
 local Axis = Enums.Axis
@@ -6,7 +7,6 @@ local SizeMode = Enums.SizeMode
 local Arrange = Enums.Arrange
 local JustifyContent = Enums.JustifyContent
 local AlignItems = Enums.AlignItems
-require("table.clear")
 
 local math_min = math.min
 local math_max = math.max
@@ -190,17 +190,6 @@ function LayoutEngine:measure(node, axis_idx)
 	axis.size = math_clamp(s, min_s, max_s)
 end
 
-local grow_props = {
-	[Axis.X] = {
-		axis_key = "x",
-		flow = Arrange.FlowH
-	},
-	[Axis.Y] = {
-		axis_key = "y",
-		flow = Arrange.FlowV
-	}
-}
-
 ---@param node ui.LayoutEngine.Node
 ---@param axis_idx ui.Axis
 function LayoutEngine:grow(node, axis_idx)
@@ -209,18 +198,18 @@ function LayoutEngine:grow(node, axis_idx)
 	end
 
 	local layout_box = node.layout_box
-	local props = grow_props[axis_idx]
-	local axis = layout_box[props.axis_key] ---@type ui.LayoutAxis
+	local flow = axis_idx == Axis.X and Arrange.FlowH or Arrange.FlowV
+	local axis = layout_box:getAxis(axis_idx)
 
-	table.clear(self.growables)
+	table_util.clear(self.growables)
 	local available_space = axis:getLayoutSize()
 	local total_grow = 0
 
-	local is_main_axis = (layout_box.arrange == props.flow)
-	local is_cross_axis = (layout_box.arrange ~= Arrange.Absolute and not is_main_axis)
+	local is_main_axis = layout_box.arrange == flow
+	local is_cross_axis = layout_box.arrange ~= Arrange.Absolute and not is_main_axis
 
 	for _, child in ipairs(node.children) do
-		local child_axis = child.layout_box[props.axis_key]
+		local child_axis = child.layout_box:getAxis(axis_idx)
 
 		if child_axis.mode == SizeMode.Percent then
 			local parent_size = axis:getLayoutSize()
@@ -259,18 +248,18 @@ function LayoutEngine:grow(node, axis_idx)
 
 	if #self.growables > 0 and available_space > 0 then
 		if is_main_axis then
-			self:distributeFlexSpace(self.growables, available_space, total_grow, props.axis_key)
+			self:distributeFlexSpace(self.growables, available_space, total_grow, axis_idx)
 		elseif is_cross_axis then
 			-- Stretch logic
 			for _, child in ipairs(self.growables) do
-				local child_axis = child.layout_box[props.axis_key]
+				local child_axis = child.layout_box:getAxis(axis_idx)
 				local new_size = math_clamp(available_space, child_axis.min_size, child_axis.max_size)
 				child_axis.size = new_size
 			end
 		elseif layout_box.arrange == Arrange.Absolute then
 			-- Absolute grow logic
 			for _, child in ipairs(self.growables) do
-				local child_axis = child.layout_box[props.axis_key]
+				local child_axis = child.layout_box:getAxis(axis_idx)
 				local new_size = math_clamp(available_space, child_axis.min_size, child_axis.max_size)
 				child_axis.size = new_size
 			end
@@ -285,27 +274,27 @@ end
 ---@param children ui.LayoutEngine.Node[]
 ---@param available_space number
 ---@param total_grow number
----@param axis_key string
-function LayoutEngine:distributeFlexSpace(children, available_space, total_grow, axis_key)
+---@param axis_idx ui.Axis
+function LayoutEngine:distributeFlexSpace(children, available_space, total_grow, axis_idx)
 	local remaining_space = available_space
 	local current_total_grow = total_grow
 
 	local active = self.active_children
 	local next_active = self.next_active_children
 
-	table.clear(active)
+	table_util.clear(active)
 	for i = 1, #children do
 		active[i] = children[i]
 	end
 
 	while #active > 0 and remaining_space > 0 and current_total_grow > 0 do
-		table.clear(next_active)
+		table_util.clear(next_active)
 		local next_total_grow = 0
 		local any_capped = false
 		local space_to_distribute = remaining_space
 
 		for _, child in ipairs(active) do
-			local child_axis = child.layout_box[axis_key]
+			local child_axis = child.layout_box:getAxis(axis_idx)
 			local grow_factor = child.layout_box.grow / current_total_grow
 			local add_size = space_to_distribute * grow_factor
 			local target_size = child_axis.size + add_size
@@ -323,7 +312,7 @@ function LayoutEngine:distributeFlexSpace(children, available_space, total_grow,
 
 		if not any_capped then
 			for _, child in ipairs(active) do
-				local child_axis = child.layout_box[axis_key]
+				local child_axis = child.layout_box:getAxis(axis_idx)
 				local grow_factor = child.layout_box.grow / current_total_grow
 				child_axis.size = child_axis.size + remaining_space * grow_factor
 			end
@@ -331,7 +320,7 @@ function LayoutEngine:distributeFlexSpace(children, available_space, total_grow,
 			break
 		end
 
-		active, next_active = next_active, active
+		next_active, active = active, next_active
 		current_total_grow = next_total_grow
 	end
 end
@@ -350,11 +339,8 @@ function LayoutEngine:arrangeChildren(node)
 	local main_axis_idx = (layout_box.arrange == Arrange.FlowH) and Axis.X or Axis.Y
 	local cross_axis_idx = (layout_box.arrange == Arrange.FlowH) and Axis.Y or Axis.X
 
-	local main_axis_key = (main_axis_idx == Axis.X) and "x" or "y"
-	local cross_axis_key = (cross_axis_idx == Axis.X) and "x" or "y"
-
-	local main_axis = layout_box[main_axis_key]
-	local cross_axis = layout_box[cross_axis_key]
+	local main_axis = layout_box:getAxis(main_axis_idx)
+	local cross_axis = layout_box:getAxis(cross_axis_idx)
 
 	local justify = layout_box.justify_content
 	local align = layout_box.align_items
@@ -363,7 +349,7 @@ function LayoutEngine:arrangeChildren(node)
 	-- Calculate total size on main axis
 	local total_main_size = 0
 	for _, child in ipairs(node.children) do
-		total_main_size = total_main_size + child.layout_box[main_axis_key].size
+		total_main_size = total_main_size + child.layout_box:getAxis(main_axis_idx).size
 	end
 
 	local available_main = main_axis:getLayoutSize()
@@ -371,6 +357,9 @@ function LayoutEngine:arrangeChildren(node)
 
 	local pos = 0
 	local gap = layout_box.child_gap
+
+	--- LLS bug
+	---@cast total_main_size number
 
 	if justify == JustifyContent.End then
 		pos = available_main - (total_main_size + gap * (child_count - 1))
@@ -392,8 +381,8 @@ function LayoutEngine:arrangeChildren(node)
 
 	for i = start_idx, end_idx, step do
 		local child = node.children[i]
-		local child_main = child.layout_box[main_axis_key]
-		local child_cross = child.layout_box[cross_axis_key]
+		local child_main = child.layout_box:getAxis(main_axis_idx)
+		local child_cross = child.layout_box:getAxis(cross_axis_idx)
 
 		-- Position on main axis
 		child_main.pos = pos

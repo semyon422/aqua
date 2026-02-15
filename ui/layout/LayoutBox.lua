@@ -43,6 +43,16 @@ function LayoutBox:new()
 	self.axis_invalidated = Axis.None
 end
 
+---@param axis_idx ui.Axis
+function LayoutBox:getAxis(axis_idx)
+	if axis_idx == Axis.X then
+		return self.x
+	elseif axis_idx == Axis.Y then
+		return self.y
+	end
+	error("invalid axis index")
+end
+
 ---@param axis ui.Axis
 function LayoutBox:markDirty(axis)
 	self.axis_invalidated = bit.bor(self.axis_invalidated, axis)
