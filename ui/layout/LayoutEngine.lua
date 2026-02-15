@@ -114,9 +114,26 @@ end
 
 ---@param node ui.LayoutEngine.Node
 ---@param axis_idx ui.Axis
+---@return ui.LayoutAxis
+local function getAxisFrom(node, axis_idx)
+	return (axis_idx == Axis.X) and node.layout_box.x or node.layout_box.y
+end
+
+---@param layout_box ui.LayoutBox
+---@param axis_idx ui.Axis
+---@return boolean
+local function isMainAxis(layout_box, axis_idx)
+	return (
+		(layout_box.arrange == Arrange.FlowH and axis_idx == Axis.X) or
+		(layout_box.arrange == Arrange.FlowV and axis_idx == Axis.Y)
+	)
+end
+
+---@param node ui.LayoutEngine.Node
+---@param axis_idx ui.Axis
 function LayoutEngine:measure(node, axis_idx)
 	local layout_box = node.layout_box
-	local axis = (axis_idx == Axis.X) and layout_box.x or layout_box.y
+	local axis = getAxisFrom(node, axis_idx)
 	local min_s = axis.min_size
 	local max_s = axis.max_size
 
@@ -125,8 +142,8 @@ function LayoutEngine:measure(node, axis_idx)
 		if axis.mode == SizeMode.Percent then
 			local parent_size = 0
 			if node.parent then
-				local parent_axis = (axis_idx == Axis.X) and node.parent.layout_box.x or node.parent.layout_box.y
-				parent_size = parent_axis.size - parent_axis.padding_start - parent_axis.padding_end
+				local parent_axis = getAxisFrom(node.parent, axis_idx)
+				parent_size = parent_axis:getLayoutSize()
 			end
 			s = s * parent_size
 		end
@@ -143,26 +160,23 @@ function LayoutEngine:measure(node, axis_idx)
 	if layout_box.arrange == Arrange.Absolute then
 		for _, child in ipairs(node.children) do
 			self:measure(child, axis_idx)
-			local child_axis = (axis_idx == Axis.X) and child.layout_box.x or child.layout_box.y
+			local child_axis = getAxisFrom(child, axis_idx)
 			s = math_max(s, child_axis.pos + child_axis.size)
 		end
 	else
-		local is_main_axis = (
-			(layout_box.arrange == Arrange.FlowH and axis_idx == Axis.X) or
-			(layout_box.arrange == Arrange.FlowV and axis_idx == Axis.Y)
-		)
+		local is_main_axis = isMainAxis(layout_box, axis_idx)
 
 		if is_main_axis then
 			for _, child in ipairs(node.children) do
 				self:measure(child, axis_idx)
-				local child_axis = (axis_idx == Axis.X) and child.layout_box.x or child.layout_box.y
+				local child_axis = getAxisFrom(child, axis_idx)
 				s = s + child_axis.size
 			end
 			s = s + layout_box.child_gap * (math_max(0, #node.children - 1))
 		else
 			for _, child in ipairs(node.children) do
 				self:measure(child, axis_idx)
-				local child_axis = (axis_idx == Axis.X) and child.layout_box.x or child.layout_box.y
+				local child_axis = getAxisFrom(child, axis_idx)
 				s = math_max(s, child_axis.size)
 			end
 		end
@@ -192,10 +206,10 @@ function LayoutEngine:grow(node, axis_idx)
 
 	local layout_box = node.layout_box
 	local props = grow_props[axis_idx]
-	local axis = layout_box[props.axis_key]
+	local axis = layout_box[props.axis_key] ---@type ui.LayoutAxis
 
 	table.clear(self.growables)
-	local available_space = axis.size - axis.padding_start - axis.padding_end
+	local available_space = axis:getLayoutSize()
 	local total_grow = 0
 
 	local is_main_axis = (layout_box.arrange == props.flow)
@@ -205,7 +219,7 @@ function LayoutEngine:grow(node, axis_idx)
 		local child_axis = child.layout_box[props.axis_key]
 
 		if child_axis.mode == SizeMode.Percent then
-			local parent_size = axis.size - axis.padding_start - axis.padding_end
+			local parent_size = axis:getLayoutSize()
 			local s = child_axis.preferred_size * parent_size
 			child_axis.size = math_clamp(s, child_axis.min_size, child_axis.max_size)
 		end
@@ -316,8 +330,8 @@ function LayoutEngine:arrangeChildren(node)
 		total_main_size = total_main_size + child.layout_box[main_axis_key].size
 	end
 
-	local available_main = main_axis.size - main_axis.padding_start - main_axis.padding_end
-	local available_cross = cross_axis.size - cross_axis.padding_start - cross_axis.padding_end
+	local available_main = main_axis:getLayoutSize()
+	local available_cross = cross_axis:getLayoutSize()
 
 	local pos = 0
 	local gap = layout_box.child_gap

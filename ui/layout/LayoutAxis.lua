@@ -55,4 +55,9 @@ function LayoutAxis:setMax(max)
 	self.max_size = max
 end
 
+---@return number
+function LayoutAxis:getLayoutSize()
+	return self.size - self.padding_start - self.padding_end
+end
+
 return LayoutAxis

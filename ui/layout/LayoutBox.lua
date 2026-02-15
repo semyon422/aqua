@@ -59,12 +59,12 @@ end
 
 ---@return number
 function LayoutBox:getLayoutWidth()
-	return self.x.size - self.x.padding_start - self.x.padding_end
+	return self.x:getLayoutSize()
 end
 
 ---@return number
 function LayoutBox:getLayoutHeight()
-	return self.y.size - self.y.padding_start - self.y.padding_end
+	return self.y:getLayoutSize()
 end
 
 ---@return number, number
