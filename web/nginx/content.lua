@@ -6,8 +6,14 @@ local Response = require("web.http.Response")
 local config = require("nginx_config")
 
 local function run()
-	---@type fun(req: web.IRequest, res: web.IResponse, ip: string)
-	local handle = require(config.handler)
+	---@type boolean, any
+	local ok, err = xpcall(require, debug.traceback, config.handler)
+	if not ok then
+		error(err)
+	end
+
+	---@cast err fun(req: web.IRequest, res: web.IResponse, ip: string)
+	local handle = err
 
 	local soc = NginxReqSocket()
 	local req = NginxRequest(soc)
