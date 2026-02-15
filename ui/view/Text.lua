@@ -61,7 +61,7 @@ function Text:draw()
 	if not self.text_batch then
 		return
 	end
-	love.graphics.draw(self.text_batch, x, y, 0, self.scale, self.scale)
+	love.graphics.draw(self.text_batch, 0, 0, 0, self.scale, self.scale)
 end
 
 return Text

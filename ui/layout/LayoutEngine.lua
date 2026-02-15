@@ -20,10 +20,14 @@ local bit_band = bit.band
 ---@class ui.LayoutEngine
 ---@operator call: ui.LayoutEngine
 ---@field growables ui.LayoutEngine.Node[] Used in grow() to avoid creating a new table every time
+---@field active_children ui.LayoutEngine.Node[] Used in distributeFlexSpace for the same reason
+---@field next_active_children ui.LayoutEngine.Node[] Used in distributeFlexSpace for the same reason
 local LayoutEngine = class()
 
 function LayoutEngine:new()
 	self.growables = {}
+	self.active_children = {}
+	self.next_active_children = {}
 end
 
 local frame = 0
@@ -283,20 +287,52 @@ end
 ---@param total_grow number
 ---@param axis_key string
 function LayoutEngine:distributeFlexSpace(children, available_space, total_grow, axis_key)
-	for _, child in ipairs(children) do
-		local child_axis = child.layout_box[axis_key]
-		local grow_factor = child.layout_box.grow / total_grow
-		local add_size = available_space * grow_factor
-		local current_size = child_axis.size
-		local new_size = current_size + add_size
+	local remaining_space = available_space
+	local current_total_grow = total_grow
 
-		local max_s = child_axis.max_size
-		if new_size > max_s then
-			add_size = max_s - current_size
-			new_size = max_s
+	local active = self.active_children
+	local next_active = self.next_active_children
+
+	table.clear(active)
+	for i = 1, #children do
+		active[i] = children[i]
+	end
+
+	while #active > 0 and remaining_space > 0 and current_total_grow > 0 do
+		table.clear(next_active)
+		local next_total_grow = 0
+		local any_capped = false
+		local space_to_distribute = remaining_space
+
+		for _, child in ipairs(active) do
+			local child_axis = child.layout_box[axis_key]
+			local grow_factor = child.layout_box.grow / current_total_grow
+			local add_size = space_to_distribute * grow_factor
+			local target_size = child_axis.size + add_size
+
+			if target_size > child_axis.max_size then
+				local actually_added = child_axis.max_size - child_axis.size
+				child_axis.size = child_axis.max_size
+				remaining_space = remaining_space - actually_added
+				any_capped = true
+			else
+				next_active[#next_active + 1] = child
+				next_total_grow = next_total_grow + child.layout_box.grow
+			end
 		end
 
-		child_axis.size = new_size
+		if not any_capped then
+			for _, child in ipairs(active) do
+				local child_axis = child.layout_box[axis_key]
+				local grow_factor = child.layout_box.grow / current_total_grow
+				child_axis.size = child_axis.size + remaining_space * grow_factor
+			end
+			remaining_space = 0
+			break
+		end
+
+		active, next_active = next_active, active
+		current_total_grow = next_total_grow
 	end
 end
 

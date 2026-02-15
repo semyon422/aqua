@@ -8,7 +8,6 @@ local SizeMode = Enums.SizeMode
 ---@field preferred_size number
 ---@field min_size number
 ---@field max_size number
----@field grow number
 ---@field mode ui.SizeMode
 ---@field padding_start number
 ---@field padding_end number

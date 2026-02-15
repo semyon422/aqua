@@ -108,9 +108,9 @@ function test.min_max_constraints(t)
 
 	-- Available: 100. Split 50/50.
 	-- c1 target: 100. Max: 80. -> 80.
-	-- c2 target: 100.
+	-- c2 target: 100 + 20 (redistributed) -> 120.
 	t:eq(c1.layout_box.x.size, 80)
-	t:eq(c2.layout_box.x.size, 100)
+	t:eq(c2.layout_box.x.size, 120)
 end
 
 ---@param t testing.T
