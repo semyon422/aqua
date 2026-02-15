@@ -1,4 +1,4 @@
-local Node = require("ui.Node")
+local Node = require("ui.view.Node")
 
 local test = {}
 
