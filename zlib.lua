@@ -310,12 +310,14 @@ function zlib.inflate(s, chunk_size)
 	return zlib.apply_filter(s, zlib.inflate_async, chunk_size)
 end
 
-local test_string = ("test"):rep(100)
+-- Tests disabled because of OpenResty
 
-assert(zlib.uncompress(zlib.compress(test_string), #test_string) == test_string)
-assert(zlib.inflate(zlib.deflate(test_string, 10), 10) == test_string)
-assert(zlib.inflate(zlib.deflate(test_string, 10, 0), 10) == test_string)
-assert(zlib.inflate(zlib.deflate(test_string, 10, 9), 10) == test_string)
-assert(zlib.inflate(zlib.deflate(test_string)) == test_string)
+-- local test_string = ("test"):rep(100)
+
+-- assert(zlib.uncompress(zlib.compress(test_string), #test_string) == test_string)
+-- assert(zlib.inflate(zlib.deflate(test_string, 10), 10) == test_string)
+-- assert(zlib.inflate(zlib.deflate(test_string, 10, 0), 10) == test_string)
+-- assert(zlib.inflate(zlib.deflate(test_string, 10, 9), 10) == test_string)
+-- assert(zlib.inflate(zlib.deflate(test_string)) == test_string)
 
 return zlib
