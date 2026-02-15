@@ -18,7 +18,10 @@ require("table.clear")
 ---@field removal_deferred view.Node[]
 local Engine = class()
 
-function Engine:new()
+
+---@param target_height number? Affects the scale of the entire UI. Pass nil to disable scaling
+---@param height_scale number Multiplies target height
+function Engine:new(target_height, height_scale)
 	self.delta_time = 0
 	self.layout_invalidation_requesters = {}
 	self.removal_deferred = {}
@@ -29,7 +32,8 @@ function Engine:new()
 	self.inputs = Inputs()
 	self.traversal_context = TraversalContext()
 
-	self.target_height = 768
+	self.target_height = target_height
+	self.height_scale = height_scale or 1
 end
 
 ---@param root view.Node
@@ -39,11 +43,30 @@ function Engine:setRoot(root)
 	self:updateRootDimensions()
 end
 
+---@param target_height number? Pass nil to disable scaling
+function Engine:setTargetHeight(target_height)
+	self.target_height = target_height
+	self:updateRootDimensions()
+end
+
+---@param height_scale number
+function Engine:setHeightScale(height_scale)
+	self.height_scale = height_scale
+	self:updateRootDimensions()
+end
+
 function Engine:updateRootDimensions()
 	local ww, wh = love.graphics.getDimensions()
-	local s = self.target_height / wh
+	local target_height = wh
+
+	if self.target_height then
+		target_height = self.target_height * (self.height_scale or 1)
+	end
+
+	local s = target_height / wh
 	local is = 1 / s
-	self.root.layout_box:setDimensions(ww * s, self.target_height)
+
+	self.root.layout_box:setDimensions(ww * s, target_height)
 	self.root.transform:setScale(is, is)
 	self.renderer:setViewportScale(is)
 end
