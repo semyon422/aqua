@@ -2,6 +2,8 @@ local table_util = require("table_util")
 
 local stbl = {}
 
+stbl.allow_nan_inf = false
+
 -- String-TaBLe / STaBLe
 -- simple lua serializer with determined output
 
@@ -16,10 +18,12 @@ stbl.enc = {}
 ---@param v number
 ---@return string
 function stbl.enc.number(v)
-	if v ~= v then
-		error("stbl: NaN not supported")
-	elseif math.abs(v) == math.huge then
-		error("stbl: infinity not supported")
+	if not stbl.allow_nan_inf then
+		if v ~= v then
+			error("stbl: NaN not supported")
+		elseif math.abs(v) == math.huge then
+			error("stbl: infinity not supported")
+		end
 	end
 	return ("%.17g"):format(v)
 end

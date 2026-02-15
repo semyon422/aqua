@@ -36,7 +36,10 @@ local function format_got_expected(v)
 	if type(v) ~= "table" then
 		return v
 	end
-	return stbl.encode(v, nil, true)
+	stbl.allow_nan_inf = true
+	local s = stbl.encode(v, nil, true)
+	stbl.allow_nan_inf = false
+	return s
 end
 
 ---@param a string
