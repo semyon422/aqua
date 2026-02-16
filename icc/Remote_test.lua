@@ -1,7 +1,7 @@
 local Remote = require("icc.Remote")
 local TaskHandler = require("icc.TaskHandler")
 local FuncHandler = require("icc.FuncHandler")
-local FakePeer = require("icc.FakePeer")
+local QueuePeer = require("icc.QueuePeer")
 local Message = require("icc.Message")
 
 local test = {}
@@ -14,7 +14,7 @@ function test.basic(t)
 	end
 
 	local th = TaskHandler(FuncHandler(handler))
-	local peer = FakePeer()
+	local peer = QueuePeer()
 	local remote = Remote(th, peer)
 
 	local done = false

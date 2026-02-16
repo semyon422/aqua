@@ -1,6 +1,6 @@
 local TaskHandler = require("icc.TaskHandler")
 local FuncHandler = require("icc.FuncHandler")
-local FakePeer = require("icc.FakePeer")
+local QueuePeer = require("icc.QueuePeer")
 local Message = require("icc.Message")
 
 local test = {}
@@ -13,7 +13,7 @@ function test.basic(t)
 	end
 
 	local th = TaskHandler(FuncHandler(handler))
-	local peer = FakePeer()
+	local peer = QueuePeer()
 
 	local done = false
 	coroutine.wrap(function()
@@ -44,7 +44,7 @@ function test.basic_no_return(t)
 	end
 
 	local th = TaskHandler(FuncHandler(handler))
-	local peer = FakePeer()
+	local peer = QueuePeer()
 
 	local done = false
 	coroutine.wrap(function()
@@ -82,8 +82,8 @@ function test.multiple(t)
 
 	local th1 = TaskHandler(FuncHandler(handler1))
 	local th2 = TaskHandler(FuncHandler(handler2))
-	local peer1 = FakePeer()
-	local peer2 = FakePeer()
+	local peer1 = QueuePeer()
+	local peer2 = QueuePeer()
 
 	local done = false
 	coroutine.wrap(function()
@@ -113,7 +113,7 @@ function test.error(t)
 	end
 
 	local th = TaskHandler(FuncHandler(handler))
-	local peer = FakePeer()
+	local peer = QueuePeer()
 
 	local done = false
 	coroutine.wrap(function()
@@ -148,7 +148,7 @@ function test.error_no_return(t)
 	end
 
 	local th = TaskHandler(FuncHandler(handler))
-	local peer = FakePeer()
+	local peer = QueuePeer()
 
 	local done = false
 	coroutine.wrap(function()
@@ -169,7 +169,7 @@ end
 ---@param t testing.T
 function test.error_after_resume(t)
 	local th = TaskHandler(FuncHandler(function() end))
-	local peer = FakePeer()
+	local peer = QueuePeer()
 
 	local done = false
 	coroutine.wrap(function()
@@ -196,7 +196,7 @@ end
 ---@param t testing.T
 function test.error_send_closed(t)
 	local th = TaskHandler(FuncHandler(function() end))
-	local peer = FakePeer()
+	local peer = QueuePeer()
 
 	function peer:send()
 		return nil, "closed"
@@ -220,7 +220,7 @@ end
 ---@param t testing.T
 function test.error_timeout(t)
 	local th = TaskHandler(FuncHandler(function() end))
-	local peer = FakePeer()
+	local peer = QueuePeer()
 
 	th.timeout = 0
 
