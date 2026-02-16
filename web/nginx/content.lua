@@ -12,7 +12,7 @@ local function run()
 		error(err)
 	end
 
-	---@cast err fun(req: web.IRequest, res: web.IResponse, ip: string)
+	---@cast err fun(req: web.IRequest, res: web.IResponse, ip: string, port: integer)
 	local handle = err
 
 	local soc = NginxReqSocket()
@@ -21,12 +21,12 @@ local function run()
 
 	req:receive_headers()
 
-	local ip = soc:getpeername()
+	local ip, port = soc:getpeername()
 	if config.proxied then
 		ip = assert(req.headers:get("X-Real-IP"), "missing real ip")
 	end
 
-	return handle(req, res, ip)
+	return handle(req, res, ip, port)
 end
 
 return run
