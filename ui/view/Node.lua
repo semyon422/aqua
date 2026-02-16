@@ -3,6 +3,7 @@ local INode = require("ui.INode")
 local LayoutBox = require("ui.layout.LayoutBox")
 local IInputHandler = require("ui.input.IInputHandler")
 local Transform = require("ui.Transform")
+local table_util = require("table_util")
 
 local LayoutEnums = require("ui.layout.Enums")
 local Arrange = LayoutEnums.Arrange
@@ -146,11 +147,30 @@ function Node:remove(node)
 	end
 end
 
+--- Marks the node to be killed at the end of the Engine:updateTree().
+--- Doesn't remove it from the tree.
 function Node:kill()
 	self.state = State.Killed
 end
 
-function Node:onKill() end
+--- DO NOT CALL THIS OUTSIDE OF Engine CLASS
+--- Removes references to other nodes.
+function Node:destroy()
+	if self.children then
+		for i = #self.children, 1, -1 do
+			local child = self.children[i]
+			child.parent = nil
+			child:destroy()
+		end
+		table_util.clear(self.children)
+	end
+
+	-- Not necessary, but GC will destory these faster
+	self.children = nil
+	self.inputs = nil
+	self.layout_box = nil
+	self.transform = nil
+end
 
 --- Must be called after the layout update
 --- Sets layout X, layout Y and origins with anchors in the ui.Transform

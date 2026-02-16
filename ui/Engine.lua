@@ -160,6 +160,9 @@ function Engine:updateTree(dt)
 	if #self.removal_deferred ~= 0 then
 		for _, v in ipairs(self.removal_deferred) do
 			local parent = v.parent
+
+			self:finalizeRemoval(v)
+
 			if parent then
 				parent:remove(v)
 				parent.layout_box:markDirty(Axis.Both)
@@ -183,6 +186,15 @@ function Engine:updateTree(dt)
 		self.renderer:build(self.root)
 		self.rebuild_rendering_context = false
 	end
+end
+
+---@param node view.Node
+function Engine:finalizeRemoval(node)
+	for _, child in ipairs(node.children) do
+		self:finalizeRemoval(child)
+		child.state = State.Killed
+	end
+	node:destroy()
 end
 
 function Engine:drawTree()

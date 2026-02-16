@@ -24,6 +24,12 @@ function Label:new(font_or_text_batch, text)
 	self.layout_box:setDimensions(self.text_batch:getDimensions())
 end
 
+function Label:destroy()
+	Node.destroy(self)
+	self.text_batch:release()
+	self.text_batch = nil
+end
+
 ---@param v string
 function Label:setText(v)
 	self.text_batch:set(v)
