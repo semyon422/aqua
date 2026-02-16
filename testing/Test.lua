@@ -115,8 +115,9 @@ end
 ---@param got any?
 ---@param expected any?
 ---@param level integer?
+---@param msg any?
 ---@return any?
-function Test:expected_assert(cond, got, expected, level)
+function Test:expected_assert(cond, got, expected, level, msg)
 	if cond then
 		return cond
 	end
@@ -132,7 +133,7 @@ function Test:expected_assert(cond, got, expected, level)
 
 	---@type string[]
 	local out = {}
-	table.insert(out, ("%s:%s:"):format(line.short_src, line.currentline))
+	table.insert(out, ("%s:%s:%s"):format(line.short_src, line.currentline, msg and (" " .. tostring(msg)) or ""))
 	if self.name then
 		out[1] = ("%s (%s)"):format(out[1], self.name)
 	end
@@ -157,10 +158,16 @@ function Test:typeof(got, _type)
 end
 
 ---@param f function
+---@param num_args integer?
 ---@return function
-local function build_method(f)
+local function build_method(f, num_args)
+	num_args = num_args or 2
 	return function(self, got, expected, ...)
-		return self:expected_assert(f(got, expected, ...), got, expected)
+		local msg
+		if select("#", ...) > num_args - 2 then
+			msg = select(num_args - 2 + 1, ...)
+		end
+		return self:expected_assert(f(got, expected, ...), got, expected, 3, msg)
 	end
 end
 
@@ -176,7 +183,7 @@ Test.aeq = build_method(function(a, b, eps)
 		return math.abs(a - b) < eps
 	end
 	return a == b
-end)
+end, 3)
 
 Test.teq = build_method(table_util.equal)
 Test.tdeq = build_method(table_util.deepequal)
