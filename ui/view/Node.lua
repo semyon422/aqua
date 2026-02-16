@@ -138,6 +138,7 @@ function Node:isMouseOver(mouse_x, mouse_y, imx, imy)
 end
 
 ---@param node view.Node
+--- Removes the child from the tree, but doesn't kill it.
 function Node:remove(node)
 	for i, child in ipairs(self.children) do
 		if child == node then

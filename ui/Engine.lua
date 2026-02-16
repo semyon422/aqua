@@ -16,8 +16,8 @@ local State = Node.State
 ---@operator call: ui.Engine
 ---@field layout_invalidation_requesters view.Node[]
 ---@field removal_deferred view.Node[]
+---@field current_scale number The current UI scale factor
 local Engine = class()
-
 
 ---@param target_height number? Affects the scale of the entire UI. Pass nil to disable scaling
 ---@param height_scale number Multiplies target height
@@ -39,8 +39,8 @@ end
 ---@param root view.Node
 function Engine:setRoot(root)
 	self.root = root
-	root:mount(self.inputs)
 	self:updateRootDimensions()
+	root:mount(self.inputs)
 end
 
 ---@param target_height number? Pass nil to disable scaling
@@ -66,6 +66,8 @@ function Engine:updateRootDimensions()
 	local s = target_height / wh
 	local is = 1 / s
 
+	self.current_scale = s
+
 	self.root.layout_box:setDimensions(ww * s, target_height)
 	self.root.transform:setScale(is, is)
 	self.renderer:setViewportScale(is)
@@ -87,7 +89,6 @@ function Engine:updateNode(node)
 		node.state = State.Ready
 		self.rebuild_rendering_context = true
 	elseif state == State.Killed then
-		node:onKill()
 		table.insert(self.removal_deferred, node)
 		return
 	elseif state == State.AwaitsMount then
