@@ -17,6 +17,7 @@ local State = Node.State
 ---@field layout_invalidation_requesters view.Node[]
 ---@field removal_deferred view.Node[]
 ---@field current_scale number The current UI scale factor
+---@field current_dpi number
 local Engine = class()
 
 ---@param target_height number? Affects the scale of the entire UI. Pass nil to disable scaling
@@ -67,6 +68,7 @@ function Engine:updateRootDimensions()
 	local is = 1 / s
 
 	self.current_scale = s
+	self.current_dpi = is
 
 	self.root.layout_box:setDimensions(ww * s, target_height)
 	self.root.transform:setScale(is, is)
