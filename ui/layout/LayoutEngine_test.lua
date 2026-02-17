@@ -3,7 +3,7 @@ local LayoutBox = require("ui.layout.LayoutBox")
 
 local test = {}
 
----@return ui.LayoutEngine.Node
+---@return ui.Node
 local function new_node()
 	return {
 		children = {},

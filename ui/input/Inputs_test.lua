@@ -4,7 +4,7 @@ local IInputHandler = require("ui.input.IInputHandler")
 
 local test = {}
 
----@return view.Node
+---@return ui.Node
 local function new_node()
 	local node = {
 		children = {},

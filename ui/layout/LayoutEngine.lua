@@ -37,8 +37,6 @@ function LayoutEngine:updateLayout(dirty_nodes)
 		return
 	end
 
-	local s = love.timer.getTime()
-
 	---@type {[ui.INode]: boolean}
 	local layout_roots = {}
 
@@ -69,8 +67,6 @@ function LayoutEngine:updateLayout(dirty_nodes)
 		local target = node.parent and node.parent or node
 		self:arrangeChildren(target)
 	end
-
-	print(("[LAYOUT] frame: %i took: %0.02f MS"):format(frame, (love.timer.getTime() - s) * 1000))
 
 	return layout_roots
 end
