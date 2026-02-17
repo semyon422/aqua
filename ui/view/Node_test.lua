@@ -26,13 +26,6 @@ function test.order(t)
 	local n3 = root:add(Node())
 	local n4 = root:add(Node())
 	t:teq(root.children, {n1, n2, n3, n4})
-
-	local n5 = root:add(Node(), {z = -0.1})
-	t:teq(root.children, {n5, n1, n2, n3, n4})
-
-	local n6 = root:add(Node(), {z = -0.05})
-	local n7 = root:add(Node(), {z = -0.2})
-	t:teq(root.children, {n7, n5, n6, n1, n2, n3, n4})
 end
 
 return test

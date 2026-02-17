@@ -17,8 +17,6 @@ local TextInputEvent = require("ui.input.events.TextInputEvent")
 ---@field last_mouse_down_event ui.MouseDownEvent
 local Inputs = class()
 
----@class ui.Inputs.Node: ui.INode, ui.IInputHandler
-
 Inputs.MOUSE_CLICK_MAX_DISTANCE = 30
 
 local mouse_events = {
@@ -34,7 +32,7 @@ local keyboard_events = {
 	textinput = true
 }
 
----@param node ui.Inputs.Node?
+---@param node ui.INode?
 function Inputs:setKeyboardFocus(node)
 	if self.keyboard_focus then
 		local e = FocusLostEvent()
@@ -217,7 +215,6 @@ function Inputs:dispatchEvent(e)
 			return
 		end
 		local parent = e.current_target.parent
-		---@cast parent -ui.INode, +ui.Inputs.Node
 		e.current_target = parent
 	end
 

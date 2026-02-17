@@ -1,7 +1,5 @@
-local class = require("class")
 local INode = require("ui.INode")
 local LayoutBox = require("ui.layout.LayoutBox")
-local IInputHandler = require("ui.input.IInputHandler")
 local Transform = require("ui.Transform")
 local table_util = require("table_util")
 
@@ -14,7 +12,7 @@ local Pivot = LayoutEnums.Pivot
 ---@alias ui.Color [number, number, number, number]
 ---@alias ui.BlendMode { color: string, alpha: string }
 
----@class view.Node : ui.HasLayoutBox, ui.Inputs.Node
+---@class view.Node : ui.INode
 ---@operator call: view.Node
 ---@field id string?
 ---@field parent view.Node
@@ -28,8 +26,8 @@ local Pivot = LayoutEnums.Pivot
 ---@field origin ui.Pivot
 ---@field anchor ui.Pivot
 ---@field inputs ui.Inputs
----@field mounted boolean Is the node inside a main tree?
-local Node = class() + INode + IInputHandler
+---@field just_toggled_state boolean Used in enable()/disable() to tell the Engine that the state had changed
+local Node = INode + {}
 
 Node.State = {
 	AwaitsMount = 1,
@@ -43,12 +41,12 @@ local State = Node.State
 function Node:new()
 	self.layout_box = LayoutBox()
 	self.transform = Transform()
-	self.z = 0
 	self.children = {}
 	self.mouse_over = false
 	self.handles_mouse_input = false
 	self.handles_keyboard_input = false
 	self.is_disabled = false
+	self.just_toggled_state = false
 	self.state = State.AwaitsMount
 	self.origin = Pivot.TopLeft
 	self.anchor = Pivot.TopLeft
@@ -101,7 +99,6 @@ function Node:update(dt) end
 ---@return T
 function Node:add(node, params)
 	---@cast node view.Node
-	local inserted = false
 	assert(node.state ~= nil, "Did you forgot to call a base Node:new()?")
 
 	node.parent = self
@@ -110,17 +107,7 @@ function Node:add(node, params)
 		node:setup(params)
 	end
 
-	for i, child in ipairs(self.children) do
-		if node.z < child.z then
-			table.insert(self.children, i, node)
-			inserted = true
-			break
-		end
-	end
-
-	if not inserted then
-		table.insert(self.children, node)
-	end
+	table.insert(self.children, node)
 
 	if self.state ~= State.AwaitsMount then
 		node:mount(self.inputs)
@@ -152,6 +139,23 @@ end
 --- Doesn't remove it from the tree.
 function Node:kill()
 	self.state = State.Killed
+end
+
+--- Disables the node. Disabled nodes are excluded from rendering and layout.
+--- The entire subtree is effectively disabled.
+function Node:disable()
+	if not self.is_disabled then
+		self.is_disabled = true
+		self.just_toggled_state = true
+	end
+end
+
+--- Enables a previously disabled node.
+function Node:enable()
+	if self.is_disabled then
+		self.is_disabled = false
+		self.just_toggled_state = true
+	end
 end
 
 --- DO NOT CALL THIS OUTSIDE OF Engine CLASS
@@ -451,7 +455,6 @@ Node.Setters = {
 	grow = Node.setGrow,
 	id = true,
 	color = true,
-	z = true,
 	handles_mouse_input = true,
 	handles_keyboard_input = true,
 	is_disabled = true,

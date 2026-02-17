@@ -19,6 +19,10 @@ local insert = table.insert
 ---@param node view.Node
 ---@param ctx (RenderingContext.Operations | any)[]
 local function traverseTree(node, ctx)
+	if node.is_disabled then
+		return
+	end
+
 	local has_state =
 		node.color
 		or node.blend_mode
@@ -27,6 +31,18 @@ local function traverseTree(node, ctx)
 		or node.draw
 
 	if has_state then
+		insert(ctx, OP.PUSH_STATE)
+
+		if node.stencil then
+			insert(ctx, OP.SET_STENCIL)
+			insert(ctx, node)
+		end
+
+		if node.canvas then
+			insert(ctx, OP.SET_CANVAS)
+			insert(ctx, node)
+		end
+
 		insert(ctx, OP.PUSH_STATE)
 		if node.color then
 			insert(ctx, OP.SET_COLOR)
@@ -39,20 +55,13 @@ local function traverseTree(node, ctx)
 			insert(ctx, node.blend_mode.alpha)
 		end
 
-		if node.stencil then
-			insert(ctx, OP.SET_STENCIL)
-			insert(ctx, node)
-		end
-
-		if node.canvas then
-			insert(ctx, OP.SET_CANVAS)
-			insert(ctx, node)
-		end
 
 		if node.draw then
 			insert(ctx, OP.DRAW)
 			insert(ctx, node)
 		end
+
+		insert(ctx, OP.POP_STATE)
 	end
 
 	local c = node.children

@@ -1,9 +1,15 @@
 local class = require("class")
+local IInputHandler = require("ui.input.IInputHandler")
 
----@class ui.INode
+---@class ui.INode : ui.IInputHandler, ui.HasLayoutBox
 ---@field parent ui.INode?
 ---@field children ui.INode[]
-local INode = class()
+---@field is_disabled boolean
+local INode = class() + IInputHandler
+
+function INode:new()
+	error("INode interface should not be used. Use ui.view.Node only.")
+end
 
 ---@generic T: ui.INode
 ---@param node T

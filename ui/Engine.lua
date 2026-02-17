@@ -77,6 +77,15 @@ end
 
 ---@param node view.Node
 function Engine:updateNode(node)
+	if node.just_toggled_state then
+		self.rebuild_rendering_context = true
+		node.just_toggled_state = false
+
+		if node.parent then
+			node.parent.layout_box:markDirty(Axis.Both)
+		end
+	end
+
 	if node.is_disabled then
 		return
 	end
