@@ -20,7 +20,7 @@ end
 function test.flow_h_basic(t)
 	local engine = LayoutEngine()
 	local container = new_node()
-	container.layout_box.arrange = LayoutBox.Arrange.FlowH
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
 
 	local c1 = container:add(new_node())
 	c1.layout_box:setDimensions(100, 100)
@@ -55,7 +55,7 @@ end
 function test.flow_v_basic(t)
 	local engine = LayoutEngine()
 	local container = new_node()
-	container.layout_box.arrange = LayoutBox.Arrange.FlowV
+	container.layout_box.arrange = LayoutBox.Arrange.FlexCol
 
 	local c1 = container:add(new_node())
 	c1.layout_box:setDimensions(100, 100)
@@ -82,7 +82,7 @@ function test.justify_content(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box:setDimensions(100, 100)
-	container.layout_box.arrange = LayoutBox.Arrange.FlowH
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
 
 	local c1 = container:add(new_node())
 	c1.layout_box:setDimensions(10, 10)
@@ -116,7 +116,7 @@ function test.align_items(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box:setDimensions(100, 100)
-	container.layout_box.arrange = LayoutBox.Arrange.FlowH
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
 
 	local c1 = container:add(new_node())
 	c1.layout_box:setDimensions(10, 10)
@@ -147,7 +147,7 @@ function test.percent_size(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box:setDimensions(200, 200)
-	container.layout_box.arrange = LayoutBox.Arrange.FlowH
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
 
 	local c1 = container:add(new_node())
 	c1.layout_box:setWidthPercent(0.5)
@@ -167,10 +167,10 @@ function test.percent_size(t)
 end
 
 ---@param t testing.T
-function test.flow_h_reversed(t)
+function test.flex_row_reversed(t)
 	local engine = LayoutEngine()
 	local container = new_node()
-	container.layout_box:setArrange(LayoutBox.Arrange.FlowH)
+	container.layout_box:setArrange(LayoutBox.Arrange.FlexRow)
 	container.layout_box:setReversed(true)
 
 	local c1 = container:add(new_node())
@@ -191,10 +191,10 @@ function test.flow_h_reversed(t)
 end
 
 ---@param t testing.T
-function test.flow_v_reversed(t)
+function test.flex_col_reversed(t)
 	local engine = LayoutEngine()
 	local container = new_node()
-	container.layout_box:setArrange(LayoutBox.Arrange.FlowV)
+	container.layout_box:setArrange(LayoutBox.Arrange.FlexCol)
 	container.layout_box:setReversed(true)
 
 	local c1 = container:add(new_node())
@@ -212,6 +212,80 @@ function test.flow_v_reversed(t)
 	t:eq(c3.layout_box.y.pos, 0)
 	t:eq(c2.layout_box.y.pos, 100)
 	t:eq(c1.layout_box.y.pos, 150)
+end
+
+---@param t testing.T
+function test.margins(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setDimensions(200, 200)
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+
+	local c1 = container:add(new_node())
+	c1.layout_box:setDimensions(50, 50)
+	c1.layout_box:setMargins({10, 20, 10, 20}) -- top, right, bottom, left
+
+	engine:updateLayout({c1})
+
+	-- Position should include left margin
+	t:eq(c1.layout_box.x.pos, 20)
+	t:eq(c1.layout_box.y.pos, 10)
+end
+
+---@param t testing.T
+function test.grid_fixed(t)
+	local engine = LayoutEngine()
+	local grid = new_node()
+	grid.layout_box:setArrange(LayoutBox.Arrange.Grid)
+	grid.layout_box:setGridColumns({100, 100, 100})
+	grid.layout_box:setGridRows({50, 50})
+
+	local c1 = grid:add(new_node())
+	c1.layout_box:setGridColumn(1)
+	c1.layout_box:setGridRow(1)
+	c1.layout_box:setWidth(100)
+	c1.layout_box:setHeight(50)
+
+	local c2 = grid:add(new_node())
+	c2.layout_box:setGridColumn(3)
+	c2.layout_box:setGridRow(2)
+	c2.layout_box:setWidth(100)
+	c2.layout_box:setHeight(50)
+
+	engine:updateLayout(grid.children)
+
+	-- Grid size should be 300x100
+	t:eq(grid.layout_box.x.size, 300)
+	t:eq(grid.layout_box.y.size, 100)
+
+	-- c1 at column 1, row 1
+	t:eq(c1.layout_box.x.pos, 0)
+	t:eq(c1.layout_box.y.pos, 0)
+
+	-- c2 at column 3, row 2
+	t:eq(c2.layout_box.x.pos, 200)
+	t:eq(c2.layout_box.y.pos, 50)
+end
+
+---@param t testing.T
+function test.grid_percent(t)
+	local engine = LayoutEngine()
+	local grid = new_node()
+	grid.layout_box:setDimensions(300, 100)
+	grid.layout_box:setArrange(LayoutBox.Arrange.Grid)
+	grid.layout_box:setGridColumns({"25%", "25%", "25%", "25%"})
+	grid.layout_box:setGridRows({"50%", "50%"})
+
+	local c1 = grid:add(new_node())
+	c1.layout_box:setGridColumn(3)
+	c1.layout_box:setGridRow(1)
+	c1.layout_box:setWidthAuto()
+	c1.layout_box:setHeightAuto()
+
+	engine:updateLayout(grid.children)
+
+	t:eq(c1.layout_box.x.pos, 150)
+	t:eq(c1.layout_box.y.pos, 0)
 end
 
 return test

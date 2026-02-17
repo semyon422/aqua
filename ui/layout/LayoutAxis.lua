@@ -11,6 +11,8 @@ local SizeMode = Enums.SizeMode
 ---@field mode ui.SizeMode
 ---@field padding_start number
 ---@field padding_end number
+---@field margin_start number
+---@field margin_end number
 local LayoutAxis = class()
 
 function LayoutAxis:new()
@@ -22,6 +24,8 @@ function LayoutAxis:new()
 	self.mode = SizeMode.Auto
 	self.padding_start = 0
 	self.padding_end = 0
+	self.margin_start = 0
+	self.margin_end = 0
 end
 
 ---@param size number
@@ -57,6 +61,11 @@ end
 ---@return number
 function LayoutAxis:getLayoutSize()
 	return self.size - self.padding_start - self.padding_end
+end
+
+---@return number Total
+function LayoutAxis:getTotalMargin()
+	return self.margin_start + self.margin_end
 end
 
 return LayoutAxis

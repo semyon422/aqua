@@ -7,7 +7,7 @@ local Arrange = LayoutEnums.Arrange
 local JustifyContent = LayoutEnums.JustifyContent
 local AlignItems = LayoutEnums.AlignItems
 
----@class ui.Node: ui.HasLayoutBox, ui.IInputHandler
+---@class ui.Node: ui.IInputHandler
 ---@operator call: ui.Node
 ---@field parent ui.Node?
 ---@field children ui.Node[]
@@ -18,6 +18,7 @@ local AlignItems = LayoutEnums.AlignItems
 ---@field handles_keyboard_input boolean
 ---@field just_toggled_state boolean Used in enable()/disable() to tell the Engine that the state had changed
 ---@field mouse_over boolean
+---@field getIntrinsicSize? fun(self: ui.Node, axis_idx: ui.Axis, constraint: number?): number
 local Node = class()
 
 Node.State = {
@@ -228,16 +229,23 @@ function Node:setMaxHeight(v)
 	self.layout_box:setMaxHeight(v)
 end
 
----@param v "absolute" | "flow_h" | "flow_v"
+---@param v "absolute" | "flex_row" | "flex_col" | "grid"
 function Node:setArrange(v)
 	local arrange = Arrange.Absolute
 
 	if v == "absolute" then
 		arrange = Arrange.Absolute
+	elseif v == "flex_row" then
+		arrange = Arrange.FlexRow
+	elseif v == "flex_col" then
+		arrange = Arrange.FlexCol
+	elseif v == "grid" then
+		arrange = Arrange.Grid
+	-- Legacy aliases
 	elseif v == "flow_h" then
-		arrange = Arrange.FlowH
+		arrange = Arrange.FlexRow
 	elseif v == "flow_v" then
-		arrange = Arrange.FlowV
+		arrange = Arrange.FlexCol
 	end
 
 	self.layout_box:setArrange(arrange)
@@ -298,9 +306,57 @@ function Node:setPaddings(v)
 	self.layout_box:setPaddings(v)
 end
 
+---@param v [number, number, number, number]
+function Node:setMargins(v)
+	self.layout_box:setMargins(v)
+end
+
 ---@param v number
 function Node:setGrow(v)
 	self.layout_box:setGrow(v)
+end
+
+---@param v (number|string)[]
+function Node:setGridColumns(v)
+	self.layout_box:setGridColumns(v)
+end
+
+---@param v (number|string)[]
+function Node:setGridRows(v)
+	self.layout_box:setGridRows(v)
+end
+
+---@param v number
+function Node:setGridColumn(v)
+	self.layout_box:setGridColumn(v)
+end
+
+---@param v number
+function Node:setGridRow(v)
+	self.layout_box:setGridRow(v)
+end
+
+---@param v number
+function Node:setGridColSpan(v)
+	self.layout_box:setGridColSpan(v)
+end
+
+---@param v number
+function Node:setGridRowSpan(v)
+	self.layout_box:setGridRowSpan(v)
+end
+
+---@param col number
+---@param row number
+function Node:setGridCell(col, row)
+	self.layout_box:setGridColumn(col)
+	self.layout_box:setGridRow(row)
+end
+
+---@param col_span number
+---@param row_span number
+function Node:setGridSpan(col_span, row_span)
+	self.layout_box:setGridSpan(col_span, row_span)
 end
 
 Node.Setters = {
@@ -317,7 +373,16 @@ Node.Setters = {
 	align_self = Node.setAlignSelf,
 	justify_content = Node.setJustifyContent,
 	padding = Node.setPaddings,
+	margins = Node.setMargins,
 	grow = Node.setGrow,
+	grid_columns = Node.setGridColumns,
+	grid_rows = Node.setGridRows,
+	grid_column = Node.setGridColumn,
+	grid_row = Node.setGridRow,
+	grid_col_span = Node.setGridColSpan,
+	grid_row_span = Node.setGridRowSpan,
+	grid_cell = Node.setGridCell,
+	grid_span = Node.setGridSpan,
 	id = true,
 	handles_mouse_input = true,
 	handles_keyboard_input = true,

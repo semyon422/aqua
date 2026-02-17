@@ -4,7 +4,7 @@ local LayoutEngine = require("ui.layout.LayoutEngine")
 -- This test only tests sizes
 local test = {}
 
----@return ui.LayoutEngine.Node
+---@return ui.Node
 local function new_node()
 	return {
 		children = {},
@@ -70,7 +70,7 @@ function test.grow(t)
 	local root = new_node()
 	root.layout_box:setWidth(200)
 	root.layout_box:setHeight(100)
-	root.layout_box.arrange = LayoutBox.Arrange.FlowH
+	root.layout_box.arrange = LayoutBox.Arrange.FlexRow
 
 	local c1 = root:add(new_node())
 	c1.layout_box:setWidth(50)
@@ -93,7 +93,7 @@ end
 function test.min_max_constraints(t)
 	local root = new_node()
 	root.layout_box:setWidth(200)
-	root.layout_box.arrange = LayoutBox.Arrange.FlowH
+	root.layout_box.arrange = LayoutBox.Arrange.FlexRow
 
 	local c1 = root:add(new_node())
 	c1.layout_box:setWidth(50)
@@ -119,7 +119,7 @@ function test.align_items_stretch(t)
 	local root = new_node()
 	root.layout_box:setWidth(200)
 	root.layout_box:setHeight(100)
-	root.layout_box.arrange = LayoutBox.Arrange.FlowH -- Y axis will be stretched.
+	root.layout_box.arrange = LayoutBox.Arrange.FlexRow -- Y axis will be stretched.
 	root.layout_box.align_items = LayoutBox.AlignItems.Stretch
 
 	local c1 = root:add(new_node())
