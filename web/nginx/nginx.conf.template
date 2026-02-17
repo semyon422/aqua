@@ -21,6 +21,12 @@ http {
 
 	client_max_body_size <%= client_max_body_size %>;
 
+	<% if shared_dicts then %>
+		<% for name, size in pairs(shared_dicts) do %>
+			lua_shared_dict <%= name %> <%= size %>;
+		<% end %>
+	<% end %>
+
 	init_by_lua_block {
 		require("aqua.env.openresty")
 		local pkg = require("pkg")
