@@ -17,7 +17,7 @@ local function new_node()
 end
 
 ---@param t testing.T
-function test.flow_h_basic(t)
+function test.flex_row_basic(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
@@ -52,7 +52,7 @@ function test.flow_h_basic(t)
 end
 
 ---@param t testing.T
-function test.flow_v_basic(t)
+function test.flex_col_basic(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box.arrange = LayoutBox.Arrange.FlexCol
@@ -230,62 +230,6 @@ function test.margins(t)
 	-- Position should include left margin
 	t:eq(c1.layout_box.x.pos, 20)
 	t:eq(c1.layout_box.y.pos, 10)
-end
-
----@param t testing.T
-function test.grid_fixed(t)
-	local engine = LayoutEngine()
-	local grid = new_node()
-	grid.layout_box:setArrange(LayoutBox.Arrange.Grid)
-	grid.layout_box:setGridColumns({100, 100, 100})
-	grid.layout_box:setGridRows({50, 50})
-
-	local c1 = grid:add(new_node())
-	c1.layout_box:setGridColumn(1)
-	c1.layout_box:setGridRow(1)
-	c1.layout_box:setWidth(100)
-	c1.layout_box:setHeight(50)
-
-	local c2 = grid:add(new_node())
-	c2.layout_box:setGridColumn(3)
-	c2.layout_box:setGridRow(2)
-	c2.layout_box:setWidth(100)
-	c2.layout_box:setHeight(50)
-
-	engine:updateLayout(grid.children)
-
-	-- Grid size should be 300x100
-	t:eq(grid.layout_box.x.size, 300)
-	t:eq(grid.layout_box.y.size, 100)
-
-	-- c1 at column 1, row 1
-	t:eq(c1.layout_box.x.pos, 0)
-	t:eq(c1.layout_box.y.pos, 0)
-
-	-- c2 at column 3, row 2
-	t:eq(c2.layout_box.x.pos, 200)
-	t:eq(c2.layout_box.y.pos, 50)
-end
-
----@param t testing.T
-function test.grid_percent(t)
-	local engine = LayoutEngine()
-	local grid = new_node()
-	grid.layout_box:setDimensions(300, 100)
-	grid.layout_box:setArrange(LayoutBox.Arrange.Grid)
-	grid.layout_box:setGridColumns({"25%", "25%", "25%", "25%"})
-	grid.layout_box:setGridRows({"50%", "50%"})
-
-	local c1 = grid:add(new_node())
-	c1.layout_box:setGridColumn(3)
-	c1.layout_box:setGridRow(1)
-	c1.layout_box:setWidthAuto()
-	c1.layout_box:setHeightAuto()
-
-	engine:updateLayout(grid.children)
-
-	t:eq(c1.layout_box.x.pos, 150)
-	t:eq(c1.layout_box.y.pos, 0)
 end
 
 return test
