@@ -10,13 +10,13 @@ local class = require("class")
 ---@field super_pressed boolean
 local UIEvent = class()
 
----@param modifiers? {control?: boolean, shift?: boolean, alt?: boolean, super?: boolean}
+---@param modifiers ui.ModifierKeys
 function UIEvent:new(modifiers)
 	self.stop = false
-	self.control_pressed = modifiers and modifiers.control or false
-	self.shift_pressed = modifiers and modifiers.shift or false
-	self.alt_pressed = modifiers and modifiers.alt or false
-	self.super_pressed = modifiers and modifiers.super or false
+	self.control_pressed = modifiers.control
+	self.shift_pressed = modifiers.shift
+	self.alt_pressed = modifiers.alt
+	self.super_pressed = modifiers.super
 end
 
 function UIEvent:stopPropagation()
