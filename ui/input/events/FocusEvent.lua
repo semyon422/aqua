@@ -2,7 +2,7 @@ local UIEvent = require("ui.input.UIEvent")
 
 ---@class ui.FocusEvent : ui.UIEvent
 ---@operator call: ui.FocusEvent
----@field previously_focused ui.Inputs.Node?
+---@field previously_focused ui.Node?
 local FocusEvent = UIEvent + {}
 
 function FocusEvent:trigger()

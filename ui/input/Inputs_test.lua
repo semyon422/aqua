@@ -4,7 +4,9 @@ local IInputHandler = require("ui.input.IInputHandler")
 
 local test = {}
 
----@return view.Node
+local default_modifiers = {control = false, shift = false, alt = false, super = false}
+
+---@return ui.Node
 local function new_node()
 	local node = {
 		children = {},
@@ -50,14 +52,14 @@ function test.bubbling(t)
 	local button = 1
 	local event = {name = "mousepressed", x, y, button}
 	tctx.mouse_target = c1
-	inputs:receive(event, tctx)
+	inputs:receive(event, tctx, default_modifiers)
 
 	t:teq(order, expected_order)
 
 	order = {}
 	expected_order = {"c2", "c1", "root"}
 	tctx.mouse_target = c2
-	inputs:receive(event, tctx)
+	inputs:receive(event, tctx, default_modifiers)
 	t:teq(order, expected_order)
 	t:teq(order, expected_order)
 end
@@ -78,20 +80,20 @@ function test.mouse_click(t)
 	tctx.mouse_x = 10
 	tctx.mouse_y = 10
 
-	inputs:receive({name = "mousepressed", 10, 10, 1}, tctx)
-	inputs:receive({name = "mousereleased", 10, 10, 1}, tctx)
+	inputs:receive({name = "mousepressed", 10, 10, 1}, tctx, default_modifiers)
+	inputs:receive({name = "mousereleased", 10, 10, 1}, tctx, default_modifiers)
 
 	t:teq(events, {"down", "click", "up"})
 
 	-- No click
 	events = {}
-	inputs:receive({name = "mousepressed", 10, 10, 1}, tctx)
+	inputs:receive({name = "mousepressed", 10, 10, 1}, tctx, default_modifiers)
 
 	tctx.mouse_x = 9999999999
 	tctx.mouse_y = 9999999999
-	inputs:receive({name = "mousemoved", 100, 100, 0, 0}, tctx)
+	inputs:receive({name = "mousemoved", 100, 100, 0, 0}, tctx, default_modifiers)
 
-	inputs:receive({name = "mousereleased", 100, 100, 1}, tctx)
+	inputs:receive({name = "mousereleased", 100, 100, 1}, tctx, default_modifiers)
 
 	t:teq(events, {"down", "up"})
 	t:teq(events, {"down", "up"})
@@ -116,23 +118,23 @@ function test.keyboard_focus(t)
 	textbox2.onFocusLost = function() table.insert(events2, "blur") end
 	textbox2.onTextInput = function(_, event) table.insert(events2, "text:" .. event.key) end
 
-	inputs:setKeyboardFocus(textbox1)
+	inputs:setKeyboardFocus(textbox1, default_modifiers)
 	t:teq(events1, {"focus"})
 	t:teq(events2, {})
 
-	inputs:receive({name = "textinput", "a"}, tctx)
+	inputs:receive({name = "textinput", "a"}, tctx, default_modifiers)
 	t:teq(events1, {"focus", "text:a"})
 	t:teq(events2, {})
 
-	inputs:setKeyboardFocus(textbox2)
+	inputs:setKeyboardFocus(textbox2, default_modifiers)
 	t:teq(events1, {"focus", "text:a", "blur"})
 	t:teq(events2, {"focus"})
 
-	inputs:receive({name = "textinput", "b"}, tctx)
+	inputs:receive({name = "textinput", "b"}, tctx, default_modifiers)
 	t:teq(events1, {"focus", "text:a", "blur"})
 	t:teq(events2, {"focus", "text:b"})
 
-	inputs:setKeyboardFocus()
+	inputs:setKeyboardFocus(nil, default_modifiers)
 	t:teq(events2, {"focus", "text:b", "blur"})
 end
 
@@ -152,23 +154,23 @@ function test.dragging(t)
 	tctx.mouse_x = 10
 	tctx.mouse_y = 10
 
-	inputs:receive({name = "mousepressed", 10, 10, 1}, tctx)
+	inputs:receive({name = "mousepressed", 10, 10, 1}, tctx, default_modifiers)
 	t:teq(events, {})
 
 	-- start
 	tctx.mouse_x = 15
 	tctx.mouse_y = 15
-	inputs:receive({name = "mousemoved", 15, 15, 5, 5}, tctx)
+	inputs:receive({name = "mousemoved", 15, 15, 5, 5}, tctx, default_modifiers)
 	t:teq(events, {"start"})
 
 	-- continue
 	tctx.mouse_x = 20
 	tctx.mouse_y = 20
-	inputs:receive({name = "mousemoved", 20, 20, 5, 5}, tctx)
+	inputs:receive({name = "mousemoved", 20, 20, 5, 5}, tctx, default_modifiers)
 	t:teq(events, {"start", "drag"})
 
 	-- end
-	inputs:receive({name = "mousereleased", 20, 20, 1}, tctx)
+	inputs:receive({name = "mousereleased", 20, 20, 1}, tctx, default_modifiers)
 	t:teq(events, {"start", "drag", "end"})
 end
 
@@ -183,7 +185,7 @@ function test.scrolling(t)
 	scrollable.onScroll = function(self, e) table.insert(events, {e.direction_x, e.direction_y}) end
 
 	tctx.mouse_target = scrollable
-	inputs:receive({name = "wheelmoved", 0, 1}, tctx)
+	inputs:receive({name = "wheelmoved", 0, 1}, tctx, default_modifiers)
 
 	t:tdeq(events, {{0, 1}})
 end

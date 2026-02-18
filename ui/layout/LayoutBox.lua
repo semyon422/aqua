@@ -6,18 +6,21 @@ local Enums = require("ui.layout.Enums")
 ---@operator call: ui.LayoutBox
 ---@field x ui.LayoutAxis
 ---@field y ui.LayoutAxis
+---@field grow number
 ---@field child_gap number
 ---@field arrange ui.Arrange
 ---@field justify_content ui.JustifyContent
 ---@field align_items ui.AlignItems
 ---@field align_self ui.AlignItems?
 ---@field axis_invalidated ui.Axis
+---@field grid_columns ui.GridTrack[]?
+---@field grid_rows ui.GridTrack[]?
+---@field grid_column number?
+---@field grid_row number?
+---@field grid_col_span number?
+---@field grid_row_span number?
 local LayoutBox = class()
 
----@class ui.HasLayoutBox
----@field layout_box ui.LayoutBox
-
-LayoutBox.Pivot = Enums.Pivot
 LayoutBox.SizeMode = Enums.SizeMode
 LayoutBox.Arrange = Enums.Arrange
 LayoutBox.Axis = Enums.Axis
@@ -41,6 +44,13 @@ function LayoutBox:new()
 	self.justify_content = JustifyContent.Start
 	self.align_items = AlignItems.Start
 	self.axis_invalidated = Axis.None
+
+	self.grid_columns = nil
+	self.grid_rows = nil
+	self.grid_column = nil
+	self.grid_row = nil
+	self.grid_col_span = nil
+	self.grid_row_span = nil
 end
 
 ---@param axis_idx ui.Axis
@@ -228,7 +238,7 @@ end
 
 ---@param justify_content ui.JustifyContent
 function LayoutBox:setJustifyContent(justify_content)
-	if self.justify_content	== justify_content then
+	if self.justify_content == justify_content then
 		return
 	end
 	self.justify_content = justify_content
@@ -238,15 +248,90 @@ end
 ---@param gap number
 function LayoutBox:setChildGap(gap)
 	self.child_gap = gap
-	self:markDirty(Axis.Both) -- TODO: You only need to mark dirty one of the axies
+	self:markDirty(Axis.Both)
 end
 
----@param t [number, number, number, number]
+---@param t [number, number, number, number] top, right, bottom, left
 function LayoutBox:setPaddings(t)
 	self.y.padding_start = t[1]
 	self.x.padding_end = t[2]
 	self.y.padding_end = t[3]
 	self.x.padding_start = t[4]
+	self:markDirty(Axis.Both)
+end
+
+---@param t [number, number, number, number] top, right, bottom, left
+function LayoutBox:setMargins(t)
+	self.y.margin_start = t[1]
+	self.x.margin_end = t[2]
+	self.y.margin_end = t[3]
+	self.x.margin_start = t[4]
+	self:markDirty(Axis.Both)
+end
+
+---Set grid columns with sizes (pixels or percent strings)
+---@param columns (number|string)[]
+function LayoutBox:setGridColumns(columns)
+	self.grid_columns = {}
+	for i, col in ipairs(columns) do
+		if type(col) == "number" then
+			self.grid_columns[i] = {size = col, resolved_size = 0}
+		elseif type(col) == "string" and col:sub(-1) == "%" then
+			local percent = tonumber(col:sub(1, -2))
+			if percent then
+				self.grid_columns[i] = {percent = percent * 0.01, resolved_size = 0}
+			end
+		end
+	end
+	self:markDirty(Axis.Both)
+end
+
+---Set grid rows with sizes (pixels or percent strings)
+---@param rows (number|string)[]
+function LayoutBox:setGridRows(rows)
+	self.grid_rows = {}
+	for i, row in ipairs(rows) do
+		if type(row) == "number" then
+			self.grid_rows[i] = {size = row, resolved_size = 0}
+		elseif type(row) == "string" and row:sub(-1) == "%" then
+			local percent = tonumber(row:sub(1, -2))
+			if percent then
+				self.grid_rows[i] = {percent = percent * 0.01, resolved_size = 0}
+			end
+		end
+	end
+	self:markDirty(Axis.Both)
+end
+
+---@param column number 1-indexed
+function LayoutBox:setGridColumn(column)
+	self.grid_column = column
+	self:markDirty(Axis.X)
+end
+
+---@param row number 1-indexed
+function LayoutBox:setGridRow(row)
+	self.grid_row = row
+	self:markDirty(Axis.Y)
+end
+
+---@param span number
+function LayoutBox:setGridColSpan(span)
+	self.grid_col_span = span
+	self:markDirty(Axis.X)
+end
+
+---@param span number
+function LayoutBox:setGridRowSpan(span)
+	self.grid_row_span = span
+	self:markDirty(Axis.Y)
+end
+
+---@param col_span number
+---@param row_span number
+function LayoutBox:setGridSpan(col_span, row_span)
+	self.grid_col_span = col_span
+	self.grid_row_span = row_span
 	self:markDirty(Axis.Both)
 end
 

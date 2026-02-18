@@ -1,34 +1,25 @@
 local class = require("class")
-local INode = require("ui.INode")
 local LayoutBox = require("ui.layout.LayoutBox")
-local IInputHandler = require("ui.input.IInputHandler")
-local Transform = require("ui.Transform")
+local table_util = require("table_util")
 
 local LayoutEnums = require("ui.layout.Enums")
 local Arrange = LayoutEnums.Arrange
 local JustifyContent = LayoutEnums.JustifyContent
 local AlignItems = LayoutEnums.AlignItems
-local Pivot = LayoutEnums.Pivot
 
----@alias ui.Color [number, number, number, number]
----@alias ui.BlendMode { color: string, alpha: string }
-
----@class view.Node : ui.HasLayoutBox, ui.Inputs.Node
----@operator call: view.Node
----@field id string?
----@field parent view.Node
----@field children view.Node[]
----@field draw? fun(self: view.Node)
----@field color ui.Color?
----@field blend_mode ui.BlendMode?
----@field stencil boolean?
----@field draw_to_canvas boolean?
----@field canvas love.Canvas?
----@field origin ui.Pivot
----@field anchor ui.Pivot
+---@class ui.Node: ui.IInputHandler
+---@operator call: ui.Node
+---@field parent ui.Node?
+---@field children ui.Node[]
+---@field layout_box ui.LayoutBox
 ---@field inputs ui.Inputs
----@field mounted boolean Is the node inside a main tree?
-local Node = class() + INode + IInputHandler
+---@field is_disabled boolean
+---@field handles_mouse_input boolean
+---@field handles_keyboard_input boolean
+---@field just_toggled_state boolean Used in enable()/disable() to tell the Engine that the state had changed
+---@field mouse_over boolean
+---@field getIntrinsicSize? fun(self: ui.Node, axis_idx: ui.Axis, constraint: number?): number
+local Node = class()
 
 Node.State = {
 	AwaitsMount = 1,
@@ -41,21 +32,16 @@ local State = Node.State
 
 function Node:new()
 	self.layout_box = LayoutBox()
-	self.transform = Transform()
-	self.z = 0
 	self.children = {}
 	self.mouse_over = false
 	self.handles_mouse_input = false
 	self.handles_keyboard_input = false
 	self.is_disabled = false
+	self.just_toggled_state = false
 	self.state = State.AwaitsMount
-	self.origin = Pivot.TopLeft
-	self.anchor = Pivot.TopLeft
 end
 
 --- Takes a table with parameters and applies them using setters
---- Look at the Node.Setters at the end of the file, only those can be applied
---- Classes can extend Setters
 ---@param params {[string]: any}
 function Node:setup(params)
 	assert(params, "No params passed to init(), don't forget to pass them when you override the function")
@@ -63,7 +49,7 @@ function Node:setup(params)
 		local f = self.Setters[k]
 		if f then
 			if f == true then
-				self[k] = v ---@diagnostic disable-line: no-unknown
+				self[k] = v
 			else
 				f(self, v)
 			end
@@ -72,8 +58,6 @@ function Node:setup(params)
 end
 
 ---@param inputs ui.Inputs
---- Mounts the node and the entire branch to the main tree.
---- This gives every node all required dependencies and loads them.
 function Node:mount(inputs)
 	self.inputs = inputs
 	self:load()
@@ -88,19 +72,17 @@ end
 
 function Node:load() end
 
---- Will be called once right before the update method after the node was loaded
 function Node:loadComplete() end
 
 ---@param dt number
 function Node:update(dt) end
 
----@generic T : view.Node
+---@generic T : ui.Node
 ---@param node T
----@param params {[string]: any}? Passes parameters to Node:setup()
+---@param params {[string]: any}?
 ---@return T
 function Node:add(node, params)
-	---@cast node view.Node
-	local inserted = false
+	---@cast node ui.Node
 	assert(node.state ~= nil, "Did you forgot to call a base Node:new()?")
 
 	node.parent = self
@@ -109,17 +91,7 @@ function Node:add(node, params)
 		node:setup(params)
 	end
 
-	for i, child in ipairs(self.children) do
-		if node.z < child.z then
-			table.insert(self.children, i, node)
-			inserted = true
-			break
-		end
-	end
-
-	if not inserted then
-		table.insert(self.children, node)
-	end
+	table.insert(self.children, node)
 
 	if self.state ~= State.AwaitsMount then
 		node:mount(self.inputs)
@@ -136,7 +108,7 @@ function Node:isMouseOver(mouse_x, mouse_y, imx, imy)
 	return imx >= 0 and imx < self.layout_box.x.size and imy >= 0 and imy < self.layout_box.y.size
 end
 
----@param node view.Node
+---@param node ui.Node
 function Node:remove(node)
 	for i, child in ipairs(self.children) do
 		if child == node then
@@ -150,47 +122,33 @@ function Node:kill()
 	self.state = State.Killed
 end
 
-function Node:onKill() end
-
---- Must be called after the layout update
---- Sets layout X, layout Y and origins with anchors in the ui.Transform
-function Node:updateTreeLayout()
-	local x, y = 0, 0
-	local layout_box = self.layout_box
-	local parent_tf ---@type love.Transform?
-
-	if self.parent then
-		local plb = self.parent.layout_box
-		x = layout_box.x.pos + self.anchor.x * plb:getLayoutWidth() + plb.x.padding_start
-		y = layout_box.y.pos + self.anchor.y * plb:getLayoutHeight() + plb.y.padding_start
-		parent_tf = self.parent.transform:get()
-	else
-		x = layout_box.x.pos
-		y = layout_box.y.pos
-	end
-
-	local tf = self.transform
-	tf.layout_x = x
-	tf.layout_y = y
-	tf.origin_x = self.origin.x * layout_box.x.size
-	tf.origin_y = self.origin.y * layout_box.y.size
-	tf.parent_transform = parent_tf
-
-	layout_box:markValid()
-
-	for _, child in ipairs(self.children) do
-		child:updateTreeLayout()
+function Node:disable()
+	if not self.is_disabled then
+		self.is_disabled = true
+		self.just_toggled_state = true
 	end
 end
 
---- Updates the transform objects of the entire branch.
---- Must be called after ui.Transform was modified.
---- Must be called after changing: x, y, width, height, anchor or origin
-function Node:updateTreeTransform()
-	self.transform:update()
-	for _, v in ipairs(self.children) do
-		v:updateTreeTransform()
+function Node:enable()
+	if self.is_disabled then
+		self.is_disabled = false
+		self.just_toggled_state = true
 	end
+end
+
+function Node:destroy()
+	if self.children then
+		for i = #self.children, 1, -1 do
+			local child = self.children[i]
+			child.parent = nil
+			child:destroy()
+		end
+		table_util.clear(self.children)
+	end
+
+	self.children = nil
+	self.inputs = nil
+	self.layout_box = nil
 end
 
 ---@return number
@@ -204,13 +162,11 @@ function Node:getHeight()
 end
 
 ---@return number
---- Returns an actual width in the layout
 function Node:getCalculatedWidth()
 	return self.layout_box.x.size
 end
 
 ---@return number
---- Returns an actual height in the layout
 function Node:getCalculatedHeight()
 	return self.layout_box.y.size
 end
@@ -273,73 +229,23 @@ function Node:setMaxHeight(v)
 	self.layout_box:setMaxHeight(v)
 end
 
----@enum (key) ui.PivotString
-local pivot = {
-	top_left = Pivot.TopLeft,
-	top_center = Pivot.TopCenter,
-	top_right = Pivot.TopRight,
-	center_left = Pivot.CenterLeft,
-	center = Pivot.Center,
-	center_right = Pivot.CenterRight,
-	bottom_left = Pivot.BottomLeft,
-	bottom_center = Pivot.BottomCenter,
-	bottom_right = Pivot.BottomRight
-}
-
----@param v ui.PivotString
-function Node:setOrigin(v)
-	self.origin = pivot[v]
-	self.transform.invalidated = true
-end
-
----@param v ui.PivotString
-function Node:setAnchor(v)
-	self.anchor = pivot[v]
-	self.transform.invalidated = true
-end
-
----@param v ui.PivotString
-function Node:setPivot(v)
-	self.origin = pivot[v]
-	self.anchor = pivot[v]
-	self.transform.invalidated = true
-end
-
----@param x number
-function Node:setX(x)
-	self.transform:setX(x)
-end
-
----@param y number
-function Node:setY(y)
-	self.transform:setY(y)
-end
-
----@param sx number
-function Node:setScaleX(sx)
-	self.transform:setScaleX(sx)
-end
-
----@param sy number
-function Node:setScaleY(sy)
-	self.transform:setScaleY(sy)
-end
-
----@param a number
-function Node:setAngle(a)
-	self.transform:setAngle(a)
-end
-
----@param v "absolute" | "flow_h" | "flow_v"
+---@param v "absolute" | "flex_row" | "flex_col" | "grid"
 function Node:setArrange(v)
 	local arrange = Arrange.Absolute
 
 	if v == "absolute" then
 		arrange = Arrange.Absolute
+	elseif v == "flex_row" then
+		arrange = Arrange.FlexRow
+	elseif v == "flex_col" then
+		arrange = Arrange.FlexCol
+	elseif v == "grid" then
+		arrange = Arrange.Grid
+	-- Legacy aliases
 	elseif v == "flow_h" then
-		arrange = Arrange.FlowH
+		arrange = Arrange.FlexRow
 	elseif v == "flow_v" then
-		arrange = Arrange.FlowV
+		arrange = Arrange.FlexCol
 	end
 
 	self.layout_box:setArrange(arrange)
@@ -400,9 +306,57 @@ function Node:setPaddings(v)
 	self.layout_box:setPaddings(v)
 end
 
+---@param v [number, number, number, number]
+function Node:setMargins(v)
+	self.layout_box:setMargins(v)
+end
+
 ---@param v number
 function Node:setGrow(v)
 	self.layout_box:setGrow(v)
+end
+
+---@param v (number|string)[]
+function Node:setGridColumns(v)
+	self.layout_box:setGridColumns(v)
+end
+
+---@param v (number|string)[]
+function Node:setGridRows(v)
+	self.layout_box:setGridRows(v)
+end
+
+---@param v number
+function Node:setGridColumn(v)
+	self.layout_box:setGridColumn(v)
+end
+
+---@param v number
+function Node:setGridRow(v)
+	self.layout_box:setGridRow(v)
+end
+
+---@param v number
+function Node:setGridColSpan(v)
+	self.layout_box:setGridColSpan(v)
+end
+
+---@param v number
+function Node:setGridRowSpan(v)
+	self.layout_box:setGridRowSpan(v)
+end
+
+---@param col number
+---@param row number
+function Node:setGridCell(col, row)
+	self.layout_box:setGridColumn(col)
+	self.layout_box:setGridRow(row)
+end
+
+---@param col_span number
+---@param row_span number
+function Node:setGridSpan(col_span, row_span)
+	self.layout_box:setGridSpan(col_span, row_span)
 end
 
 Node.Setters = {
@@ -412,14 +366,6 @@ Node.Setters = {
 	max_width = Node.setMaxWidth,
 	min_height = Node.setMinHeight,
 	max_height = Node.setMaxHeight,
-	origin = Node.setOrigin,
-	anchor = Node.setAnchor,
-	pivot = Node.setPivot,
-	x = Node.setX,
-	y = Node.setY,
-	scale_x = Node.setScaleX,
-	scale_y = Node.setScaleY,
-	angle = Node.setAngle,
 	arrange = Node.setArrange,
 	reversed = Node.setReversed,
 	child_gap = Node.setChildGap,
@@ -427,19 +373,20 @@ Node.Setters = {
 	align_self = Node.setAlignSelf,
 	justify_content = Node.setJustifyContent,
 	padding = Node.setPaddings,
+	margins = Node.setMargins,
 	grow = Node.setGrow,
+	grid_columns = Node.setGridColumns,
+	grid_rows = Node.setGridRows,
+	grid_column = Node.setGridColumn,
+	grid_row = Node.setGridRow,
+	grid_col_span = Node.setGridColSpan,
+	grid_row_span = Node.setGridRowSpan,
+	grid_cell = Node.setGridCell,
+	grid_span = Node.setGridSpan,
 	id = true,
-	color = true,
-	z = true,
 	handles_mouse_input = true,
 	handles_keyboard_input = true,
 	is_disabled = true,
-	blend_mode = true,
-	stencil = true,
-	draw_to_canvas = true,
-
-	-- Events
-	onKeyDown = true,
 }
 
 return Node

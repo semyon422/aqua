@@ -1,6 +1,8 @@
 local class = require("class")
 
 ---@class ui.IInputHandler
+---@field handles_mouse_input boolean
+---@field handles_keyboard_input boolean
 local IInputHandler = class()
 
 ---@param e ui.MouseDownEvent

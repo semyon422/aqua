@@ -5,8 +5,8 @@ local table_util = require("table_util")
 ---@operator call: ui.TraversalContext
 ---@field mouse_x number
 ---@field mouse_y number
----@field mouse_target ui.Inputs.Node?
----@field focus_requesters ui.Inputs.Node[]
+---@field mouse_target ui.Node?
+---@field focus_requesters ui.Node[]
 local TraversalContext = class()
 
 function TraversalContext:new()
