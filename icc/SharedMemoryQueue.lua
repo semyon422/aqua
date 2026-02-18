@@ -26,6 +26,7 @@ function SharedMemoryQueue:pop()
 	if not s then
 		return
 	end
+	---@cast s -number
 	return peer:decode(s)
 end
 

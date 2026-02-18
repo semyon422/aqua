@@ -11,6 +11,8 @@ function IQueue:push(msg) end
 function IQueue:pop() end
 
 ---@return integer
-function IQueue:count() end
+function IQueue:count()
+	error("not implemented")
+end
 
 return IQueue
