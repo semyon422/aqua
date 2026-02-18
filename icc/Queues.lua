@@ -1,5 +1,6 @@
 local class = require("class")
 local ContextQueuePeer = require("icc.ContextQueuePeer")
+local Message = require("icc.Message")
 
 ---@class icc.Queues
 ---@operator call: icc.Queues
@@ -32,7 +33,7 @@ function Queues:pop(rid)
 	if not pmsg then
 		return
 	end
-	return pmsg.msg, pmsg.sid and self:getPeer(pmsg.sid, rid)
+	return setmetatable(pmsg.msg, Message), pmsg.sid and self:getPeer(pmsg.sid, rid)
 end
 
 ---@param id string
