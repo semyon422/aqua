@@ -29,7 +29,7 @@ local function c(color, text)
 end
 
 function pprint.export()
-	_G.pprint = pprint
+	rawset(_G, "pprint", pprint)
 end
 
 setmetatable(pprint --[[@as table]], {__call = function(t, v)
