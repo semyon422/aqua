@@ -91,4 +91,41 @@ function test.basic_validation(t)
 	t:assert(validated)
 end
 
+---@param t testing.T
+function test.transform(t)
+	local rh = RemoteHandler({})
+	local ctx = {user = "alice", ip = "1.2.3.4"}
+
+	-- Case 1: Plain object
+	do
+		local obj = {foo = "bar"}
+		local transformed, a, b = rh:transform(ctx, obj, 1, 2)
+
+		t:eq(a, 1)
+		t:eq(b, 2)
+		t:eq(transformed.user, "alice")
+		t:eq(transformed.ip, "1.2.3.4")
+		t:eq(transformed.foo, "bar")
+		t:assert(getmetatable(transformed).__is_wrapped_obj)
+	end
+
+	-- Case 2: Validation object
+	do
+		local real_obj = {foo = "bar"}
+		local MT = {__name = "ValidationMT"}
+		local obj = setmetatable({remote = real_obj}, MT)
+
+		local transformed, a, b = rh:transform(ctx, obj, 1, 2)
+
+		t:eq(a, 1)
+		t:eq(b, 2)
+		t:eq(getmetatable(transformed), MT)
+		t:assert(transformed.remote ~= real_obj)
+		t:eq(transformed.remote.foo, "bar")
+		t:eq(transformed.remote.user, "alice")
+		t:eq(transformed.remote.ip, "1.2.3.4")
+		t:assert(getmetatable(transformed.remote).__is_wrapped_obj)
+	end
+end
+
 return test

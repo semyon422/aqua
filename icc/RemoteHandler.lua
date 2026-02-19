@@ -1,5 +1,6 @@
 local table_util = require("table_util")
 local IHandler = require("icc.IHandler")
+local Remote = require("icc.Remote")
 
 ---@class icc.RemoteHandlerWhitelist
 ---@field [string] true|icc.RemoteHandlerWhitelist?
@@ -20,14 +21,18 @@ end
 ---@param ... any
 ---@return any ...
 function RemoteHandler:transform(ctx, obj, ...)
-	---@type table
+	---@type table? real *Remote or icc.Remote or nil
 	local real_obj = obj.remote -- `obj` is validation
 
-	local wrapped_obj = setmetatable({}, {__index = real_obj or obj})
+	local wrapped_obj = setmetatable({}, {__index = real_obj or obj, __is_wrapped_obj = true})
+
+	-- when real_obj is icc.Remote, __is_wrapped_obj is required
+	-- for __call to work on wrapped_obj
 
 	table_util.copy(ctx, wrapped_obj)
 
 	if real_obj then
+		-- in this case `ctx` copied into wrapped `remote`
 		local val = setmetatable({}, getmetatable(obj))
 		wrapped_obj, val.remote = val, wrapped_obj
 	end

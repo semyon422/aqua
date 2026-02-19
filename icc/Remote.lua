@@ -70,7 +70,8 @@ end
 ---@param ... any
 ---@return any ...
 function Remote:__call(...)
-	local is_method = getmetatable(...) == Remote
+	local mt = getmetatable(...)
+	local is_method = mt == Remote or (mt and mt.__is_wrapped_obj)
 	return call(self, is_method, select(is_method and 2 or 1, ...))
 end
 
