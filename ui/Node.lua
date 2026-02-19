@@ -13,10 +13,8 @@ local AlignItems = LayoutEnums.AlignItems
 ---@field children ui.Node[]
 ---@field layout_box ui.LayoutBox
 ---@field inputs ui.Inputs
----@field is_disabled boolean
 ---@field handles_mouse_input boolean
 ---@field handles_keyboard_input boolean
----@field just_toggled_state boolean Used in enable()/disable() to tell the Engine that the state had changed
 ---@field mouse_over boolean
 ---@field getIntrinsicSize? fun(self: ui.Node, axis_idx: ui.Axis, constraint: number?): number
 local Node = class()
@@ -24,7 +22,7 @@ local Node = class()
 Node.State = {
 	AwaitsMount = 1,
 	Loaded = 2,
-	Ready = 3,
+	Active = 3,
 	Killed = 4,
 }
 
@@ -36,15 +34,13 @@ function Node:new()
 	self.mouse_over = false
 	self.handles_mouse_input = false
 	self.handles_keyboard_input = false
-	self.is_disabled = false
-	self.just_toggled_state = false
 	self.state = State.AwaitsMount
 end
 
 --- Takes a table with parameters and applies them using setters
 ---@param params {[string]: any}
 function Node:setup(params)
-	assert(params, "No params passed to init(), don't forget to pass them when you override the function")
+	assert(params, "No params passed to setup(), don't forget to pass them when you override the function")
 	for k, v in pairs(params) do
 		local f = self.Setters[k]
 		if f then
@@ -71,11 +67,6 @@ function Node:mount(inputs)
 end
 
 function Node:load() end
-
-function Node:loadComplete() end
-
----@param dt number
-function Node:update(dt) end
 
 ---@generic T : ui.Node
 ---@param node T
@@ -120,20 +111,6 @@ end
 
 function Node:kill()
 	self.state = State.Killed
-end
-
-function Node:disable()
-	if not self.is_disabled then
-		self.is_disabled = true
-		self.just_toggled_state = true
-	end
-end
-
-function Node:enable()
-	if self.is_disabled then
-		self.is_disabled = false
-		self.just_toggled_state = true
-	end
 end
 
 function Node:destroy()
@@ -241,11 +218,6 @@ function Node:setArrange(v)
 		arrange = Arrange.FlexCol
 	elseif v == "grid" then
 		arrange = Arrange.Grid
-	-- Legacy aliases
-	elseif v == "flow_h" then
-		arrange = Arrange.FlexRow
-	elseif v == "flow_v" then
-		arrange = Arrange.FlexCol
 	end
 
 	self.layout_box:setArrange(arrange)
@@ -373,7 +345,7 @@ Node.Setters = {
 	align_self = Node.setAlignSelf,
 	justify_content = Node.setJustifyContent,
 	padding = Node.setPaddings,
-	margins = Node.setMargins,
+	margin = Node.setMargins,
 	grow = Node.setGrow,
 	grid_columns = Node.setGridColumns,
 	grid_rows = Node.setGridRows,
@@ -386,7 +358,6 @@ Node.Setters = {
 	id = true,
 	handles_mouse_input = true,
 	handles_keyboard_input = true,
-	is_disabled = true,
 }
 
 return Node
