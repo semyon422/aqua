@@ -97,13 +97,22 @@ function pprint.dump(value, indent_level, visited)
 		visited[value] = true
 
 		local mt = getmetatable(value)
+		local name = mt and mt.__name
 
 		if indent_level > 0 and mt then
-			return c("address", ("<table (has mt): %p>"):format(value))
+			local addr = ("<table (has mt): %p>"):format(value)
+			if name then
+				addr = ("<%s: %p>"):format(name, value)
+			end
+			return c("address", addr)
 		end
 
 		if next(value) == nil then
-			return c("address", ("<table: %p> "):format(value)) .. c("bracket", "{}")
+			local addr = ("<table: %p> "):format(value)
+			if name then
+				addr = ("<%s: %p> "):format(name, value)
+			end
+			return c("address", addr) .. c("bracket", "{}")
 		end
 
 		if is_array(value) then
@@ -135,7 +144,11 @@ function pprint.dump(value, indent_level, visited)
 
 		---@type string[]
 		local lines = {}
-		table.insert(lines, c("address", ("<table: %p> "):format(value)) .. c("bracket", "{"))
+		local addr = ("<table: %p> "):format(value)
+		if name then
+			addr = ("<%s: %p> "):format(name, value)
+		end
+		table.insert(lines, c("address", addr) .. c("bracket", "{"))
 
 		for _, k in ipairs(keys) do
 			---@type string
