@@ -14,8 +14,10 @@ local TaskHandler = class()
 TaskHandler.timeout = math.huge
 
 ---@param handler icc.IHandler
-function TaskHandler:new(handler)
+---@param name string?
+function TaskHandler:new(handler, name)
 	self.handler = handler
+	self.name = name or "icc"
 	self.timeouts = {}
 	self.callbacks = {}
 	self.event_id = 0
@@ -33,7 +35,7 @@ function TaskHandler:send(peer, id, ret, ...)
 		if err == nil then
 			err = "missing send error"
 		end
-		error(debug.traceback(err, level), level)
+		error(debug.traceback(("[%s] %s"):format(self.name, tostring(err)), level), level)
 	end
 	self.bytes_sent = self.bytes_sent + bytes
 end
@@ -73,7 +75,7 @@ function TaskHandler:call(peer, ...)
 		end
 
 		if not ok then
-			error(err .. "\n" .. trace)
+			error(err .. "\n[local callback] " .. trace)
 		end
 	end
 
@@ -108,10 +110,15 @@ end
 function TaskHandler:handleCall(peer, ctx, msg)
 	local handler = self.handler
 	if not msg.id then
-		handler:handle(ctx, msg:unpack())
+		local ok, err = xpcall(handler.handle, debug.traceback, handler, ctx, msg:unpack())
+		if not ok then
+			error(("[%s] no-return call error: %s"):format(self.name, tostring(err)))
+		end
 		return
 	end
-	self:send(peer, msg.id, true, xpcall(handler.handle, debug.traceback, handler, ctx, msg:unpack()))
+	self:send(peer, msg.id, true, xpcall(handler.handle, function(err)
+		return debug.traceback(("[%s] %s"):format(self.name, tostring(err)), 2)
+	end, handler, ctx, msg:unpack()))
 end
 TaskHandler.handleCall = icc_co.callwrap(TaskHandler.handleCall)
 

@@ -26,7 +26,7 @@ local peer = {
 }
 
 local remote_handler = RemoteHandler({})
-local task_handler = TaskHandler(remote_handler)
+local task_handler = TaskHandler(remote_handler, "thread-" .. tostring(threadId))
 local remote = Remote(task_handler, peer)
 
 task_handler.timeout = 60

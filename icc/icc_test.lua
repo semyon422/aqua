@@ -5,6 +5,7 @@ local QueuePeer = require("icc.QueuePeer")
 local Message = require("icc.Message")
 local Queue = require("icc.Queue")
 local Queues = require("icc.Queues")
+local QueuePeer = require("icc.QueuePeer")
 
 local test = {}
 
@@ -99,6 +100,31 @@ function test.context_queue(t)
 
 	t:assert(done)
 	t:eq(result, 30)
+end
+
+---@param t testing.T
+function test.client_proxy_bug(t)
+	local task_handler = TaskHandler({}, "server")
+
+	local real_peer = QueuePeer()
+	local real_remote = Remote(task_handler, real_peer)
+
+	local remote_validation = {
+		remote = real_remote,
+		obj = {
+			remote = real_remote.obj,
+			test = function(self, ...)
+				self.remote:test(...)
+			end,
+		}
+	}
+
+	local msg = Message(nil, nil, {"obj", "test"}, true, {})
+
+	local handler = RemoteHandler(remote_validation)
+	TaskHandler(handler, "client-proxy"):handleCall(QueuePeer(), {}, msg)
+
+	t:tdeq(real_peer:get(1), {{"obj", "test"}, true, {}, id = 1, n = 3})
 end
 
 return test

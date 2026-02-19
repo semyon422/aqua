@@ -36,7 +36,7 @@ function ThreadRemote:new(id, t)
 	self.output_channel:clear()
 
 	self.remote_handler = RemoteHandler(t)
-	self.task_handler = TaskHandler(self.remote_handler)
+	self.task_handler = TaskHandler(self.remote_handler, "thread-" .. tostring(id))
 	self.remote = Remote(self.task_handler, self)
 
 	self.task_handler.timeout = 60

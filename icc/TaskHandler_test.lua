@@ -195,7 +195,7 @@ end
 
 ---@param t testing.T
 function test.error_send_closed(t)
-	local th = TaskHandler(FuncHandler(function() end))
+	local th = TaskHandler(FuncHandler(function() end), "NAME")
 	local peer = QueuePeer()
 
 	function peer:send()
@@ -211,7 +211,7 @@ function test.error_send_closed(t)
 	local ok, err = coroutine.resume(co)
 
 	t:eq(ok, false)
-	t:assert(err and err:match("_test.lua:%d+: closed"))
+	t:assert(err and err:match("_test.lua:%d+: %[NAME%] closed"))
 	t:assert(err and err:match("stack traceback"))
 
 	t:assert(not done)
