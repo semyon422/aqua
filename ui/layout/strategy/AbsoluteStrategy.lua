@@ -31,9 +31,7 @@ function AbsoluteStrategy:measure(node, axis_idx)
 		axis.size = math_clamp(s, min_s, max_s)
 
 		for _, child in ipairs(node.children) do
-			if not child.is_disabled then
-				self:measure(child, axis_idx)
-			end
+			self:measure(child, axis_idx)
 		end
 		return
 	end
@@ -41,12 +39,10 @@ function AbsoluteStrategy:measure(node, axis_idx)
 	-- Auto/Fit: calculate size from children
 	local s = 0.0
 	for _, child in ipairs(node.children) do
-		if not child.is_disabled then
-			self:measure(child, axis_idx)
-			local child_axis = self:getAxis(child, axis_idx)
-			-- Include child position + size + margins
-			s = math_max(s, child_axis.pos + child_axis.size + child_axis:getTotalMargin())
-		end
+		self:measure(child, axis_idx)
+		local child_axis = self:getAxis(child, axis_idx)
+		-- Include child position + size + margins
+		s = math_max(s, child_axis.pos + child_axis.size + child_axis:getTotalMargin())
 	end
 
 	s = axis.padding_start + s + axis.padding_end
@@ -67,10 +63,6 @@ function AbsoluteStrategy:grow(node, axis_idx)
 	table_util.clear(growables)
 
 	for _, child in ipairs(node.children) do
-		if child.is_disabled then
-			goto continue
-		end
-
 		local child_axis = self:getAxis(child, axis_idx)
 
 		-- Handle percent sizing
@@ -84,8 +76,6 @@ function AbsoluteStrategy:grow(node, axis_idx)
 		if child.layout_box.grow > 0 and child_axis.mode == SizeMode.Auto then
 			table.insert(growables, child)
 		end
-
-		::continue::
 	end
 
 	-- Distribute space to growable children
@@ -97,9 +87,7 @@ function AbsoluteStrategy:grow(node, axis_idx)
 
 	-- Recurse into children
 	for _, child in ipairs(node.children) do
-		if not child.is_disabled then
-			self:grow(child, axis_idx)
-		end
+		self:grow(child, axis_idx)
 	end
 end
 
@@ -107,15 +95,13 @@ end
 ---@param node ui.Node
 function AbsoluteStrategy:arrange(node)
 	for _, child in ipairs(node.children) do
-		if not child.is_disabled then
-			-- Apply margins to position
-			local child_x = child.layout_box.x
-			local child_y = child.layout_box.y
-			child_x.pos = child_x.pos + child_x.margin_start
-			child_y.pos = child_y.pos + child_y.margin_start
+		-- Apply margins to position
+		local child_x = child.layout_box.x
+		local child_y = child.layout_box.y
+		child_x.pos = child_x.pos + child_x.margin_start
+		child_y.pos = child_y.pos + child_y.margin_start
 
-			self:arrange(child)
-		end
+		self:arrange(child)
 	end
 end
 

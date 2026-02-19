@@ -123,9 +123,7 @@ function GridStrategy:measure(node, axis_idx)
 		axis.size = math_clamp(s, min_s, max_s)
 
 		for _, child in ipairs(node.children) do
-			if not child.is_disabled then
-				self:measure(child, axis_idx)
-			end
+			self:measure(child, axis_idx)
 		end
 		return
 	end
@@ -155,25 +153,23 @@ function GridStrategy:measure(node, axis_idx)
 
 	-- Measure children with cell constraints
 	for _, child in ipairs(node.children) do
-		if not child.is_disabled then
-			local x_pos, y_pos, width, height = self:getCellBounds(node, child)
+		local x_pos, y_pos, width, height = self:getCellBounds(node, child)
 
-			-- Constrain child to cell size
-			local child_x = child.layout_box.x
-			local child_y = child.layout_box.y
+		-- Constrain child to cell size
+		local child_x = child.layout_box.x
+		local child_y = child.layout_box.y
 
-			-- If child is Auto, use cell size
-			if child_x.mode == SizeMode.Auto then
-				child_x.size = math_clamp(width, child_x.min_size, child_x.max_size)
-			else
-				self:measureAxis(child, Axis.X)
-			end
+		-- If child is Auto, use cell size
+		if child_x.mode == SizeMode.Auto then
+			child_x.size = math_clamp(width, child_x.min_size, child_x.max_size)
+		else
+			self:measureAxis(child, Axis.X)
+		end
 
-			if child_y.mode == SizeMode.Auto then
-				child_y.size = math_clamp(height, child_y.min_size, child_y.max_size)
-			else
-				self:measureAxis(child, Axis.Y)
-			end
+		if child_y.mode == SizeMode.Auto then
+			child_y.size = math_clamp(height, child_y.min_size, child_y.max_size)
+		else
+			self:measureAxis(child, Axis.Y)
 		end
 	end
 end
@@ -195,9 +191,7 @@ function GridStrategy:measureAxis(child, axis_idx)
 
 	-- Recurse into grandchildren
 	for _, grandchild in ipairs(child.children) do
-		if not grandchild.is_disabled then
-			self:measureAxis(grandchild, axis_idx)
-		end
+		self:measureAxis(grandchild, axis_idx)
 	end
 end
 
@@ -207,10 +201,8 @@ end
 function GridStrategy:grow(node, axis_idx)
 	-- Grid doesn't use grow, but children might
 	for _, child in ipairs(node.children) do
-		if not child.is_disabled then
-			-- Recurse - children might have their own layout modes
-			self:grow(child, axis_idx)
-		end
+		-- Recurse - children might have their own layout modes
+		self:grow(child, axis_idx)
 	end
 end
 
@@ -218,16 +210,14 @@ end
 ---@param node ui.Node
 function GridStrategy:arrange(node)
 	for _, child in ipairs(node.children) do
-		if not child.is_disabled then
-			local x_pos, y_pos, width, height = self:getCellBounds(node, child)
+		local x_pos, y_pos, width, height = self:getCellBounds(node, child)
 
-			-- Position child in its cell
-			child.layout_box.x.pos = x_pos + child.layout_box.x.margin_start
-			child.layout_box.y.pos = y_pos + child.layout_box.y.margin_start
+		-- Position child in its cell
+		child.layout_box.x.pos = x_pos + child.layout_box.x.margin_start
+		child.layout_box.y.pos = y_pos + child.layout_box.y.margin_start
 
-			-- Recurse into children
-			self:arrange(child)
-		end
+		-- Recurse into children
+		self:arrange(child)
 	end
 end
 
