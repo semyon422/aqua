@@ -76,6 +76,7 @@ local function class(p, t)
 
 	local T = {}
 	T.__index = T
+	T.__name = debug.getinfo(2, "S").source
 
 	if not is_class(t) then
 		mt.__index = p
