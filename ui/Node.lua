@@ -19,22 +19,12 @@ local AlignItems = LayoutEnums.AlignItems
 ---@field getIntrinsicSize? fun(self: ui.Node, axis_idx: ui.Axis, constraint: number?): number
 local Node = class()
 
-Node.State = {
-	AwaitsMount = 1,
-	Loaded = 2,
-	Active = 3,
-	Killed = 4,
-}
-
-local State = Node.State
-
 function Node:new()
 	self.layout_box = LayoutBox()
 	self.children = {}
 	self.mouse_over = false
 	self.handles_mouse_input = false
 	self.handles_keyboard_input = false
-	self.state = State.AwaitsMount
 end
 
 --- Takes a table with parameters and applies them using setters
@@ -53,29 +43,12 @@ function Node:setup(params)
 	end
 end
 
----@param inputs ui.Inputs
-function Node:mount(inputs)
-	self.inputs = inputs
-	self:load()
-	self.state = State.Loaded
-
-	for _, v in ipairs(self.children) do
-		if v.state == State.AwaitsMount then
-			v:mount(self.inputs)
-		end
-	end
-end
-
-function Node:load() end
-
 ---@generic T : ui.Node
 ---@param node T
 ---@param params {[string]: any}?
 ---@return T
 function Node:add(node, params)
 	---@cast node ui.Node
-	assert(node.state ~= nil, "Did you forgot to call a base Node:new()?")
-
 	node.parent = self
 
 	if params then
@@ -83,10 +56,6 @@ function Node:add(node, params)
 	end
 
 	table.insert(self.children, node)
-
-	if self.state ~= State.AwaitsMount then
-		node:mount(self.inputs)
-	end
 
 	return node
 end
@@ -97,20 +66,6 @@ end
 ---@param imy number
 function Node:isMouseOver(mouse_x, mouse_y, imx, imy)
 	return imx >= 0 and imx < self.layout_box.x.size and imy >= 0 and imy < self.layout_box.y.size
-end
-
----@param node ui.Node
-function Node:remove(node)
-	for i, child in ipairs(self.children) do
-		if child == node then
-			table.remove(self.children, i)
-			return
-		end
-	end
-end
-
-function Node:kill()
-	self.state = State.Killed
 end
 
 function Node:destroy()
@@ -338,26 +293,41 @@ Node.Setters = {
 	max_width = Node.setMaxWidth,
 	min_height = Node.setMinHeight,
 	max_height = Node.setMaxHeight,
+
+	w = Node.setWidth,
+	h = Node.setHeight,
+	min_w = Node.setMinWidth,
+	max_w = Node.setMaxWidth,
+	min_h = Node.setMinHeight,
+	max_h = Node.setMaxHeight,
+
 	arrange = Node.setArrange,
+	display = Node.setArrange,
+	padding = Node.setPaddings,
+	margin = Node.setMargins,
+
+	-- Flex
 	reversed = Node.setReversed,
-	child_gap = Node.setChildGap,
+	gap = Node.setChildGap,
 	align_items = Node.setAlignItems,
 	align_self = Node.setAlignSelf,
 	justify_content = Node.setJustifyContent,
-	padding = Node.setPaddings,
-	margin = Node.setMargins,
 	grow = Node.setGrow,
-	grid_columns = Node.setGridColumns,
-	grid_rows = Node.setGridRows,
-	grid_column = Node.setGridColumn,
-	grid_row = Node.setGridRow,
-	grid_col_span = Node.setGridColSpan,
-	grid_row_span = Node.setGridRowSpan,
-	grid_cell = Node.setGridCell,
-	grid_span = Node.setGridSpan,
-	id = true,
+
+	-- Grid
+	cols = Node.setGridColumns,
+	rows = Node.setGridRows,
+	col = Node.setGridColumn,
+	row = Node.setGridRow,
+	col_span = Node.setGridColSpan,
+	row_span = Node.setGridRowSpan,
+	cell = Node.setGridCell,
+	span = Node.setGridSpan,
+
 	handles_mouse_input = true,
 	handles_keyboard_input = true,
+	mouse = function(self, v) self.handles_mouse_input = v end,
+	keyboard = function(self, v) self.handles_keyboard_input = v end
 }
 
 return Node
