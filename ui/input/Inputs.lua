@@ -1,4 +1,5 @@
 local class = require("class")
+local table_util = require("table_util")
 local MouseDownEvent = require("ui.input.events.MouseDownEvent")
 local MouseUpEvent = require("ui.input.events.MouseUpEvent")
 local MouseClickEvent = require("ui.input.events.MouseClickEvent")
@@ -11,6 +12,8 @@ local FocusLostEvent = require("ui.input.events.FocusLostEvent")
 local KeyDownEvent = require("ui.input.events.KeyDownEvent")
 local KeyUpEvent = require("ui.input.events.KeyUpEvent")
 local TextInputEvent = require("ui.input.events.TextInputEvent")
+local HoverEvent = require("ui.input.events.HoverEvent")
+local HoverLostEvent = require("ui.input.events.HoverLostEvent")
 
 ---@class ui.ModifierKeys
 ---@field control boolean
@@ -20,6 +23,10 @@ local TextInputEvent = require("ui.input.events.TextInputEvent")
 
 ---@class ui.Inputs
 ---@operator call: ui.Inputs
+---@field mouse_x number 
+---@field mouse_y number
+---@field mouse_target ui.Node?
+---@field focus_requesters ui.Node[]
 ---@field last_mouse_down_event ui.MouseDownEvent
 local Inputs = class()
 
@@ -37,6 +44,61 @@ local keyboard_events = {
 	keyreleased = true,
 	textinput = true
 }
+
+---@type ui.ModifierKeys
+local default_modifiers = {control = false, shift = false, alt = false, super = false}
+
+function Inputs:new()
+	self.mouse_x = -math.huge
+	self.mouse_y = -math.huge
+	self.mouse_target = nil
+	self.focus_requesters = {}
+end
+
+---@param mouse_x number Global Mouse X position
+---@param mouse_y number Global Mouse Y position
+function Inputs:beginFrame(mouse_x, mouse_y)
+	self.mouse_x = mouse_x
+	self.mouse_y = mouse_y
+	self.mouse_target = nil
+	table_util.clear(self.focus_requesters)
+end
+
+---@param node ui.Node
+function Inputs:processNode(node)
+	if node.handles_mouse_input or node.handles_keyboard_input then
+		if node.handles_keyboard_input then
+			table.insert(self.focus_requesters, node)
+		end
+
+		if not self.mouse_target and node.handles_mouse_input then
+			local had_focus = node.mouse_over
+			node.mouse_over = node:isMouseOver(self.mouse_x, self.mouse_y)
+
+			if node.mouse_over then
+				self.mouse_target = node
+			end
+
+			if not had_focus and node.mouse_over then
+				local e = HoverEvent(default_modifiers)
+				e.target = node
+				self:dispatchEvent(e)
+			elseif had_focus and not node.mouse_over then
+				local e = HoverLostEvent(default_modifiers)
+				e.target = node
+				self:dispatchEvent(e)
+			end
+		else
+			if node.mouse_over then
+				node.mouse_over = false
+
+				local e = HoverLostEvent(default_modifiers)
+				e.target = node
+				self:dispatchEvent(e)
+			end
+		end
+	end
+end
 
 ---@param node ui.Node?
 ---@param modifiers ui.ModifierKeys
@@ -60,10 +122,9 @@ end
 
 ---@private
 ---@param event {name: string, [integer]: any}
----@param traversal_ctx ui.TraversalContext
 ---@param modifiers ui.ModifierKeys
 ---@return ui.MouseDownEvent
-function Inputs:handleMouseDown(event, traversal_ctx, modifiers)
+function Inputs:handleMouseDown(event, modifiers)
 	local e = MouseDownEvent(modifiers)
 	e.button = event[3]
 	self.last_mouse_down_event = e
@@ -72,22 +133,21 @@ end
 
 ---@private
 ---@param event {name: string, [integer]: any}
----@param traversal_ctx ui.TraversalContext
 ---@param modifiers ui.ModifierKeys
 ---@return ui.MouseUpEvent?
-function Inputs:handleMouseUp(event, traversal_ctx, modifiers)
+function Inputs:handleMouseUp(event, modifiers)
 	if not self.last_mouse_down_event then
 		return
 	end
 
-	local dx = (self.last_mouse_down_event.x - traversal_ctx.mouse_x)
-	local dy = (self.last_mouse_down_event.y - traversal_ctx.mouse_y)
+	local dx = (self.last_mouse_down_event.x - self.mouse_x)
+	local dy = (self.last_mouse_down_event.y - self.mouse_y)
 	local distance = math.sqrt(dx * dx + dy * dy)
 	if distance < self.MOUSE_CLICK_MAX_DISTANCE then
 		local ce = MouseClickEvent(modifiers)
 		ce.target = self.last_mouse_down_event.target
-		ce.x = traversal_ctx.mouse_x
-		ce.y = traversal_ctx.mouse_y
+		ce.x = self.mouse_x
+		ce.y = self.mouse_y
 		ce.button = event[3]
 		self:dispatchEvent(ce)
 	end
@@ -95,8 +155,8 @@ function Inputs:handleMouseUp(event, traversal_ctx, modifiers)
 	if self.last_drag_event then
 		local de = DragEndEvent(modifiers)
 		de.target = self.last_drag_event.target
-		de.x = traversal_ctx.mouse_x
-		de.y = traversal_ctx.mouse_y
+		de.x = self.mouse_x
+		de.y = self.mouse_y
 		self:dispatchEvent(de)
 		self.last_drag_event = nil
 	end
@@ -109,10 +169,9 @@ end
 
 ---@private
 ---@param event {name: string, [integer]: any}
----@param traversal_ctx ui.TraversalContext
 ---@param modifiers ui.ModifierKeys
 ---@return ui.ScrollEvent
-function Inputs:handleWheel(event, traversal_ctx, modifiers)
+function Inputs:handleWheel(event, modifiers)
 	local e = ScrollEvent(modifiers)
 	e.direction_x = event[1]
 	e.direction_y = event[2]
@@ -121,10 +180,9 @@ end
 
 ---@private
 ---@param event {name: string, [integer]: any}
----@param traversal_ctx ui.TraversalContext
 ---@param modifiers ui.ModifierKeys
 ---@return ui.MouseEvent?
-function Inputs:handleMouseMove(event, traversal_ctx, modifiers)
+function Inputs:handleMouseMove(event, modifiers)
 	if not self.last_mouse_down_event then
 		return
 	end
@@ -143,38 +201,36 @@ end
 
 ---@private
 ---@param event {name: string, [integer]: any}
----@param traversal_ctx ui.TraversalContext
 ---@param modifiers ui.ModifierKeys
 ---@return ui.MouseEvent?
-function Inputs:dispatchMouseEvent(event, traversal_ctx, modifiers)
+function Inputs:dispatchMouseEvent(event, modifiers)
 	local e = nil ---@type ui.MouseEvent?
 
 	if event.name == "mousepressed" then
-		e = self:handleMouseDown(event, traversal_ctx, modifiers)
+		e = self:handleMouseDown(event, modifiers)
 	elseif event.name == "mousereleased" then
-		e = self:handleMouseUp(event, traversal_ctx, modifiers)
+		e = self:handleMouseUp(event, modifiers)
 	elseif event.name == "wheelmoved" then
-		e = self:handleWheel(event, traversal_ctx, modifiers)
+		e = self:handleWheel(event, modifiers)
 	elseif event.name == "mousemoved" then
-		e = self:handleMouseMove(event, traversal_ctx, modifiers)
+		e = self:handleMouseMove(event, modifiers)
 	end
 
 	if not e then
 		return
 	end
 
-	e.target = e.target or traversal_ctx.mouse_target
-	e.x = traversal_ctx.mouse_x
-	e.y = traversal_ctx.mouse_y
+	e.target = e.target or self.mouse_target
+	e.x = self.mouse_x
+	e.y = self.mouse_y
 	self:dispatchEvent(e)
 	return e
 end
 
 ---@private
 ---@param event {name: string, [integer]: any}
----@param traversal_ctx ui.TraversalContext
 ---@param modifiers ui.ModifierKeys
-function Inputs:dispatchKeyboardEvent(event, traversal_ctx, modifiers)
+function Inputs:dispatchKeyboardEvent(event, modifiers)
 	local e = nil ---@type ui.KeyboardEvent?
 
 	if event.name == "keypressed" then
@@ -196,7 +252,7 @@ function Inputs:dispatchKeyboardEvent(event, traversal_ctx, modifiers)
 		return
 	end
 
-	for _, v in ipairs(traversal_ctx.focus_requesters) do
+	for _, v in ipairs(self.focus_requesters) do
 		e.target = v
 		local handled = self:dispatchEvent(e)
 		if handled then
@@ -206,13 +262,12 @@ function Inputs:dispatchKeyboardEvent(event, traversal_ctx, modifiers)
 end
 
 ---@param event {name: string, [integer]: any}
----@param traversal_ctx ui.TraversalContext
 ---@param modifiers ui.ModifierKeys
-function Inputs:receive(event, traversal_ctx, modifiers)
+function Inputs:receive(event, modifiers)
 	if mouse_events[event.name] then
-		self:dispatchMouseEvent(event, traversal_ctx, modifiers)
+		self:dispatchMouseEvent(event, modifiers)
 	elseif keyboard_events[event.name] then
-		self:dispatchKeyboardEvent(event, traversal_ctx, modifiers)
+		self:dispatchKeyboardEvent(event, modifiers)
 	else
 		return
 	end

@@ -1,36 +1,28 @@
+local Node = require("ui.Node")
 local Inputs = require("ui.input.Inputs")
-local TraversalContext = require("ui.input.TraversalContext")
-local IInputHandler = require("ui.input.IInputHandler")
 
 local test = {}
 
 local default_modifiers = {control = false, shift = false, alt = false, super = false}
 
----@return ui.Node
-local function new_node()
-	local node = {
-		children = {},
-		add = function(self, node)
-			table.insert(self.children, node)
-			node.parent = self
-			return node
-		end,
-	}
-	setmetatable(node, {__index = IInputHandler})
-	return node
+---@param node ui.Node
+---@param width number
+---@param height number
+local function set_node_size(node, width, height)
+	node.layout_box.x.size = width
+	node.layout_box.y.size = height
 end
 
 ---@param t testing.T
 function test.bubbling(t)
-	local root = new_node()
-	root:add(new_node())
+	local root = Node()
+	root:add(Node()) -- random Node
 
-	local c1 = root:add(new_node())
-	local c2 = c1:add(new_node())
+	local c1 = root:add(Node())
+	local c2 = c1:add(Node())
 	local inputs = Inputs()
-	local tctx = TraversalContext()
 
-	root:add(new_node())
+	root:add(Node()) -- random Node
 
 	local order = {}
 	local expected_order = {"c1", "root"}
@@ -51,61 +43,57 @@ function test.bubbling(t)
 	local y = 0
 	local button = 1
 	local event = {name = "mousepressed", x, y, button}
-	tctx.mouse_target = c1
-	inputs:receive(event, tctx, default_modifiers)
+	inputs.mouse_target = c1
+	inputs:receive(event, default_modifiers)
 
-	t:teq(order, expected_order)
+	t:tdeq(order, expected_order)
 
 	order = {}
 	expected_order = {"c2", "c1", "root"}
-	tctx.mouse_target = c2
-	inputs:receive(event, tctx, default_modifiers)
-	t:teq(order, expected_order)
-	t:teq(order, expected_order)
+	inputs.mouse_target = c2
+	inputs:receive(event, default_modifiers)
+	t:tdeq(order, expected_order)
 end
 
 ---@param t testing.T
 function test.mouse_click(t)
-	local root = new_node()
-	local btn = root:add(new_node())
+	local root = Node()
+	local btn = root:add(Node())
 	local inputs = Inputs()
-	local tctx = TraversalContext()
 
 	local events = {}
 	btn.onMouseDown = function() table.insert(events, "down") end
 	btn.onMouseUp = function() table.insert(events, "up") end
 	btn.onMouseClick = function() table.insert(events, "click") end
 
-	tctx.mouse_target = btn
-	tctx.mouse_x = 10
-	tctx.mouse_y = 10
+	inputs.mouse_target = btn
+	inputs.mouse_x = 10
+	inputs.mouse_y = 10
 
-	inputs:receive({name = "mousepressed", 10, 10, 1}, tctx, default_modifiers)
-	inputs:receive({name = "mousereleased", 10, 10, 1}, tctx, default_modifiers)
+	inputs:receive({name = "mousepressed", 10, 10, 1}, default_modifiers)
+	inputs:receive({name = "mousereleased", 10, 10, 1}, default_modifiers)
 
-	t:teq(events, {"down", "click", "up"})
+	t:tdeq(events, {"down", "click", "up"})
 
 	-- No click
 	events = {}
-	inputs:receive({name = "mousepressed", 10, 10, 1}, tctx, default_modifiers)
+	inputs:receive({name = "mousepressed", 10, 10, 1}, default_modifiers)
 
-	tctx.mouse_x = 9999999999
-	tctx.mouse_y = 9999999999
-	inputs:receive({name = "mousemoved", 100, 100, 0, 0}, tctx, default_modifiers)
+	inputs.mouse_x = 9999999999
+	inputs.mouse_y = 9999999999
+	inputs:receive({name = "mousemoved", 100, 100, 0, 0}, default_modifiers)
 
-	inputs:receive({name = "mousereleased", 100, 100, 1}, tctx, default_modifiers)
+	inputs:receive({name = "mousereleased", 100, 100, 1}, default_modifiers)
 
-	t:teq(events, {"down", "up"})
-	t:teq(events, {"down", "up"})
+	t:tdeq(events, {"down", "up"})
 end
 
 ---@param t testing.T
 function test.keyboard_focus(t)
-	local root = new_node()
-	local textbox1 = root:add(new_node())
-	local textbox2 = root:add(new_node())
+	local root = Node()
+	local textbox1 = root:add(Node())
+	local textbox2 = root:add(Node())
 	local inputs = Inputs()
-	local tctx = TraversalContext()
 
 	local events1 = {}
 	local events2 = {}
@@ -119,75 +107,375 @@ function test.keyboard_focus(t)
 	textbox2.onTextInput = function(_, event) table.insert(events2, "text:" .. event.key) end
 
 	inputs:setKeyboardFocus(textbox1, default_modifiers)
-	t:teq(events1, {"focus"})
-	t:teq(events2, {})
+	t:tdeq(events1, {"focus"})
+	t:tdeq(events2, {})
 
-	inputs:receive({name = "textinput", "a"}, tctx, default_modifiers)
-	t:teq(events1, {"focus", "text:a"})
-	t:teq(events2, {})
+	inputs:receive({name = "textinput", "a"}, default_modifiers)
+	t:tdeq(events1, {"focus", "text:a"})
+	t:tdeq(events2, {})
 
 	inputs:setKeyboardFocus(textbox2, default_modifiers)
-	t:teq(events1, {"focus", "text:a", "blur"})
-	t:teq(events2, {"focus"})
+	t:tdeq(events1, {"focus", "text:a", "blur"})
+	t:tdeq(events2, {"focus"})
 
-	inputs:receive({name = "textinput", "b"}, tctx, default_modifiers)
-	t:teq(events1, {"focus", "text:a", "blur"})
-	t:teq(events2, {"focus", "text:b"})
+	inputs:receive({name = "textinput", "b"}, default_modifiers)
+	t:tdeq(events1, {"focus", "text:a", "blur"})
+	t:tdeq(events2, {"focus", "text:b"})
 
 	inputs:setKeyboardFocus(nil, default_modifiers)
-	t:teq(events2, {"focus", "text:b", "blur"})
+	t:tdeq(events2, {"focus", "text:b", "blur"})
 end
 
 ---@param t testing.T
 function test.dragging(t)
-	local root = new_node()
-	local draggable = root:add(new_node())
+	local root = Node()
+	local draggable = root:add(Node())
 	local inputs = Inputs()
-	local tctx = TraversalContext()
 
 	local events = {}
 	draggable.onDragStart = function() table.insert(events, "start") end
 	draggable.onDrag = function() table.insert(events, "drag") end
 	draggable.onDragEnd = function() table.insert(events, "end") end
 
-	tctx.mouse_target = draggable
-	tctx.mouse_x = 10
-	tctx.mouse_y = 10
+	inputs.mouse_target = draggable
+	inputs.mouse_x = 10
+	inputs.mouse_y = 10
 
-	inputs:receive({name = "mousepressed", 10, 10, 1}, tctx, default_modifiers)
-	t:teq(events, {})
+	inputs:receive({name = "mousepressed", 10, 10, 1}, default_modifiers)
+	t:tdeq(events, {})
 
 	-- start
-	tctx.mouse_x = 15
-	tctx.mouse_y = 15
-	inputs:receive({name = "mousemoved", 15, 15, 5, 5}, tctx, default_modifiers)
-	t:teq(events, {"start"})
+	inputs.mouse_x = 15
+	inputs.mouse_y = 15
+	inputs:receive({name = "mousemoved", 15, 15, 5, 5}, default_modifiers)
+	t:tdeq(events, {"start"})
 
 	-- continue
-	tctx.mouse_x = 20
-	tctx.mouse_y = 20
-	inputs:receive({name = "mousemoved", 20, 20, 5, 5}, tctx, default_modifiers)
-	t:teq(events, {"start", "drag"})
+	inputs.mouse_x = 20
+	inputs.mouse_y = 20
+	inputs:receive({name = "mousemoved", 20, 20, 5, 5}, default_modifiers)
+	t:tdeq(events, {"start", "drag"})
 
 	-- end
-	inputs:receive({name = "mousereleased", 20, 20, 1}, tctx, default_modifiers)
-	t:teq(events, {"start", "drag", "end"})
+	inputs:receive({name = "mousereleased", 20, 20, 1}, default_modifiers)
+	t:tdeq(events, {"start", "drag", "end"})
 end
 
 ---@param t testing.T
 function test.scrolling(t)
-	local root = new_node()
-	local scrollable = root:add(new_node())
+	local root = Node()
+	local scrollable = root:add(Node())
 	local inputs = Inputs()
-	local tctx = TraversalContext()
 
 	local events = {}
 	scrollable.onScroll = function(self, e) table.insert(events, {e.direction_x, e.direction_y}) end
 
-	tctx.mouse_target = scrollable
-	inputs:receive({name = "wheelmoved", 0, 1}, tctx, default_modifiers)
+	inputs.mouse_target = scrollable
+	inputs:receive({name = "wheelmoved", 0, 1}, default_modifiers)
 
 	t:tdeq(events, {{0, 1}})
+end
+
+-- ============================================
+-- processNode tests
+-- ============================================
+
+---@param t testing.T
+function test.processNode_sets_mouse_target(t)
+	local inputs = Inputs()
+	inputs:beginFrame(50, 50)
+
+	local node = Node()
+	node.handles_mouse_input = true
+	set_node_size(node, 100, 100)
+
+	inputs:processNode(node)
+
+	t:eq(inputs.mouse_target, node)
+end
+
+---@param t testing.T
+function test.processNode_does_not_set_mouse_target_if_not_handling(t)
+	local inputs = Inputs()
+	inputs:beginFrame(50, 50)
+
+	local node = Node()
+	node.handles_mouse_input = false
+	set_node_size(node, 100, 100)
+
+	inputs:processNode(node)
+
+	t:eq(inputs.mouse_target, nil)
+end
+
+---@param t testing.T
+function test.processNode_does_not_override_existing_mouse_target(t)
+	local inputs = Inputs()
+	inputs:beginFrame(50, 50)
+
+	local node1 = Node()
+	node1.handles_mouse_input = true
+	set_node_size(node1, 100, 100)
+
+	local node2 = Node()
+	node2.handles_mouse_input = true
+	set_node_size(node2, 100, 100)
+
+	inputs:processNode(node1)
+	inputs:processNode(node2)
+
+	t:eq(inputs.mouse_target, node1)
+end
+
+---@param t testing.T
+function test.processNode_detects_mouse_outside(t)
+	local inputs = Inputs()
+	inputs:beginFrame(150, 150) -- Outside the node
+
+	local node = Node()
+	node.handles_mouse_input = true
+	set_node_size(node, 100, 100)
+
+	inputs:processNode(node)
+
+	t:eq(inputs.mouse_target, nil)
+	t:eq(node.mouse_over, false)
+end
+
+---@param t testing.T
+function test.processNode_dispatches_hover_event(t)
+	local inputs = Inputs()
+	inputs:beginFrame(50, 50)
+
+	local node = Node()
+	node.handles_mouse_input = true
+	set_node_size(node, 100, 100)
+
+	local hover_called = false
+	node.onHover = function(self, e)
+		hover_called = true
+		t:eq(e.target, node)
+	end
+
+	inputs:processNode(node)
+
+	t:assert(hover_called, "onHover should be called")
+	t:eq(node.mouse_over, true)
+end
+
+---@param t testing.T
+function test.processNode_dispatches_hover_lost_event(t)
+	local inputs = Inputs()
+	local node = Node()
+	node.handles_mouse_input = true
+	node.mouse_over = true -- Already hovered
+	set_node_size(node, 100, 100)
+
+	local hover_lost_called = false
+	node.onHoverLost = function(self, e)
+		hover_lost_called = true
+		t:eq(e.target, node)
+	end
+
+	-- Move mouse outside
+	inputs:beginFrame(150, 150)
+	inputs:processNode(node)
+
+	t:assert(hover_lost_called, "onHoverLost should be called")
+	t:eq(node.mouse_over, false)
+end
+
+---@param t testing.T
+function test.processNode_no_hover_event_when_staying_hovered(t)
+	local inputs = Inputs()
+	inputs:beginFrame(50, 50)
+
+	local node = Node()
+	node.handles_mouse_input = true
+	node.mouse_over = true -- Already hovered
+	set_node_size(node, 100, 100)
+
+	local hover_called = false
+	node.onHover = function()
+		hover_called = true
+	end
+
+	inputs:processNode(node)
+
+	t:assert(not hover_called, "onHover should not be called when already hovered")
+	t:eq(node.mouse_over, true)
+end
+
+---@param t testing.T
+function test.processNode_no_hover_lost_event_when_staying_outside(t)
+	local inputs = Inputs()
+	inputs:beginFrame(150, 150)
+
+	local node = Node()
+	node.handles_mouse_input = true
+	node.mouse_over = false -- Already not hovered
+	set_node_size(node, 100, 100)
+
+	local hover_lost_called = false
+	node.onHoverLost = function()
+		hover_lost_called = true
+	end
+
+	inputs:processNode(node)
+
+	t:assert(not hover_lost_called, "onHoverLost should not be called when already not hovered")
+	t:eq(node.mouse_over, false)
+end
+
+---@param t testing.T
+function test.processNode_adds_focus_requester(t)
+	local inputs = Inputs()
+	inputs:beginFrame(50, 50)
+
+	local node = Node()
+	node.handles_keyboard_input = true
+	set_node_size(node, 100, 100)
+
+	inputs:processNode(node)
+
+	t:eq(#inputs.focus_requesters, 1)
+	t:eq(inputs.focus_requesters[1], node)
+end
+
+---@param t testing.T
+function test.processNode_adds_multiple_focus_requesters(t)
+	local inputs = Inputs()
+	inputs:beginFrame(50, 50)
+
+	local node1 = Node()
+	node1.handles_keyboard_input = true
+	set_node_size(node1, 100, 100)
+
+	local node2 = Node()
+	node2.handles_keyboard_input = true
+	set_node_size(node2, 100, 100)
+
+	local node3 = Node()
+	node3.handles_keyboard_input = true
+	set_node_size(node3, 100, 100)
+
+	inputs:processNode(node1)
+	inputs:processNode(node2)
+	inputs:processNode(node3)
+
+	t:eq(#inputs.focus_requesters, 3)
+	t:eq(inputs.focus_requesters[1], node1)
+	t:eq(inputs.focus_requesters[2], node2)
+	t:eq(inputs.focus_requesters[3], node3)
+end
+
+---@param t testing.T
+function test.processNode_node_with_both_input_types(t)
+	local inputs = Inputs()
+	inputs:beginFrame(50, 50)
+
+	local node = Node()
+	node.handles_mouse_input = true
+	node.handles_keyboard_input = true
+	set_node_size(node, 100, 100)
+
+	inputs:processNode(node)
+
+	t:eq(inputs.mouse_target, node)
+	t:eq(#inputs.focus_requesters, 1)
+	t:eq(inputs.focus_requesters[1], node)
+end
+
+---@param t testing.T
+function test.processNode_clears_mouse_over_when_mouse_target_already_set(t)
+	local inputs = Inputs()
+	inputs:beginFrame(50, 50)
+
+	-- First node captures mouse target
+	local node1 = Node()
+	node1.handles_mouse_input = true
+	set_node_size(node1, 100, 100)
+
+	-- Second node was hovered but won't get mouse_target
+	local node2 = Node()
+	node2.handles_mouse_input = true
+	node2.mouse_over = true -- Was hovered
+	set_node_size(node2, 100, 100)
+
+	local hover_lost_called = false
+	node2.onHoverLost = function()
+		hover_lost_called = true
+	end
+
+	inputs:processNode(node1)
+	inputs:processNode(node2)
+
+	t:assert(hover_lost_called, "onHoverLost should be called when node loses mouse_target to another")
+	t:eq(node2.mouse_over, false)
+end
+
+---@param t testing.T
+function test.processNode_tree_traversal(t)
+	local inputs = Inputs()
+	inputs:beginFrame(50, 50)
+
+	-- Create tree:
+	-- root (100x100)
+	-- ├── container (100x100, handles_mouse)
+	-- │   ├── button (50x50 at relative position, handles_mouse)
+	-- │   └── textbox (handles_keyboard)
+	-- └── other (handles_mouse, but mouse is not over it)
+
+	local root = Node()
+	set_node_size(root, 100, 100)
+
+	local container = Node()
+	container.handles_mouse_input = true
+	set_node_size(container, 100, 100)
+
+	local button = Node()
+	button.handles_mouse_input = true
+	set_node_size(button, 50, 50)
+
+	local textbox = Node()
+	textbox.handles_keyboard_input = true
+	set_node_size(textbox, 100, 100)
+
+	local other = Node()
+	other.handles_mouse_input = true
+	set_node_size(other, 100, 100)
+
+	-- Process in tree order
+	inputs:processNode(root)
+	inputs:processNode(container)
+	inputs:processNode(button)
+	inputs:processNode(textbox)
+	inputs:processNode(other)
+
+	-- First mouse-handling node under cursor should be target
+	t:eq(inputs.mouse_target, container)
+	-- All keyboard-handling nodes should be collected
+	t:eq(#inputs.focus_requesters, 1)
+	t:eq(inputs.focus_requesters[1], textbox)
+end
+
+---@param t testing.T
+function test.beginFrame_resets_context(t)
+	local inputs = Inputs()
+
+	-- Set up some state
+	inputs.mouse_x = 100
+	inputs.mouse_y = 100
+	inputs.mouse_target = Node()
+	table.insert(inputs.focus_requesters, Node())
+
+	-- Begin new frame
+	inputs:beginFrame(50, 75)
+
+	t:eq(inputs.mouse_x, 50)
+	t:eq(inputs.mouse_y, 75)
+	t:eq(inputs.mouse_target, nil)
+	t:eq(#inputs.focus_requesters, 0)
 end
 
 return test

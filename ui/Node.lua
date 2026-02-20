@@ -1,5 +1,5 @@
-local class = require("class")
 local LayoutBox = require("ui.layout.LayoutBox")
+local IInputHandler = require("ui.input.IInputHandler")
 local table_util = require("table_util")
 
 local LayoutEnums = require("ui.layout.Enums")
@@ -12,12 +12,8 @@ local AlignItems = LayoutEnums.AlignItems
 ---@field parent ui.Node?
 ---@field children ui.Node[]
 ---@field layout_box ui.LayoutBox
----@field inputs ui.Inputs
----@field handles_mouse_input boolean
----@field handles_keyboard_input boolean
----@field mouse_over boolean
 ---@field getIntrinsicSize? fun(self: ui.Node, axis_idx: ui.Axis, constraint: number?): number
-local Node = class()
+local Node = IInputHandler + {}
 
 function Node:new()
 	self.layout_box = LayoutBox()
@@ -62,10 +58,8 @@ end
 
 ---@param mouse_x number
 ---@param mouse_y number
----@param imx number
----@param imy number
-function Node:isMouseOver(mouse_x, mouse_y, imx, imy)
-	return imx >= 0 and imx < self.layout_box.x.size and imy >= 0 and imy < self.layout_box.y.size
+function Node:isMouseOver(mouse_x, mouse_y)
+	return mouse_x >= 0 and mouse_x < self.layout_box.x.size and mouse_y >= 0 and mouse_y < self.layout_box.y.size
 end
 
 function Node:destroy()
@@ -79,7 +73,6 @@ function Node:destroy()
 	end
 
 	self.children = nil
-	self.inputs = nil
 	self.layout_box = nil
 end
 
