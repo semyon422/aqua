@@ -55,26 +55,36 @@ function FlexStrategy:measure(node, axis_idx)
 		return
 	end
 
-	-- Auto/Fit: calculate size from children
+	-- Auto/Fit: calculate size from children or intrinsic size
 	local is_main_axis = isMainAxis(layout_box, axis_idx)
 	local s = 0.0
 	local child_count = 0
 
-	if is_main_axis then
-		-- Main axis: sum of children + gaps
-		for _, child in ipairs(node.children) do
-			self:measure(child, axis_idx)
-			local child_axis = self:getAxis(child, axis_idx)
-			s = s + child_axis.size + child_axis:getTotalMargin()
-			child_count = child_count + 1
+	if #node.children == 0 then
+		-- Leaf node: use intrinsic size if available
+		local constraint = nil
+		if axis_idx == Axis.Y then
+			-- For Y axis, pass width as constraint (for text wrapping)
+			constraint = node.layout_box.x.size
 		end
-		s = s + layout_box.child_gap * math_max(0, child_count - 1)
+		s = self:getIntrinsicSize(node, axis_idx, constraint) or 0
 	else
-		-- Cross axis: max of children
-		for _, child in ipairs(node.children) do
-			self:measure(child, axis_idx)
-			local child_axis = self:getAxis(child, axis_idx)
-			s = math_max(s, child_axis.size + child_axis:getTotalMargin())
+		if is_main_axis then
+			-- Main axis: sum of children + gaps
+			for _, child in ipairs(node.children) do
+				self:measure(child, axis_idx)
+				local child_axis = self:getAxis(child, axis_idx)
+				s = s + child_axis.size + child_axis:getTotalMargin()
+				child_count = child_count + 1
+			end
+			s = s + layout_box.child_gap * math_max(0, child_count - 1)
+		else
+			-- Cross axis: max of children
+			for _, child in ipairs(node.children) do
+				self:measure(child, axis_idx)
+				local child_axis = self:getAxis(child, axis_idx)
+				s = math_max(s, child_axis.size + child_axis:getTotalMargin())
+			end
 		end
 	end
 
@@ -231,6 +241,10 @@ function FlexStrategy:arrange(node)
 
 	local pos = main_axis.padding_start
 	local gap = layout_box.child_gap
+
+	-- LLS bug
+	---@cast child_count integer
+	---@cast total_main_size number
 
 	if justify == JustifyContent.End then
 		pos = available_main - total_main_size - gap * (child_count - 1) + main_axis.padding_start

@@ -6,6 +6,7 @@ local Enums = require("ui.layout.Enums")
 local Axis = Enums.Axis
 local SizeMode = Enums.SizeMode
 local math_clamp = math_util.clamp
+local math_min = math.min
 
 ---@class ui.GridTrack
 ---@field size number? Fixed size in pixels
@@ -159,15 +160,36 @@ function GridStrategy:measure(node, axis_idx)
 		local child_x = child.layout_box.x
 		local child_y = child.layout_box.y
 
-		-- If child is Auto, use cell size
+		-- If child is Auto, use cell size or intrinsic size
 		if child_x.mode == SizeMode.Auto then
-			child_x.size = math_clamp(width, child_x.min_size, child_x.max_size)
+			if #child.children == 0 then
+				-- Leaf node: use intrinsic size if available, capped to cell size
+				local intrinsic = self:getIntrinsicSize(child, Axis.X, nil)
+				if intrinsic and intrinsic > 0 then
+					child_x.size = math_clamp(math_min(intrinsic, width), child_x.min_size, child_x.max_size)
+				else
+					child_x.size = math_clamp(width, child_x.min_size, child_x.max_size)
+				end
+			else
+				child_x.size = math_clamp(width, child_x.min_size, child_x.max_size)
+			end
 		else
 			self:measureAxis(child, Axis.X)
 		end
 
 		if child_y.mode == SizeMode.Auto then
-			child_y.size = math_clamp(height, child_y.min_size, child_y.max_size)
+			if #child.children == 0 then
+				-- Leaf node: use intrinsic size if available, capped to cell size
+				local constraint = child.layout_box.x.size
+				local intrinsic = self:getIntrinsicSize(child, Axis.Y, constraint)
+				if intrinsic and intrinsic > 0 then
+					child_y.size = math_clamp(math_min(intrinsic, height), child_y.min_size, child_y.max_size)
+				else
+					child_y.size = math_clamp(height, child_y.min_size, child_y.max_size)
+				end
+			else
+				child_y.size = math_clamp(height, child_y.min_size, child_y.max_size)
+			end
 		else
 			self:measureAxis(child, Axis.Y)
 		end
