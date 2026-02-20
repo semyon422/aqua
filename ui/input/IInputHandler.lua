@@ -1,6 +1,7 @@
 local class = require("class")
 
 ---@class ui.IInputHandler
+---@field mouse_over boolean
 ---@field handles_mouse_input boolean
 ---@field handles_keyboard_input boolean
 local IInputHandler = class()

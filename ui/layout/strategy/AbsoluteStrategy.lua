@@ -3,6 +3,7 @@ local LayoutStrategy = require("ui.layout.strategy.LayoutStrategy")
 local Enums = require("ui.layout.Enums")
 local math_util = require("math_util")
 
+local Axis = Enums.Axis
 local SizeMode = Enums.SizeMode
 local math_clamp = math_util.clamp
 local math_max = math.max
@@ -31,21 +32,28 @@ function AbsoluteStrategy:measure(node, axis_idx)
 		axis.size = math_clamp(s, min_s, max_s)
 
 		for _, child in ipairs(node.children) do
-			if not child.is_disabled then
-				self:measure(child, axis_idx)
-			end
+			self:measure(child, axis_idx)
 		end
 		return
 	end
 
-	-- Auto/Fit: calculate size from children
+	-- Auto/Fit: calculate size from children or intrinsic size
 	local s = 0.0
-	for _, child in ipairs(node.children) do
-		if not child.is_disabled then
+
+	if #node.children == 0 then
+		-- Leaf node: use intrinsic size if available
+		local constraint = nil
+		if axis_idx == Axis.Y then
+			-- For Y axis, pass width as constraint (for text wrapping)
+			constraint = node.layout_box.x.size
+		end
+		s = self:getIntrinsicSize(node, axis_idx, constraint) or 0
+	else
+		for _, child in ipairs(node.children) do
 			self:measure(child, axis_idx)
 			local child_axis = self:getAxis(child, axis_idx)
 			-- Include child position + size + margins
-			s = math_max(s, child_axis.pos + child_axis.size + child_axis:getTotalMargin())
+			s = math_max(s, child_axis.pos + child_axis.size + child_axis:getTotalMargin()) ---@type number LLS bug
 		end
 	end
 
@@ -67,10 +75,6 @@ function AbsoluteStrategy:grow(node, axis_idx)
 	table_util.clear(growables)
 
 	for _, child in ipairs(node.children) do
-		if child.is_disabled then
-			goto continue
-		end
-
 		local child_axis = self:getAxis(child, axis_idx)
 
 		-- Handle percent sizing
@@ -84,8 +88,6 @@ function AbsoluteStrategy:grow(node, axis_idx)
 		if child.layout_box.grow > 0 and child_axis.mode == SizeMode.Auto then
 			table.insert(growables, child)
 		end
-
-		::continue::
 	end
 
 	-- Distribute space to growable children
@@ -97,9 +99,7 @@ function AbsoluteStrategy:grow(node, axis_idx)
 
 	-- Recurse into children
 	for _, child in ipairs(node.children) do
-		if not child.is_disabled then
-			self:grow(child, axis_idx)
-		end
+		self:grow(child, axis_idx)
 	end
 end
 
@@ -107,15 +107,13 @@ end
 ---@param node ui.Node
 function AbsoluteStrategy:arrange(node)
 	for _, child in ipairs(node.children) do
-		if not child.is_disabled then
-			-- Apply margins to position
-			local child_x = child.layout_box.x
-			local child_y = child.layout_box.y
-			child_x.pos = child_x.pos + child_x.margin_start
-			child_y.pos = child_y.pos + child_y.margin_start
+		-- Apply margins to position
+		local child_x = child.layout_box.x
+		local child_y = child.layout_box.y
+		child_x.pos = child_x.pos + child_x.margin_start
+		child_y.pos = child_y.pos + child_y.margin_start
 
-			self:arrange(child)
-		end
+		self:arrange(child)
 	end
 end
 

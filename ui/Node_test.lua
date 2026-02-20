@@ -5,7 +5,6 @@ local test = {}
 ---@param t testing.T
 function test.tree(t)
 	local root = Node()
-	root:load()
 
 	local n1 = root:add(Node())
 	local n2 = n1:add(Node())
@@ -19,7 +18,6 @@ end
 ---@param t testing.T
 function test.order(t)
 	local root = Node()
-	root:load()
 
 	local n1 = root:add(Node())
 	local n2 = root:add(Node())

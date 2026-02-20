@@ -72,6 +72,9 @@ function LayoutEngine:updateLayout(dirty_nodes)
 
 		local target = node.parent and node.parent or node
 		self:arrange(target)
+
+		-- Mark the entire subtree as valid after layout completes
+		self:markValid(node)
 	end
 
 	return layout_roots
@@ -132,6 +135,15 @@ end
 function LayoutEngine:arrange(node)
 	local strategy = self:getStrategy(node)
 	strategy:arrange(node)
+end
+
+---Mark a node and all its children as valid (layout is up-to-date)
+---@param node ui.Node
+function LayoutEngine:markValid(node)
+	node.layout_box:markValid()
+	for _, child in ipairs(node.children) do
+		self:markValid(child)
+	end
 end
 
 return LayoutEngine

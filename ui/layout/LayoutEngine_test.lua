@@ -1,5 +1,8 @@
 local LayoutEngine = require("ui.layout.LayoutEngine")
 local LayoutBox = require("ui.layout.LayoutBox")
+local Enums = require("ui.layout.Enums")
+
+local Axis = Enums.Axis
 
 local test = {}
 
@@ -12,6 +15,31 @@ local function new_node()
 			table.insert(self.children, node)
 			node.parent = self
 			return node
+		end
+	}
+end
+
+---@param width number
+---@param height number
+---@return ui.Node
+local function new_node_with_intrinsic_size(width, height)
+	return {
+		children = {},
+		layout_box = LayoutBox(),
+		add = function(self, node)
+			table.insert(self.children, node)
+			node.parent = self
+			return node
+		end,
+		---@param axis_idx ui.Axis
+		---@param constraint number?
+		---@return number
+		getIntrinsicSize = function(self, axis_idx, constraint)
+			if axis_idx == Axis.X then
+				return width
+			else
+				return height
+			end
 		end
 	}
 end
@@ -230,6 +258,125 @@ function test.margins(t)
 	-- Position should include left margin
 	t:eq(c1.layout_box.x.pos, 20)
 	t:eq(c1.layout_box.y.pos, 10)
+end
+
+---@param t testing.T
+function test.intrinsic_size_flex_row(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+
+	-- Node with intrinsic size (e.g., texture 64x48)
+	local intrinsic_node = container:add(new_node_with_intrinsic_size(64, 48))
+	intrinsic_node.layout_box:setWidthAuto()
+	intrinsic_node.layout_box:setHeightAuto()
+
+	engine:updateLayout(container.children)
+
+	-- Should use intrinsic size
+	t:eq(intrinsic_node.layout_box.x.size, 64)
+	t:eq(intrinsic_node.layout_box.y.size, 48)
+end
+
+---@param t testing.T
+function test.intrinsic_size_flex_col(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box.arrange = LayoutBox.Arrange.FlexCol
+
+	-- Node with intrinsic size (e.g., texture 64x48)
+	local intrinsic_node = container:add(new_node_with_intrinsic_size(64, 48))
+	intrinsic_node.layout_box:setWidthAuto()
+	intrinsic_node.layout_box:setHeightAuto()
+
+	engine:updateLayout(container.children)
+
+	-- Should use intrinsic size
+	t:eq(intrinsic_node.layout_box.x.size, 64)
+	t:eq(intrinsic_node.layout_box.y.size, 48)
+end
+
+---@param t testing.T
+function test.intrinsic_size_with_fixed_width(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setDimensions(100, 100)
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+
+	-- Node with intrinsic size but fixed width
+	local intrinsic_node = container:add(new_node_with_intrinsic_size(64, 48))
+	intrinsic_node.layout_box:setWidth(50) -- Fixed width
+	intrinsic_node.layout_box:setHeightAuto() -- Auto height from intrinsic
+
+	engine:updateLayout(container.children)
+
+	-- Width should be fixed, height from intrinsic
+	t:eq(intrinsic_node.layout_box.x.size, 50)
+	t:eq(intrinsic_node.layout_box.y.size, 48)
+end
+
+---@param t testing.T
+function test.intrinsic_size_absolute(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box.arrange = LayoutBox.Arrange.Absolute
+
+	-- Node with intrinsic size in absolute layout
+	local intrinsic_node = container:add(new_node_with_intrinsic_size(100, 200))
+	intrinsic_node.layout_box:setWidthAuto()
+	intrinsic_node.layout_box:setHeightAuto()
+
+	engine:updateLayout(container.children)
+
+	-- Should use intrinsic size
+	t:eq(intrinsic_node.layout_box.x.size, 100)
+	t:eq(intrinsic_node.layout_box.y.size, 200)
+end
+
+---@param t testing.T
+function test.intrinsic_size_container_sizing(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+	container.layout_box:setWidthAuto()
+	container.layout_box:setHeightAuto()
+
+	-- Add node with intrinsic size
+	container:add(new_node_with_intrinsic_size(80, 60))
+
+	engine:updateLayout({container})
+
+	-- Container should size to fit the intrinsic size of child
+	t:eq(container.layout_box.x.size, 80)
+	t:eq(container.layout_box.y.size, 60)
+end
+
+---@param t testing.T
+function test.intrinsic_size_mixed_with_fixed(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+
+	-- Node with intrinsic size
+	local intrinsic_node = container:add(new_node_with_intrinsic_size(64, 48))
+	intrinsic_node.layout_box:setWidthAuto()
+	intrinsic_node.layout_box:setHeightAuto()
+
+	-- Node with fixed size
+	local fixed_node = container:add(new_node())
+	fixed_node.layout_box:setDimensions(50, 100)
+
+	engine:updateLayout(container.children)
+
+	-- Both should have correct sizes
+	t:eq(intrinsic_node.layout_box.x.size, 64)
+	t:eq(intrinsic_node.layout_box.y.size, 48)
+	t:eq(fixed_node.layout_box.x.size, 50)
+	t:eq(fixed_node.layout_box.y.size, 100)
+
+	-- Positions should be sequential
+	t:eq(intrinsic_node.layout_box.x.pos, 0)
+	t:eq(fixed_node.layout_box.x.pos, 64)
 end
 
 return test

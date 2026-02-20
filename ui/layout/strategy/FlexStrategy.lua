@@ -50,33 +50,37 @@ function FlexStrategy:measure(node, axis_idx)
 		axis.size = math_clamp(s, min_s, max_s)
 
 		for _, child in ipairs(node.children) do
-			if not child.is_disabled then
-				self:measure(child, axis_idx)
-			end
+			self:measure(child, axis_idx)
 		end
 		return
 	end
 
-	-- Auto/Fit: calculate size from children
+	-- Auto/Fit: calculate size from children or intrinsic size
 	local is_main_axis = isMainAxis(layout_box, axis_idx)
 	local s = 0.0
 	local child_count = 0
 
-	if is_main_axis then
-		-- Main axis: sum of children + gaps
-		for _, child in ipairs(node.children) do
-			if not child.is_disabled then
+	if #node.children == 0 then
+		-- Leaf node: use intrinsic size if available
+		local constraint = nil
+		if axis_idx == Axis.Y then
+			-- For Y axis, pass width as constraint (for text wrapping)
+			constraint = node.layout_box.x.size
+		end
+		s = self:getIntrinsicSize(node, axis_idx, constraint) or 0
+	else
+		if is_main_axis then
+			-- Main axis: sum of children + gaps
+			for _, child in ipairs(node.children) do
 				self:measure(child, axis_idx)
 				local child_axis = self:getAxis(child, axis_idx)
 				s = s + child_axis.size + child_axis:getTotalMargin()
 				child_count = child_count + 1
 			end
-		end
-		s = s + layout_box.child_gap * math_max(0, child_count - 1)
-	else
-		-- Cross axis: max of children
-		for _, child in ipairs(node.children) do
-			if not child.is_disabled then
+			s = s + layout_box.child_gap * math_max(0, child_count - 1)
+		else
+			-- Cross axis: max of children
+			for _, child in ipairs(node.children) do
 				self:measure(child, axis_idx)
 				local child_axis = self:getAxis(child, axis_idx)
 				s = math_max(s, child_axis.size + child_axis:getTotalMargin())
@@ -107,10 +111,6 @@ function FlexStrategy:grow(node, axis_idx)
 	local child_count = 0
 
 	for _, child in ipairs(node.children) do
-		if child.is_disabled then
-			goto continue
-		end
-
 		local child_axis = self:getAxis(child, axis_idx)
 		child_count = child_count + 1
 
@@ -135,8 +135,6 @@ function FlexStrategy:grow(node, axis_idx)
 				table.insert(growables, child)
 			end
 		end
-
-		::continue::
 	end
 
 	if is_main_axis then
@@ -158,9 +156,7 @@ function FlexStrategy:grow(node, axis_idx)
 
 	-- Recurse into children
 	for _, child in ipairs(node.children) do
-		if not child.is_disabled then
-			self:grow(child, axis_idx)
-		end
+		self:grow(child, axis_idx)
 	end
 end
 
@@ -231,15 +227,13 @@ function FlexStrategy:arrange(node)
 	local justify = layout_box.justify_content
 	local align = layout_box.align_items
 
-	-- Count non-disabled children and calculate total main size
+	-- Count children and calculate total main size
 	local child_count = 0
 	local total_main_size = 0
 	for _, child in ipairs(node.children) do
-		if not child.is_disabled then
-			child_count = child_count + 1
-			local child_main = self:getAxis(child, main_axis_idx)
-			total_main_size = total_main_size + child_main.size + child_main:getTotalMargin()
-		end
+		child_count = child_count + 1
+		local child_main = self:getAxis(child, main_axis_idx)
+		total_main_size = total_main_size + child_main.size + child_main:getTotalMargin()
 	end
 
 	local available_main = main_axis:getLayoutSize()
@@ -247,6 +241,10 @@ function FlexStrategy:arrange(node)
 
 	local pos = main_axis.padding_start
 	local gap = layout_box.child_gap
+
+	-- LLS bug
+	---@cast child_count integer
+	---@cast total_main_size number
 
 	if justify == JustifyContent.End then
 		pos = available_main - total_main_size - gap * (child_count - 1) + main_axis.padding_start
@@ -270,10 +268,6 @@ function FlexStrategy:arrange(node)
 	for i = start_idx, end_idx, step do
 		local child = node.children[i]
 
-		if child.is_disabled then
-			goto continue
-		end
-
 		local child_main = self:getAxis(child, main_axis_idx)
 		local child_cross = self:getAxis(child, cross_axis_idx)
 
@@ -295,8 +289,6 @@ function FlexStrategy:arrange(node)
 		self:arrange(child)
 
 		pos = pos + child_main.size + child_main:getTotalMargin() + gap
-
-		::continue::
 	end
 end
 
