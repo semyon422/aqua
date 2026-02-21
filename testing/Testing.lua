@@ -21,15 +21,20 @@ end
 Testing.blacklist = {}
 
 ---@param tmod testing.TModule
+---@param path string
 ---@param method_pattern string?
-function Testing:testMod(tmod, method_pattern)
+function Testing:testMod(tmod, path, method_pattern)
 	local t = self.t
 	t.name = nil
+	t.path = path
 	local errors = #t
 	for method, tf in pairs(tmod) do
 		if (not method_pattern or method:match(method_pattern)) and not method:match("^__") then
 			t.name = method
-			tf(t)
+			local ok, err = xpcall(tf, debug.traceback, t)
+			if not ok then
+				t:expected_assert(false, "crash", err, nil, "unexpected error")
+			end
 			if errors ~= #t then
 				errors = #t
 				self.fail = self.fail + 1
@@ -37,6 +42,7 @@ function Testing:testMod(tmod, method_pattern)
 			self.total = self.total + 1
 		end
 	end
+	t.path = nil
 end
 
 ---@param file_pattern string?
@@ -53,7 +59,7 @@ function Testing:test(file_pattern, method_pattern)
 			local tmod = tio:dofile(path)
 			if tmod and (not tmod.__check or tmod.__check(self.t)) then
 				local total = self.total
-				self:testMod(tmod, method_pattern)
+				self:testMod(tmod, path, method_pattern)
 				tio:writeStdout(("%d"):format(self.total - total))
 			end
 			local dt = tio:getTime() - start_time

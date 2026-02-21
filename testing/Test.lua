@@ -6,6 +6,7 @@ local stbl = require("stbl")
 ---@operator call: testing.T
 ---@field [integer] string?
 ---@field name string?
+---@field path string?
 local Test = class()
 
 ---@generic T
@@ -18,11 +19,29 @@ function Test:assert(cond, err, ...)
 	if cond then
 		return cond
 	end
-	local line = debug.getinfo(2, "Sl")
+
+	local level = 2
+	local info = debug.getinfo(level, "Sl")
+
+	if info and (info.short_src == "[C]" or info.short_src:match("Testing%.lua")) and self.path then
+		local i = 1
+		while true do
+			local stack_info = debug.getinfo(i, "Sl")
+			if not stack_info then break end
+			if stack_info.short_src == self.path or stack_info.source == "@" .. self.path then
+				info = stack_info
+				break
+			end
+			i = i + 1
+		end
+	end
+
+	local src = info and info.short_src or (self.path or "unknown")
+	local line = info and info.currentline or -1
 
 	table.insert(self, ("%s:%s: assertion failed%s, got %s"):format(
-		line.short_src,
-		line.currentline,
+		src,
+		line,
 		err and (" with error '%s'"):format(err) or "",
 		cond
 	))
@@ -121,7 +140,23 @@ function Test:expected_assert(cond, got, expected, level, msg)
 	if cond then
 		return cond
 	end
-	local line = debug.getinfo(level or 2, "Sl")
+
+	level = level or 2
+	local info = debug.getinfo(level, "Sl")
+
+	if info and (info.short_src == "[C]" or info.short_src:match("Testing%.lua")) and self.path then
+		-- Try to find the line in the stack that belongs to self.path
+		local i = 1
+		while true do
+			local stack_info = debug.getinfo(i, "Sl")
+			if not stack_info then break end
+			if stack_info.short_src == self.path or stack_info.source == "@" .. self.path then
+				info = stack_info
+				break
+			end
+			i = i + 1
+		end
+	end
 
 	got = format_got_expected(got)
 	expected = format_got_expected(expected)
@@ -131,9 +166,12 @@ function Test:expected_assert(cond, got, expected, level, msg)
 		colored_expected, colored_got = get_dual_diff(tostring(colored_expected), tostring(colored_got))
 	end
 
+	local src = info and info.short_src or (self.path or "unknown")
+	local line = info and info.currentline or -1
+
 	---@type string[]
 	local out = {}
-	table.insert(out, ("%s:%s:%s"):format(line.short_src, line.currentline, msg and (" " .. tostring(msg)) or ""))
+	table.insert(out, ("%s:%s:%s"):format(src, line, msg and (" " .. tostring(msg)) or ""))
 	if self.name then
 		out[1] = ("%s (%s)"):format(out[1], self.name)
 	end
