@@ -13,6 +13,14 @@ function path_util.fix_separators(s)
 	return (s:gsub('[\\¥]', "/"))
 end
 
+---@param path string
+---@return string
+function path_util.dirname(path)
+	path = path_util.fix_separators(path)
+	local dir = path:match("^(.+)/[^/]+$")
+	return dir or ""
+end
+
 ---@param ... string?
 ---@return string
 function path_util.join(...)
