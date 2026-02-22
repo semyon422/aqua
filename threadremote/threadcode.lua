@@ -47,8 +47,10 @@ end
 
 require("love.timer")
 
+local running = true
 local function handle(event)
 	if event.name == "stop" then
+		running = false
 		return
 	elseif event.name == "loadstring" then
 		local f = assert(loadstring(event.codestring))
@@ -62,7 +64,7 @@ local function handle(event)
 	end
 end
 
-while true do
+while running do
 	local event = input_channel:demand()
 
 	if event then

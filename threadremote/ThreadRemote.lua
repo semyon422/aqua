@@ -96,4 +96,22 @@ function ThreadRemote:update()
 	end
 end
 
+function ThreadRemote:reset()
+	self.input_channel:clear()
+	self.output_channel:clear()
+	-- Cancel all pending tasks to resume coroutines waiting for responses
+	local task_handler = self.task_handler
+	local callbacks = task_handler.callbacks
+	task_handler.callbacks = {}
+	task_handler.timeouts = {}
+	for _, cb in pairs(callbacks) do
+		cb(false, "ThreadRemote reset")
+	end
+end
+
+function ThreadRemote:stop()
+	self.input_channel:push({name = "stop"})
+	self:reset()
+end
+
 return ThreadRemote
