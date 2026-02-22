@@ -7,7 +7,7 @@ local Message = require("icc.Message")
 ---@class icc.TaskHandler
 ---@operator call: icc.TaskHandler
 ---@field timeouts {[icc.EventId]: integer}
----@field callbacks {[icc.EventId]: fun(...: any)}
+---@field callbacks {[icc.EventId]: fun(...: any)?}
 ---@field event_id icc.EventId
 local TaskHandler = class()
 
@@ -125,7 +125,12 @@ TaskHandler.handleCall = icc_co.callwrap(TaskHandler.handleCall)
 ---@param msg icc.Message
 function TaskHandler:handleReturn(msg)
 	assert(msg.ret)
-	self.callbacks[msg.id](true, msg:unpack())
+	local id = msg.id
+	---@cast id -?
+	local cb = self.callbacks[id]
+	if cb then -- Timeouts, Cancellations/Resets
+		cb(true, msg:unpack())
+	end
 end
 
 return TaskHandler
