@@ -4,7 +4,13 @@ local Axis = Enums.Axis
 
 ---@class ui.LayoutStrategy
 ---@operator call: ui.LayoutStrategy
+---@field engine ui.LayoutEngine
 local LayoutStrategy = class()
+
+---@param engine ui.LayoutEngine
+function LayoutStrategy:new(engine)
+	self.engine = engine
+end
 
 ---Measure all children and set node size
 ---@param node ui.Node
@@ -38,6 +44,12 @@ end
 ---@return ui.LayoutAxis
 function LayoutStrategy:getAxis(node, axis_idx)
 	return (axis_idx == Axis.X) and node.layout_box.x or node.layout_box.y
+end
+
+---Arrange a child node using the correct strategy
+---@param node ui.Node
+function LayoutStrategy:arrangeChild(node)
+	self.engine:arrange(node)
 end
 
 return LayoutStrategy

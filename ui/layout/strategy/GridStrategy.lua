@@ -239,7 +239,7 @@ function GridStrategy:arrange(node)
 		child.layout_box.y.pos = y_pos + child.layout_box.y.margin_start
 
 		-- Recurse into children
-		self:arrange(child)
+		self:arrangeChild(child)
 	end
 end
 

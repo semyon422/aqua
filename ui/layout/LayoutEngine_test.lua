@@ -379,4 +379,72 @@ function test.intrinsic_size_mixed_with_fixed(t)
 	t:eq(fixed_node.layout_box.x.pos, 64)
 end
 
+---@param t testing.T
+function test.mixed_strategies_tree(t)
+	-- Test a tree with multiple layout strategies at different levels
+	-- Root (Absolute)
+	--   └── flex_container (FlexRow)
+	--         ├── item1
+	--         └── grid_container (Grid)
+	--               ├── grid_item1
+	--               └── grid_item2
+	local engine = LayoutEngine()
+
+	-- Root with absolute layout
+	local root = new_node()
+	root.layout_box:setDimensions(400, 300)
+	root.layout_box.arrange = LayoutBox.Arrange.Absolute
+
+	-- Flex container positioned at (10, 20)
+	local flex_container = root:add(new_node())
+	flex_container.layout_box:setDimensions(200, 200)
+	flex_container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+	flex_container.layout_box.x.pos = 10
+	flex_container.layout_box.y.pos = 20
+
+	-- Item in flex container
+	local item1 = flex_container:add(new_node())
+	item1.layout_box:setDimensions(50, 100)
+
+	-- Grid container as second item in flex
+	local grid_container = flex_container:add(new_node())
+	grid_container.layout_box:setDimensions(100, 100)
+	grid_container.layout_box.arrange = LayoutBox.Arrange.Grid
+	grid_container.layout_box:setGridColumns({50, 50})
+	grid_container.layout_box:setGridRows({50, 50})
+
+	-- Grid items
+	local grid_item1 = grid_container:add(new_node())
+	grid_item1.layout_box:setDimensions(50, 50)
+	grid_item1.layout_box:setGridColumn(1)
+	grid_item1.layout_box:setGridRow(1)
+
+	local grid_item2 = grid_container:add(new_node())
+	grid_item2.layout_box:setDimensions(50, 50)
+	grid_item2.layout_box:setGridColumn(2)
+	grid_item2.layout_box:setGridRow(1)
+
+	engine:updateLayout(root.children)
+
+	-- Flex container should be at (10, 20) (absolute position preserved)
+	t:eq(flex_container.layout_box.x.pos, 10)
+	t:eq(flex_container.layout_box.y.pos, 20)
+
+	-- item1 should be at (0, 0) relative to flex container
+	t:eq(item1.layout_box.x.pos, 0)
+	t:eq(item1.layout_box.y.pos, 0)
+
+	-- grid_container should be at (50, 0) relative to flex container (after item1)
+	t:eq(grid_container.layout_box.x.pos, 50)
+	t:eq(grid_container.layout_box.y.pos, 0)
+
+	-- grid_item1 should be at (0, 0) relative to grid container
+	t:eq(grid_item1.layout_box.x.pos, 0)
+	t:eq(grid_item1.layout_box.y.pos, 0)
+
+	-- grid_item2 should be at (50, 0) relative to grid container (second column)
+	t:eq(grid_item2.layout_box.x.pos, 50)
+	t:eq(grid_item2.layout_box.y.pos, 0)
+end
+
 return test

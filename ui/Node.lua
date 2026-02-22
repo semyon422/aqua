@@ -1,4 +1,5 @@
 local LayoutBox = require("ui.layout.LayoutBox")
+local LayoutEnums = require("aqua.ui.layout.Enums")
 local IInputHandler = require("ui.input.IInputHandler")
 local table_util = require("table_util")
 
@@ -24,6 +25,7 @@ end
 function Node:add(node)
 	---@cast node ui.Node
 	node.parent = self
+	node.layout_box:markDirty(LayoutEnums.Axis.Both)
 	table.insert(self.children, node)
 	return node
 end

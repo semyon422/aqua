@@ -113,7 +113,7 @@ function AbsoluteStrategy:arrange(node)
 		child_x.pos = child_x.pos + child_x.margin_start
 		child_y.pos = child_y.pos + child_y.margin_start
 
-		self:arrange(child)
+		self:arrangeChild(child)
 	end
 end
 

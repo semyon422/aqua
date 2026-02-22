@@ -286,7 +286,7 @@ function FlexStrategy:arrange(node)
 
 		child_cross.pos = cross_pos
 
-		self:arrange(child)
+		self:arrangeChild(child)
 
 		pos = pos + child_main.size + child_main:getTotalMargin() + gap
 	end
