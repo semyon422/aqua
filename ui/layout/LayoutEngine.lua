@@ -18,9 +18,9 @@ local GridStrategy = require("ui.layout.strategy.GridStrategy")
 local LayoutEngine = class()
 
 function LayoutEngine:new()
-	self.absolute_strategy = AbsoluteStrategy()
-	self.flex_strategy = FlexStrategy()
-	self.grid_strategy = GridStrategy()
+	self.absolute_strategy = AbsoluteStrategy(self)
+	self.flex_strategy = FlexStrategy(self)
+	self.grid_strategy = GridStrategy(self)
 end
 
 ---@param node ui.Node
