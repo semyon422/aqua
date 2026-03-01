@@ -83,14 +83,35 @@ function Model:rows_for_db(rows)
 	return _rows
 end
 
+---@return string
+function Model:getFrom()
+	return assert(self.subquery or self.table_name, "missing subquery or table name")
+end
+
+---@param conditions rdb.Conditions?
+---@param options rdb.Options?
+---@return fun(): integer?, rdb.Row?
+function Model:select_iter(conditions, options)
+	conditions = sql_util.conditions_for_db(conditions, self.types)
+	local iter = self.orm:select_iter(self:getFrom(), conditions, options)
+	return function()
+		local i, row = iter()
+		if row then
+			return i, self:row_from_db(row)
+		end
+	end
+end
+
 ---@param conditions rdb.Conditions?
 ---@param options rdb.Options?
 ---@return rdb.Row[]
 function Model:select(conditions, options)
-	local from = assert(self.subquery or self.table_name, "missing subquery or table name")
-	conditions = sql_util.conditions_for_db(conditions, self.types)
-	local rows = self.orm:select(from, conditions, options)
-	return self:rows_from_db(rows)
+	---@type rdb.Row[]
+	local results = {}
+	for i, row in self:select_iter(conditions, options) do
+		results[i] = row
+	end
+	return results
 end
 
 ---@param conditions rdb.Conditions
@@ -106,9 +127,8 @@ end
 ---@param options rdb.Options?
 ---@return integer
 function Model:count(conditions, options)
-	local from = assert(self.subquery or self.table_name, "missing subquery or table name")
 	conditions = sql_util.conditions_for_db(conditions, self.types)
-	return tonumber(self.orm:count(from, conditions, options)) or 0
+	return tonumber(self.orm:count(self:getFrom(), conditions, options)) or 0
 end
 
 ---@param values_array rdb.Row[]

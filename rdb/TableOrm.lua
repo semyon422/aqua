@@ -63,6 +63,13 @@ function TableOrm:query(query, bind_vals)
 	return self.db:query(query, bind_vals)
 end
 
+---@param query string
+---@param bind_vals any[]?
+---@return fun(): integer?, rdb.Row?
+function TableOrm:iter(query, bind_vals)
+	return self.db:iter(query, bind_vals)
+end
+
 function TableOrm:begin()
 	self.db:exec("BEGIN")
 end
@@ -84,8 +91,9 @@ local default_options = {
 ---@param table_name string
 ---@param conditions rdb.Conditions?
 ---@param options rdb.Options?
----@return rdb.Row[]
-function TableOrm:select(table_name, conditions, options)
+---@return string query
+---@return any[] values
+function TableOrm:buildSelect(table_name, conditions, options)
 	local opts = options or default_options
 	local columns = opts.columns or default_options.columns
 
@@ -135,7 +143,23 @@ function TableOrm:select(table_name, conditions, options)
 		q = opts.format:format(q)
 	end
 
-	return self:query(q, values)
+	return q, values
+end
+
+---@param table_name string
+---@param conditions rdb.Conditions?
+---@param options rdb.Options?
+---@return fun(): integer?, rdb.Row?
+function TableOrm:select_iter(table_name, conditions, options)
+	return self:iter(self:buildSelect(table_name, conditions, options))
+end
+
+---@param table_name string
+---@param conditions rdb.Conditions?
+---@param options rdb.Options?
+---@return rdb.Row[]
+function TableOrm:select(table_name, conditions, options)
+	return self:query(self:buildSelect(table_name, conditions, options))
 end
 
 ---@param table_name string
