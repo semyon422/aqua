@@ -204,7 +204,7 @@ function test.button_wrapping_repro(t)
 	t:eq(button.layout_box.x.size, 110, "Button width should be 110")
 	t:eq(label.layout_box.x.size, 110, "Label width should be constrained to button width")
 	t:eq(label.layout_box.y.size, 40, "Label should wrap to 2 lines")
-	t:eq(button.layout_box.y.size, 5 + 24 + 20*2 + 5, "Button height should be padding + icon + label + padding")
+	t:eq(button.layout_box.y.size, 5 + 24 + 20 * 2 + 5, "Button height should be padding + icon + label + padding")
 	t:eq(label.layout_box.x.pos, 0, "Label should be at x=0 since it takes full width")
 end
 
