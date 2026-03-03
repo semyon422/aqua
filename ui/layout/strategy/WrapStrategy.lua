@@ -31,7 +31,7 @@ function WrapStrategy:measure(node, axis_idx)
 		local s = axis.preferred_size
 		if axis.mode == SizeMode.Percent and node.parent then
 			local parent_axis = self:getAxis(node.parent, axis_idx)
-			s = s * parent_axis:getLayoutSize()
+			s = s * (parent_axis:getLayoutSize() - axis:getTotalMargin())
 		end
 		axis.size = math_clamp(s, min_s, max_s)
 
@@ -163,7 +163,7 @@ function WrapStrategy:grow(node, axis_idx)
 		local child_axis = self:getAxis(child, axis_idx)
 
 		if child_axis.mode == SizeMode.Percent then
-			local s = child_axis.preferred_size * available_space
+			local s = child_axis.preferred_size * (available_space - child_axis:getTotalMargin())
 			child_axis.size = math_clamp(s, child_axis.min_size, child_axis.max_size)
 		end
 
@@ -202,6 +202,7 @@ function WrapStrategy:arrange(node)
 	local align = layout_box.align_items
 
 	local available_main = main_axis:getLayoutSize()
+	local available_cross = cross_axis:getLayoutSize()
 
 	local lines = {} ---@type {items: ui.Node[], main_size: number, cross_size: number}[]
 	local current_line = {items = {}, main_size = 0, cross_size = 0}
@@ -229,7 +230,20 @@ function WrapStrategy:arrange(node)
 		table.insert(lines, current_line)
 	end
 
+	local total_cross_size = 0
+	for i, line in ipairs(lines) do
+		total_cross_size = total_cross_size + line.cross_size
+		if i > 1 then
+			total_cross_size = total_cross_size + layout_box.line_gap ---@type number
+		end
+	end
+
 	local cross_pos = cross_axis.padding_start
+	if align == AlignItems.Center then
+		cross_pos = cross_pos + (available_cross - total_cross_size) / 2
+	elseif align == AlignItems.End then
+		cross_pos = cross_pos + available_cross - total_cross_size
+	end
 
 	for _, line in ipairs(lines) do
 		local main_pos = main_axis.padding_start

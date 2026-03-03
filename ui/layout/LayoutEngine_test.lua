@@ -865,11 +865,37 @@ function test.label_wrapping_with_center_alignment(t)
 
 	engine:updateLayout(root.children)
 
-	-- The label should be constrained to screen width (655)
+	-- Label should be constrained to screen width (655)
 	-- NOT return its full intrinsic width (928)
 	t:eq(root.layout_box.x.size, 655, "root has fixed width")
 	t:eq(screen.layout_box.x.size, 655, "screen has 100% of root width")
 	t:eq(label.layout_box.x.size, 655, "label should be constrained to screen width, not use intrinsic 928")
 end
 
+---@param t testing.T
+function test.stack_percent_size_with_margins(t)
+	-- Test that Percent size correctly subtracts margins from available space
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setDimensions(200, 100)
+	container.layout_box.arrange = LayoutBox.Arrange.Stack
+	container.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+	container.layout_box:setJustifyContent(LayoutBox.JustifyContent.Start)
+
+	local child = container:add(new_node())
+	child.layout_box:setWidthPercent(1.0) -- 100%
+	child.layout_box:setHeightPercent(0.5) -- 50%
+	child.layout_box:setMargins({0, 64, 0, 0}) -- right margin 64
+
+	engine:updateLayout(container.children)
+
+	-- Width: 100% of (200 - 64) = 136
+	-- Height: 50% of (100 - 0) = 50
+	-- Position: Start alignment -> pos = 0
+	t:eq(child.layout_box.x.size, 136, "100% width with 64 margin should be 200-64=136")
+	t:eq(child.layout_box.y.size, 50, "50% height with 0 margin should be 100*0.5=50")
+	t:eq(child.layout_box.x.pos, 0, "Start alignment should be at 0")
+end
+
 return test
+

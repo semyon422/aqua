@@ -215,4 +215,60 @@ function test.wrap_row_max_size(t)
 	t:eq(container.layout_box.y.size, 80, "container height should be 80")
 end
 
+---@param t testing.T
+function test.wrap_col_align_items_center(t)
+	local engine = LayoutEngine()
+
+	-- Root: fixed size 800x600
+	local root = new_node()
+	root.layout_box:setDimensions(800, 600)
+	root.layout_box.arrange = LayoutBox.Arrange.FlexCol
+
+	-- Container: 100px wide, wrap_col, align_items center
+	local container = root:add(new_node())
+	container.layout_box:setWidth(100)
+	container.layout_box:setHeight(400)
+	container.layout_box.arrange = LayoutBox.Arrange.WrapCol
+	container.layout_box:setAlignItems(LayoutBox.AlignItems.Center)
+
+	-- Child: 40px wide, 40px high
+	local child = container:add(new_node())
+	child.layout_box:setDimensions(40, 40)
+
+	engine:updateLayout({root})
+
+	-- Expected: child should be centered horizontally in the 100px container.
+	-- x_pos = (100 - 40) / 2 = 30
+	t:eq(child.layout_box.x.size, 40)
+	t:eq(child.layout_box.x.pos, 30, "Child should be centered horizontally in WrapCol")
+end
+
+---@param t testing.T
+function test.wrap_row_align_items_center(t)
+	local engine = LayoutEngine()
+
+	-- Root
+	local root = new_node()
+	root.layout_box:setDimensions(800, 600)
+	root.layout_box.arrange = LayoutBox.Arrange.FlexCol
+
+	-- Container: 100px high, wrap_row, align_items center
+	local container = root:add(new_node())
+	container.layout_box:setWidth(400)
+	container.layout_box:setHeight(100)
+	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	container.layout_box:setAlignItems(LayoutBox.AlignItems.Center)
+
+	-- Child: 40px wide, 40px high
+	local child = container:add(new_node())
+	child.layout_box:setDimensions(40, 40)
+
+	engine:updateLayout({root})
+
+	-- Expected: child should be centered vertically in the 100px container.
+	-- y_pos = (100 - 40) / 2 = 30
+	t:eq(child.layout_box.y.size, 40)
+	t:eq(child.layout_box.y.pos, 30, "Child should be centered vertically in WrapRow")
+end
+
 return test

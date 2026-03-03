@@ -46,7 +46,7 @@ function FlexStrategy:measure(node, axis_idx)
 		local s = axis.preferred_size
 		if axis.mode == SizeMode.Percent and node.parent then
 			local parent_axis = self:getAxis(node.parent, axis_idx)
-			s = s * parent_axis:getLayoutSize()
+			s = s * (parent_axis:getLayoutSize() - axis:getTotalMargin())
 		end
 		axis.size = math_clamp(s, min_s, max_s)
 
@@ -184,7 +184,7 @@ function FlexStrategy:grow(node, axis_idx)
 		-- Handle percent sizing
 		if child_axis.mode == SizeMode.Percent then
 			local parent_size = axis:getLayoutSize()
-			local s = child_axis.preferred_size * parent_size
+			local s = child_axis.preferred_size * (parent_size - child_axis:getTotalMargin())
 			child_axis.size = math_clamp(s, child_axis.min_size, child_axis.max_size)
 		end
 
