@@ -812,4 +812,178 @@ function test.nested_flex_col_with_align_items_start(t)
 	t:eq(c2.layout_box.x.size, 100, "c2 uses intrinsic size (not stretched)")
 end
 
+---@param t testing.T
+function test.flex_row_basic_positions(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+
+	local c1 = container:add(new_node())
+	c1.layout_box:setDimensions(100, 100)
+
+	local c2 = container:add(new_node())
+	c2.layout_box:setDimensions(50, 100)
+
+	local c3 = container:add(new_node())
+	c3.layout_box:setDimensions(100, 100)
+
+	engine:updateLayout(container.children)
+
+	t:eq(c1.layout_box.x.pos, 0)
+	t:eq(c2.layout_box.x.pos, 100)
+	t:eq(c3.layout_box.x.pos, 150)
+
+	t:eq(c1.layout_box.y.pos, 0)
+	t:eq(c2.layout_box.y.pos, 0)
+	t:eq(c3.layout_box.y.pos, 0)
+
+	t:eq(c1.layout_box.x.size, 100)
+	t:eq(c1.layout_box.y.size, 100)
+
+	t:eq(c2.layout_box.x.size, 50)
+	t:eq(c2.layout_box.y.size, 100)
+
+	t:eq(c3.layout_box.x.size, 100)
+	t:eq(c3.layout_box.y.size, 100)
+end
+
+---@param t testing.T
+function test.flex_col_basic_positions(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box.arrange = LayoutBox.Arrange.FlexCol
+
+	local c1 = container:add(new_node())
+	c1.layout_box:setDimensions(100, 100)
+
+	local c2 = container:add(new_node())
+	c2.layout_box:setDimensions(50, 50)
+
+	local c3 = container:add(new_node())
+	c3.layout_box:setDimensions(100, 100)
+
+	engine:updateLayout(container.children)
+
+	t:eq(c1.layout_box.x.pos, 0)
+	t:eq(c2.layout_box.x.pos, 0)
+	t:eq(c3.layout_box.x.pos, 0)
+
+	t:eq(c1.layout_box.y.pos, 0)
+	t:eq(c2.layout_box.y.pos, 100)
+	t:eq(c3.layout_box.y.pos, 150)
+end
+
+---@param t testing.T
+function test.justify_content_positions(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setDimensions(100, 100)
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+
+	local c1 = container:add(new_node())
+	c1.layout_box:setDimensions(10, 10)
+
+	local c2 = container:add(new_node())
+	c2.layout_box:setDimensions(10, 10)
+
+	container.layout_box.justify_content = LayoutBox.JustifyContent.Start
+	engine:updateLayout(container.children)
+	t:eq(c1.layout_box.x.pos, 0)
+	t:eq(c2.layout_box.x.pos, 10)
+
+	container.layout_box.justify_content = LayoutBox.JustifyContent.Center
+	engine:updateLayout(container.children)
+	t:eq(c1.layout_box.x.pos, 40)
+	t:eq(c2.layout_box.x.pos, 50)
+
+	container.layout_box.justify_content = LayoutBox.JustifyContent.End
+	engine:updateLayout(container.children)
+	t:eq(c1.layout_box.x.pos, 80)
+	t:eq(c2.layout_box.x.pos, 90)
+
+	container.layout_box.justify_content = LayoutBox.JustifyContent.SpaceBetween
+	engine:updateLayout(container.children)
+	t:eq(c1.layout_box.x.pos, 0)
+	t:eq(c2.layout_box.x.pos, 90)
+end
+
+---@param t testing.T
+function test.align_items_cross_axis(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setDimensions(100, 100)
+	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+
+	local c1 = container:add(new_node())
+	c1.layout_box:setDimensions(10, 10)
+	c1.layout_box.align_self = LayoutBox.AlignItems.Start
+
+	local c2 = container:add(new_node())
+	c2.layout_box:setDimensions(10, 10)
+	c2.layout_box.align_self = LayoutBox.AlignItems.Center
+
+	local c3 = container:add(new_node())
+	c3.layout_box:setDimensions(10, 10)
+	c3.layout_box.align_self = LayoutBox.AlignItems.End
+
+	local c4 = container:add(new_node())
+	c4.layout_box:setDimensions(10, 10)
+	c4.layout_box.align_self = LayoutBox.AlignItems.Stretch
+
+	engine:updateLayout(container.children)
+
+	t:eq(c1.layout_box.y.pos, 0)
+	t:eq(c2.layout_box.y.pos, 45)
+	t:eq(c3.layout_box.y.pos, 90)
+	t:eq(c4.layout_box.y.pos, 0)
+end
+
+---@param t testing.T
+function test.flex_row_reversed_layout(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setArrange(LayoutBox.Arrange.FlexRow)
+	container.layout_box:setReversed(true)
+
+	local c1 = container:add(new_node())
+	c1.layout_box:setDimensions(100, 100)
+
+	local c2 = container:add(new_node())
+	c2.layout_box:setDimensions(50, 100)
+
+	local c3 = container:add(new_node())
+	c3.layout_box:setDimensions(100, 100)
+
+	engine:updateLayout(container.children)
+
+	-- Visual order should be c3, c2, c1
+	t:eq(c3.layout_box.x.pos, 0)
+	t:eq(c2.layout_box.x.pos, 100)
+	t:eq(c1.layout_box.x.pos, 150)
+end
+
+---@param t testing.T
+function test.flex_col_reversed_layout(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setArrange(LayoutBox.Arrange.FlexCol)
+	container.layout_box:setReversed(true)
+
+	local c1 = container:add(new_node())
+	c1.layout_box:setDimensions(100, 100)
+
+	local c2 = container:add(new_node())
+	c2.layout_box:setDimensions(100, 50)
+
+	local c3 = container:add(new_node())
+	c3.layout_box:setDimensions(100, 100)
+
+	engine:updateLayout(container.children)
+
+	-- Visual order should be c3, c2, c1
+	t:eq(c3.layout_box.y.pos, 0)
+	t:eq(c2.layout_box.y.pos, 100)
+	t:eq(c1.layout_box.y.pos, 150)
+end
+
 return test
