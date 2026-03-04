@@ -147,13 +147,11 @@ function StackStrategy:grow(node, axis_idx)
 		if child_axis.mode == SizeMode.Auto then
 			if (stretch_alignment == AlignItems.Stretch or stretch_alignment == JustifyContent.Stretch) then
 				child_axis.size = math_clamp(stretched_size, child_axis.min_size, child_axis.max_size)
-			elseif child_axis.size > stretched_size and stretched_size > 0 then
-				-- Even if not stretching, constrain to available space to prevent overflow and ensure wrapping
-				child_axis.size = math_clamp(stretched_size, child_axis.min_size, child_axis.max_size)
 			end
+			-- Auto mode: do not clamp - content determines size, can overflow
 		elseif child_axis.mode == SizeMode.Fit then
 			if child_axis.size > stretched_size and stretched_size > 0 then
-				-- Constrain Fit mode if it overflows and we have positive space
+				-- Fit mode: content-sized but clamped to parent's available space
 				child_axis.size = math_clamp(stretched_size, child_axis.min_size, child_axis.max_size)
 			end
 		end

@@ -214,14 +214,14 @@ function FlexStrategy:grow(node, axis_idx)
 			local align = child.layout_box.align_self or layout_box.align_items
 			if align == AlignItems.Stretch and child_axis.mode == SizeMode.Auto then
 				table.insert(flex_items, child)
-			elseif (child_axis.mode == SizeMode.Auto or child_axis.mode == SizeMode.Fit) then
-				-- Even if not stretching, constrain to available space if it overflows.
-				-- This is important for wrapping content.
+			elseif child_axis.mode == SizeMode.Fit then
+				-- Fit mode: constrain to available space if it overflows
 				local available = available_space - child_axis:getTotalMargin()
 				if available > 0 and child_axis.size > available then
 					child_axis.size = math_clamp(available, child_axis.min_size, child_axis.max_size)
 				end
 			end
+			-- Auto mode: do not clamp - content determines size, can overflow
 		end
 	end
 

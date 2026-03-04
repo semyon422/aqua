@@ -107,35 +107,49 @@ function WrapStrategy:measure(node, axis_idx)
 
 		local available_main = main_axis.size - main_axis.padding_start - main_axis.padding_end
 		local total_cross = 0
-		local current_main = 0
-		local current_cross_max = 0
-		local first_in_line = true
 
-		for _, child in ipairs(node.children) do
-			local child_main = self:getAxis(child, main_axis_idx)
-			local child_cross = self:getAxis(child, cross_axis_idx)
-
-			if child_cross.mode ~= SizeMode.Percent then
-				self.engine:measure(child, cross_axis_idx)
-			end
-
-			local main_size = child_main.size + child_main:getTotalMargin()
-			local cross_size = child_cross.size + child_cross:getTotalMargin()
-
-			if not first_in_line and current_main + layout_box.child_gap + main_size > available_main then
-				total_cross = total_cross + current_cross_max + layout_box.line_gap
-				current_main = main_size
-				current_cross_max = cross_size
-			else
-				if not first_in_line then
-					current_main = current_main + layout_box.child_gap
+		-- If main axis size is not yet determined (0 or negative available space),
+		-- we can't do proper wrapping calculation. Assume all items fit on one line
+		-- and use max child size for cross-axis.
+		if available_main <= 0 then
+			for _, child in ipairs(node.children) do
+				local child_cross = self:getAxis(child, cross_axis_idx)
+				if child_cross.mode ~= SizeMode.Percent then
+					self.engine:measure(child, cross_axis_idx)
 				end
-				current_main = current_main + main_size
-				current_cross_max = math_max(current_cross_max, cross_size) ---@type number good old LLS bug
-				first_in_line = false
+				total_cross = math_max(total_cross, child_cross.size + child_cross:getTotalMargin())
 			end
+		else
+			local current_main = 0
+			local current_cross_max = 0
+			local first_in_line = true
+
+			for _, child in ipairs(node.children) do
+				local child_main = self:getAxis(child, main_axis_idx)
+				local child_cross = self:getAxis(child, cross_axis_idx)
+
+				if child_cross.mode ~= SizeMode.Percent then
+					self.engine:measure(child, cross_axis_idx)
+				end
+
+				local main_size = child_main.size + child_main:getTotalMargin()
+				local cross_size = child_cross.size + child_cross:getTotalMargin()
+
+				if not first_in_line and current_main + layout_box.child_gap + main_size > available_main then
+					total_cross = total_cross + current_cross_max + layout_box.line_gap
+					current_main = main_size
+					current_cross_max = cross_size
+				else
+					if not first_in_line then
+						current_main = current_main + layout_box.child_gap
+					end
+					current_main = current_main + main_size
+					current_cross_max = math_max(current_cross_max, cross_size) ---@type number good old LLS bug
+					first_in_line = false
+				end
+			end
+			total_cross = total_cross + current_cross_max
 		end
-		total_cross = total_cross + current_cross_max
 
 		local base_size = axis.padding_start + total_cross + axis.padding_end
 		axis.size = math_clamp(base_size, min_s, max_s)
@@ -170,17 +184,19 @@ function WrapStrategy:grow(node, axis_idx)
 		local stretched_size = available_space - child_axis:getTotalMargin()
 
 		if not is_main then
-			if child_axis.mode == SizeMode.Auto or child_axis.mode == SizeMode.Fit then
+			if child_axis.mode == SizeMode.Fit then
 				if child_axis.size > stretched_size and stretched_size > 0 then
 					child_axis.size = math_clamp(stretched_size, child_axis.min_size, child_axis.max_size)
 				end
 			end
+			-- Auto mode: do not clamp - content determines size, can overflow
 		else
-			if child_axis.mode == SizeMode.Auto or child_axis.mode == SizeMode.Fit then
+			if child_axis.mode == SizeMode.Fit then
 				if child_axis.size > stretched_size and stretched_size > 0 then
 					child_axis.size = math_clamp(stretched_size, child_axis.min_size, child_axis.max_size)
 				end
 			end
+			-- Auto mode: do not clamp - content determines size, can overflow
 		end
 	end
 

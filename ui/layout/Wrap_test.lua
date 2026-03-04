@@ -271,4 +271,40 @@ function test.wrap_row_align_items_center(t)
 	t:eq(child.layout_box.y.pos, 30, "Child should be centered vertically in WrapRow")
 end
 
+---Auto-sized WrapCol container should measure cross-axis correctly
+---before main-axis size is known during initial layout
+---@param t testing.T
+function test.wrap_col_initial_measurement(t)
+	local engine = LayoutEngine()
+
+	-- Root: fixed size 800x600
+	local root = new_node()
+	root.layout_box:setDimensions(800, 600)
+	root.layout_box.arrange = LayoutBox.Arrange.FlexCol
+
+	-- Parent: 64px wide, 100% height (600px)
+	local parent = root:add(new_node())
+	parent.layout_box:setWidth(64)
+	parent.layout_box:setHeightPercent(1.0)
+	parent.layout_box.arrange = LayoutBox.Arrange.WrapCol
+
+	-- Container: WrapCol, Auto size
+	local container = parent:add(new_node())
+	container.layout_box.arrange = LayoutBox.Arrange.WrapCol
+	container.layout_box:setWidthAuto()
+	container.layout_box:setHeightAuto()
+
+	-- Children: 45x45. 3 children total height 135 < 600.
+	-- They should all fit in one column.
+	for i = 1, 3 do
+		local child = container:add(new_node())
+		child.layout_box:setDimensions(45, 45)
+	end
+
+	engine:updateLayout({root})
+
+	-- Container width should be 45 (max child width), not 64 (parent width)
+	t:eq(container.layout_box.x.size, 45, "Container should have width 45, not 64")
+end
+
 return test
