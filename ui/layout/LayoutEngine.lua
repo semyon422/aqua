@@ -38,6 +38,15 @@ local function findStableRoot(node)
 		local lb = root.layout_box
 		local parent_lb = parent.layout_box
 
+		-- Early-exit: If parent has stable (non-content-derived) size on both axes,
+		-- it cannot change size — stop propagation here.
+		local parent_x_stable = parent_lb.x.mode == SizeMode.Fixed or parent_lb.x.mode == SizeMode.Percent
+		local parent_y_stable = parent_lb.y.mode == SizeMode.Fixed or parent_lb.y.mode == SizeMode.Percent
+		if parent_x_stable and parent_y_stable then
+			root = parent
+			break
+		end
+
 		local depends = false
 
 		-- 1. Bottom-Up Dependency: Does the parent's size depend on this child?
@@ -49,8 +58,13 @@ local function findStableRoot(node)
 		-- 2. Top-Down Dependency: Does this child's size depend on the parent?
 		if not depends then
 			-- Percent sizing explicitly relies on the parent's layout size
+			-- Only propagate for Percent children if parent size is content-derived
 			if lb.x.mode == SizeMode.Percent or lb.y.mode == SizeMode.Percent then
-				depends = true
+				if parent_lb.x.mode == SizeMode.Auto or parent_lb.x.mode == SizeMode.Fit or
+				   parent_lb.y.mode == SizeMode.Auto or parent_lb.y.mode == SizeMode.Fit then
+					depends = true
+				end
+				-- else: parent size is stable → percent value is stable → no propagation needed
 			elseif parent_lb.arrange == Arrange.FlexRow or parent_lb.arrange == Arrange.FlexCol then
 				if lb.grow > 0 or lb.shrink > 0 then
 					depends = true
@@ -123,6 +137,30 @@ function LayoutEngine:updateLayout(dirty_nodes)
 	for _, node in ipairs(dirty_nodes) do
 		local root = findStableRoot(node)
 		layout_roots[root] = true
+	end
+
+	-- Filter out roots that are descendants of other roots
+	-- If root A is an ancestor of root B, we only need to layout from A
+	local root_count = 0
+	for _ in pairs(layout_roots) do root_count = root_count + 1 end
+
+	if root_count > 1 then
+		local filtered_roots = {}
+		for root1, _ in pairs(layout_roots) do
+			local is_descendant = false
+			local curr = root1.parent
+			while curr do
+				if layout_roots[curr] then
+					is_descendant = true
+					break
+				end
+				curr = curr.parent
+			end
+			if not is_descendant then
+				filtered_roots[root1] = true
+			end
+		end
+		layout_roots = filtered_roots
 	end
 
 	-- If root is a node with no parent, use it as the only layout root

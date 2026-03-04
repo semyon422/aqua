@@ -437,5 +437,197 @@ function test.label_wrapping_with_center_alignment(t)
 	t:eq(label.layout_box.x.size, 655, "label should be constrained to screen width, not use intrinsic 928")
 end
 
+---@param t testing.T
+function test.stable_root_stops_at_fixed_percent_boundary(t)
+	-- Optimization test: findStableRoot should stop at Fixed/Percent containers
+	-- Hierarchy: Root(Fixed) -> Screen(100%) -> Select(100%) -> Label(Auto)
+	-- When Label changes, layout root should be Select, not Root
+	local engine = LayoutEngine()
+
+	-- Root with fixed dimensions
+	local root = new_node()
+	root.layout_box:setDimensions(800, 600)
+
+	-- Screen: 100% size (Percent mode - acts as a barrier)
+	local screen = root:add(new_node())
+	screen.layout_box:setWidthPercent(1.0)
+	screen.layout_box:setHeightPercent(1.0)
+	screen.layout_box:setAlignItems(LayoutBox.AlignItems.Start)  -- Don't stretch children
+
+	-- Select: 100% size (Percent mode - also a barrier)
+	local select = screen:add(new_node())
+	select.layout_box:setWidthPercent(1.0)
+	select.layout_box:setHeightPercent(1.0)
+	select.layout_box:setAlignItems(LayoutBox.AlignItems.Start)  -- Don't stretch children
+
+	-- Label: Auto size (intrinsic)
+	local label = select:add(new_node_with_intrinsic_size(100, 20))
+	label.layout_box:setWidthAuto()
+	label.layout_box:setHeightAuto()
+
+	-- First layout from root to establish sizes
+	engine:updateLayout({root})
+
+	-- All nodes should be measured on first layout
+	t:eq(label.layout_box.x.size, 100, "label should have intrinsic width")
+	t:eq(select.layout_box.x.size, 800, "select should have 100% of root width")
+	t:eq(screen.layout_box.x.size, 800, "screen should have 100% of root width")
+
+	-- Simulate label text change (mark label dirty)
+	label.getIntrinsicSize = function(self, axis_idx, constraint)
+		if axis_idx == Axis.X then
+			return 150 -- Width changed from 100 to 150
+		else
+			return 20
+		end
+	end
+	label.layout_box:markDirty(Axis.Both)
+
+	-- Second layout - only label changed
+	-- With optimization: layout root should be Select, not Root
+	local roots = engine:updateLayout({label})
+
+	-- Verify label has new size
+	t:eq(label.layout_box.x.size, 150, "label should have new intrinsic width")
+	t:eq(select.layout_box.x.size, 800, "select size should not change (still 100%)")
+
+	-- Verify the layout root is Select (screen), not Root
+	-- The optimization should stop at Screen (first Fixed/Percent ancestor from dirty node)
+	t:assert(roots[screen] or roots[select], "screen or select should be the layout root, not root")
+end
+
+---@param t testing.T
+function test.percent_child_stable_parent_no_propagation(t)
+	-- Test: Percent child inside Fixed/Percent parent should not cause upward propagation
+	-- when the child's size is recomputed
+	local engine = LayoutEngine()
+
+	-- Fixed root
+	local root = new_node()
+	root.layout_box:setDimensions(400, 300)
+	root.layout_box.arrange = LayoutBox.Arrange.FlexRow
+
+	-- Container: Fixed size (stable)
+	local container = root:add(new_node())
+	container.layout_box:setDimensions(200, 150)
+	container.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+
+	-- Percent child: 50% of container
+	local percent_child = container:add(new_node())
+	percent_child.layout_box:setWidthPercent(0.5)
+	percent_child.layout_box:setHeightPercent(0.5)
+
+	-- Initial layout
+	engine:updateLayout({percent_child})
+	t:eq(percent_child.layout_box.x.size, 100, "percent child should be 50% of 200")
+	t:eq(percent_child.layout_box.y.size, 75, "percent child should be 50% of 150")
+
+	-- Mark percent child dirty (simulating a re-layout scenario)
+	percent_child.layout_box:markDirty(Axis.Both)
+
+	-- Re-layout - should not propagate above container
+	local roots = engine:updateLayout({percent_child})
+
+	-- Verify size is still correct
+	t:eq(percent_child.layout_box.x.size, 100, "percent child should still be 50% of 200")
+	t:eq(percent_child.layout_box.y.size, 75, "percent child should still be 50% of 150")
+end
+
+---@param t testing.T
+function test.multiple_dirty_nodes_ancestor_filtering(t)
+	-- Test: When multiple dirty nodes map to different sub-roots in the same tree,
+	-- only the ancestor should be used as layout root
+	local engine = LayoutEngine()
+
+	-- Root (Fixed)
+	local root = new_node()
+	root.layout_box:setDimensions(800, 600)
+
+	-- Parent (Fixed) - should become the layout root
+	local parent = root:add(new_node())
+	parent.layout_box:setDimensions(400, 300)
+
+	-- Child 1 (Auto)
+	local child1 = parent:add(new_node_with_intrinsic_size(50, 50))
+	child1.layout_box:setWidthAuto()
+	child1.layout_box:setHeightAuto()
+
+	-- Child 2 (Auto)
+	local child2 = parent:add(new_node_with_intrinsic_size(60, 60))
+	child2.layout_box:setWidthAuto()
+	child2.layout_box:setHeightAuto()
+
+	-- Grandchild of child1
+	local grandchild = child1:add(new_node_with_intrinsic_size(20, 20))
+	grandchild.layout_box:setWidthAuto()
+	grandchild.layout_box:setHeightAuto()
+
+	-- Mark child2 and grandchild as dirty
+	-- Without filtering: would create 2 roots (child2 and child1)
+	-- With filtering: only parent should be the root
+	child2.layout_box:markDirty(Axis.Both)
+	grandchild.layout_box:markDirty(Axis.Both)
+
+	local roots = engine:updateLayout({child2, grandchild})
+
+	-- Count roots
+	local root_count = 0
+	for _ in pairs(roots) do root_count = root_count + 1 end
+
+	-- Should only have 1 root (parent), not 2 (child1 and child2)
+	t:eq(root_count, 1, "should have only 1 layout root (parent)")
+	t:assert(roots[parent], "parent should be the layout root")
+	t:assert(not roots[child1], "child1 should not be a separate root")
+	t:assert(not roots[child2], "child2 should not be a separate root")
+end
+
+---@param t testing.T
+function test.auto_parent_still_propagates_up(t)
+	-- Test: When parent has Auto size, layout should still propagate up
+	-- This ensures we don't break the non-optimized case
+	local engine = LayoutEngine()
+
+	-- Root (Fixed)
+	local root = new_node()
+	root.layout_box:setDimensions(800, 600)
+	root.layout_box:setAlignItems(LayoutBox.AlignItems.Start)  -- Don't stretch children
+
+	-- Container (Auto) - size depends on children, so should propagate up
+	local container = root:add(new_node())
+	container.layout_box:setWidthAuto()
+	container.layout_box:setHeightAuto()
+	container.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+
+	-- Child (Auto) - determines container size
+	local child = container:add(new_node_with_intrinsic_size(100, 50))
+	child.layout_box:setWidthAuto()
+	child.layout_box:setHeightAuto()
+
+	-- Initial layout from root
+	engine:updateLayout({root})
+	t:eq(container.layout_box.x.size, 100, "container should fit child")
+	t:eq(container.layout_box.y.size, 50, "container should fit child")
+
+	-- Change child size
+	child.getIntrinsicSize = function(self, axis_idx, constraint)
+		if axis_idx == Axis.X then
+			return 200
+		else
+			return 100
+		end
+	end
+	child.layout_box:markDirty(Axis.Both)
+
+	-- Re-layout - should propagate to root because container has Auto size
+	local roots = engine:updateLayout({child})
+
+	-- Container should have new size
+	t:eq(container.layout_box.x.size, 200, "container should resize to fit larger child")
+	t:eq(container.layout_box.y.size, 100, "container should resize to fit larger child")
+
+	-- Root should be the layout root (since container has Auto size, it propagates up)
+	t:assert(roots[root], "root should be the layout root (container has Auto size)")
+end
+
 return test
 
