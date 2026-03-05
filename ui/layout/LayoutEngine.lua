@@ -114,8 +114,7 @@ function LayoutEngine:updateLayout(dirty_nodes)
 	for node, _ in pairs(layout_roots) do
 		self:measure(node, Axis.X)
 		self:measure(node, Axis.Y)
-		local target = node.parent and node.parent or node
-		self:arrange(target)
+		self:arrange(node)
 		self:markValid(node)
 	end
 

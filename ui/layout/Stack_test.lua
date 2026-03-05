@@ -271,4 +271,110 @@ function test.stack_with_margins_positioning(t)
 	t:eq(child.layout_box.y.pos, 35, "child should be centered with margins on Y")
 end
 
+---@param t testing.T
+function test.stack_isolated_sibling_layout(t)
+	-- Test optimization: when one sibling changes, other siblings' layouts are not recalculated
+	-- Structure:
+	--   Root (800x600, Stack)
+	--     └── ScreenContainer (100% x 100%, Stack)
+	--           └── Screen (100% x 100%, Stack)
+	--                 ├── Container A (64px x 100%, WrapRow) - should NOT be remeasured
+	--                 │     └── Item A1, Item A2 (fixed size)
+	--                 └── Container B (Auto x Auto, Stack) - contains changing child
+	--                       └── Child B (changes from 50x50 to 100x100)
+	
+	local engine = LayoutEngine()
+	local measure_counts = {}
+	
+	-- Wrap the engine's measure function to track calls
+	local original_measure = engine.measure
+	engine.measure = function(self, node, axis_idx)
+		local key = tostring(node) .. (axis_idx == LayoutBox.Axis.X and ".x" or ".y")
+		measure_counts[key] = (measure_counts[key] or 0) + 1
+		return original_measure(self, node, axis_idx)
+	end
+	
+	-- 1) Root with fixed size (Stack arrange)
+	local root = new_node()
+	root.layout_box:setDimensions(800, 600)
+	root.layout_box.arrange = LayoutBox.Arrange.Stack
+	
+	-- 2) Screen container with 100% width and height of the root (Stack arrange)
+	local screen_container = root:add(new_node())
+	screen_container.layout_box:setWidthPercent(1.0)
+	screen_container.layout_box:setHeightPercent(1.0)
+	screen_container.layout_box.arrange = LayoutBox.Arrange.Stack
+	
+	-- 3) Screen with 100% width and height of the root (Stack arrange)
+	local screen = screen_container:add(new_node())
+	screen.layout_box:setWidthPercent(1.0)
+	screen.layout_box:setHeightPercent(1.0)
+	screen.layout_box.arrange = LayoutBox.Arrange.Stack
+	screen.layout_box:setAlignItems(LayoutBox.AlignItems.Start)  -- Don't stretch children
+	screen.layout_box:setJustifyContent(LayoutBox.JustifyContent.Start)
+	
+	-- 4) Container A: WrapRow with 64px width and 100% height
+	local container_a = screen:add(new_node())
+	container_a.layout_box:setWidth(64)
+	container_a.layout_box:setHeightPercent(1.0)
+	container_a.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	
+	-- Add some items inside Container A
+	local item_a1 = container_a:add(new_node())
+	item_a1.layout_box:setDimensions(30, 30)
+	
+	local item_a2 = container_a:add(new_node())
+	item_a2.layout_box:setDimensions(30, 30)
+	
+	-- 5) Container B: Auto size Stack with a child that will change size
+	local container_b = screen:add(new_node())
+	container_b.layout_box:setWidthAuto()
+	container_b.layout_box:setHeightAuto()
+	container_b.layout_box.arrange = LayoutBox.Arrange.Stack
+	
+	local child_b = container_b:add(new_node())
+	child_b.layout_box:setDimensions(50, 50)
+	
+	-- First layout pass
+	engine:updateLayout(root.children)
+	
+	-- Verify initial layout
+	t:eq(container_a.layout_box.x.size, 64, "Container A width should be 64")
+	t:eq(container_a.layout_box.y.size, 600, "Container A height should be 600 (100% of screen)")
+	t:eq(item_a1.layout_box.x.size, 30, "Item A1 width should be 30")
+	t:eq(item_a2.layout_box.x.size, 30, "Item A2 width should be 30")
+	t:eq(container_b.layout_box.x.size, 50, "Container B width should be 50 (from child)")
+	t:eq(container_b.layout_box.y.size, 50, "Container B height should be 50 (from child)")
+	
+	-- Reset measure counts
+	measure_counts = {}
+	
+	-- Change Child B's size
+	child_b.layout_box:setDimensions(100, 100)
+	
+	-- Second layout pass - only child_b and its ancestors should be remeasured
+	engine:updateLayout({child_b})
+	
+	-- Verify new layout
+	t:eq(container_b.layout_box.x.size, 100, "Container B width should be 100 after child resize")
+	t:eq(container_b.layout_box.y.size, 100, "Container B height should be 100 after child resize")
+	
+	-- Container A and its items should NOT have been remeasured
+	-- They should not appear in measure_counts at all, or should have 0 counts
+	local container_a_measures = (measure_counts[tostring(container_a) .. ".x"] or 0) + 
+	                             (measure_counts[tostring(container_a) .. ".y"] or 0)
+	local item_a1_measures = (measure_counts[tostring(item_a1) .. ".x"] or 0) + 
+	                         (measure_counts[tostring(item_a1) .. ".y"] or 0)
+	local item_a2_measures = (measure_counts[tostring(item_a2) .. ".x"] or 0) + 
+	                         (measure_counts[tostring(item_a2) .. ".y"] or 0)
+	
+	t:eq(container_a_measures, 0, "Container A should NOT be remeasured when sibling changes")
+	t:eq(item_a1_measures, 0, "Item A1 should NOT be remeasured when sibling changes")
+	t:eq(item_a2_measures, 0, "Item A2 should NOT be remeasured when sibling changes")
+	
+	-- Container A items should retain their original sizes
+	t:eq(item_a1.layout_box.x.size, 30, "Item A1 width should remain unchanged")
+	t:eq(item_a2.layout_box.x.size, 30, "Item A2 width should remain unchanged")
+end
+
 return test

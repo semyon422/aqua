@@ -222,7 +222,7 @@ function test.wrap_col_align_items_center(t)
 	-- Root: fixed size 800x600
 	local root = new_node()
 	root.layout_box:setDimensions(800, 600)
-	root.layout_box.arrange = LayoutBox.Arrange.FlexCol
+	root.layout_box.arrange = LayoutBox.Arrange.WrapCol
 
 	-- Container: 100px wide, wrap_col, align_items center
 	local container = root:add(new_node())
@@ -250,7 +250,7 @@ function test.wrap_row_align_items_center(t)
 	-- Root
 	local root = new_node()
 	root.layout_box:setDimensions(800, 600)
-	root.layout_box.arrange = LayoutBox.Arrange.FlexCol
+	root.layout_box.arrange = LayoutBox.Arrange.WrapCol
 
 	-- Container: 100px high, wrap_row, align_items center
 	local container = root:add(new_node())
@@ -280,7 +280,7 @@ function test.wrap_col_initial_measurement(t)
 	-- Root: fixed size 800x600
 	local root = new_node()
 	root.layout_box:setDimensions(800, 600)
-	root.layout_box.arrange = LayoutBox.Arrange.FlexCol
+	root.layout_box.arrange = LayoutBox.Arrange.WrapCol
 
 	-- Parent: 64px wide, 100% height (600px)
 	local parent = root:add(new_node())

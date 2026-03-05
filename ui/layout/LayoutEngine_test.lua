@@ -49,7 +49,7 @@ function test.percent_size(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box:setDimensions(200, 200)
-	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
 
 	local c1 = container:add(new_node())
 	c1.layout_box:setWidthPercent(0.5)
@@ -73,7 +73,7 @@ function test.margins(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box:setDimensions(200, 200)
-	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
 
 	local c1 = container:add(new_node())
 	c1.layout_box:setDimensions(50, 50)
@@ -90,7 +90,7 @@ end
 function test.intrinsic_size_flex_row(t)
 	local engine = LayoutEngine()
 	local container = new_node()
-	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
 
 	-- Node with intrinsic size (e.g., texture 64x48)
 	local intrinsic_node = container:add(new_node_with_intrinsic_size(64, 48))
@@ -109,7 +109,7 @@ function test.intrinsic_size_with_fixed_width(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box:setDimensions(100, 100)
-	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
 	container.layout_box:setAlignItems(LayoutBox.AlignItems.Start) -- Don't stretch
 
 	-- Node with intrinsic size but fixed width
@@ -146,7 +146,7 @@ end
 function test.intrinsic_size_container_sizing(t)
 	local engine = LayoutEngine()
 	local container = new_node()
-	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
+	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
 	container.layout_box:setWidthAuto()
 	container.layout_box:setHeightAuto()
 
@@ -164,7 +164,7 @@ end
 function test.percent_child_with_changing_intrinsic_size(t)
 	-- Test that parent with Auto height correctly shrinks when intrinsic child shrinks
 	-- This tests the fix for the bug where Percent children used stale parent size
-	-- Root (FlexRow, 100% width)
+	-- Root (WrapRow, 100% width)
 	--   └── container (Stack, Auto height)
 	--         ├── percent_child (100% height - should follow container)
 	--         └── intrinsic_child (Auto - determines container size)
@@ -173,7 +173,7 @@ function test.percent_child_with_changing_intrinsic_size(t)
 	-- Root with fixed dimensions
 	local root = new_node()
 	root.layout_box:setDimensions(200, 200)
-	root.layout_box.arrange = LayoutBox.Arrange.FlexRow
+	root.layout_box.arrange = LayoutBox.Arrange.WrapRow
 	root.layout_box:setAlignItems(LayoutBox.AlignItems.Start) -- Don't stretch container
 
 	-- Container with Auto height (Stack is now default)
@@ -216,19 +216,19 @@ end
 ---@param t testing.T
 function test.intrinsic_size_after_parent_resize(t)
 	-- This test reproduces the bug where a Label stays wrapped after parent is resized
-	-- Root (FlexCol, fixed size)
-	--   Row (FlexRow, Auto size)
+	-- Root (WrapCol, fixed size)
+	--   Row (WrapRow, Auto size)
 	--     Panel (Stack, Auto size, padding)
 	--       Label (intrinsic size)
 	local engine = LayoutEngine()
 
 	local root = new_node()
 	root.layout_box:setDimensions(800, 600)
-	root.layout_box.arrange = LayoutBox.Arrange.FlexCol
+	root.layout_box.arrange = LayoutBox.Arrange.WrapCol
 	root.layout_box:setAlignItems(LayoutBox.AlignItems.Start) -- Don't stretch children
 
 	local row = root:add(new_node())
-	row.layout_box.arrange = LayoutBox.Arrange.FlexRow
+	row.layout_box.arrange = LayoutBox.Arrange.WrapRow
 	row.layout_box:setWidthAuto()
 	row.layout_box:setHeightAuto()
 
@@ -404,7 +404,7 @@ function test.percent_child_stable_parent_no_propagation(t)
 	-- Fixed root
 	local root = new_node()
 	root.layout_box:setDimensions(400, 300)
-	root.layout_box.arrange = LayoutBox.Arrange.FlexRow
+	root.layout_box.arrange = LayoutBox.Arrange.WrapRow
 
 	-- Container: Fixed size (stable)
 	local container = root:add(new_node())
