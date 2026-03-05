@@ -17,11 +17,6 @@ end
 ---@param axis_idx ui.Axis
 function LayoutStrategy:measure(node, axis_idx) end
 
----Distribute extra space to growing children
----@param node ui.Node
----@param axis_idx ui.Axis
-function LayoutStrategy:grow(node, axis_idx) end
-
 ---Position all children
 ---@param node ui.Node
 function LayoutStrategy:arrange(node) end

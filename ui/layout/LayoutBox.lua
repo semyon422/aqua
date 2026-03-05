@@ -6,8 +6,6 @@ local Enums = require("ui.layout.Enums")
 ---@operator call: ui.LayoutBox
 ---@field x ui.LayoutAxis
 ---@field y ui.LayoutAxis
----@field grow number
----@field shrink number
 ---@field child_gap number
 ---@field line_gap number
 ---@field arrange ui.Arrange
@@ -38,11 +36,8 @@ function LayoutBox:new()
 	self.left = 0
 	self.top = 0
 
-	self.grow = 0
-	self.shrink = 1
 	self.child_gap = 0
 	self.line_gap = 0
-	self.reversed = false
 	self.arrange = Arrange.Stack
 	self.justify_content = JustifyContent.Start
 	self.align_items = AlignItems.Stretch
@@ -88,15 +83,6 @@ end
 ---@return number, number
 function LayoutBox:getLayoutDimensions()
 	return self:getLayoutWidth(), self:getLayoutHeight()
-end
-
----@param reversed boolean
-function LayoutBox:setReversed(reversed)
-	if self.reversed == reversed then
-		return
-	end
-	self.reversed = reversed
-	self:markDirty(Axis.Both)
 end
 
 ---@param width number
@@ -188,24 +174,6 @@ end
 function LayoutBox:setMaxHeight(max)
 	self.y:setMax(max)
 	self:markDirty(Axis.Y)
-end
-
----@param grow number
-function LayoutBox:setGrow(grow)
-	if self.grow == grow then
-		return
-	end
-	self.grow = grow
-	self:markDirty(Axis.Both)
-end
-
----@param shrink number
-function LayoutBox:setShrink(shrink)
-	if self.shrink == shrink then
-		return
-	end
-	self.shrink = shrink
-	self:markDirty(Axis.Both)
 end
 
 ---@param arrange ui.Arrange

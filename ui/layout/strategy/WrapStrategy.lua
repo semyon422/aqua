@@ -163,48 +163,6 @@ function WrapStrategy:measure(node, axis_idx)
 	end
 end
 
-function WrapStrategy:grow(node, axis_idx)
-	if #node.children == 0 then
-		return
-	end
-
-	local layout_box = node.layout_box
-	local axis = self:getAxis(node, axis_idx)
-	local available_space = axis:getLayoutSize()
-	local is_main = isMainAxis(layout_box, axis_idx)
-
-	for _, child in ipairs(node.children) do
-		local child_axis = self:getAxis(child, axis_idx)
-
-		if child_axis.mode == SizeMode.Percent then
-			local s = child_axis.preferred_size * (available_space - child_axis:getTotalMargin())
-			child_axis.size = math_clamp(s, child_axis.min_size, child_axis.max_size)
-		end
-
-		local stretched_size = available_space - child_axis:getTotalMargin()
-
-		if not is_main then
-			if child_axis.mode == SizeMode.Fit then
-				if child_axis.size > stretched_size and stretched_size > 0 then
-					child_axis.size = math_clamp(stretched_size, child_axis.min_size, child_axis.max_size)
-				end
-			end
-			-- Auto mode: do not clamp - content determines size, can overflow
-		else
-			if child_axis.mode == SizeMode.Fit then
-				if child_axis.size > stretched_size and stretched_size > 0 then
-					child_axis.size = math_clamp(stretched_size, child_axis.min_size, child_axis.max_size)
-				end
-			end
-			-- Auto mode: do not clamp - content determines size, can overflow
-		end
-	end
-
-	for _, child in ipairs(node.children) do
-		self.engine:grow(child, axis_idx)
-	end
-end
-
 function WrapStrategy:arrange(node)
 	local layout_box = node.layout_box
 
@@ -219,6 +177,29 @@ function WrapStrategy:arrange(node)
 
 	local available_main = main_axis:getLayoutSize()
 	local available_cross = cross_axis:getLayoutSize()
+
+	-- Resolve Percent sizing (was previously done in grow phase)
+	for _, child in ipairs(node.children) do
+		local child_main = self:getAxis(child, main_axis_idx)
+		local child_cross = self:getAxis(child, cross_axis_idx)
+
+		if child_main.mode == SizeMode.Percent then
+			local s = child_main.preferred_size * (available_main - child_main:getTotalMargin())
+			child_main.size = math_clamp(s, child_main.min_size, child_main.max_size)
+		end
+		if child_cross.mode == SizeMode.Percent then
+			local s = child_cross.preferred_size * (available_cross - child_cross:getTotalMargin())
+			child_cross.size = math_clamp(s, child_cross.min_size, child_cross.max_size)
+		end
+
+		-- Fit clamping on cross axis
+		if child_cross.mode == SizeMode.Fit then
+			local max_cross = available_cross - child_cross:getTotalMargin()
+			if child_cross.size > max_cross and max_cross > 0 then
+				child_cross.size = math_clamp(max_cross, child_cross.min_size, child_cross.max_size)
+			end
+		end
+	end
 
 	local lines = {} ---@type {items: ui.Node[], main_size: number, cross_size: number}[]
 	local current_line = {items = {}, main_size = 0, cross_size = 0}

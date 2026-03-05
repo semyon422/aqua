@@ -105,31 +105,6 @@ function test.intrinsic_size_flex_row(t)
 end
 
 ---@param t testing.T
-function test.intrinsic_size_flex_col(t)
-	local engine = LayoutEngine()
-	local container = new_node()
-	container.layout_box.arrange = LayoutBox.Arrange.FlexCol
-
-	-- Node with intrinsic size (e.g., texture 64x48)
-	local n1 = container:add(new_node_with_intrinsic_size(64, 48))
-	local n2 = container:add(new_node_with_intrinsic_size(64, 48))
-	n1.layout_box:setWidthAuto()
-	n1.layout_box:setHeightAuto()
-	n2.layout_box:setWidthAuto()
-	n2.layout_box:setHeightAuto()
-
-	engine:updateLayout(container.children)
-
-	-- Should use intrinsic size
-	t:eq(n1.layout_box.x.size, 64)
-	t:eq(n1.layout_box.y.size, 48)
-	t:eq(n2.layout_box.x.size, 64)
-	t:eq(n2.layout_box.y.size, 48)
-	t:eq(container.layout_box.x.size, 64)
-	t:eq(container.layout_box.y.size, 96)
-end
-
----@param t testing.T
 function test.intrinsic_size_with_fixed_width(t)
 	local engine = LayoutEngine()
 	local container = new_node()
@@ -186,35 +161,6 @@ function test.intrinsic_size_container_sizing(t)
 end
 
 ---@param t testing.T
-function test.intrinsic_size_mixed_with_fixed(t)
-	local engine = LayoutEngine()
-	local container = new_node()
-	container.layout_box.arrange = LayoutBox.Arrange.FlexRow
-	container.layout_box:setAlignItems(LayoutBox.AlignItems.Start) -- Don't stretch
-
-	-- Node with intrinsic size
-	local intrinsic_node = container:add(new_node_with_intrinsic_size(64, 48))
-	intrinsic_node.layout_box:setWidthAuto()
-	intrinsic_node.layout_box:setHeightAuto()
-
-	-- Node with fixed size
-	local fixed_node = container:add(new_node())
-	fixed_node.layout_box:setDimensions(50, 100)
-
-	engine:updateLayout(container.children)
-
-	-- Both should have correct sizes
-	t:eq(intrinsic_node.layout_box.x.size, 64)
-	t:eq(intrinsic_node.layout_box.y.size, 48)
-	t:eq(fixed_node.layout_box.x.size, 50)
-	t:eq(fixed_node.layout_box.y.size, 100)
-
-	-- Positions should be sequential
-	t:eq(intrinsic_node.layout_box.x.pos, 0)
-	t:eq(fixed_node.layout_box.x.pos, 64)
-end
-
----@param t testing.T
 function test.percent_child_with_changing_intrinsic_size(t)
 	-- Test that parent with Auto height correctly shrinks when intrinsic child shrinks
 	-- This tests the fix for the bug where Percent children used stale parent size
@@ -265,53 +211,6 @@ function test.percent_child_with_changing_intrinsic_size(t)
 	engine:updateLayout(container.children)
 	t:eq(container.layout_box.y.size, 32, "container height should shrink to 32")
 	t:eq(percent_child.layout_box.y.size, 32, "percent child should be 100% of 32")
-end
-
----@param t testing.T
-function test.intrinsic_size_in_nested_auto_container(t)
-	-- This test reproduces the bug where a Label inside nested containers
-	-- gets width=0 because parent size is 0 during measurement
-	local engine = LayoutEngine()
-
-	-- Root with fixed size (like Screen)
-	local root = new_node()
-	root.layout_box:setDimensions(800, 600)
-	root.layout_box.arrange = LayoutBox.Arrange.FlexCol
-
-	-- Row container (flex_row, auto size)
-	local row = root:add(new_node())
-	row.layout_box.arrange = LayoutBox.Arrange.FlexRow
-	row.layout_box:setWidthAuto()
-	row.layout_box:setHeightAuto()
-	row.layout_box:setChildGap(10)
-
-	-- Panel with padding (Stack by default, auto size)
-	-- Set align_items = Start to prevent stretching children
-	local panel = row:add(new_node())
-	panel.layout_box:setWidthAuto()
-	panel.layout_box:setHeightAuto()
-	panel.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
-	panel.layout_box:setJustifyContent(LayoutBox.JustifyContent.Start)
-	panel.layout_box:setPaddings({5, 20, 5, 20}) -- top, right, bottom, left
-
-	-- Label with intrinsic size
-	local label = panel:add(new_node_with_intrinsic_size(100, 20))
-	label.layout_box:setWidthAuto()
-	label.layout_box:setHeightAuto()
-
-	engine:updateLayout(root.children)
-
-	-- Label should have its intrinsic width, not 0
-	t:eq(label.layout_box.x.size, 100, "label should have intrinsic width")
-	t:eq(label.layout_box.y.size, 20, "label should have intrinsic height")
-
-	-- Panel should size to fit label + padding
-	t:eq(panel.layout_box.x.size, 140, "panel width should be label + padding") -- 100 + 20 + 20
-	t:eq(panel.layout_box.y.size, 30, "panel height should be label + padding") -- 20 + 5 + 5
-
-	-- Row should stretch to fill root width (flex_col default align_items = Stretch)
-	t:eq(row.layout_box.x.size, 800, "row width should stretch to root width")
-	t:eq(row.layout_box.y.size, 30, "row height should fit panel")
 end
 
 ---@param t testing.T
