@@ -307,4 +307,38 @@ function test.wrap_col_initial_measurement(t)
 	t:eq(container.layout_box.x.size, 45, "Container should have width 45, not 64")
 end
 
+---@param t testing.T
+function test.wrap_row_justify_content_space_between(t)
+	local engine = LayoutEngine()
+
+	-- Container: 50px wide, wrap_row, justify_content space_between
+	local container = new_node()
+	container.layout_box:setDimensions(50, 100)
+	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	container.layout_box:setJustifyContent(LayoutBox.JustifyContent.SpaceBetween)
+	container.layout_box:setChildGap(5)
+
+	-- 3 children of size 10 each
+	-- Raw sizes: 10 + 10 + 10 = 30
+	-- Available: 50
+	-- Remaining: 50 - 30 = 20
+	-- Gaps: 2 (between 3 items)
+	-- Expected gap: 20 / 2 = 10
+	local c1 = container:add(new_node())
+	c1.layout_box:setDimensions(10, 10)
+
+	local c2 = container:add(new_node())
+	c2.layout_box:setDimensions(10, 10)
+
+	local c3 = container:add(new_node())
+	c3.layout_box:setDimensions(10, 10)
+
+	engine:updateLayout(container.children)
+
+	-- Positions should be: c1=0, c2=20, c3=40
+	t:eq(c1.layout_box.x.pos, 0, "c1 at 0")
+	t:eq(c2.layout_box.x.pos, 20, "c2 at 20 (10 + 10 gap)")
+	t:eq(c3.layout_box.x.pos, 40, "c3 at 40 (20 + 10 + 10 gap)")
+end
+
 return test

@@ -201,8 +201,8 @@ function WrapStrategy:arrange(node)
 		end
 	end
 
-	local lines = {} ---@type {items: ui.Node[], main_size: number, cross_size: number}[]
-	local current_line = {items = {}, main_size = 0, cross_size = 0}
+	local lines = {} ---@type {items: ui.Node[], main_size: number, raw_main_size: number, cross_size: number}[]
+	local current_line = {items = {}, main_size = 0, raw_main_size = 0, cross_size = 0}
 
 	for _, child in ipairs(node.children) do
 		local child_main = self:getAxis(child, main_axis_idx)
@@ -220,6 +220,7 @@ function WrapStrategy:arrange(node)
 				current_line.main_size = current_line.main_size + layout_box.child_gap
 			end
 			current_line.main_size = current_line.main_size + item_main_size
+			current_line.raw_main_size = current_line.raw_main_size + item_main_size
 			current_line.cross_size = math_max(current_line.cross_size, item_cross_size)
 		end
 	end
@@ -251,7 +252,7 @@ function WrapStrategy:arrange(node)
 		elseif justify == JustifyContent.Center then
 			main_pos = main_axis.padding_start + (available_main - line.main_size) / 2
 		elseif justify == JustifyContent.SpaceBetween and #line.items > 1 then
-			gap = (available_main - line.main_size) / (#line.items - 1)
+			gap = (available_main - line.raw_main_size) / (#line.items - 1)
 		end
 
 		for _, child in ipairs(line.items) do
