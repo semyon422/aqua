@@ -85,13 +85,21 @@ function StackStrategy:measure(node, axis_idx, dependency_dirty)
 	else
 		-- Container: size is the max of children's sizes
 		-- First pass: measure non-Percent children
+		local has_percent_child = false
 		for _, child in ipairs(node.children) do
 			local child_axis = self:getAxis(child, axis_idx)
 			if child_axis.mode ~= SizeMode.Percent then
 				self.engine:measureChild(child, axis_idx, parent_dirty_axis)
 				s = math_max(s, child_axis.size + child_axis:getTotalMargin())
+			else
+				has_percent_child = true
 			end
 		end
+
+		assert(
+			not (has_percent_child and s <= 0),
+			"Stack Auto/Fit axis with Percent children needs at least one non-Percent child with positive size"
+		)
 
 		-- Set preliminary size for Percent children to reference
 		local base_size = axis.padding_start + s + axis.padding_end
@@ -127,7 +135,7 @@ function StackStrategy:arrange(node, dependency_dirty)
 			local child_x = child.layout_box.x
 			local child_y = child.layout_box.y
 
-			-- Apply stretch sizing (was previously done in grow phase)
+			-- Stretch modifies Auto/Fit child size to fill available parent layout size.
 			local available_width = node_x:getLayoutSize()
 			local available_height = node_y:getLayoutSize()
 
@@ -199,7 +207,7 @@ function StackStrategy:calculatePosition(alignment, padding_start, available_spa
 		-- End: pos = padding_start + available_space - child_size - margin_end
 		return padding_start + available_space - child_size - margin_end
 	elseif alignment == AlignItems.Stretch or alignment == JustifyContent.Stretch then
-		-- Stretch: same as Start for positioning (size was already modified in grow)
+		-- Stretch uses Start positioning after size adjustments in arrange().
 		return padding_start + margin_start
 	end
 

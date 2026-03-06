@@ -61,10 +61,13 @@ local function instrument_measures(engine)
 	local original_measure = engine.measure
 
 	engine.measure = function(self, node, axis_idx, dependency_dirty)
-		local suffix = (axis_idx == Axis.X) and ".x" or ".y"
-		local key = tostring(node) .. suffix
-		measure_counts[key] = (measure_counts[key] or 0) + 1
-		return original_measure(self, node, axis_idx, dependency_dirty)
+		local measured = original_measure(self, node, axis_idx, dependency_dirty)
+		if measured then
+			local suffix = (axis_idx == Axis.X) and ".x" or ".y"
+			local key = tostring(node) .. suffix
+			measure_counts[key] = (measure_counts[key] or 0) + 1
+		end
+		return measured
 	end
 
 	return measure_counts
@@ -644,6 +647,66 @@ function test.multiple_dirty_nodes_ancestor_filtering(t)
 	t:assert(roots[parent], "parent should be the layout root")
 	t:assert(not roots[child1], "child1 should not be a separate root")
 	t:assert(not roots[child2], "child2 should not be a separate root")
+end
+
+---@param t testing.T
+function test.multiple_disconnected_roots_are_preserved(t)
+	local engine = LayoutEngine()
+
+	local root_a = new_node()
+	root_a.layout_box:setDimensions(800, 600)
+	root_a.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+
+	local container_a = root_a:add(new_node())
+	container_a.layout_box:setWidthAuto()
+	container_a.layout_box:setHeightAuto()
+	container_a.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+
+	local leaf_a = container_a:add(new_node_with_intrinsic_size(100, 50))
+	leaf_a.layout_box:setWidthAuto()
+	leaf_a.layout_box:setHeightAuto()
+
+	local root_b = new_node()
+	root_b.layout_box:setDimensions(1024, 768)
+	root_b.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+
+	local container_b = root_b:add(new_node())
+	container_b.layout_box:setWidthAuto()
+	container_b.layout_box:setHeightAuto()
+	container_b.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+
+	local leaf_b = container_b:add(new_node_with_intrinsic_size(80, 40))
+	leaf_b.layout_box:setWidthAuto()
+	leaf_b.layout_box:setHeightAuto()
+
+	engine:updateLayout({root_a, root_b})
+	t:eq(container_a.layout_box.x.size, 100)
+	t:eq(container_b.layout_box.x.size, 80)
+
+	leaf_a.getIntrinsicSize = function(self, axis_idx, constraint)
+		if axis_idx == Axis.X then
+			return 140
+		end
+		return 70
+	end
+	leaf_b.getIntrinsicSize = function(self, axis_idx, constraint)
+		if axis_idx == Axis.X then
+			return 120
+		end
+		return 90
+	end
+	leaf_a.layout_box:markDirty(Axis.Both)
+	leaf_b.layout_box:markDirty(Axis.Both)
+
+	local roots = engine:updateLayout({leaf_a, leaf_b})
+
+	t:eq(container_a.layout_box.x.size, 140, "first disconnected tree should be updated")
+	t:eq(container_a.layout_box.y.size, 70, "first disconnected tree should be updated")
+	t:eq(container_b.layout_box.x.size, 120, "second disconnected tree should be updated")
+	t:eq(container_b.layout_box.y.size, 90, "second disconnected tree should be updated")
+	t:eq(count_roots(roots), 2, "both disconnected roots should be kept")
+	t:assert(roots[root_a], "first tree root should be selected")
+	t:assert(roots[root_b], "second tree root should be selected")
 end
 
 ---@param t testing.T

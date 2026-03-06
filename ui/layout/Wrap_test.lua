@@ -341,4 +341,21 @@ function test.wrap_row_justify_content_space_between(t)
 	t:eq(c3.layout_box.x.pos, 40, "c3 at 40 (20 + 10 + 10 gap)")
 end
 
+---@param t testing.T
+function test.wrap_auto_percent_children_without_anchor_throws(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setWidthAuto()
+	container.layout_box:setHeight(100)
+	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+
+	local percent_child = container:add(new_node())
+	percent_child.layout_box:setWidthPercent(1.0)
+	percent_child.layout_box:setHeight(20)
+
+	t:has_error(function()
+		engine:updateLayout({container})
+	end)
+end
+
 return test

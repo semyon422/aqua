@@ -125,17 +125,6 @@ local function filterTopLevelRoots(roots)
 	return filtered_roots
 end
 
----@param roots {[ui.Node]: boolean}
----@return {[ui.Node]: boolean}
-local function preferTreeRoot(roots)
-	for node, _ in pairs(roots) do
-		if not node.parent then
-			return {[node] = true}
-		end
-	end
-	return roots
-end
-
 ---@param dirty_nodes ui.Node[]
 ---@return {[ui.Node]: boolean}, {[ui.Node]: ui.Axis}
 local function collectLayoutRoots(dirty_nodes)
@@ -154,7 +143,6 @@ local function collectLayoutRoots(dirty_nodes)
 	end
 
 	layout_roots = filterTopLevelRoots(layout_roots)
-	layout_roots = preferTreeRoot(layout_roots)
 	return layout_roots, forced_path_marks
 end
 
@@ -232,9 +220,6 @@ end
 ---@param dependency_dirty boolean?
 ---@return boolean measured
 function LayoutEngine:measureChild(node, axis_idx, dependency_dirty)
-	if not self:needsMeasure(node, axis_idx, dependency_dirty) then
-		return false
-	end
 	return self:measure(node, axis_idx, dependency_dirty)
 end
 

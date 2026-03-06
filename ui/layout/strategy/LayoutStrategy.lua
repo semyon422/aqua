@@ -20,7 +20,8 @@ function LayoutStrategy:measure(node, axis_idx, dependency_dirty) end
 
 ---Position all children
 ---@param node ui.Node
-function LayoutStrategy:arrange(node) end
+---@param dependency_dirty boolean?
+function LayoutStrategy:arrange(node, dependency_dirty) end
 
 ---Get intrinsic size from node if available
 ---@param node ui.Node

@@ -48,14 +48,22 @@ function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 	if is_main then
 		local s = 0
 		local child_count = 0
+		local has_percent_child = false
 		for _, child in ipairs(node.children) do
 			local child_axis = self:getAxis(child, axis_idx)
 			if child_axis.mode ~= SizeMode.Percent then
 				self.engine:measureChild(child, axis_idx, parent_dirty_axis)
 				s = s + child_axis.size + child_axis:getTotalMargin()
 				child_count = child_count + 1
+			else
+				has_percent_child = true
 			end
 		end
+
+		assert(
+			not (has_percent_child and s <= 0),
+			"Wrap Auto/Fit main axis with Percent children needs at least one non-Percent child with positive size"
+		)
 
 		local base_size = axis.padding_start + s + axis.padding_end
 		axis.size = math_clamp(base_size, min_s, max_s)
@@ -110,9 +118,9 @@ function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 		local available_main = main_axis.size - main_axis.padding_start - main_axis.padding_end
 		local total_cross = 0
 
-		-- If main axis size is not yet determined (0 or negative available space),
-		-- we can't do proper wrapping calculation. Assume all items fit on one line
-		-- and use max child size for cross-axis.
+		-- If main-axis layout space is unresolved, wrapping cannot be computed yet.
+		-- Fallback to a single-line estimate (max child cross-size), which can
+		-- underestimate the final wrapped cross-size until a later layout pass.
 		if available_main <= 0 then
 			for _, child in ipairs(node.children) do
 				local child_cross = self:getAxis(child, cross_axis_idx)
@@ -183,7 +191,7 @@ function WrapStrategy:arrange(node, dependency_dirty)
 	local available_cross = cross_axis:getLayoutSize()
 	local child_needs_arrange = {} ---@type {[ui.Node]: boolean}
 
-	-- Resolve Percent sizing (was previously done in grow phase)
+	-- Resolve Percent sizing against the container's computed layout size.
 	for _, child in ipairs(node.children) do
 		local needs_arrange = self.engine:needsArrange(child, parent_dirty)
 		child_needs_arrange[child] = needs_arrange

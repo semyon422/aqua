@@ -299,9 +299,12 @@ function test.stack_isolated_sibling_layout(t)
 	-- Wrap the engine's measure function to track calls
 	local original_measure = engine.measure
 	engine.measure = function(self, node, axis_idx)
-		local key = tostring(node) .. (axis_idx == LayoutBox.Axis.X and ".x" or ".y")
-		measure_counts[key] = (measure_counts[key] or 0) + 1
-		return original_measure(self, node, axis_idx)
+		local measured = original_measure(self, node, axis_idx)
+		if measured then
+			local key = tostring(node) .. (axis_idx == LayoutBox.Axis.X and ".x" or ".y")
+			measure_counts[key] = (measure_counts[key] or 0) + 1
+		end
+		return measured
 	end
 
 	-- 1) Root with fixed size (Stack arrange)
@@ -392,6 +395,22 @@ function test.stack_isolated_sibling_layout(t)
 	-- Container A items should retain their original sizes
 	t:eq(item_a1.layout_box.x.size, 30, "Item A1 width should remain unchanged")
 	t:eq(item_a2.layout_box.x.size, 30, "Item A2 width should remain unchanged")
+end
+
+---@param t testing.T
+function test.stack_auto_percent_children_without_anchor_throws(t)
+	local engine = LayoutEngine()
+	local container = new_node()
+	container.layout_box:setWidthAuto()
+	container.layout_box:setHeightAuto()
+
+	local percent_child = container:add(new_node())
+	percent_child.layout_box:setWidthPercent(1.0)
+	percent_child.layout_box:setHeightPercent(1.0)
+
+	t:has_error(function()
+		engine:updateLayout({container})
+	end)
 end
 
 return test
