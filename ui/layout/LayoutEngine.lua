@@ -85,6 +85,79 @@ local function markPathToRoot(node, root, axis_idx, marks)
 	end
 end
 
+---@param roots {[ui.Node]: boolean}
+---@return integer
+local function countRoots(roots)
+	local count = 0
+	for _ in pairs(roots) do
+		count = count + 1
+	end
+	return count
+end
+
+---@param node ui.Node
+---@param roots {[ui.Node]: boolean}
+---@return boolean
+local function isDescendantOfAnyRoot(node, roots)
+	local current = node.parent
+	while current do
+		if roots[current] then
+			return true
+		end
+		current = current.parent
+	end
+	return false
+end
+
+---@param roots {[ui.Node]: boolean}
+---@return {[ui.Node]: boolean}
+local function filterTopLevelRoots(roots)
+	if countRoots(roots) <= 1 then
+		return roots
+	end
+
+	local filtered_roots = {}
+	for root, _ in pairs(roots) do
+		if not isDescendantOfAnyRoot(root, roots) then
+			filtered_roots[root] = true
+		end
+	end
+	return filtered_roots
+end
+
+---@param roots {[ui.Node]: boolean}
+---@return {[ui.Node]: boolean}
+local function preferTreeRoot(roots)
+	for node, _ in pairs(roots) do
+		if not node.parent then
+			return {[node] = true}
+		end
+	end
+	return roots
+end
+
+---@param dirty_nodes ui.Node[]
+---@return {[ui.Node]: boolean}, {[ui.Node]: ui.Axis}
+local function collectLayoutRoots(dirty_nodes)
+	---@type {[ui.Node]: boolean}
+	local layout_roots = {}
+	---@type {[ui.Node]: ui.Axis}
+	local forced_path_marks = {}
+
+	for _, node in ipairs(dirty_nodes) do
+		local root_x = findPropagationRoot(node, Axis.X)
+		local root_y = findPropagationRoot(node, Axis.Y)
+		layout_roots[root_x] = true
+		layout_roots[root_y] = true
+		markPathToRoot(node, root_x, Axis.X, forced_path_marks)
+		markPathToRoot(node, root_y, Axis.Y, forced_path_marks)
+	end
+
+	layout_roots = filterTopLevelRoots(layout_roots)
+	layout_roots = preferTreeRoot(layout_roots)
+	return layout_roots, forced_path_marks
+end
+
 ---@param root ui.Node
 ---@param forced_marks {[ui.Node]: ui.Axis}
 ---@param dirty_masks {[ui.Node]: ui.Axis}
@@ -120,53 +193,7 @@ function LayoutEngine:updateLayout(dirty_nodes)
 		return
 	end
 
-	---@type {[ui.Node]: boolean}
-	local layout_roots = {}
-	---@type {[ui.Node]: ui.Axis}
-	local forced_path_marks = {}
-
-	-- Collect unique layout roots using per-axis propagation.
-	for _, node in ipairs(dirty_nodes) do
-		local root_x = findPropagationRoot(node, Axis.X)
-		local root_y = findPropagationRoot(node, Axis.Y)
-		layout_roots[root_x] = true
-		layout_roots[root_y] = true
-		markPathToRoot(node, root_x, Axis.X, forced_path_marks)
-		markPathToRoot(node, root_y, Axis.Y, forced_path_marks)
-	end
-
-	-- Filter out roots that are descendants of other roots
-	-- If root A is an ancestor of root B, we only need to layout from A
-	local root_count = 0
-	for _ in pairs(layout_roots) do root_count = root_count + 1 end
-
-	if root_count > 1 then
-		local filtered_roots = {}
-		for root1, _ in pairs(layout_roots) do
-			local is_descendant = false
-			local curr = root1.parent
-			while curr do
-				if layout_roots[curr] then
-					is_descendant = true
-					break
-				end
-				curr = curr.parent
-			end
-			if not is_descendant then
-				filtered_roots[root1] = true
-			end
-		end
-		layout_roots = filtered_roots
-	end
-
-	-- If root is a node with no parent, use it as the only layout root
-	for node, _ in pairs(layout_roots) do
-		if not node.parent then
-			layout_roots = {}
-			layout_roots[node] = true
-			break
-		end
-	end
+	local layout_roots, forced_path_marks = collectLayoutRoots(dirty_nodes)
 
 	---@type {[ui.Node]: ui.Axis}
 	local dirty_subtree_masks = {}
@@ -253,10 +280,21 @@ end
 
 ---@param node ui.Node
 ---@param axis ui.Axis
----@param dependency_dirty boolean?
-function LayoutEngine:needsMeasure(node, axis, dependency_dirty)
+---@return boolean
+function LayoutEngine:isSubtreeRelevant(node, axis)
 	local dirty_subtree_masks = self._dirty_subtree_masks
-	if dirty_subtree_masks and bit_band(dirty_subtree_masks[node] or Axis.None, axis) == 0 then
+	if not dirty_subtree_masks then
+		return true
+	end
+	return bit_band(dirty_subtree_masks[node] or Axis.None, axis) ~= 0
+end
+
+---@param node ui.Node
+---@param axis ui.Axis
+---@param dependency_dirty boolean?
+---@return boolean
+function LayoutEngine:needsLayoutPass(node, axis, dependency_dirty)
+	if not self:isSubtreeRelevant(node, axis) then
 		return false
 	end
 
@@ -272,22 +310,16 @@ function LayoutEngine:needsMeasure(node, axis, dependency_dirty)
 end
 
 ---@param node ui.Node
+---@param axis ui.Axis
+---@param dependency_dirty boolean?
+function LayoutEngine:needsMeasure(node, axis, dependency_dirty)
+	return self:needsLayoutPass(node, axis, dependency_dirty)
+end
+
+---@param node ui.Node
 ---@param dependency_dirty boolean?
 function LayoutEngine:needsArrange(node, dependency_dirty)
-	local dirty_subtree_masks = self._dirty_subtree_masks
-	if dirty_subtree_masks and bit_band(dirty_subtree_masks[node] or Axis.None, Axis.Both) == 0 then
-		return false
-	end
-
-	if dependency_dirty then
-		return true
-	end
-
-	if self:isNodeDirty(node, Axis.Both) then
-		return true
-	end
-
-	return self:hasDirtyDescendant(node, Axis.Both)
+	return self:needsLayoutPass(node, Axis.Both, dependency_dirty)
 end
 
 ---@param node ui.Node
