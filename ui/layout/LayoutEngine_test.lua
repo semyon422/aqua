@@ -44,6 +44,46 @@ local function new_node_with_intrinsic_size(width, height)
 	}
 end
 
+---@param roots {[ui.Node]: boolean}?
+---@return integer
+local function count_roots(roots)
+	local count = 0
+	for _ in pairs(roots or {}) do
+		count = count + 1
+	end
+	return count
+end
+
+---@param engine ui.LayoutEngine
+---@return {[string]: integer}
+local function instrument_measures(engine)
+	local measure_counts = {}
+	local original_measure = engine.measure
+
+	engine.measure = function(self, node, axis_idx, dependency_dirty)
+		local suffix = (axis_idx == Axis.X) and ".x" or ".y"
+		local key = tostring(node) .. suffix
+		measure_counts[key] = (measure_counts[key] or 0) + 1
+		return original_measure(self, node, axis_idx, dependency_dirty)
+	end
+
+	return measure_counts
+end
+
+---@param measure_counts {[string]: integer}
+---@param node ui.Node
+---@return integer
+local function measure_total(measure_counts, node)
+	return (measure_counts[tostring(node) .. ".x"] or 0) + (measure_counts[tostring(node) .. ".y"] or 0)
+end
+
+---@param measure_counts {[string]: integer}
+local function reset_measure_counts(measure_counts)
+	for key in pairs(measure_counts) do
+		measure_counts[key] = nil
+	end
+end
+
 ---@param t testing.T
 function test.percent_size(t)
 	local engine = LayoutEngine()
@@ -390,9 +430,10 @@ function test.stable_root_stops_at_fixed_percent_boundary(t)
 	t:eq(label.layout_box.x.size, 150, "label should have new intrinsic width")
 	t:eq(select.layout_box.x.size, 800, "select size should not change (still 100%)")
 
-	-- Verify the layout root is Select (screen), not Root
-	-- The optimization should stop at Screen (first Fixed/Percent ancestor from dirty node)
-	t:assert(roots[screen] or roots[select], "screen or select should be the layout root, not root")
+	t:eq(count_roots(roots), 1, "only one layout root should be selected")
+	t:assert(roots[select], "select should be the first fixed/percent ancestor root")
+	t:assert(not roots[screen], "screen should not be selected when select is already stable")
+	t:assert(not roots[root], "root should not be selected as the layout root")
 end
 
 ---@param t testing.T
@@ -430,6 +471,131 @@ function test.percent_child_stable_parent_no_propagation(t)
 	-- Verify size is still correct
 	t:eq(percent_child.layout_box.x.size, 100, "percent child should still be 50% of 200")
 	t:eq(percent_child.layout_box.y.size, 75, "percent child should still be 50% of 150")
+	t:eq(count_roots(roots), 1, "only one layout root should be selected")
+	t:assert(roots[container], "fixed parent should be the layout root")
+	t:assert(not roots[root], "root should not be selected when fixed parent is stable")
+end
+
+---@param t testing.T
+function test.auto_subtree_under_percent_boundary_skips_clean_sibling_subtrees(t)
+	local engine = LayoutEngine()
+	local measure_counts = instrument_measures(engine)
+
+	local root = new_node()
+	root.layout_box:setDimensions(800, 600)
+	root.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+	root.layout_box:setJustifyContent(LayoutBox.JustifyContent.Start)
+
+	local screen = root:add(new_node())
+	screen.layout_box:setWidthPercent(1.0)
+	screen.layout_box:setHeightPercent(1.0)
+	screen.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+	screen.layout_box:setJustifyContent(LayoutBox.JustifyContent.Start)
+
+	local dirty_container = screen:add(new_node())
+	dirty_container.layout_box:setWidthAuto()
+	dirty_container.layout_box:setHeightAuto()
+	dirty_container.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+	dirty_container.layout_box:setJustifyContent(LayoutBox.JustifyContent.Start)
+
+	local dirty_leaf = dirty_container:add(new_node_with_intrinsic_size(80, 40))
+	dirty_leaf.layout_box:setWidthAuto()
+	dirty_leaf.layout_box:setHeightAuto()
+
+	local clean_container = screen:add(new_node())
+	clean_container.layout_box:setWidth(120)
+	clean_container.layout_box:setHeightPercent(1.0)
+	clean_container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+
+	local clean_item_a = clean_container:add(new_node())
+	clean_item_a.layout_box:setDimensions(30, 30)
+
+	local clean_item_b = clean_container:add(new_node())
+	clean_item_b.layout_box:setDimensions(30, 30)
+
+	engine:updateLayout({root})
+	reset_measure_counts(measure_counts)
+
+	dirty_leaf.getIntrinsicSize = function(self, axis_idx, constraint)
+		if axis_idx == Axis.X then
+			return 140
+		end
+		return 90
+	end
+	dirty_leaf.layout_box:markDirty(Axis.Both)
+
+	local roots = engine:updateLayout({dirty_leaf})
+
+	t:eq(dirty_container.layout_box.x.size, 140, "auto container should resize to changed child width")
+	t:eq(dirty_container.layout_box.y.size, 90, "auto container should resize to changed child height")
+	t:eq(count_roots(roots), 1, "only one layout root should be selected")
+	t:assert(roots[screen], "percent boundary ancestor should be selected as layout root")
+	t:eq(measure_total(measure_counts, clean_container), 0, "clean sibling container should not be remeasured")
+	t:eq(measure_total(measure_counts, clean_item_a), 0, "clean sibling subtree leaf A should not be remeasured")
+	t:eq(measure_total(measure_counts, clean_item_b), 0, "clean sibling subtree leaf B should not be remeasured")
+end
+
+---@param t testing.T
+function test.percent_sized_clean_sibling_not_measured_when_parent_size_is_unchanged(t)
+	local engine = LayoutEngine()
+	local measure_counts = instrument_measures(engine)
+
+	local root = new_node()
+	root.layout_box:setDimensions(640, 480)
+	root.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+	root.layout_box:setJustifyContent(LayoutBox.JustifyContent.Start)
+
+	local screen = root:add(new_node())
+	screen.layout_box:setWidthPercent(1.0)
+	screen.layout_box:setHeightPercent(1.0)
+	screen.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+	screen.layout_box:setJustifyContent(LayoutBox.JustifyContent.Start)
+
+	local auto_container = screen:add(new_node())
+	auto_container.layout_box:setWidthAuto()
+	auto_container.layout_box:setHeightAuto()
+	auto_container.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+	auto_container.layout_box:setJustifyContent(LayoutBox.JustifyContent.Start)
+
+	local dirty_leaf = auto_container:add(new_node_with_intrinsic_size(120, 80))
+	dirty_leaf.layout_box:setWidthAuto()
+	dirty_leaf.layout_box:setHeightAuto()
+
+	local percent_sibling = screen:add(new_node())
+	percent_sibling.layout_box:setWidthPercent(0.5)
+	percent_sibling.layout_box:setHeightPercent(1.0)
+
+	local percent_leaf = percent_sibling:add(new_node())
+	percent_leaf.layout_box:setWidthPercent(1.0)
+	percent_leaf.layout_box:setHeightPercent(0.5)
+
+	engine:updateLayout({root})
+	t:eq(percent_sibling.layout_box.x.size, 320, "percent sibling should have initial width from parent")
+	t:eq(percent_leaf.layout_box.x.size, 320, "percent leaf should have initial width from sibling")
+	reset_measure_counts(measure_counts)
+
+	dirty_leaf.getIntrinsicSize = function(self, axis_idx, constraint)
+		if axis_idx == Axis.X then
+			return 180
+		end
+		return 60
+	end
+	dirty_leaf.layout_box:markDirty(Axis.Both)
+
+	local roots = engine:updateLayout({dirty_leaf})
+
+	t:eq(auto_container.layout_box.x.size, 180, "dirty subtree should update its width")
+	t:eq(auto_container.layout_box.y.size, 60, "dirty subtree should update its height")
+	t:eq(screen.layout_box.x.size, 640, "screen width should remain unchanged")
+	t:eq(screen.layout_box.y.size, 480, "screen height should remain unchanged")
+	t:eq(percent_sibling.layout_box.x.size, 320, "clean percent sibling width should remain unchanged")
+	t:eq(percent_sibling.layout_box.y.size, 480, "clean percent sibling height should remain unchanged")
+	t:eq(percent_leaf.layout_box.x.size, 320, "clean percent descendant width should remain unchanged")
+	t:eq(percent_leaf.layout_box.y.size, 240, "clean percent descendant height should remain unchanged")
+	t:eq(count_roots(roots), 1, "only one layout root should be selected")
+	t:assert(roots[screen], "percent boundary ancestor should be selected as layout root")
+	t:eq(measure_total(measure_counts, percent_sibling), 0, "clean percent sibling should not be remeasured")
+	t:eq(measure_total(measure_counts, percent_leaf), 0, "clean percent sibling subtree should not be remeasured")
 end
 
 ---@param t testing.T

@@ -16,6 +16,16 @@ local function new_node()
 	}
 end
 
+---@param roots {[ui.Node]: boolean}?
+---@return integer
+local function count_roots(roots)
+	local count = 0
+	for _ in pairs(roots or {}) do
+		count = count + 1
+	end
+	return count
+end
+
 ---@param t testing.T
 function test.stack_container_auto_size_from_children(t)
 	-- Test that a Stack container with Auto size correctly calculates
@@ -353,11 +363,18 @@ function test.stack_isolated_sibling_layout(t)
 	child_b.layout_box:setDimensions(100, 100)
 
 	-- Second layout pass - only child_b and its ancestors should be remeasured
-	engine:updateLayout({child_b})
+	local roots = engine:updateLayout({child_b})
 
 	-- Verify new layout
 	t:eq(container_b.layout_box.x.size, 100, "Container B width should be 100 after child resize")
 	t:eq(container_b.layout_box.y.size, 100, "Container B height should be 100 after child resize")
+
+	-- Layout should stop at the first fixed/percent boundary ancestor.
+	t:eq(count_roots(roots), 1, "only one layout root should be selected")
+	t:assert(roots[screen], "screen should be the only allowed layout root")
+	t:assert(not roots[root], "root should not be selected as a layout root")
+	t:assert(not roots[screen_container], "screen container should not be selected as a layout root")
+	t:assert(not roots[container_b], "auto subtree should not be selected as a layout root")
 
 	-- Container A and its items should NOT have been remeasured
 	-- They should not appear in measure_counts at all, or should have 0 counts
