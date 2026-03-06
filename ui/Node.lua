@@ -1,5 +1,5 @@
 local LayoutBox = require("ui.layout.LayoutBox")
-local LayoutEnums = require("aqua.ui.layout.Enums")
+local LayoutEnums = require("ui.layout.Enums")
 local IInputHandler = require("ui.input.IInputHandler")
 local table_util = require("table_util")
 
