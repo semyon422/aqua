@@ -6,13 +6,13 @@ local Enums = require("ui.layout.Enums")
 ---@operator call: ui.LayoutBox
 ---@field x ui.LayoutAxis
 ---@field y ui.LayoutAxis
----@field grow number
----@field shrink number
 ---@field child_gap number
+---@field line_gap number
 ---@field arrange ui.Arrange
 ---@field justify_content ui.JustifyContent
 ---@field align_items ui.AlignItems
 ---@field align_self ui.AlignItems?
+---@field justify_self ui.JustifyContent?
 ---@field axis_invalidated ui.Axis
 local LayoutBox = class()
 
@@ -36,13 +36,13 @@ function LayoutBox:new()
 	self.left = 0
 	self.top = 0
 
-	self.grow = 0
-	self.shrink = 1
 	self.child_gap = 0
-	self.reversed = false
+	self.line_gap = 0
 	self.arrange = Arrange.Stack
 	self.justify_content = JustifyContent.Start
 	self.align_items = AlignItems.Stretch
+	self.align_self = nil
+	self.justify_self = nil
 	self.axis_invalidated = Axis.None
 end
 
@@ -83,15 +83,6 @@ end
 ---@return number, number
 function LayoutBox:getLayoutDimensions()
 	return self:getLayoutWidth(), self:getLayoutHeight()
-end
-
----@param reversed boolean
-function LayoutBox:setReversed(reversed)
-	if self.reversed == reversed then
-		return
-	end
-	self.reversed = reversed
-	self:markDirty(Axis.Both)
 end
 
 ---@param width number
@@ -185,24 +176,6 @@ function LayoutBox:setMaxHeight(max)
 	self:markDirty(Axis.Y)
 end
 
----@param grow number
-function LayoutBox:setGrow(grow)
-	if self.grow == grow then
-		return
-	end
-	self.grow = grow
-	self:markDirty(Axis.Both)
-end
-
----@param shrink number
-function LayoutBox:setShrink(shrink)
-	if self.shrink == shrink then
-		return
-	end
-	self.shrink = shrink
-	self:markDirty(Axis.Both)
-end
-
 ---@param arrange ui.Arrange
 function LayoutBox:setArrange(arrange)
 	if self.arrange == arrange then
@@ -230,6 +203,15 @@ function LayoutBox:setAlignSelf(align)
 	self:markDirty(Axis.Both)
 end
 
+---@param justify ui.JustifyContent?
+function LayoutBox:setJustifySelf(justify)
+	if self.justify_self == justify then
+		return
+	end
+	self.justify_self = justify
+	self:markDirty(Axis.Both)
+end
+
 ---@param justify_content ui.JustifyContent
 function LayoutBox:setJustifyContent(justify_content)
 	if self.justify_content == justify_content then
@@ -242,6 +224,12 @@ end
 ---@param gap number
 function LayoutBox:setChildGap(gap)
 	self.child_gap = gap
+	self:markDirty(Axis.Both)
+end
+
+---@param gap number
+function LayoutBox:setLineGap(gap)
+	self.line_gap = gap
 	self:markDirty(Axis.Both)
 end
 

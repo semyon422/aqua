@@ -2,41 +2,173 @@ local class = require("class")
 local Enums = require("ui.layout.Enums")
 
 local Axis = Enums.Axis
-local SizeMode = Enums.SizeMode
 local Arrange = Enums.Arrange
+local SizeMode = Enums.SizeMode
 local bit_band = bit.band
+local bit_bor = bit.bor
 
-local AbsoluteStrategy = require("ui.layout.strategy.AbsoluteStrategy")
-local FlexStrategy = require("ui.layout.strategy.FlexStrategy")
 local StackStrategy = require("ui.layout.strategy.StackStrategy")
+local FlowStrategy = require("ui.layout.strategy.FlowStrategy")
 
 ---@class ui.LayoutEngine
 ---@operator call: ui.LayoutEngine
----@field absolute_strategy ui.AbsoluteStrategy
----@field flex_strategy ui.FlexStrategy
----@field stack_strategy ui.StackStrategy
+---@field dirty_subtree_masks {[ui.Node]: ui.Axis}?
 local LayoutEngine = class()
 
 function LayoutEngine:new()
-	self.absolute_strategy = AbsoluteStrategy(self)
-	self.flex_strategy = FlexStrategy(self)
 	self.stack_strategy = StackStrategy(self)
+	self.flow_strategy = FlowStrategy(self)
+end
+
+---@param mode ui.SizeMode
+---@return boolean
+local function isContentDependentMode(mode)
+	return mode == SizeMode.Auto or mode == SizeMode.Fit
+end
+
+---@param node ui.Node
+---@param axis_idx ui.Axis
+---@return boolean
+local function shouldPropagateThrough(node, axis_idx)
+	local lb = node.layout_box
+	local axis_mode = (axis_idx == Axis.X) and lb.x.mode or lb.y.mode
+	if isContentDependentMode(axis_mode) then
+		return true
+	end
+
+	-- Flow cross-axis can change when main-axis content changes (line breaks).
+	if lb.arrange == Arrange.FlowRow and axis_idx == Axis.X then
+		return isContentDependentMode(lb.y.mode)
+	elseif lb.arrange == Arrange.FlowCol and axis_idx == Axis.Y then
+		return isContentDependentMode(lb.x.mode)
+	end
+
+	return false
+end
+
+---@param node ui.Node
+---@param axis_idx ui.Axis
+---@return ui.Node
+local function findPropagationRoot(node, axis_idx)
+	local root = node
+	local current = node
+
+	while current.parent do
+		local parent = current.parent
+		---@cast parent ui.Node
+		root = parent
+
+		if not shouldPropagateThrough(parent, axis_idx) then
+			break
+		end
+
+		current = parent
+	end
+
+	return root
+end
+
+---@param node ui.Node
+---@param root ui.Node
+---@param axis_idx ui.Axis
+---@param marks {[ui.Node]: ui.Axis}
+local function markPathToRoot(node, root, axis_idx, marks)
+	local current = node
+	while current do
+		marks[current] = bit_bor(marks[current] or Axis.None, axis_idx)
+		if current == root then
+			break
+		end
+		current = current.parent
+	end
+end
+
+---@param roots {[ui.Node]: boolean}
+---@return integer
+local function countRoots(roots)
+	local count = 0
+	for _ in pairs(roots) do
+		count = count + 1
+	end
+	return count
+end
+
+---@param node ui.Node
+---@param roots {[ui.Node]: boolean}
+---@return boolean
+local function isDescendantOfAnyRoot(node, roots)
+	local current = node.parent
+	while current do
+		if roots[current] then
+			return true
+		end
+		current = current.parent
+	end
+	return false
+end
+
+---@param roots {[ui.Node]: boolean}
+---@return {[ui.Node]: boolean}
+local function filterTopLevelRoots(roots)
+	if countRoots(roots) <= 1 then
+		return roots
+	end
+
+	local filtered_roots = {}
+	for root, _ in pairs(roots) do
+		if not isDescendantOfAnyRoot(root, roots) then
+			filtered_roots[root] = true
+		end
+	end
+	return filtered_roots
+end
+
+---@param dirty_nodes ui.Node[]
+---@return {[ui.Node]: boolean}, {[ui.Node]: ui.Axis}
+local function collectLayoutRoots(dirty_nodes)
+	---@type {[ui.Node]: boolean}
+	local layout_roots = {}
+	---@type {[ui.Node]: ui.Axis}
+	local forced_path_marks = {}
+
+	for _, node in ipairs(dirty_nodes) do
+		local root_x = findPropagationRoot(node, Axis.X)
+		local root_y = findPropagationRoot(node, Axis.Y)
+		layout_roots[root_x] = true
+		layout_roots[root_y] = true
+		markPathToRoot(node, root_x, Axis.X, forced_path_marks)
+		markPathToRoot(node, root_y, Axis.Y, forced_path_marks)
+	end
+
+	layout_roots = filterTopLevelRoots(layout_roots)
+	return layout_roots, forced_path_marks
+end
+
+---@param root ui.Node
+---@param forced_marks {[ui.Node]: ui.Axis}
+---@param dirty_masks {[ui.Node]: ui.Axis}
+---@param inherited_dirty ui.Axis?
+---@return ui.Axis
+local function buildDirtySubtreeMask(root, forced_marks, dirty_masks, inherited_dirty)
+	local node_dirty = root.layout_box.axis_invalidated
+	local propagate_dirty = bit_bor(inherited_dirty or Axis.None, node_dirty)
+	local mask = bit_bor(propagate_dirty, forced_marks[root] or Axis.None)
+
+	for _, child in ipairs(root.children) do
+		mask = bit_bor(mask, buildDirtySubtreeMask(child, forced_marks, dirty_masks, propagate_dirty))
+	end
+
+	dirty_masks[root] = mask
+	return mask
 end
 
 ---@param node ui.Node
 ---@return ui.LayoutStrategy
 function LayoutEngine:getStrategy(node)
 	local arrange = node.layout_box.arrange
-
-	if arrange == Arrange.Absolute then
-		return self.absolute_strategy
-	elseif arrange == Arrange.FlexRow or arrange == Arrange.FlexCol then
-		return self.flex_strategy
-	elseif arrange == Arrange.Stack then
-		return self.stack_strategy
+	if arrange == Arrange.FlowRow or arrange == Arrange.FlowCol then
+		return self.flow_strategy
 	end
-
-	-- Default to Stack
 	return self.stack_strategy
 end
 
@@ -47,103 +179,143 @@ function LayoutEngine:updateLayout(dirty_nodes)
 		return
 	end
 
-	---@type {[ui.Node]: boolean}
-	local layout_roots = {}
+	local layout_roots, forced_path_marks = collectLayoutRoots(dirty_nodes)
 
-	for _, v in ipairs(dirty_nodes) do
-		local node = self:findLayoutBoundary(v, v.layout_box.axis_invalidated)
-		layout_roots[node] = true
-
-		if not node.parent then
-			layout_roots = {}
-			layout_roots[node] = true
-			break
-		end
+	---@type {[ui.Node]: ui.Axis}
+	local dirty_subtree_masks = {}
+	for root, _ in pairs(layout_roots) do
+		buildDirtySubtreeMask(root, forced_path_marks, dirty_subtree_masks, Axis.None)
 	end
+	self.dirty_subtree_masks = dirty_subtree_masks
 
 	for node, _ in pairs(layout_roots) do
-		-- Always measure both axes for layout roots
-		-- They may have been found via findLayoutBoundary even if not explicitly dirty
-		self:measure(node, Axis.X)
-		self:grow(node, Axis.X)
+		local main_axis = Axis.X
+		local cross_axis = Axis.Y
+		if node.layout_box.arrange == Arrange.FlowCol then
+			main_axis = Axis.Y
+			cross_axis = Axis.X
+		end
 
-		self:measure(node, Axis.Y)
-		self:grow(node, Axis.Y)
-
-		local target = node.parent and node.parent or node
-		self:arrange(target)
-
-		-- Mark the entire subtree as valid after layout completes
-		self:markValid(node)
+		local measured_main = self:measure(node, main_axis)
+		local measured_cross = self:measure(node, cross_axis)
+		self:arrange(node, measured_main or measured_cross)
 	end
+	self.dirty_subtree_masks = nil
 
 	return layout_roots
 end
 
----Find a node that can handle relayout
 ---@param node ui.Node
----@param axis ui.Axis
-function LayoutEngine:findLayoutBoundary(node, axis)
-	if not node.parent then
-		return node
-	end
-
-	if self:isStableBoundary(node.parent.layout_box, axis) then
-		return node.parent
-	end
-
-	return self:findLayoutBoundary(node.parent, axis)
-end
-
----Determine if a node has fixed dimensions for the requested axis
----@param layout_box ui.LayoutBox
----@param axis ui.Axis
----@return boolean
-function LayoutEngine:isStableBoundary(layout_box, axis)
-	if bit_band(layout_box.axis_invalidated, axis) ~= 0 then
-		return true
-	end
-
-	local x_stable = layout_box.x.mode == SizeMode.Fixed or layout_box.x.mode == SizeMode.Percent
-	local y_stable = layout_box.y.mode == SizeMode.Fixed or layout_box.y.mode == SizeMode.Percent
-
-	if bit_band(axis, Axis.X) ~= 0 and not x_stable then
-		return false
-	end
-	if bit_band(axis, Axis.Y) ~= 0 and not y_stable then
+---@param axis_idx ui.Axis
+---@param dependency_dirty boolean?
+---@return boolean measured
+function LayoutEngine:measure(node, axis_idx, dependency_dirty)
+	if not self:needsMeasure(node, axis_idx, dependency_dirty) then
 		return false
 	end
 
+	local strategy = self:getStrategy(node)
+	strategy:measure(node, axis_idx, dependency_dirty)
+	self:markValid(node, axis_idx)
 	return true
 end
 
 ---@param node ui.Node
 ---@param axis_idx ui.Axis
-function LayoutEngine:measure(node, axis_idx)
-	local strategy = self:getStrategy(node)
-	strategy:measure(node, axis_idx)
+---@param dependency_dirty boolean?
+---@return boolean measured
+function LayoutEngine:measureChild(node, axis_idx, dependency_dirty)
+	return self:measure(node, axis_idx, dependency_dirty)
 end
 
 ---@param node ui.Node
----@param axis_idx ui.Axis
-function LayoutEngine:grow(node, axis_idx)
-	local strategy = self:getStrategy(node)
-	strategy:grow(node, axis_idx)
-end
-
----@param node ui.Node
-function LayoutEngine:arrange(node)
-	local strategy = self:getStrategy(node)
-	strategy:arrange(node)
-end
-
----Mark a node and all its children as valid (layout is up-to-date)
----@param node ui.Node
-function LayoutEngine:markValid(node)
-	node.layout_box:markValid()
-	for _, child in ipairs(node.children) do
-		self:markValid(child)
+---@param dependency_dirty boolean?
+function LayoutEngine:arrange(node, dependency_dirty)
+	if not self:needsArrange(node, dependency_dirty) then
+		return
 	end
+
+	local strategy = self:getStrategy(node)
+	strategy:arrange(node, dependency_dirty)
+	self:markValid(node, Axis.Both)
+end
+
+---@param node ui.Node
+---@param axis ui.Axis
+function LayoutEngine:isNodeDirty(node, axis)
+	return bit_band(node.layout_box.axis_invalidated, axis) ~= 0
+end
+
+---@param node ui.Node
+---@param axis ui.Axis
+function LayoutEngine:hasDirtyDescendant(node, axis)
+	local dirty_subtree_masks = self.dirty_subtree_masks
+	if dirty_subtree_masks then
+		for _, child in ipairs(node.children) do
+			if bit_band(dirty_subtree_masks[child] or Axis.None, axis) ~= 0 then
+				return true
+			end
+		end
+		return false
+	end
+
+	for _, child in ipairs(node.children) do
+		if self:isNodeDirty(child, axis) or self:hasDirtyDescendant(child, axis) then
+			return true
+		end
+	end
+
+	return false
+end
+
+---@param node ui.Node
+---@param axis ui.Axis
+---@return boolean
+function LayoutEngine:isSubtreeRelevant(node, axis)
+	local dirty_subtree_masks = self.dirty_subtree_masks
+	if not dirty_subtree_masks then
+		return true
+	end
+	return bit_band(dirty_subtree_masks[node] or Axis.None, axis) ~= 0
+end
+
+---@param node ui.Node
+---@param axis ui.Axis
+---@param dependency_dirty boolean?
+---@return boolean
+function LayoutEngine:needsLayoutPass(node, axis, dependency_dirty)
+	if not self:isSubtreeRelevant(node, axis) then
+		return false
+	end
+
+	if dependency_dirty then
+		return true
+	end
+
+	if self:isNodeDirty(node, axis) then
+		return true
+	end
+
+	return self:hasDirtyDescendant(node, axis)
+end
+
+---@param node ui.Node
+---@param axis ui.Axis
+---@param dependency_dirty boolean?
+function LayoutEngine:needsMeasure(node, axis, dependency_dirty)
+	return self:needsLayoutPass(node, axis, dependency_dirty)
+end
+
+---@param node ui.Node
+---@param dependency_dirty boolean?
+function LayoutEngine:needsArrange(node, dependency_dirty)
+	return self:needsLayoutPass(node, Axis.Both, dependency_dirty)
+end
+
+---@param node ui.Node
+---@param axis ui.Axis
+function LayoutEngine:markValid(node, axis)
+	node.layout_box.axis_invalidated = bit_band(node.layout_box.axis_invalidated, bit.bnot(axis))
 end
 
 return LayoutEngine

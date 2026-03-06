@@ -127,6 +127,36 @@ function test.keyboard_focus(t)
 end
 
 ---@param t testing.T
+function test.mousepressed_clears_keyboard_focus_if_outside(t)
+	local inputs = Inputs()
+	local node1 = Node()
+	local node2 = Node()
+	
+	node1.onFocus = function() end
+	node1.onFocusLost = function() end
+
+	-- Set focus on node1
+	inputs:setKeyboardFocus(node1, default_modifiers)
+	t:eq(inputs.keyboard_focus, node1)
+
+	-- Click on node1: focus stays
+	inputs.mouse_target = node1
+	inputs:receive({name = "mousepressed", 0, 0, 1}, default_modifiers)
+	t:eq(inputs.keyboard_focus, node1)
+
+	-- Click on child of node1: focus stays
+	local child = node1:add(Node())
+	inputs.mouse_target = child
+	inputs:receive({name = "mousepressed", 0, 0, 1}, default_modifiers)
+	t:eq(inputs.keyboard_focus, node1)
+
+	-- Click on node2 (outside): focus cleared
+	inputs.mouse_target = node2
+	inputs:receive({name = "mousepressed", 0, 0, 1}, default_modifiers)
+	t:eq(inputs.keyboard_focus, nil)
+end
+
+---@param t testing.T
 function test.dragging(t)
 	local root = Node()
 	local draggable = root:add(Node())

@@ -208,6 +208,22 @@ function Inputs:dispatchMouseEvent(event, modifiers)
 
 	if event.name == "mousepressed" then
 		e = self:handleMouseDown(event, modifiers)
+
+		if self.keyboard_focus then
+			local is_descendant = false
+			local current = self.mouse_target
+			while current do
+				if current == self.keyboard_focus then
+					is_descendant = true
+					break
+				end
+				current = current.parent
+			end
+
+			if not is_descendant then
+				self:setKeyboardFocus(nil, modifiers)
+			end
+		end
 	elseif event.name == "mousereleased" then
 		e = self:handleMouseUp(event, modifiers)
 	elseif event.name == "wheelmoved" then

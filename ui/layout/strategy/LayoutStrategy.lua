@@ -15,16 +15,17 @@ end
 ---Measure all children and set node size
 ---@param node ui.Node
 ---@param axis_idx ui.Axis
-function LayoutStrategy:measure(node, axis_idx) end
-
----Distribute extra space to growing children
----@param node ui.Node
----@param axis_idx ui.Axis
-function LayoutStrategy:grow(node, axis_idx) end
+---@param dependency_dirty boolean?
+function LayoutStrategy:measure(node, axis_idx, dependency_dirty)
+	error("LayoutStrategy:measure not implemented")
+end
 
 ---Position all children
 ---@param node ui.Node
-function LayoutStrategy:arrange(node) end
+---@param dependency_dirty boolean?
+function LayoutStrategy:arrange(node, dependency_dirty)
+	error("LayoutStrategy:arrange not implemented")
+end
 
 ---Get intrinsic size from node if available
 ---@param node ui.Node
@@ -48,8 +49,9 @@ end
 
 ---Arrange a child node using the correct strategy
 ---@param node ui.Node
-function LayoutStrategy:arrangeChild(node)
-	self.engine:arrange(node)
+---@param dependency_dirty boolean?
+function LayoutStrategy:arrangeChild(node, dependency_dirty)
+	self.engine:arrange(node, dependency_dirty)
 end
 
 return LayoutStrategy

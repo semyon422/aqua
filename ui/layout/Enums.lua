@@ -10,10 +10,9 @@ Enums.SizeMode = {
 
 ---@enum ui.Arrange
 Enums.Arrange = {
-	Absolute = 1,
-	FlexRow = 2,
-	FlexCol = 3,
-	Stack = 4,
+	Stack = 1,
+	FlowRow = 2,
+	FlowCol = 3,
 }
 
 ---@enum ui.Axis
