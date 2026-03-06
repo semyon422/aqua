@@ -265,7 +265,7 @@ function FlowStrategy:arrange(node, dependency_dirty)
 		cross_pos = cross_pos + available_cross - total_cross_size
 	end
 
-	for _, line in ipairs(lines) do
+	for i, line in ipairs(lines) do
 		local main_pos = main_axis.padding_start
 		local gap = layout_box.child_gap
 
@@ -306,7 +306,10 @@ function FlowStrategy:arrange(node, dependency_dirty)
 			main_pos = main_pos + child_main.size + child_main:getTotalMargin() + gap
 		end
 
-		cross_pos = cross_pos + line.cross_size + layout_box.line_gap
+		cross_pos = cross_pos + line.cross_size
+		if i < #lines then
+			cross_pos = cross_pos + layout_box.line_gap
+		end
 	end
 end
 

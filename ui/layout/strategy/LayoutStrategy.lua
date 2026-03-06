@@ -16,12 +16,16 @@ end
 ---@param node ui.Node
 ---@param axis_idx ui.Axis
 ---@param dependency_dirty boolean?
-function LayoutStrategy:measure(node, axis_idx, dependency_dirty) end
+function LayoutStrategy:measure(node, axis_idx, dependency_dirty)
+	error("LayoutStrategy:measure not implemented")
+end
 
 ---Position all children
 ---@param node ui.Node
 ---@param dependency_dirty boolean?
-function LayoutStrategy:arrange(node, dependency_dirty) end
+function LayoutStrategy:arrange(node, dependency_dirty)
+	error("LayoutStrategy:arrange not implemented")
+end
 
 ---Get intrinsic size from node if available
 ---@param node ui.Node

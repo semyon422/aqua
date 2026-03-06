@@ -189,9 +189,16 @@ function LayoutEngine:updateLayout(dirty_nodes)
 	self._dirty_subtree_masks = dirty_subtree_masks
 
 	for node, _ in pairs(layout_roots) do
-		local measured_x = self:measure(node, Axis.X)
-		local measured_y = self:measure(node, Axis.Y)
-		self:arrange(node, measured_x or measured_y)
+		local main_axis = Axis.X
+		local cross_axis = Axis.Y
+		if node.layout_box.arrange == Arrange.FlowCol then
+			main_axis = Axis.Y
+			cross_axis = Axis.X
+		end
+
+		local measured_main = self:measure(node, main_axis)
+		local measured_cross = self:measure(node, cross_axis)
+		self:arrange(node, measured_main or measured_cross)
 	end
 	self._dirty_subtree_masks = nil
 
