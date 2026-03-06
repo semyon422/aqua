@@ -18,10 +18,12 @@ local StackStrategy = LayoutStrategy + {}
 ---Stack size is the max() of its children's sizes (plus margins), plus paddings
 ---@param node ui.Node
 ---@param axis_idx ui.Axis
-function StackStrategy:measure(node, axis_idx)
+---@param dependency_dirty boolean?
+function StackStrategy:measure(node, axis_idx, dependency_dirty)
 	local axis = self:getAxis(node, axis_idx)
 	local min_s = axis.min_size
 	local max_s = axis.max_size
+	local parent_dirty_axis = dependency_dirty or self.engine:isNodeDirty(node, axis_idx)
 
 	-- Fixed or Percent: use predefined size
 	if axis.mode == SizeMode.Fixed or axis.mode == SizeMode.Percent then
@@ -33,7 +35,7 @@ function StackStrategy:measure(node, axis_idx)
 		axis.size = math_clamp(s, min_s, max_s)
 
 		for _, child in ipairs(node.children) do
-			self.engine:measure(child, axis_idx)
+			self.engine:measure(child, axis_idx, parent_dirty_axis)
 		end
 		return
 	end
@@ -86,7 +88,7 @@ function StackStrategy:measure(node, axis_idx)
 		for _, child in ipairs(node.children) do
 			local child_axis = self:getAxis(child, axis_idx)
 			if child_axis.mode ~= SizeMode.Percent then
-				self.engine:measure(child, axis_idx)
+				self.engine:measure(child, axis_idx, parent_dirty_axis)
 				s = math_max(s, child_axis.size + child_axis:getTotalMargin())
 			end
 		end
@@ -99,7 +101,7 @@ function StackStrategy:measure(node, axis_idx)
 		for _, child in ipairs(node.children) do
 			local child_axis = self:getAxis(child, axis_idx)
 			if child_axis.mode == SizeMode.Percent then
-				self.engine:measure(child, axis_idx)
+				self.engine:measure(child, axis_idx, true)
 				s = math_max(s, child_axis.size + child_axis:getTotalMargin())
 			end
 		end
@@ -112,67 +114,68 @@ end
 ---Position all children - they all overlap (Z-axis stacking)
 ---Use align_items for X-axis alignment, justify_content for Y-axis alignment
 ---@param node ui.Node
-function StackStrategy:arrange(node)
+---@param dependency_dirty boolean?
+function StackStrategy:arrange(node, dependency_dirty)
 	local layout_box = node.layout_box
 	local node_x = layout_box.x
 	local node_y = layout_box.y
-
-	-- getLayoutSize() already excludes padding
-	local available_width = node_x:getLayoutSize()
-	local available_height = node_y:getLayoutSize()
+	local parent_dirty = dependency_dirty or self.engine:isNodeDirty(node, Axis.Both)
 
 	for _, child in ipairs(node.children) do
-		local child_x = child.layout_box.x
-		local child_y = child.layout_box.y
+		local child_needs_arrange = self.engine:needsArrange(child, parent_dirty)
+		if child_needs_arrange then
+			local child_x = child.layout_box.x
+			local child_y = child.layout_box.y
 
-		-- Apply stretch sizing (was previously done in grow phase)
-		local available_width = node_x:getLayoutSize()
-		local available_height = node_y:getLayoutSize()
+			-- Apply stretch sizing (was previously done in grow phase)
+			local available_width = node_x:getLayoutSize()
+			local available_height = node_y:getLayoutSize()
 
-		local x_align = child.layout_box.align_self or layout_box.align_items
-		local y_align = child.layout_box.justify_self or layout_box.justify_content
+			local x_align = child.layout_box.align_self or layout_box.align_items
+			local y_align = child.layout_box.justify_self or layout_box.justify_content
 
-		if x_align == AlignItems.Stretch then
-			if child_x.mode == SizeMode.Auto or child_x.mode == SizeMode.Fit then
-				local stretched = available_width - child_x:getTotalMargin()
-				if child_x.mode == SizeMode.Auto or child_x.size > stretched then
-					child_x.size = math_clamp(stretched, child_x.min_size, child_x.max_size)
+			if x_align == AlignItems.Stretch then
+				if child_x.mode == SizeMode.Auto or child_x.mode == SizeMode.Fit then
+					local stretched = available_width - child_x:getTotalMargin()
+					if child_x.mode == SizeMode.Auto or child_x.size > stretched then
+						child_x.size = math_clamp(stretched, child_x.min_size, child_x.max_size)
+					end
 				end
 			end
-		end
 
-		if y_align == JustifyContent.Stretch then
-			if child_y.mode == SizeMode.Auto or child_y.mode == SizeMode.Fit then
-				local stretched = available_height - child_y:getTotalMargin()
-				if child_y.mode == SizeMode.Auto or child_y.size > stretched then
-					child_y.size = math_clamp(stretched, child_y.min_size, child_y.max_size)
+			if y_align == JustifyContent.Stretch then
+				if child_y.mode == SizeMode.Auto or child_y.mode == SizeMode.Fit then
+					local stretched = available_height - child_y:getTotalMargin()
+					if child_y.mode == SizeMode.Auto or child_y.size > stretched then
+						child_y.size = math_clamp(stretched, child_y.min_size, child_y.max_size)
+					end
 				end
 			end
+
+			-- X-axis position (controlled by align_items / align_self)
+			local x_pos = self:calculatePosition(
+				child.layout_box.align_self or layout_box.align_items,
+				node_x.padding_start,
+				available_width,
+				child_x.size,
+				child_x.margin_start,
+				child_x.margin_end
+			)
+			child_x.pos = x_pos
+
+			-- Y-axis position (controlled by justify_content / justify_self)
+			local y_pos = self:calculatePosition(
+				child.layout_box.justify_self or layout_box.justify_content,
+				node_y.padding_start,
+				available_height,
+				child_y.size,
+				child_y.margin_start,
+				child_y.margin_end
+			)
+			child_y.pos = y_pos
+
+			self:arrangeChild(child, parent_dirty)
 		end
-
-		-- X-axis position (controlled by align_items / align_self)
-		local x_pos = self:calculatePosition(
-			child.layout_box.align_self or layout_box.align_items,
-			node_x.padding_start,
-			available_width,
-			child_x.size,
-			child_x.margin_start,
-			child_x.margin_end
-		)
-		child_x.pos = x_pos
-
-		-- Y-axis position (controlled by justify_content / justify_self)
-		local y_pos = self:calculatePosition(
-			child.layout_box.justify_self or layout_box.justify_content,
-			node_y.padding_start,
-			available_height,
-			child_y.size,
-			child_y.margin_start,
-			child_y.margin_end
-		)
-		child_y.pos = y_pos
-
-		self:arrangeChild(child)
 	end
 end
 

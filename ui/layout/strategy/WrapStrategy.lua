@@ -21,11 +21,13 @@ local function isMainAxis(layout_box, axis_idx)
 	)
 end
 
-function WrapStrategy:measure(node, axis_idx)
+---@param dependency_dirty boolean?
+function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 	local layout_box = node.layout_box
 	local axis = self:getAxis(node, axis_idx)
 	local min_s = axis.min_size
 	local max_s = axis.max_size
+	local parent_dirty_axis = dependency_dirty or self.engine:isNodeDirty(node, axis_idx)
 
 	if axis.mode == SizeMode.Fixed or axis.mode == SizeMode.Percent then
 		local s = axis.preferred_size
@@ -36,7 +38,7 @@ function WrapStrategy:measure(node, axis_idx)
 		axis.size = math_clamp(s, min_s, max_s)
 
 		for _, child in ipairs(node.children) do
-			self.engine:measure(child, axis_idx)
+			self.engine:measure(child, axis_idx, parent_dirty_axis)
 		end
 		return
 	end
@@ -49,7 +51,7 @@ function WrapStrategy:measure(node, axis_idx)
 		for _, child in ipairs(node.children) do
 			local child_axis = self:getAxis(child, axis_idx)
 			if child_axis.mode ~= SizeMode.Percent then
-				self.engine:measure(child, axis_idx)
+				self.engine:measure(child, axis_idx, parent_dirty_axis)
 				s = s + child_axis.size + child_axis:getTotalMargin()
 				child_count = child_count + 1
 			end
@@ -61,7 +63,7 @@ function WrapStrategy:measure(node, axis_idx)
 		for _, child in ipairs(node.children) do
 			local child_axis = self:getAxis(child, axis_idx)
 			if child_axis.mode == SizeMode.Percent then
-				self.engine:measure(child, axis_idx)
+				self.engine:measure(child, axis_idx, true)
 				s = s + child_axis.size + child_axis:getTotalMargin()
 				child_count = child_count + 1
 			end
@@ -115,7 +117,7 @@ function WrapStrategy:measure(node, axis_idx)
 			for _, child in ipairs(node.children) do
 				local child_cross = self:getAxis(child, cross_axis_idx)
 				if child_cross.mode ~= SizeMode.Percent then
-					self.engine:measure(child, cross_axis_idx)
+					self.engine:measure(child, cross_axis_idx, parent_dirty_axis)
 				end
 				total_cross = math_max(total_cross, child_cross.size + child_cross:getTotalMargin())
 			end
@@ -129,7 +131,7 @@ function WrapStrategy:measure(node, axis_idx)
 				local child_cross = self:getAxis(child, cross_axis_idx)
 
 				if child_cross.mode ~= SizeMode.Percent then
-					self.engine:measure(child, cross_axis_idx)
+					self.engine:measure(child, cross_axis_idx, parent_dirty_axis)
 				end
 
 				local main_size = child_main.size + child_main:getTotalMargin()
@@ -157,14 +159,16 @@ function WrapStrategy:measure(node, axis_idx)
 		for _, child in ipairs(node.children) do
 			local child_cross = self:getAxis(child, cross_axis_idx)
 			if child_cross.mode == SizeMode.Percent then
-				self.engine:measure(child, cross_axis_idx)
+				self.engine:measure(child, cross_axis_idx, true)
 			end
 		end
 	end
 end
 
-function WrapStrategy:arrange(node)
+---@param dependency_dirty boolean?
+function WrapStrategy:arrange(node, dependency_dirty)
 	local layout_box = node.layout_box
+	local parent_dirty = dependency_dirty or self.engine:isNodeDirty(node, Axis.Both)
 
 	local main_axis_idx = (layout_box.arrange == Arrange.WrapRow) and Axis.X or Axis.Y
 	local cross_axis_idx = (layout_box.arrange == Arrange.WrapRow) and Axis.Y or Axis.X
@@ -177,26 +181,31 @@ function WrapStrategy:arrange(node)
 
 	local available_main = main_axis:getLayoutSize()
 	local available_cross = cross_axis:getLayoutSize()
+	local child_needs_arrange = {} ---@type {[ui.Node]: boolean}
 
 	-- Resolve Percent sizing (was previously done in grow phase)
 	for _, child in ipairs(node.children) do
-		local child_main = self:getAxis(child, main_axis_idx)
-		local child_cross = self:getAxis(child, cross_axis_idx)
+		local needs_arrange = self.engine:needsArrange(child, parent_dirty)
+		child_needs_arrange[child] = needs_arrange
+		if needs_arrange then
+			local child_main = self:getAxis(child, main_axis_idx)
+			local child_cross = self:getAxis(child, cross_axis_idx)
 
-		if child_main.mode == SizeMode.Percent then
-			local s = child_main.preferred_size * (available_main - child_main:getTotalMargin())
-			child_main.size = math_clamp(s, child_main.min_size, child_main.max_size)
-		end
-		if child_cross.mode == SizeMode.Percent then
-			local s = child_cross.preferred_size * (available_cross - child_cross:getTotalMargin())
-			child_cross.size = math_clamp(s, child_cross.min_size, child_cross.max_size)
-		end
+			if child_main.mode == SizeMode.Percent then
+				local s = child_main.preferred_size * (available_main - child_main:getTotalMargin())
+				child_main.size = math_clamp(s, child_main.min_size, child_main.max_size)
+			end
+			if child_cross.mode == SizeMode.Percent then
+				local s = child_cross.preferred_size * (available_cross - child_cross:getTotalMargin())
+				child_cross.size = math_clamp(s, child_cross.min_size, child_cross.max_size)
+			end
 
-		-- Fit clamping on cross axis
-		if child_cross.mode == SizeMode.Fit then
-			local max_cross = available_cross - child_cross:getTotalMargin()
-			if child_cross.size > max_cross and max_cross > 0 then
-				child_cross.size = math_clamp(max_cross, child_cross.min_size, child_cross.max_size)
+			-- Fit clamping on cross axis
+			if child_cross.mode == SizeMode.Fit then
+				local max_cross = available_cross - child_cross:getTotalMargin()
+				if child_cross.size > max_cross and max_cross > 0 then
+					child_cross.size = math_clamp(max_cross, child_cross.min_size, child_cross.max_size)
+				end
 			end
 		end
 	end
@@ -213,7 +222,12 @@ function WrapStrategy:arrange(node)
 
 		if #current_line.items > 0 and current_line.main_size + layout_box.child_gap + item_main_size > available_main then
 			table.insert(lines, current_line)
-			current_line = { items = { child }, main_size = item_main_size, cross_size = item_cross_size }
+			current_line = {
+				items = {child},
+				main_size = item_main_size,
+				raw_main_size = item_main_size,
+				cross_size = item_cross_size,
+			}
 		else
 			table.insert(current_line.items, child)
 			if #current_line.items > 1 then
@@ -256,28 +270,30 @@ function WrapStrategy:arrange(node)
 		end
 
 		for _, child in ipairs(line.items) do
+			local needs_arrange = child_needs_arrange[child]
 			local child_main = self:getAxis(child, main_axis_idx)
 			local child_cross = self:getAxis(child, cross_axis_idx)
+			if needs_arrange then
+				child_main.pos = main_pos + child_main.margin_start
 
-			child_main.pos = main_pos + child_main.margin_start
+				local child_align = child.layout_box.align_self or align
+				local child_cross_pos = cross_pos + child_cross.margin_start
 
-			local child_align = child.layout_box.align_self or align
-			local child_cross_pos = cross_pos + child_cross.margin_start
-
-			if child_align == AlignItems.End then
-				child_cross_pos = cross_pos + line.cross_size - child_cross.size - child_cross.margin_end
-			elseif child_align == AlignItems.Center then
-				child_cross_pos = cross_pos + (line.cross_size - child_cross.size - child_cross:getTotalMargin()) / 2 + child_cross.margin_start
-			elseif child_align == AlignItems.Stretch then
-				if child_cross.mode == SizeMode.Auto then
-					child_cross.size = math_clamp(line.cross_size - child_cross:getTotalMargin(), child_cross.min_size, child_cross.max_size)
+				if child_align == AlignItems.End then
+					child_cross_pos = cross_pos + line.cross_size - child_cross.size - child_cross.margin_end
+				elseif child_align == AlignItems.Center then
+					child_cross_pos = cross_pos + (line.cross_size - child_cross.size - child_cross:getTotalMargin()) / 2 + child_cross.margin_start
+				elseif child_align == AlignItems.Stretch then
+					if child_cross.mode == SizeMode.Auto then
+						child_cross.size = math_clamp(line.cross_size - child_cross:getTotalMargin(), child_cross.min_size, child_cross.max_size)
+					end
+					child_cross_pos = cross_pos + child_cross.margin_start
 				end
-				child_cross_pos = cross_pos + child_cross.margin_start
+
+				child_cross.pos = child_cross_pos
+
+				self:arrangeChild(child, parent_dirty)
 			end
-
-			child_cross.pos = child_cross_pos
-
-			self:arrangeChild(child)
 
 			main_pos = main_pos + child_main.size + child_main:getTotalMargin() + gap
 		end

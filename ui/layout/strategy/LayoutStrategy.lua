@@ -15,7 +15,8 @@ end
 ---Measure all children and set node size
 ---@param node ui.Node
 ---@param axis_idx ui.Axis
-function LayoutStrategy:measure(node, axis_idx) end
+---@param dependency_dirty boolean?
+function LayoutStrategy:measure(node, axis_idx, dependency_dirty) end
 
 ---Position all children
 ---@param node ui.Node
@@ -43,8 +44,9 @@ end
 
 ---Arrange a child node using the correct strategy
 ---@param node ui.Node
-function LayoutStrategy:arrangeChild(node)
-	self.engine:arrange(node)
+---@param dependency_dirty boolean?
+function LayoutStrategy:arrangeChild(node, dependency_dirty)
+	self.engine:arrange(node, dependency_dirty)
 end
 
 return LayoutStrategy

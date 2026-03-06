@@ -489,7 +489,7 @@ function test.auto_parent_still_propagates_up(t)
 	-- Root (Fixed)
 	local root = new_node()
 	root.layout_box:setDimensions(800, 600)
-	root.layout_box:setAlignItems(LayoutBox.AlignItems.Start)  -- Don't stretch children
+	root.layout_box:setAlignItems(LayoutBox.AlignItems.Start) -- Don't stretch children
 
 	-- Container (Auto) - size depends on children, so should propagate up
 	local container = root:add(new_node())
@@ -528,5 +528,79 @@ function test.auto_parent_still_propagates_up(t)
 	t:assert(roots[root], "root should be the layout root (container has Auto size)")
 end
 
-return test
+---@param t testing.T
+function test.persistent_dirty_state_not_limited_to_input_list(t)
+	local engine = LayoutEngine()
 
+	local root = new_node()
+	root.layout_box:setDimensions(800, 600)
+	root.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+
+	local container = root:add(new_node())
+	container.layout_box:setWidthAuto()
+	container.layout_box:setHeightAuto()
+	container.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+
+	local child_a = container:add(new_node_with_intrinsic_size(100, 40))
+	child_a.layout_box:setWidthAuto()
+	child_a.layout_box:setHeightAuto()
+
+	local child_b = container:add(new_node_with_intrinsic_size(120, 60))
+	child_b.layout_box:setWidthAuto()
+	child_b.layout_box:setHeightAuto()
+
+	engine:updateLayout({root})
+	t:eq(container.layout_box.x.size, 120)
+	t:eq(container.layout_box.y.size, 60)
+
+	child_b.getIntrinsicSize = function(self, axis_idx, constraint)
+		if axis_idx == Axis.X then
+			return 180
+		end
+		return 90
+	end
+	child_b.layout_box:markDirty(Axis.Both)
+
+	-- Update from sibling only: engine should still detect dirty descendant via persistent flags.
+	engine:updateLayout({child_a})
+
+	t:eq(container.layout_box.x.size, 180, "container width should include dirty sibling")
+	t:eq(container.layout_box.y.size, 90, "container height should include dirty sibling")
+	t:eq(child_b.layout_box.axis_invalidated, Axis.None, "dirty sibling should be marked valid after layout")
+end
+
+---@param t testing.T
+function test.resize_propagates_through_percent_chain(t)
+	local engine = LayoutEngine()
+
+	local root = new_node()
+	root.layout_box:setDimensions(100, 100)
+
+	local level1 = root:add(new_node())
+	level1.layout_box:setWidthPercent(1.0)
+	level1.layout_box:setHeightPercent(1.0)
+
+	local level2 = level1:add(new_node())
+	level2.layout_box:setWidthPercent(1.0)
+	level2.layout_box:setHeightPercent(1.0)
+
+	local leaf = level2:add(new_node())
+	leaf.layout_box:setWidthPercent(1.0)
+	leaf.layout_box:setHeightPercent(1.0)
+
+	engine:updateLayout({root})
+	t:eq(level1.layout_box.x.size, 100)
+	t:eq(level2.layout_box.x.size, 100)
+	t:eq(leaf.layout_box.x.size, 100)
+
+	root.layout_box:setWidth(200)
+
+	-- Only root is marked dirty by window resize. Descendants must still recalculate.
+	engine:updateLayout({root})
+
+	t:eq(level1.layout_box.x.size, 200)
+	t:eq(level2.layout_box.x.size, 200)
+	t:eq(leaf.layout_box.x.size, 200)
+end
+
+return test

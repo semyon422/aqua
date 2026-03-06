@@ -4,6 +4,7 @@ local Enums = require("ui.layout.Enums")
 local Axis = Enums.Axis
 local Arrange = Enums.Arrange
 local SizeMode = Enums.SizeMode
+local bit_band = bit.band
 
 local StackStrategy = require("ui.layout.strategy.StackStrategy")
 local WrapStrategy = require("ui.layout.strategy.WrapStrategy")
@@ -112,10 +113,9 @@ function LayoutEngine:updateLayout(dirty_nodes)
 	end
 
 	for node, _ in pairs(layout_roots) do
-		self:measure(node, Axis.X)
-		self:measure(node, Axis.Y)
-		self:arrange(node)
-		self:markValid(node)
+		local measured_x = self:measure(node, Axis.X)
+		local measured_y = self:measure(node, Axis.Y)
+		self:arrange(node, measured_x or measured_y)
 	end
 
 	return layout_roots
@@ -123,24 +123,82 @@ end
 
 ---@param node ui.Node
 ---@param axis_idx ui.Axis
-function LayoutEngine:measure(node, axis_idx)
-	local strategy = self:getStrategy(node)
-	strategy:measure(node, axis_idx)
-end
-
----@param node ui.Node
-function LayoutEngine:arrange(node)
-	local strategy = self:getStrategy(node)
-	strategy:arrange(node)
-end
-
----Mark a node and all its children as valid (layout is up-to-date)
----@param node ui.Node
-function LayoutEngine:markValid(node)
-	node.layout_box:markValid()
-	for _, child in ipairs(node.children) do
-		self:markValid(child)
+---@param dependency_dirty boolean?
+---@return boolean measured
+function LayoutEngine:measure(node, axis_idx, dependency_dirty)
+	if not self:needsMeasure(node, axis_idx, dependency_dirty) then
+		return false
 	end
+
+	local strategy = self:getStrategy(node)
+	strategy:measure(node, axis_idx, dependency_dirty)
+	self:markValid(node, axis_idx)
+	return true
+end
+
+---@param node ui.Node
+---@param dependency_dirty boolean?
+function LayoutEngine:arrange(node, dependency_dirty)
+	if not self:needsArrange(node, dependency_dirty) then
+		return
+	end
+
+	local strategy = self:getStrategy(node)
+	strategy:arrange(node, dependency_dirty)
+	self:markValid(node, Axis.Both)
+end
+
+---@param node ui.Node
+---@param axis ui.Axis
+function LayoutEngine:isNodeDirty(node, axis)
+	return bit_band(node.layout_box.axis_invalidated, axis) ~= 0
+end
+
+---@param node ui.Node
+---@param axis ui.Axis
+function LayoutEngine:hasDirtyDescendant(node, axis)
+	for _, child in ipairs(node.children) do
+		if self:isNodeDirty(child, axis) or self:hasDirtyDescendant(child, axis) then
+			return true
+		end
+	end
+
+	return false
+end
+
+---@param node ui.Node
+---@param axis ui.Axis
+---@param dependency_dirty boolean?
+function LayoutEngine:needsMeasure(node, axis, dependency_dirty)
+	if dependency_dirty then
+		return true
+	end
+
+	if self:isNodeDirty(node, axis) then
+		return true
+	end
+
+	return self:hasDirtyDescendant(node, axis)
+end
+
+---@param node ui.Node
+---@param dependency_dirty boolean?
+function LayoutEngine:needsArrange(node, dependency_dirty)
+	if dependency_dirty then
+		return true
+	end
+
+	if self:isNodeDirty(node, Axis.Both) then
+		return true
+	end
+
+	return self:hasDirtyDescendant(node, Axis.Both)
+end
+
+---@param node ui.Node
+---@param axis ui.Axis
+function LayoutEngine:markValid(node, axis)
+	node.layout_box.axis_invalidated = bit_band(node.layout_box.axis_invalidated, bit.bnot(axis))
 end
 
 return LayoutEngine
