@@ -38,7 +38,7 @@ function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 		axis.size = math_clamp(s, min_s, max_s)
 
 		for _, child in ipairs(node.children) do
-			self.engine:measure(child, axis_idx, parent_dirty_axis)
+			self.engine:measureChild(child, axis_idx, parent_dirty_axis)
 		end
 		return
 	end
@@ -51,7 +51,7 @@ function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 		for _, child in ipairs(node.children) do
 			local child_axis = self:getAxis(child, axis_idx)
 			if child_axis.mode ~= SizeMode.Percent then
-				self.engine:measure(child, axis_idx, parent_dirty_axis)
+				self.engine:measureChild(child, axis_idx, parent_dirty_axis)
 				s = s + child_axis.size + child_axis:getTotalMargin()
 				child_count = child_count + 1
 			end
@@ -63,7 +63,7 @@ function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 		for _, child in ipairs(node.children) do
 			local child_axis = self:getAxis(child, axis_idx)
 			if child_axis.mode == SizeMode.Percent then
-				self.engine:measure(child, axis_idx, true)
+				self.engine:measureChild(child, axis_idx, true)
 				s = s + child_axis.size + child_axis:getTotalMargin()
 				child_count = child_count + 1
 			end
@@ -117,7 +117,7 @@ function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 			for _, child in ipairs(node.children) do
 				local child_cross = self:getAxis(child, cross_axis_idx)
 				if child_cross.mode ~= SizeMode.Percent then
-					self.engine:measure(child, cross_axis_idx, parent_dirty_axis)
+					self.engine:measureChild(child, cross_axis_idx, parent_dirty_axis)
 				end
 				total_cross = math_max(total_cross, child_cross.size + child_cross:getTotalMargin())
 			end
@@ -131,7 +131,7 @@ function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 				local child_cross = self:getAxis(child, cross_axis_idx)
 
 				if child_cross.mode ~= SizeMode.Percent then
-					self.engine:measure(child, cross_axis_idx, parent_dirty_axis)
+					self.engine:measureChild(child, cross_axis_idx, parent_dirty_axis)
 				end
 
 				local main_size = child_main.size + child_main:getTotalMargin()
@@ -159,7 +159,7 @@ function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 		for _, child in ipairs(node.children) do
 			local child_cross = self:getAxis(child, cross_axis_idx)
 			if child_cross.mode == SizeMode.Percent then
-				self.engine:measure(child, cross_axis_idx, true)
+				self.engine:measureChild(child, cross_axis_idx, true)
 			end
 		end
 	end

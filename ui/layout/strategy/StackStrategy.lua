@@ -35,7 +35,7 @@ function StackStrategy:measure(node, axis_idx, dependency_dirty)
 		axis.size = math_clamp(s, min_s, max_s)
 
 		for _, child in ipairs(node.children) do
-			self.engine:measure(child, axis_idx, parent_dirty_axis)
+			self.engine:measureChild(child, axis_idx, parent_dirty_axis)
 		end
 		return
 	end
@@ -88,7 +88,7 @@ function StackStrategy:measure(node, axis_idx, dependency_dirty)
 		for _, child in ipairs(node.children) do
 			local child_axis = self:getAxis(child, axis_idx)
 			if child_axis.mode ~= SizeMode.Percent then
-				self.engine:measure(child, axis_idx, parent_dirty_axis)
+				self.engine:measureChild(child, axis_idx, parent_dirty_axis)
 				s = math_max(s, child_axis.size + child_axis:getTotalMargin())
 			end
 		end
@@ -101,7 +101,7 @@ function StackStrategy:measure(node, axis_idx, dependency_dirty)
 		for _, child in ipairs(node.children) do
 			local child_axis = self:getAxis(child, axis_idx)
 			if child_axis.mode == SizeMode.Percent then
-				self.engine:measure(child, axis_idx, true)
+				self.engine:measureChild(child, axis_idx, true)
 				s = math_max(s, child_axis.size + child_axis:getTotalMargin())
 			end
 		end
