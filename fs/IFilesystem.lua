@@ -57,4 +57,20 @@ function IFilesystem:remove(name)
 	error("not implemented")
 end
 
+---@param newDir string
+---@param mountPoint string
+---@param appendToPath boolean?
+---@return boolean?
+---@return string?
+function IFilesystem:mount(newDir, mountPoint, appendToPath)
+	error("not implemented")
+end
+
+---@param oldDir string
+---@return boolean?
+---@return string?
+function IFilesystem:unmount(oldDir)
+	error("not implemented")
+end
+
 return IFilesystem

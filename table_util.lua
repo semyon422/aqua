@@ -298,6 +298,18 @@ function table_util.indexof(t, v, f)
 	end
 end
 
+---@generic T
+---@param t T[]
+---@param f fun(v: T): boolean
+---@return T?
+function table_util.find(t, f)
+	for i, v in ipairs(t) do
+		if f(v) then
+			return v
+		end
+	end
+end
+
 ---@generic K, V
 ---@param t {[K]: V}
 ---@param v V
