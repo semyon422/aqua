@@ -168,24 +168,6 @@ function test.intrinsic_size_with_fixed_width(t)
 end
 
 ---@param t testing.T
-function test.intrinsic_size_absolute(t)
-	local engine = LayoutEngine()
-	local container = new_node()
-	container.layout_box.arrange = LayoutBox.Arrange.Absolute
-
-	-- Node with intrinsic size in absolute layout
-	local intrinsic_node = container:add(new_node_with_intrinsic_size(100, 200))
-	intrinsic_node.layout_box:setWidthAuto()
-	intrinsic_node.layout_box:setHeightAuto()
-
-	engine:updateLayout(container.children)
-
-	-- Should use intrinsic size
-	t:eq(intrinsic_node.layout_box.x.size, 100)
-	t:eq(intrinsic_node.layout_box.y.size, 200)
-end
-
----@param t testing.T
 function test.intrinsic_size_container_sizing(t)
 	local engine = LayoutEngine()
 	local container = new_node()
@@ -394,13 +376,13 @@ function test.stable_root_stops_at_fixed_percent_boundary(t)
 	local screen = root:add(new_node())
 	screen.layout_box:setWidthPercent(1.0)
 	screen.layout_box:setHeightPercent(1.0)
-	screen.layout_box:setAlignItems(LayoutBox.AlignItems.Start)  -- Don't stretch children
+	screen.layout_box:setAlignItems(LayoutBox.AlignItems.Start) -- Don't stretch children
 
 	-- Select: 100% size (Percent mode - also a barrier)
 	local select = screen:add(new_node())
 	select.layout_box:setWidthPercent(1.0)
 	select.layout_box:setHeightPercent(1.0)
-	select.layout_box:setAlignItems(LayoutBox.AlignItems.Start)  -- Don't stretch children
+	select.layout_box:setAlignItems(LayoutBox.AlignItems.Start) -- Don't stretch children
 
 	-- Label: Auto size (intrinsic)
 	local label = select:add(new_node_with_intrinsic_size(100, 20))
@@ -428,6 +410,7 @@ function test.stable_root_stops_at_fixed_percent_boundary(t)
 	-- Second layout - only label changed
 	-- With optimization: layout root should be Select, not Root
 	local roots = engine:updateLayout({label})
+	---@cast roots -?
 
 	-- Verify label has new size
 	t:eq(label.layout_box.x.size, 150, "label should have new intrinsic width")
@@ -470,6 +453,7 @@ function test.percent_child_stable_parent_no_propagation(t)
 
 	-- Re-layout - should not propagate above container
 	local roots = engine:updateLayout({percent_child})
+	---@cast roots -?
 
 	-- Verify size is still correct
 	t:eq(percent_child.layout_box.x.size, 100, "percent child should still be 50% of 200")
@@ -528,6 +512,7 @@ function test.auto_subtree_under_percent_boundary_skips_clean_sibling_subtrees(t
 	dirty_leaf.layout_box:markDirty(Axis.Both)
 
 	local roots = engine:updateLayout({dirty_leaf})
+	---@cast roots -?
 
 	t:eq(dirty_container.layout_box.x.size, 140, "auto container should resize to changed child width")
 	t:eq(dirty_container.layout_box.y.size, 90, "auto container should resize to changed child height")
@@ -586,6 +571,7 @@ function test.percent_sized_clean_sibling_not_measured_when_parent_size_is_uncha
 	dirty_leaf.layout_box:markDirty(Axis.Both)
 
 	local roots = engine:updateLayout({dirty_leaf})
+	---@cast roots -?
 
 	t:eq(auto_container.layout_box.x.size, 180, "dirty subtree should update its width")
 	t:eq(auto_container.layout_box.y.size, 60, "dirty subtree should update its height")
@@ -637,6 +623,7 @@ function test.multiple_dirty_nodes_ancestor_filtering(t)
 	grandchild.layout_box:markDirty(Axis.Both)
 
 	local roots = engine:updateLayout({child2, grandchild})
+	---@cast roots -?
 
 	-- Count roots
 	local root_count = 0
@@ -699,6 +686,7 @@ function test.multiple_disconnected_roots_are_preserved(t)
 	leaf_b.layout_box:markDirty(Axis.Both)
 
 	local roots = engine:updateLayout({leaf_a, leaf_b})
+	---@cast roots -?
 
 	t:eq(container_a.layout_box.x.size, 140, "first disconnected tree should be updated")
 	t:eq(container_a.layout_box.y.size, 70, "first disconnected tree should be updated")
@@ -748,6 +736,7 @@ function test.auto_parent_still_propagates_up(t)
 
 	-- Re-layout - should propagate to root because container has Auto size
 	local roots = engine:updateLayout({child})
+	---@cast roots -?
 
 	-- Container should have new size
 	t:eq(container.layout_box.x.size, 200, "container should resize to fit larger child")

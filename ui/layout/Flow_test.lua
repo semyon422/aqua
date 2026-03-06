@@ -296,7 +296,7 @@ function test.flow_col_initial_measurement(t)
 
 	-- Children: 45x45. 3 children total height 135 < 600.
 	-- They should all fit in one column.
-	for i = 1, 3 do
+	for _ = 1, 3 do
 		local child = container:add(new_node())
 		child.layout_box:setDimensions(45, 45)
 	end

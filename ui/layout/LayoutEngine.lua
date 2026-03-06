@@ -12,7 +12,7 @@ local FlowStrategy = require("ui.layout.strategy.FlowStrategy")
 
 ---@class ui.LayoutEngine
 ---@operator call: ui.LayoutEngine
----@field _dirty_subtree_masks {[ui.Node]: ui.Axis}?
+---@field dirty_subtree_masks {[ui.Node]: ui.Axis}?
 local LayoutEngine = class()
 
 function LayoutEngine:new()
@@ -36,7 +36,7 @@ local function shouldPropagateThrough(node, axis_idx)
 		return true
 	end
 
-	-- Wrap cross-axis can change when main-axis content changes (line breaks).
+	-- Flow cross-axis can change when main-axis content changes (line breaks).
 	if lb.arrange == Arrange.FlowRow and axis_idx == Axis.X then
 		return isContentDependentMode(lb.y.mode)
 	elseif lb.arrange == Arrange.FlowCol and axis_idx == Axis.Y then
@@ -186,7 +186,7 @@ function LayoutEngine:updateLayout(dirty_nodes)
 	for root, _ in pairs(layout_roots) do
 		buildDirtySubtreeMask(root, forced_path_marks, dirty_subtree_masks, Axis.None)
 	end
-	self._dirty_subtree_masks = dirty_subtree_masks
+	self.dirty_subtree_masks = dirty_subtree_masks
 
 	for node, _ in pairs(layout_roots) do
 		local main_axis = Axis.X
@@ -200,7 +200,7 @@ function LayoutEngine:updateLayout(dirty_nodes)
 		local measured_cross = self:measure(node, cross_axis)
 		self:arrange(node, measured_main or measured_cross)
 	end
-	self._dirty_subtree_masks = nil
+	self.dirty_subtree_masks = nil
 
 	return layout_roots
 end
@@ -249,7 +249,7 @@ end
 ---@param node ui.Node
 ---@param axis ui.Axis
 function LayoutEngine:hasDirtyDescendant(node, axis)
-	local dirty_subtree_masks = self._dirty_subtree_masks
+	local dirty_subtree_masks = self.dirty_subtree_masks
 	if dirty_subtree_masks then
 		for _, child in ipairs(node.children) do
 			if bit_band(dirty_subtree_masks[child] or Axis.None, axis) ~= 0 then
@@ -272,7 +272,7 @@ end
 ---@param axis ui.Axis
 ---@return boolean
 function LayoutEngine:isSubtreeRelevant(node, axis)
-	local dirty_subtree_masks = self._dirty_subtree_masks
+	local dirty_subtree_masks = self.dirty_subtree_masks
 	if not dirty_subtree_masks then
 		return true
 	end

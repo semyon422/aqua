@@ -294,7 +294,7 @@ function test.stack_isolated_sibling_layout(t)
 	--                       └── Child B (changes from 50x50 to 100x100)
 
 	local engine = LayoutEngine()
-	local measure_counts = {}
+	local measure_counts = {} ---@type {[string]: number}
 
 	-- Wrap the engine's measure function to track calls
 	local original_measure = engine.measure
@@ -367,6 +367,7 @@ function test.stack_isolated_sibling_layout(t)
 
 	-- Second layout pass - only child_b and its ancestors should be remeasured
 	local roots = engine:updateLayout({child_b})
+	---@cast roots -?
 
 	-- Verify new layout
 	t:eq(container_b.layout_box.x.size, 100, "Container B width should be 100 after child resize")
