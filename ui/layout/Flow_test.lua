@@ -45,11 +45,11 @@ local function new_node_with_intrinsic_size(width, height)
 end
 
 ---@param t testing.T
-function test.wrap_row_basic(t)
+function test.flow_row_basic(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box:setDimensions(120, 100)
-	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	container.layout_box.arrange = LayoutBox.Arrange.FlowRow
 
 	local c1 = container:add(new_node())
 	c1.layout_box:setDimensions(50, 50)
@@ -73,11 +73,11 @@ function test.wrap_row_basic(t)
 end
 
 ---@param t testing.T
-function test.wrap_row_with_gaps(t)
+function test.flow_row_with_gaps(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box:setDimensions(110, 100)
-	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	container.layout_box.arrange = LayoutBox.Arrange.FlowRow
 	container.layout_box:setChildGap(10)
 	container.layout_box:setLineGap(5)
 
@@ -105,7 +105,7 @@ function test.wrap_row_with_gaps(t)
 end
 
 ---@param t testing.T
-function test.wrap_row_auto_size(t)
+function test.flow_row_auto_size(t)
 	local engine = LayoutEngine()
 
 	-- A wrapper to constrain the auto-size container
@@ -115,7 +115,7 @@ function test.wrap_row_auto_size(t)
 	local container = wrapper:add(new_node())
 	container.layout_box:setWidthAuto()
 	container.layout_box:setHeightAuto()
-	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	container.layout_box.arrange = LayoutBox.Arrange.FlowRow
 	container.layout_box:setChildGap(10)
 	container.layout_box:setLineGap(5)
 
@@ -136,7 +136,7 @@ function test.wrap_row_auto_size(t)
 end
 
 ---@param t testing.T
-function test.wrap_row_intrinsic_size(t)
+function test.flow_row_intrinsic_size(t)
 	local engine = LayoutEngine()
 
 	local wrapper = new_node()
@@ -146,7 +146,7 @@ function test.wrap_row_intrinsic_size(t)
 	local container = wrapper:add(new_node())
 	container.layout_box:setWidthAuto()
 	container.layout_box:setHeightAuto()
-	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	container.layout_box.arrange = LayoutBox.Arrange.FlowRow
 
 	local c1 = container:add(new_node_with_intrinsic_size(60, 40))
 	c1.layout_box:setWidthAuto()
@@ -164,11 +164,11 @@ function test.wrap_row_intrinsic_size(t)
 end
 
 ---@param t testing.T
-function test.wrap_col_basic(t)
+function test.flow_col_basic(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box:setDimensions(100, 120)
-	container.layout_box.arrange = LayoutBox.Arrange.WrapCol
+	container.layout_box.arrange = LayoutBox.Arrange.FlowCol
 
 	local c1 = container:add(new_node())
 	c1.layout_box:setDimensions(50, 50)
@@ -192,14 +192,14 @@ function test.wrap_col_basic(t)
 end
 
 ---@param t testing.T
-function test.wrap_row_max_size(t)
+function test.flow_row_max_size(t)
 	local engine = LayoutEngine()
 
 	local container = new_node()
 	container.layout_box:setWidthAuto()
 	container.layout_box:setHeightAuto()
 	container.layout_box.x.max_size = 100
-	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	container.layout_box.arrange = LayoutBox.Arrange.FlowRow
 
 	local c1 = container:add(new_node_with_intrinsic_size(60, 40))
 	c1.layout_box:setWidthAuto()
@@ -216,19 +216,19 @@ function test.wrap_row_max_size(t)
 end
 
 ---@param t testing.T
-function test.wrap_col_align_items_center(t)
+function test.flow_col_align_items_center(t)
 	local engine = LayoutEngine()
 
 	-- Root: fixed size 800x600
 	local root = new_node()
 	root.layout_box:setDimensions(800, 600)
-	root.layout_box.arrange = LayoutBox.Arrange.WrapCol
+	root.layout_box.arrange = LayoutBox.Arrange.FlowCol
 
-	-- Container: 100px wide, wrap_col, align_items center
+	-- Container: 100px wide, flow_col, align_items center
 	local container = root:add(new_node())
 	container.layout_box:setWidth(100)
 	container.layout_box:setHeight(400)
-	container.layout_box.arrange = LayoutBox.Arrange.WrapCol
+	container.layout_box.arrange = LayoutBox.Arrange.FlowCol
 	container.layout_box:setAlignItems(LayoutBox.AlignItems.Center)
 
 	-- Child: 40px wide, 40px high
@@ -240,23 +240,23 @@ function test.wrap_col_align_items_center(t)
 	-- Expected: child should be centered horizontally in the 100px container.
 	-- x_pos = (100 - 40) / 2 = 30
 	t:eq(child.layout_box.x.size, 40)
-	t:eq(child.layout_box.x.pos, 30, "Child should be centered horizontally in WrapCol")
+	t:eq(child.layout_box.x.pos, 30, "Child should be centered horizontally in FlowCol")
 end
 
 ---@param t testing.T
-function test.wrap_row_align_items_center(t)
+function test.flow_row_align_items_center(t)
 	local engine = LayoutEngine()
 
 	-- Root
 	local root = new_node()
 	root.layout_box:setDimensions(800, 600)
-	root.layout_box.arrange = LayoutBox.Arrange.WrapCol
+	root.layout_box.arrange = LayoutBox.Arrange.FlowCol
 
-	-- Container: 100px high, wrap_row, align_items center
+	-- Container: 100px high, flow_row, align_items center
 	local container = root:add(new_node())
 	container.layout_box:setWidth(400)
 	container.layout_box:setHeight(100)
-	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	container.layout_box.arrange = LayoutBox.Arrange.FlowRow
 	container.layout_box:setAlignItems(LayoutBox.AlignItems.Center)
 
 	-- Child: 40px wide, 40px high
@@ -268,29 +268,29 @@ function test.wrap_row_align_items_center(t)
 	-- Expected: child should be centered vertically in the 100px container.
 	-- y_pos = (100 - 40) / 2 = 30
 	t:eq(child.layout_box.y.size, 40)
-	t:eq(child.layout_box.y.pos, 30, "Child should be centered vertically in WrapRow")
+	t:eq(child.layout_box.y.pos, 30, "Child should be centered vertically in FlowRow")
 end
 
----Auto-sized WrapCol container should measure cross-axis correctly
+---Auto-sized FlowCol container should measure cross-axis correctly
 ---before main-axis size is known during initial layout
 ---@param t testing.T
-function test.wrap_col_initial_measurement(t)
+function test.flow_col_initial_measurement(t)
 	local engine = LayoutEngine()
 
 	-- Root: fixed size 800x600
 	local root = new_node()
 	root.layout_box:setDimensions(800, 600)
-	root.layout_box.arrange = LayoutBox.Arrange.WrapCol
+	root.layout_box.arrange = LayoutBox.Arrange.FlowCol
 
 	-- Parent: 64px wide, 100% height (600px)
 	local parent = root:add(new_node())
 	parent.layout_box:setWidth(64)
 	parent.layout_box:setHeightPercent(1.0)
-	parent.layout_box.arrange = LayoutBox.Arrange.WrapCol
+	parent.layout_box.arrange = LayoutBox.Arrange.FlowCol
 
-	-- Container: WrapCol, Auto size
+	-- Container: FlowCol, Auto size
 	local container = parent:add(new_node())
-	container.layout_box.arrange = LayoutBox.Arrange.WrapCol
+	container.layout_box.arrange = LayoutBox.Arrange.FlowCol
 	container.layout_box:setWidthAuto()
 	container.layout_box:setHeightAuto()
 
@@ -308,13 +308,13 @@ function test.wrap_col_initial_measurement(t)
 end
 
 ---@param t testing.T
-function test.wrap_row_justify_content_space_between(t)
+function test.flow_row_justify_content_space_between(t)
 	local engine = LayoutEngine()
 
-	-- Container: 50px wide, wrap_row, justify_content space_between
+	-- Container: 50px wide, flow_row, justify_content space_between
 	local container = new_node()
 	container.layout_box:setDimensions(50, 100)
-	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	container.layout_box.arrange = LayoutBox.Arrange.FlowRow
 	container.layout_box:setJustifyContent(LayoutBox.JustifyContent.SpaceBetween)
 	container.layout_box:setChildGap(5)
 
@@ -342,12 +342,12 @@ function test.wrap_row_justify_content_space_between(t)
 end
 
 ---@param t testing.T
-function test.wrap_auto_percent_children_without_anchor_throws(t)
+function test.flow_auto_percent_children_without_anchor_throws(t)
 	local engine = LayoutEngine()
 	local container = new_node()
 	container.layout_box:setWidthAuto()
 	container.layout_box:setHeight(100)
-	container.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	container.layout_box.arrange = LayoutBox.Arrange.FlowRow
 
 	local percent_child = container:add(new_node())
 	percent_child.layout_box:setWidthPercent(1.0)

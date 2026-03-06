@@ -10,19 +10,19 @@ local AlignItems = Enums.AlignItems
 local math_clamp = math_util.clamp
 local math_max = math.max
 
----@class ui.WrapStrategy: ui.LayoutStrategy
----@operator call: ui.WrapStrategy
-local WrapStrategy = LayoutStrategy + {}
+---@class ui.FlowStrategy: ui.LayoutStrategy
+---@operator call: ui.FlowStrategy
+local FlowStrategy = LayoutStrategy + {}
 
 local function isMainAxis(layout_box, axis_idx)
 	return (
-		(layout_box.arrange == Arrange.WrapRow and axis_idx == Axis.X) or
-		(layout_box.arrange == Arrange.WrapCol and axis_idx == Axis.Y)
+		(layout_box.arrange == Arrange.FlowRow and axis_idx == Axis.X) or
+		(layout_box.arrange == Arrange.FlowCol and axis_idx == Axis.Y)
 	)
 end
 
 ---@param dependency_dirty boolean?
-function WrapStrategy:measure(node, axis_idx, dependency_dirty)
+function FlowStrategy:measure(node, axis_idx, dependency_dirty)
 	local layout_box = node.layout_box
 	local axis = self:getAxis(node, axis_idx)
 	local min_s = axis.min_size
@@ -62,7 +62,7 @@ function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 
 		assert(
 			not (has_percent_child and s <= 0),
-			"Wrap Auto/Fit main axis with Percent children needs at least one non-Percent child with positive size"
+			"Flow Auto/Fit main axis with Percent children needs at least one non-Percent child with positive size"
 		)
 
 		local base_size = axis.padding_start + s + axis.padding_end
@@ -111,7 +111,7 @@ function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 		s = axis.padding_start + s + axis.padding_end
 		axis.size = math_clamp(s, min_s, max_s)
 	else
-		local main_axis_idx = (layout_box.arrange == Arrange.WrapRow) and Axis.X or Axis.Y
+		local main_axis_idx = (layout_box.arrange == Arrange.FlowRow) and Axis.X or Axis.Y
 		local cross_axis_idx = axis_idx
 		local main_axis = self:getAxis(node, main_axis_idx)
 
@@ -174,12 +174,12 @@ function WrapStrategy:measure(node, axis_idx, dependency_dirty)
 end
 
 ---@param dependency_dirty boolean?
-function WrapStrategy:arrange(node, dependency_dirty)
+function FlowStrategy:arrange(node, dependency_dirty)
 	local layout_box = node.layout_box
 	local parent_dirty = dependency_dirty or self.engine:isNodeDirty(node, Axis.Both)
 
-	local main_axis_idx = (layout_box.arrange == Arrange.WrapRow) and Axis.X or Axis.Y
-	local cross_axis_idx = (layout_box.arrange == Arrange.WrapRow) and Axis.Y or Axis.X
+	local main_axis_idx = (layout_box.arrange == Arrange.FlowRow) and Axis.X or Axis.Y
+	local cross_axis_idx = (layout_box.arrange == Arrange.FlowRow) and Axis.Y or Axis.X
 
 	local main_axis = self:getAxis(node, main_axis_idx)
 	local cross_axis = self:getAxis(node, cross_axis_idx)
@@ -310,4 +310,4 @@ function WrapStrategy:arrange(node, dependency_dirty)
 	end
 end
 
-return WrapStrategy
+return FlowStrategy

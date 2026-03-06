@@ -288,7 +288,7 @@ function test.stack_isolated_sibling_layout(t)
 	--   Root (800x600, Stack)
 	--     └── ScreenContainer (100% x 100%, Stack)
 	--           └── Screen (100% x 100%, Stack)
-	--                 ├── Container A (64px x 100%, WrapRow) - should NOT be remeasured
+	--                 ├── Container A (64px x 100%, FlowRow) - should NOT be remeasured
 	--                 │     └── Item A1, Item A2 (fixed size)
 	--                 └── Container B (Auto x Auto, Stack) - contains changing child
 	--                       └── Child B (changes from 50x50 to 100x100)
@@ -326,11 +326,11 @@ function test.stack_isolated_sibling_layout(t)
 	screen.layout_box:setAlignItems(LayoutBox.AlignItems.Start) -- Don't stretch children
 	screen.layout_box:setJustifyContent(LayoutBox.JustifyContent.Start)
 
-	-- 4) Container A: WrapRow with 64px width and 100% height
+	-- 4) Container A: FlowRow with 64px width and 100% height
 	local container_a = screen:add(new_node())
 	container_a.layout_box:setWidth(64)
 	container_a.layout_box:setHeightPercent(1.0)
-	container_a.layout_box.arrange = LayoutBox.Arrange.WrapRow
+	container_a.layout_box.arrange = LayoutBox.Arrange.FlowRow
 
 	-- Add some items inside Container A
 	local item_a1 = container_a:add(new_node())

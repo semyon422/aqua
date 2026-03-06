@@ -8,18 +8,16 @@ local bit_band = bit.band
 local bit_bor = bit.bor
 
 local StackStrategy = require("ui.layout.strategy.StackStrategy")
-local WrapStrategy = require("ui.layout.strategy.WrapStrategy")
+local FlowStrategy = require("ui.layout.strategy.FlowStrategy")
 
 ---@class ui.LayoutEngine
 ---@operator call: ui.LayoutEngine
----@field stack_strategy ui.StackStrategy
----@field wrap_strategy ui.WrapStrategy
 ---@field _dirty_subtree_masks {[ui.Node]: ui.Axis}?
 local LayoutEngine = class()
 
 function LayoutEngine:new()
 	self.stack_strategy = StackStrategy(self)
-	self.wrap_strategy = WrapStrategy(self)
+	self.flow_strategy = FlowStrategy(self)
 end
 
 ---@param mode ui.SizeMode
@@ -39,9 +37,9 @@ local function shouldPropagateThrough(node, axis_idx)
 	end
 
 	-- Wrap cross-axis can change when main-axis content changes (line breaks).
-	if lb.arrange == Arrange.WrapRow and axis_idx == Axis.X then
+	if lb.arrange == Arrange.FlowRow and axis_idx == Axis.X then
 		return isContentDependentMode(lb.y.mode)
-	elseif lb.arrange == Arrange.WrapCol and axis_idx == Axis.Y then
+	elseif lb.arrange == Arrange.FlowCol and axis_idx == Axis.Y then
 		return isContentDependentMode(lb.x.mode)
 	end
 
@@ -168,8 +166,8 @@ end
 ---@return ui.LayoutStrategy
 function LayoutEngine:getStrategy(node)
 	local arrange = node.layout_box.arrange
-	if arrange == Arrange.WrapRow or arrange == Arrange.WrapCol then
-		return self.wrap_strategy
+	if arrange == Arrange.FlowRow or arrange == Arrange.FlowCol then
+		return self.flow_strategy
 	end
 	return self.stack_strategy
 end

@@ -11,8 +11,8 @@ Enums.SizeMode = {
 ---@enum ui.Arrange
 Enums.Arrange = {
 	Stack = 1,
-	WrapRow = 2,
-	WrapCol = 3,
+	FlowRow = 2,
+	FlowCol = 3,
 }
 
 ---@enum ui.Axis
