@@ -12,12 +12,12 @@ local PrintDatabase = require("rdb.db.PrintDatabase")
 
 ---@class rdb.Options
 ---@field columns string[]?
+---@field joins string[]?
 ---@field order string[]?
 ---@field group string[]?
 ---@field having rdb.Conditions?
 ---@field limit integer?
 ---@field offset integer?
----@field format string?
 
 ---@class rdb.TableOrm
 ---@operator call: rdb.TableOrm
@@ -85,7 +85,6 @@ local default_options = {
 	having = nil,
 	limit = nil,
 	offset = nil,
-	format = nil,
 }
 
 ---@param table_name string
@@ -133,15 +132,12 @@ function TableOrm:buildSelect(table_name, conditions, options)
 		from = sql_util.escape_identifier(table_name)
 	end
 
-	local q = ("SELECT %s FROM %s %s"):format(
+	local q = ("SELECT %s FROM %s %s %s"):format(
 		table.concat(columns, ", "),
 		from,
+		opts.joins and table.concat(opts.joins, " ") or "",
 		table.concat(postfix, " ")
 	)
-
-	if opts.format then
-		q = opts.format:format(q)
-	end
 
 	return q, values
 end
@@ -294,8 +290,9 @@ end
 ---@return integer
 function TableOrm:count(table_name, conditions, options)
 	local opts = table_util.copy(options) or {}
-	opts.format = ("SELECT COUNT(*) as c FROM (%s)"):format(opts.format or "%s")
-	return self:select(table_name, conditions, opts)[1].c
+	local q, vals = self:buildSelect(table_name, conditions, opts)
+	local count_q = ("SELECT COUNT(*) as c FROM (%s)"):format(q)
+	return self:query(count_q, vals)[1].c
 end
 
 return TableOrm

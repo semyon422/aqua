@@ -139,6 +139,14 @@ function test.all(t)
 	t:eq(user.posts[1].text, "text")
 	t:eq(user.posts[1].user.name, "user")
 
+	-- test joins
+	local user_with_post = models.users:find({["users.id"] = 1}, {
+		columns = {"users.*", "posts.text AS post_text"},
+		joins = {"LEFT JOIN posts ON users.id = posts.user_id"},
+	})
+	assert(user_with_post)
+	t:eq(user_with_post.post_text, "text")
+
 	t:eq(models.posts:count(), 1)
 	models.users:delete({id = 1})
 	t:eq(models.posts:count(), 0)
