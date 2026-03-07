@@ -62,6 +62,13 @@ function sql_util.escape_identifier(s)
 		return s[1]
 	end
 	s = tostring(s)
+	if s:find("%.") then
+		local parts = {}
+		for part in s:gmatch("[^%.]+") do
+			table.insert(parts, '`' .. (part:gsub('`', '``')) .. '`')
+		end
+		return table.concat(parts, ".")
+	end
 	return '`' .. (s:gsub('`', '``')) .. '`'
 end
 
