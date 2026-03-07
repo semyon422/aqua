@@ -157,6 +157,12 @@ function sql_util.conditions(t)
 				op = "eq"
 			end
 			cd, vs = format_cond(op, field, v, ident == "_")
+		elseif type(k) == "table" then
+			cd = k[1]
+			vs = type(v) == "table" and v or {v}
+			if v == true then
+				vs = {}
+			end
 		elseif type(v) == "table" then
 			cd, vs = sql_util.conditions(v)
 		elseif t[1] ~= "or" then
