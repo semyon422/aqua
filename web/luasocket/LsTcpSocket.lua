@@ -111,4 +111,9 @@ function LsTcpSocket:send(data, i, j)
 	return self.soc:send(data, i, j)
 end
 
+---@return 1
+function LsTcpSocket:close()
+	return self.soc:close()
+end
+
 return LsTcpSocket
