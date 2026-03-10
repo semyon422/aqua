@@ -102,4 +102,23 @@ function test.checksums(t)
 	t:eq(zlib.crc32(zlib.crc32(nil, "hello "), "world"), 222957957)
 end
 
+---@param t testing.T
+function test.multiple_finish(t)
+	local ds = zlib.deflate_stream()
+	ds:write("test")
+	local c = ds:finish()
+	t:assert(#c > 0, "Finish should return data")
+	t:eq(ds:finish(), "", "Subsequent finishes should return empty string")
+	t:eq(ds:write("more"), "", "Writing to closed stream should return empty string")
+end
+
+---@param t testing.T
+function test.error_reporting(t)
+	local is = zlib.inflate_stream()
+	t:has_error(function()
+		is:write("invalid data")
+		is:finish()
+	end)
+end
+
 return test

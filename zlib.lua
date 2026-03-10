@@ -24,7 +24,7 @@ ffi.cdef [[
 		unsigned long total_out;
 
 		const char *msg;
-		struct internal_state *state;
+		void *state;
 
 		alloc_func zalloc;
 		free_func zfree;
@@ -77,18 +77,20 @@ local ret_codes = {
 	Z_VERSION_ERROR = -6,
 }
 
+local function get_error_name(ret)
+	for k, v in pairs(ret_codes) do
+		if v == ret then
+			return k
+		end
+	end
+	return "ZLIB_ERROR: " .. tostring(ret)
+end
+
 local function z_assert(ok, ret)
 	if ok then
 		return
 	end
-	local code = ""
-	for k, v in pairs(ret_codes) do
-		if v == ret then
-			code = k
-			break
-		end
-	end
-	error(code)
+	error(get_error_name(ret))
 end
 
 ---@class zlib.z_stream
@@ -229,9 +231,12 @@ function zlib.deflate_async(level, window_bits)
 	local ret = _zlib.deflateInit2_(stream_p, level, Z_DEFLATED, window_bits, DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
 	z_assert(ret == ret_codes.Z_OK, ret)
 
+	ffi.gc(stream_p, _zlib.deflateEnd)
+
 	-- Z_OK, Z_STREAM_END, Z_STREAM_ERROR, Z_BUF_ERROR
 	while ret ~= ret_codes.Z_STREAM_END do
 		if not update_stream(stream_p) then
+			ffi.gc(stream_p, nil)
 			_zlib.deflateEnd(stream_p)
 			return
 		end
@@ -246,6 +251,7 @@ function zlib.deflate_async(level, window_bits)
 		-- Z_BUF_ERROR is ok
 	end
 
+	ffi.gc(stream_p, nil)
 	_zlib.deflateEnd(stream_p)
 	coroutine.yield("write", stream_p[0].avail_out)
 end
@@ -259,9 +265,12 @@ function zlib.inflate_async(window_bits)
 	local ret = _zlib.inflateInit2_(stream_p, window_bits, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
 	z_assert(ret == ret_codes.Z_OK, ret)
 
+	ffi.gc(stream_p, _zlib.inflateEnd)
+
 	-- Z_OK, Z_STREAM_END, Z_NEED_DICT, Z_DATA_ERROR, Z_STREAM_ERROR, Z_MEM_ERROR, Z_BUF_ERROR
 	while ret ~= ret_codes.Z_STREAM_END do
 		if not update_stream(stream_p) then
+			ffi.gc(stream_p, nil)
 			_zlib.inflateEnd(stream_p)
 			return
 		end
@@ -276,12 +285,14 @@ function zlib.inflate_async(window_bits)
 			ret == ret_codes.Z_DATA_ERROR or
 			ret == ret_codes.Z_MEM_ERROR
 		then
+			ffi.gc(stream_p, nil)
 			_zlib.inflateEnd(stream_p)
 			coroutine.yield("error", ret)
 			return
 		end
 	end
 
+	ffi.gc(stream_p, nil)
 	_zlib.inflateEnd(stream_p)
 	coroutine.yield("write", stream_p[0].avail_out)
 end
@@ -335,7 +346,7 @@ function zlib.apply_filter(s, filter, chunk_size, ...)
 			buf, buf_size = dst_p, chunk_size
 			has_data = true
 		elseif action == "error" then
-			error(avail_out)
+			error(get_error_name(avail_out))
 		end
 		ok, action, avail_out = coroutine.resume(co, buf, buf_size)
 		if not ok then
@@ -386,6 +397,10 @@ end
 ---@param buf_size integer?
 ---@return string
 function Stream:_process(buf, buf_size)
+	if coroutine.status(self.co) == "dead" then
+		return ""
+	end
+
 	local out = {}
 
 	while coroutine.status(self.co) ~= "dead" do
@@ -411,7 +426,7 @@ function Stream:_process(buf, buf_size)
 			next_buf, next_buf_size = self.dst_p, self.chunk_size
 			self.has_data = true
 		elseif self.action == "error" then
-			error(self.avail_out)
+			error(get_error_name(self.avail_out))
 		end
 
 		local ok, action, avail_out = coroutine.resume(self.co, next_buf, next_buf_size)
