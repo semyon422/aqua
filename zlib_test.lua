@@ -47,15 +47,46 @@ function test.data_loss_proof(t)
 	-- Use random data to ensure no compression patterns hide the bug.
 	-- If the last chunk is lost, the CRC will definitely mismatch.
 	math.randomseed(42)
+
+	---@type string[]
 	local data = {}
 	for i = 1, 100 do data[i] = string.char(math.random(0, 255)) end
 	local test_string = table.concat(data)
-	
+
 	local compressed = zlib.deflate(test_string, nil, nil, 5)
 	local decompressed = zlib.inflate(compressed, nil, 5)
-	
+
 	t:eq(#decompressed, #test_string, "Length mismatch - potential trailing data loss")
 	t:eq(zlib.crc32(nil, decompressed), zlib.crc32(nil, test_string), "CRC mismatch - data was corrupted or truncated")
+end
+
+---@param t testing.T
+function test.gzip_uncompress(t)
+	local test_string = "hello gzip world"
+	local gz = zlib.deflate(test_string, nil, nil, zlib.GZIP_WBITS)
+
+	-- This should ideally work by auto-detecting gzip vs zlib
+	t:eq(zlib.uncompress(gz), test_string, "uncompress should auto-detect gzip format")
+end
+
+---@param t testing.T
+function test.stream_interface(t)
+	local test_string = "streaming interface test"
+
+	-- Deflate stream
+	local ds = zlib.deflate_stream()
+	local compressed = ds:write("streaming ")
+	compressed = compressed .. ds:write("interface ")
+	compressed = compressed .. ds:write("test")
+	compressed = compressed .. ds:finish()
+
+	-- Inflate stream
+	local is = zlib.inflate_stream()
+	local decompressed = is:write(compressed:sub(1, 10))
+	decompressed = decompressed .. is:write(compressed:sub(11))
+	decompressed = decompressed .. is:finish()
+
+	t:eq(decompressed, test_string, "Stream interface failed")
 end
 
 ---@param t testing.T

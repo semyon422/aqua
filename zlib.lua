@@ -184,7 +184,7 @@ end
 ---@return string
 function zlib.uncompress(s, size)
 	if not size then
-		return zlib.inflate(s)
+		return zlib.inflate(s, zlib.AUTO_WBITS)
 	end
 	local out = ffi.new("char[?]", size)
 	size = zlib.uncompress_ex(out, size, s, #s)
@@ -348,6 +348,94 @@ function zlib.apply_filter(s, filter, chunk_size, ...)
 	return table.concat(out)
 end
 
+---@class zlib.Stream
+local Stream = {}
+Stream.__index = Stream
+
+---@param filter function
+---@param chunk_size integer?
+---@param ... any
+---@return zlib.Stream
+function Stream.new(filter, chunk_size, ...)
+	local obj = setmetatable({}, Stream)
+	obj:_init(filter, chunk_size, ...)
+	return obj
+end
+
+---@private
+---@param filter function
+---@param chunk_size integer?
+---@param ... any
+function Stream:_init(filter, chunk_size, ...)
+	self.chunk_size = chunk_size or 8192
+	self.dst_p = ffi.new("unsigned char[?]", self.chunk_size)
+	self.has_data = false
+	self.co = coroutine.create(filter)
+
+	local ok, action, avail_out = coroutine.resume(self.co, ...)
+	if not ok then
+		error(action)
+	end
+
+	self.action = action
+	self.avail_out = avail_out
+end
+
+---@private
+---@param buf ffi.cdata*?
+---@param buf_size integer?
+---@return string
+function Stream:_process(buf, buf_size)
+	local out = {}
+
+	while coroutine.status(self.co) ~= "dead" do
+		---@type ffi.cdata*, integer
+		local next_buf, next_buf_size
+		if self.action == "read" then
+			if buf_size == nil then
+				-- Finish signal
+				next_buf, next_buf_size = ffi.cast("const unsigned char *", ""), 0
+			elseif buf_size == 0 then
+				-- Need more input
+				break
+			else
+				---@cast buf -?
+				---@type ffi.cdata*, integer
+				next_buf, next_buf_size = buf, buf_size
+				buf, buf_size = nil, 0
+			end
+		elseif self.action == "write" then
+			if self.has_data then
+				table.insert(out, ffi.string(self.dst_p, self.chunk_size - (self.avail_out or 0)))
+			end
+			next_buf, next_buf_size = self.dst_p, self.chunk_size
+			self.has_data = true
+		elseif self.action == "error" then
+			error(self.avail_out)
+		end
+
+		local ok, action, avail_out = coroutine.resume(self.co, next_buf, next_buf_size)
+		if not ok then
+			error(action)
+		end
+		self.action = action
+		self.avail_out = avail_out
+	end
+
+	return table.concat(out)
+end
+
+---@param chunk string
+---@return string
+function Stream:write(chunk)
+	return self:_process(ffi.cast("const unsigned char *", chunk), #chunk)
+end
+
+---@return string
+function Stream:finish()
+	return self:_process(nil, nil)
+end
+
 ---@param s string
 ---@param level zlib.level?
 ---@param window_bits integer?
@@ -393,6 +481,21 @@ end
 ---@return string
 function zlib.gunzip(s, chunk_size)
 	return zlib.inflate(s, zlib.AUTO_WBITS, chunk_size)
+end
+
+---@param level zlib.level?
+---@param window_bits integer?
+---@param chunk_size integer?
+---@return zlib.Stream
+function zlib.deflate_stream(level, window_bits, chunk_size)
+	return Stream.new(zlib.deflate_async, chunk_size, level, window_bits)
+end
+
+---@param window_bits integer?
+---@param chunk_size integer?
+---@return zlib.Stream
+function zlib.inflate_stream(window_bits, chunk_size)
+	return Stream.new(zlib.inflate_async, chunk_size, window_bits)
 end
 
 return zlib
