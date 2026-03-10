@@ -37,15 +37,23 @@ ffi.cdef [[
 
 	typedef z_stream *z_streamp;
 
-	int deflateInit_(z_streamp strm, int level, const char *version, int stream_size);
-	int inflateInit_(z_streamp strm, const char *version, int stream_size);
+	int deflateInit2_(z_streamp strm, int level, int method, int windowBits, int memLevel, int strategy, const char *version, int stream_size);
+	int inflateInit2_(z_streamp strm, int windowBits, const char *version, int stream_size);
 
 	int deflate(z_streamp strm, int flush);
 	int deflateEnd(z_streamp strm);
 
 	int inflate(z_streamp strm, int flush);
 	int inflateEnd(z_streamp strm);
+
+	unsigned long crc32(unsigned long crc, const unsigned char *buf, unsigned int len);
+	unsigned long adler32(unsigned long adler, const unsigned char *buf, unsigned int len);
 ]]
+
+local Z_DEFLATED = 8
+local MAX_WBITS = 15
+local DEF_MEM_LEVEL = 8
+local Z_DEFAULT_STRATEGY = 0
 
 local flush_values = {
 	Z_NO_FLUSH = 0,
@@ -94,9 +102,30 @@ local z_stream = {}
 
 local zlib = {}
 
+zlib.MAX_WBITS = MAX_WBITS
+zlib.GZIP_WBITS = MAX_WBITS + 16
+zlib.RAW_WBITS = -MAX_WBITS
+zlib.AUTO_WBITS = MAX_WBITS + 32
+
 ---@return string
 function zlib.version()
 	return ffi.string(_zlib.zlibVersion())
+end
+
+---@param crc integer?
+---@param s string|ffi.cdata*
+---@param size integer?
+---@return integer
+function zlib.crc32(crc, s, size)
+	return tonumber(_zlib.crc32(crc or 0, s, size or #s)) ---@diagnostic disable-line: return-type-mismatch
+end
+
+---@param adler integer?
+---@param s string|ffi.cdata*
+---@param size integer?
+---@return integer
+function zlib.adler32(adler, s, size)
+	return tonumber(_zlib.adler32(adler or 1, s, size or #s)) ---@diagnostic disable-line: return-type-mismatch
 end
 
 ---@param size integer
@@ -151,9 +180,12 @@ function zlib.compress(s, level)
 end
 
 ---@param s string
----@param size integer
+---@param size integer?
 ---@return string
 function zlib.uncompress(s, size)
+	if not size then
+		return zlib.inflate(s)
+	end
 	local out = ffi.new("char[?]", size)
 	size = zlib.uncompress_ex(out, size, s, #s)
 	return ffi.string(out, size)
@@ -185,14 +217,16 @@ local function update_stream(stream_p)
 end
 
 ---@param level zlib.level?
-function zlib.deflate_async(level)
+---@param window_bits integer?
+function zlib.deflate_async(level, window_bits)
 	level = level or -1
+	window_bits = window_bits or MAX_WBITS
 
 	local finish = false
 	local stream_p = ffi.new("z_stream[1]")
 
 	---@type integer
-	local ret = _zlib.deflateInit_(stream_p, level, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
+	local ret = _zlib.deflateInit2_(stream_p, level, Z_DEFLATED, window_bits, DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
 	z_assert(ret == ret_codes.Z_OK, ret)
 
 	-- Z_OK, Z_STREAM_END, Z_STREAM_ERROR, Z_BUF_ERROR
@@ -216,11 +250,13 @@ function zlib.deflate_async(level)
 	coroutine.yield("write", stream_p[0].avail_out)
 end
 
-function zlib.inflate_async()
+---@param window_bits integer?
+function zlib.inflate_async(window_bits)
+	window_bits = window_bits or MAX_WBITS
 	local stream_p = ffi.new("z_stream[1]")
 
 	---@type integer
-	local ret = _zlib.inflateInit_(stream_p, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
+	local ret = _zlib.inflateInit2_(stream_p, window_bits, _zlib.zlibVersion(), ffi.sizeof("z_stream"))
 	z_assert(ret == ret_codes.Z_OK, ret)
 
 	-- Z_OK, Z_STREAM_END, Z_NEED_DICT, Z_DATA_ERROR, Z_STREAM_ERROR, Z_MEM_ERROR, Z_BUF_ERROR
@@ -270,8 +306,12 @@ function zlib.apply_filter(s, filter, chunk_size, ...)
 
 	local co = coroutine.create(filter)
 
-	---@type boolean, "read"|"write"|"error"?, integer?
-	local _, action, avail_out = assert(coroutine.resume(co, ...))
+	local ok, action, avail_out = coroutine.resume(co, ...)
+	if not ok then
+		error(action)
+	end
+	---@cast action "read"|"write"|"error"
+	---@cast avail_out integer?
 
 	---@type ffi.cdata*, integer
 	local buf, buf_size
@@ -289,35 +329,62 @@ function zlib.apply_filter(s, filter, chunk_size, ...)
 		elseif action == "error" then
 			error(avail_out)
 		end
-		_, action, avail_out = assert(coroutine.resume(co, buf, buf_size))
+		ok, action, avail_out = coroutine.resume(co, buf, buf_size)
+		if not ok then
+			error(action)
+		end
+		---@cast action "read"|"write"|"error"
+		---@cast avail_out integer?
 	end
 
 	return table.concat(out)
 end
 
 ---@param s string
----@param chunk_size integer?
 ---@param level zlib.level?
+---@param window_bits integer?
+---@param chunk_size integer?
 ---@return string
-function zlib.deflate(s, chunk_size, level)
-	return zlib.apply_filter(s, zlib.deflate_async, chunk_size, level)
+function zlib.deflate(s, level, window_bits, chunk_size)
+	return zlib.apply_filter(s, zlib.deflate_async, chunk_size, level, window_bits)
+end
+
+---@param s string
+---@param window_bits integer?
+---@param chunk_size integer?
+---@return string
+function zlib.inflate(s, window_bits, chunk_size)
+	return zlib.apply_filter(s, zlib.inflate_async, chunk_size, window_bits)
+end
+
+---@param s string
+---@param level zlib.level?
+---@param chunk_size integer?
+---@return string
+function zlib.deflate_raw(s, level, chunk_size)
+	return zlib.deflate(s, level, zlib.RAW_WBITS, chunk_size)
 end
 
 ---@param s string
 ---@param chunk_size integer?
 ---@return string
-function zlib.inflate(s, chunk_size)
-	return zlib.apply_filter(s, zlib.inflate_async, chunk_size)
+function zlib.inflate_raw(s, chunk_size)
+	return zlib.inflate(s, zlib.RAW_WBITS, chunk_size)
 end
 
--- Tests disabled because of OpenResty
+---@param s string
+---@param level zlib.level?
+---@param chunk_size integer?
+---@return string
+function zlib.gzip(s, level, chunk_size)
+	return zlib.deflate(s, level, zlib.GZIP_WBITS, chunk_size)
+end
 
--- local test_string = ("test"):rep(100)
-
--- assert(zlib.uncompress(zlib.compress(test_string), #test_string) == test_string)
--- assert(zlib.inflate(zlib.deflate(test_string, 10), 10) == test_string)
--- assert(zlib.inflate(zlib.deflate(test_string, 10, 0), 10) == test_string)
--- assert(zlib.inflate(zlib.deflate(test_string, 10, 9), 10) == test_string)
--- assert(zlib.inflate(zlib.deflate(test_string)) == test_string)
+---@param s string
+---@param chunk_size integer?
+---@return string
+function zlib.gunzip(s, chunk_size)
+	return zlib.inflate(s, zlib.AUTO_WBITS, chunk_size)
+end
 
 return zlib
