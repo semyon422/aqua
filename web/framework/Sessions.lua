@@ -1,6 +1,7 @@
 local class = require("class")
 local json = require("web.json")
 local mime = require("mime")
+local random = require("web.random")
 local RequestCookie = require("web.http.RequestCookie")
 local SetCookieString = require("web.http.SetCookieString")
 
@@ -27,9 +28,27 @@ function Sessions:hmac(s)
 	return hmac:final(s)
 end
 
+---@return string
+function Sessions:generate_csrf_token()
+	return random.hex(32)
+end
+
+---@param session table
+---@param token string?
+---@return boolean
+function Sessions:validate_csrf_token(session, token)
+	if not session or not session.csrf_token or not token then
+		return false
+	end
+	return session.csrf_token == token
+end
+
 ---@param session table
 ---@return string
 function Sessions:encode(session)
+	if not session.csrf_token then
+		session.csrf_token = self:generate_csrf_token()
+	end
 	local message = mime.b64(json.encode(session))
 	local signature = mime.b64(self:hmac(message))
 	return message .. "." .. signature
