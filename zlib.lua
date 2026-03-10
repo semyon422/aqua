@@ -321,6 +321,14 @@ function zlib.apply_filter(s, filter, chunk_size, ...)
 			---@type ffi.cdata*, integer
 			src_p, src_size = src_p + src_size, 0
 		elseif action == "write" then
+			-- Logic for collecting data from the coroutine:
+			-- 1. The FIRST "write" yield is just the coroutine asking for a buffer.
+			--    'has_data' is false, so we don't collect anything, just set buf/size.
+			-- 2. Subsequent "write" yields mean: "I've filled the buffer you gave me 
+			--    last time, and here is how much space is left (avail_out)."
+			--    We collect the filled portion from 'dst_p'.
+			-- 3. To collect the VERY LAST chunk, the coroutine MUST yield "write" 
+			--    one last time before dying (handled in deflate_async/inflate_async).
 			if has_data then
 				table.insert(out, ffi.string(dst_p, chunk_size - (avail_out or 0)))
 			end

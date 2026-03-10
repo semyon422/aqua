@@ -32,6 +32,33 @@ function test.zlib(t)
 end
 
 ---@param t testing.T
+function test.streaming_edge_case(t)
+	-- This test uses 1-byte chunks to force frequent yielding.
+	-- If there is a bug in apply_filter (missing the last chunk), this will fail.
+	local test_string = ("abcdefghijklmnopqrstuvwxyz"):rep(10)
+	local compressed = zlib.deflate(test_string, nil, nil, 1)
+	local decompressed = zlib.inflate(compressed, nil, 1)
+	t:eq(#decompressed, #test_string, "Decompressed length mismatch")
+	t:eq(decompressed, test_string, "Decompression content mismatch")
+end
+
+---@param t testing.T
+function test.data_loss_proof(t)
+	-- Use random data to ensure no compression patterns hide the bug.
+	-- If the last chunk is lost, the CRC will definitely mismatch.
+	math.randomseed(42)
+	local data = {}
+	for i = 1, 100 do data[i] = string.char(math.random(0, 255)) end
+	local test_string = table.concat(data)
+	
+	local compressed = zlib.deflate(test_string, nil, nil, 5)
+	local decompressed = zlib.inflate(compressed, nil, 5)
+	
+	t:eq(#decompressed, #test_string, "Length mismatch - potential trailing data loss")
+	t:eq(zlib.crc32(nil, decompressed), zlib.crc32(nil, test_string), "CRC mismatch - data was corrupted or truncated")
+end
+
+---@param t testing.T
 function test.checksums(t)
 	local test_string = "hello world"
 
