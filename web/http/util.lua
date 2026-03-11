@@ -115,17 +115,17 @@ end
 ---@return {[string]: string}?
 ---@return string?
 function util.get_form(req)
-	local content_type = req.headers:get("Content-Type")
-	if not content_type then
+	local content_type_str = req.headers:get("Content-Type")
+	if not content_type_str then
 		return nil, "missing content type"
 	end
 
-	local mime_type, err = MimeType(content_type)
-	if not mime_type then
+	local content_type, err = MimeType(content_type_str)
+	if not content_type then
 		return nil, err
 	end
 
-	if not mime_type:match("application/x-www-form-urlencoded") then
+	if not content_type:match("application/x-www-form-urlencoded") then
 		return nil, "unsupported content type"
 	end
 
@@ -141,9 +141,14 @@ end
 ---@return web.Multipart?
 ---@return string?
 function util.get_multipart(req)
-	local content_type = MimeType(req.headers:get("Content-Type"))
-	if not content_type then
+	local content_type_str = req.headers:get("Content-Type")
+	if not content_type_str then
 		return nil, "missing content type"
+	end
+
+	local content_type, err = MimeType(content_type_str)
+	if not content_type then
+		return nil, err
 	end
 
 	if not content_type:match("multipart/form-data") then
@@ -162,17 +167,17 @@ end
 ---@return table?
 ---@return string?
 function util.get_json(req)
-	local content_type = req.headers:get("Content-Type")
-	if not content_type then
+	local content_type_str = req.headers:get("Content-Type")
+	if not content_type_str then
 		return nil, "missing content type"
 	end
 
-	local mime_type, err = MimeType(content_type)
-	if not mime_type then
+	local content_type, err = MimeType(content_type_str)
+	if not content_type then
 		return nil, err
 	end
 
-	if not mime_type:match("application/json") then
+	if not content_type:match("application/json") then
 		return nil, "unsupported content type"
 	end
 
@@ -197,9 +202,70 @@ end
 ---@param filename string
 function util.set_download_file_headers(headers, filename)
 	headers:set("Cache-Control", "no-cache")
-	headers:set("Content-Disposition", ("attachment; filename=%q"):format(path_util.fix_illegal(filename)))
+	headers:set("Content-Disposition", util.encode_content_disposition({
+		"attachment",
+		filename = path_util.fix_illegal(filename),
+	}))
 	headers:set("Content-Transfer-Encoding", "binary") -- https://www.w3.org/Protocols/rfc1341/5_Content-Transfer-Encoding.html
 	headers:set("Content-Type", "application/octet-stream")
+end
+
+---@param cd {[1]: string, [string]: any}
+---@return string
+function util.encode_content_disposition(cd)
+	local parts = {cd[1]}
+	for k, v in dpairs(cd) do
+		if type(k) == "string" then
+			local val = tostring(v)
+			if k == "filename" and val:find("[^%z\1-\127]") then
+				-- RFC 8187 encoding for non-ASCII filenames
+				table.insert(parts, ("filename*=UTF-8''%s"):format(socket_url.escape(val)))
+			else
+				table.insert(parts, ("%s=%q"):format(k, val))
+			end
+		end
+	end
+	return table.concat(parts, "; ")
+end
+
+---@param s string
+---@return {[1]: string, [string]: string}
+function util.parse_content_disposition(s)
+	---@type {[1]: string, [string]: string}
+	local cd = {""}
+
+	s = s:match("^%s*(.-)%s*$")
+
+	---@type string?, string?
+	local dtype, params = s:match("^(.-)(;.+)$")
+
+	if not dtype then
+		cd[1] = s:lower()
+		return cd
+	end
+
+	---@cast params -?
+
+	cd[1] = dtype:lower()
+
+	for k, v in params:gmatch(";%s*([^;]-)=([^;]+)%s*") do ---@diagnostic disable-line: no-unknown
+		---@cast k string
+		---@cast v string
+		k = k:lower()
+		if k:find("%*$") then
+			-- RFC 8187: parameter* (encoding specified in value)
+			local real_k = k:sub(1, -2)
+			local charset, lang, encoded_val = v:match("^\"?([%w%-]+)'([%w%-]*)'(.*)\"?$")
+			if charset and encoded_val then
+				cd[real_k] = socket_url.unescape(encoded_val)
+			end
+		else
+			v = v:match("^\"(.+)\"$") or v
+			cd[k] = socket_url.unescape(v)
+		end
+	end
+
+	return cd
 end
 
 return util
