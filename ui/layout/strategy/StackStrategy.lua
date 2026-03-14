@@ -127,7 +127,9 @@ function StackStrategy:arrange(node, dependency_dirty)
 	local layout_box = node.layout_box
 	local node_x = layout_box.x
 	local node_y = layout_box.y
-	local parent_dirty = dependency_dirty or self.engine:isNodeDirty(node, Axis.Both)
+	local parent_dirty = dependency_dirty
+		or self.engine:isNodeDirty(node, Axis.Both)
+		or self.engine:hasDirtyDescendant(node, Axis.Both)
 
 	for _, child in ipairs(node.children) do
 		local child_needs_arrange = self.engine:needsArrange(child, parent_dirty)
