@@ -44,6 +44,30 @@ local function new_node_with_intrinsic_size(width, height)
 	}
 end
 
+---@param size {width: number, height: number}
+---@return ui.Node
+local function new_mutable_intrinsic_node(size)
+	return {
+		children = {},
+		layout_box = LayoutBox(),
+		add = function(self, node)
+			table.insert(self.children, node)
+			node.parent = self
+			return node
+		end,
+		---@param axis_idx ui.Axis
+		---@param constraint number?
+		---@return number
+		getIntrinsicSize = function(self, axis_idx, constraint)
+			if axis_idx == Axis.X then
+				return size.width
+			else
+				return size.height
+			end
+		end
+	}
+end
+
 ---@param roots {[ui.Node]: boolean}?
 ---@return integer
 local function count_roots(roots)
@@ -461,6 +485,57 @@ function test.percent_child_stable_parent_no_propagation(t)
 	t:eq(count_roots(roots), 1, "only one layout root should be selected")
 	t:assert(roots[container], "fixed parent should be the layout root")
 	t:assert(not roots[root], "root should not be selected when fixed parent is stable")
+end
+
+---@param t testing.T
+function test.auto_stack_child_resize_reflows_flow_siblings(t)
+	local engine = LayoutEngine()
+
+	local root = new_node()
+	root.layout_box:setDimensions(1000, 400)
+	root.layout_box.arrange = LayoutBox.Arrange.FlowRow
+	root.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+
+	local row = root:add(new_node())
+	row.layout_box.arrange = LayoutBox.Arrange.FlowRow
+	row.layout_box:setWidthAuto()
+	row.layout_box:setHeightAuto()
+	row.layout_box:setAlignItems(LayoutBox.AlignItems.Start)
+	row.layout_box:setChildGap(10)
+
+	local mutable_size = {width = 60, height = 20}
+
+	local tag = row:add(new_node())
+	tag.layout_box:setWidthAuto()
+	tag.layout_box:setHeightAuto()
+	tag.layout_box:setAlignItems(LayoutBox.AlignItems.Stretch)
+	tag.layout_box:setPaddings({5, 20, 5, 20})
+
+	local label = tag:add(new_mutable_intrinsic_node(mutable_size))
+	label.layout_box:setWidthAuto()
+	label.layout_box:setHeightAuto()
+
+	local sibling = row:add(new_node_with_intrinsic_size(40, 20))
+	sibling.layout_box:setWidthAuto()
+	sibling.layout_box:setHeightAuto()
+
+	engine:updateLayout({root})
+
+	local initial_tag_width = tag.layout_box.x.size
+	local initial_row_width = row.layout_box.x.size
+	local initial_sibling_x = sibling.layout_box.x.pos
+
+	mutable_size.width = 180
+	label.layout_box:markDirty(Axis.Both)
+
+	engine:updateLayout({label})
+
+	t:eq(tag.layout_box.x.size, 220, "stack wrapper should grow with its label")
+	t:eq(row.layout_box.x.size, 270, "flow row should include updated child width and gap")
+	t:eq(sibling.layout_box.x.pos, 230, "sibling should be repositioned after the tag grows")
+	t:assert(tag.layout_box.x.size > initial_tag_width, "tag width should increase")
+	t:assert(row.layout_box.x.size > initial_row_width, "row width should increase")
+	t:assert(sibling.layout_box.x.pos > initial_sibling_x, "sibling position should increase")
 end
 
 ---@param t testing.T

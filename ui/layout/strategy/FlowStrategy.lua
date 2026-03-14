@@ -176,7 +176,9 @@ end
 ---@param dependency_dirty boolean?
 function FlowStrategy:arrange(node, dependency_dirty)
 	local layout_box = node.layout_box
-	local parent_dirty = dependency_dirty or self.engine:isNodeDirty(node, Axis.Both)
+	local parent_dirty = dependency_dirty
+		or self.engine:isNodeDirty(node, Axis.Both)
+		or self.engine:hasDirtyDescendant(node, Axis.Both)
 
 	local main_axis_idx = (layout_box.arrange == Arrange.FlowRow) and Axis.X or Axis.Y
 	local cross_axis_idx = (layout_box.arrange == Arrange.FlowRow) and Axis.Y or Axis.X

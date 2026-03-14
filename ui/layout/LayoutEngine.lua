@@ -284,12 +284,12 @@ end
 ---@param dependency_dirty boolean?
 ---@return boolean
 function LayoutEngine:needsLayoutPass(node, axis, dependency_dirty)
-	if not self:isSubtreeRelevant(node, axis) then
-		return false
-	end
-
 	if dependency_dirty then
 		return true
+	end
+
+	if not self:isSubtreeRelevant(node, axis) then
+		return false
 	end
 
 	if self:isNodeDirty(node, axis) then
