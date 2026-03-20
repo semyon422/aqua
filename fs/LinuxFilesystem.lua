@@ -104,11 +104,12 @@ function LinuxFilesystem:getInfo(path, info)
 		type = "symlink"
 	end
 
-	return {
-		type = type,
-		size = tonumber(buf.st_size),
-		modtime = tonumber(buf.st_mtime)
-	}
+	info = info or {}
+	info.type = type
+	info.size = tonumber(buf.st_size)
+	info.modtime = tonumber(buf.st_mtime)
+
+	return info
 end
 
 ---@param path string

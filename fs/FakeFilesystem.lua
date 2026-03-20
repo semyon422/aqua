@@ -100,15 +100,12 @@ function FakeFilesystem:getInfo(path, info)
 	local node = self:findNode(path)
 	if not node then return nil end
 
-	if info then
-		return table_util.copy(node.info, info)
-	end
+	info = info or {}
+	info.type = node.info.type
+	info.size = node.info.size
+	info.modtime = node.info.modtime
 
-	return {
-		type = node.info.type,
-		size = node.info.size,
-		modtime = node.info.modtime,
-	}
+	return info
 end
 
 ---@param dir string
