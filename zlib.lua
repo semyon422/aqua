@@ -1,6 +1,6 @@
 local ffi = require("ffi")
 
-local _zlib = ffi.load("z")
+local _zlib = ffi.os == "Linux" and ffi.load("libz.so.1") or ffi.load("z")
 -- http://zlib.net/zpipe.c
 -- /usr/include/zlib.h
 

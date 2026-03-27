@@ -12,11 +12,16 @@ if jit.os == "Windows" then
 	ffmpeg.avformat = ffi.load("avformat-59.dll")
 	ffmpeg.avutil = ffi.load("avutil-57.dll")
 	ffmpeg.swscale = ffi.load("swscale-6.dll")
+elseif jit.os == "OSX" then
+	ffmpeg.avcodec = ffi.load("libavcodec.dylib")
+	ffmpeg.avformat = ffi.load("libavformat.dylib")
+	ffmpeg.avutil = ffi.load("libavutil.dylib")
+	ffmpeg.swscale = ffi.load("libswscale.dylib")
 else
-	ffmpeg.avcodec = ffi.load("avcodec")
-	ffmpeg.avformat = ffi.load("avformat")
-	ffmpeg.avutil = ffi.load("avutil")
-	ffmpeg.swscale = ffi.load("swscale")
+	ffmpeg.avcodec = ffi.load("libavcodec.so.62")
+	ffmpeg.avformat = ffi.load("libavformat.so.62")
+	ffmpeg.avutil = ffi.load("libavutil.so.60")
+	ffmpeg.swscale = ffi.load("libswscale.so.9")
 end
 
 return ffmpeg
