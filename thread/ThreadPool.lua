@@ -3,7 +3,21 @@ local synctable = require("synctable")
 
 local ThreadPool = {}
 
-ThreadPool.poolSize = love.system.getProcessorCount()
+local function getLoveTimerNow()
+	if love and love.timer and love.timer.getTime then
+		return love.timer.getTime
+	end
+	return os.clock
+end
+
+local function getProcessorCount()
+	if love and love.system and love.system.getProcessorCount then
+		return love.system.getProcessorCount()
+	end
+	return 1
+end
+
+ThreadPool.poolSize = getProcessorCount()
 ThreadPool.keepAliveTime = 10
 
 ThreadPool.threads = {}
@@ -69,12 +83,13 @@ function ThreadPool:stopThreads()
 end
 
 function ThreadPool:update()
-	local currentTime = love.timer.getTime()
+	local now = getLoveTimerNow()
+	local currentTime = now()
 
 	for i, thread in pairs(self.threads) do
 		thread:update()
 		if not thread.idle then
-			thread:updateLastTime(love.timer.getTime())
+			thread:updateLastTime(now())
 		end
 		if thread.idle and currentTime - thread.lastTime > self.keepAliveTime then
 			thread:pushStop()
