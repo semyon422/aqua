@@ -20,7 +20,7 @@ BaseTestingIO.blacklist = {}
 ---@param dir string
 function BaseTestingIO:lookup(dir)
 	for _, f in ipairs(self.blacklist) do
-		if dir:find(f, 1, true) then
+		if dir:find(f, 1, true) == 1 then
 			return
 		end
 	end
