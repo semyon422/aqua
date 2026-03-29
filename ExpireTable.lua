@@ -8,7 +8,9 @@ ExpireTable.time = 0
 ExpireTable.timeout = 1
 ExpireTable.length = 0
 
-function ExpireTable:new()
+---@param timer time.ITimer?
+function ExpireTable:new(timer)
+	self.timer = assert(timer or self.timer, "timer is required")
 	---@type {[any]: {[1]: any, time: number}}
 	self.data = {}
 end
@@ -17,7 +19,7 @@ end
 ---@return any?
 function ExpireTable:get(k)
 	local t = self
-	local time = love.timer.getTime()
+	local time = self.timer:getTime()
 	local data = t.data
 
 	if not data[k] then
