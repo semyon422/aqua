@@ -1,4 +1,5 @@
 local math_util = {}
+local Transform = require("math.Transform")
 
 ---@generic T
 ---@param t number
@@ -247,6 +248,14 @@ function math_util.nrandom(rand)
 	local z_1 = v * math.sqrt(-2 * math.log(s) / s)
 
 	return z_0, z_1
+end
+
+---@return math.Transform|love.Transform
+function math_util.newTransform()
+	if love and love.math and love.math.newTransform then
+		return love.math.newTransform()
+	end
+	return Transform()
 end
 
 return math_util
