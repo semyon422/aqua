@@ -5,6 +5,11 @@ local physfs = require("physfs")
 ---@operator call: fs.LoveFilesystem
 local LoveFilesystem = IFilesystem + {}
 
+---@return string
+function LoveFilesystem:getWorkingDirectory()
+	return love.filesystem.getWorkingDirectory()
+end
+
 ---@param path string
 ---@param info? table
 ---@return fs.FileInfo?

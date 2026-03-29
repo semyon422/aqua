@@ -22,6 +22,11 @@ function IFilesystem:getInfo(path, info)
 	error("not implemented")
 end
 
+---@return string
+function IFilesystem:getWorkingDirectory()
+	error("not implemented")
+end
+
 ---@param path string
 ---@return boolean
 function IFilesystem:createDirectory(path)

@@ -29,6 +29,11 @@ function FakeFilesystem:setTime(time)
 	self.time = time
 end
 
+---@return string
+function FakeFilesystem:getWorkingDirectory()
+	return "/"
+end
+
 ---@param path string
 ---@return string[]
 local function splitPath(path)

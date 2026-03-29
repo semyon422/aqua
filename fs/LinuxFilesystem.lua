@@ -28,6 +28,7 @@ ffi.cdef [[
 	};
 
 	int stat(const char *path, struct stat *buf);
+	char *getcwd(char *buf, unsigned long size);
 	int mkdir(const char *pathname, unsigned int mode);
 	int rmdir(const char *pathname);
 	int unlink(const char *pathname);
@@ -81,6 +82,17 @@ local S_IFMT = 0xf000
 local S_IFDIR = 0x4000
 local S_IFREG = 0x8000
 local S_IFLNK = 0xa000
+
+---@return string
+function LinuxFilesystem:getWorkingDirectory()
+	local size = 4096
+	local buffer = ffi.new("char[?]", size)
+	local result = ffi.C.getcwd(buffer, size)
+	if result == nil then
+		return "."
+	end
+	return ffi.string(buffer)
+end
 
 ---@param path string
 ---@param info? table
