@@ -8,11 +8,13 @@ local table_util = require("table_util")
 
 ---@class fs.FakeFilesystem: fs.IFilesystem
 ---@operator call: fs.FakeFilesystem
+---@field workingDirectory string
 local FakeFilesystem = IFilesystem + {}
 
 FakeFilesystem.time = 0
 
 function FakeFilesystem:new()
+	self.workingDirectory = "/"
 	---@type fs.FakeFilesystemNode
 	self.tree = {
 		info = {
@@ -24,6 +26,11 @@ function FakeFilesystem:new()
 	}
 end
 
+---@param path string
+function FakeFilesystem:setWorkingDirectory(path)
+	self.workingDirectory = path
+end
+
 ---@param time integer
 function FakeFilesystem:setTime(time)
 	self.time = time
@@ -31,7 +38,7 @@ end
 
 ---@return string
 function FakeFilesystem:getWorkingDirectory()
-	return "/"
+	return self.workingDirectory
 end
 
 ---@param path string
