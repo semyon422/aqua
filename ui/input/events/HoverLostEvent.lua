@@ -5,7 +5,7 @@ local UIEvent = require("ui.input.UIEvent")
 local HoverLostEvent = UIEvent + {}
 
 function HoverLostEvent:trigger()
-	return self.current_target:onHoverLost(self)
+	return self:getDispatchTarget():onHoverLost(self)
 end
 
 return HoverLostEvent

@@ -5,7 +5,7 @@ local MouseButtonEvent = require("ui.input.events.MouseButtonEvent")
 local DragEvent = MouseButtonEvent + {}
 
 function DragEvent:trigger()
-	return self.current_target:onDrag(self)
+	return self:getDispatchTarget():onDrag(self)
 end
 
 return DragEvent

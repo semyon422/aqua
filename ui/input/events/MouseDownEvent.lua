@@ -5,7 +5,7 @@ local MouseButtonEvent = require("ui.input.events.MouseButtonEvent")
 local MouseDownEvent = MouseButtonEvent + {}
 
 function MouseDownEvent:trigger()
-	return self.current_target:onMouseDown(self)
+	return self:getDispatchTarget():onMouseDown(self)
 end
 
 return MouseDownEvent

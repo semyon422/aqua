@@ -5,7 +5,7 @@ local MouseButtonEvent = require("ui.input.events.MouseButtonEvent")
 local MouseUpEvent = MouseButtonEvent + {}
 
 function MouseUpEvent:trigger()
-	return self.current_target:onMouseUp(self)
+	return self:getDispatchTarget():onMouseUp(self)
 end
 
 return MouseUpEvent

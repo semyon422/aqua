@@ -25,8 +25,9 @@ local HoverLostEvent = require("ui.input.events.HoverLostEvent")
 ---@operator call: ui.Inputs
 ---@field mouse_x number 
 ---@field mouse_y number
----@field mouse_target ui.Node?
----@field focus_requesters ui.Node[]
+---@field mouse_target ui.View?
+---@field mouse_hits ui.View[]
+---@field focus_requesters ui.View[]
 ---@field last_mouse_down_event ui.MouseDownEvent
 local Inputs = class()
 
@@ -52,92 +53,160 @@ function Inputs:new()
 	self.mouse_x = -math.huge
 	self.mouse_y = -math.huge
 	self.mouse_target = nil
+	self.mouse_hits = {}
 	self.focus_requesters = {}
 end
 
 ---@param mouse_x number Global Mouse X position
 ---@param mouse_y number Global Mouse Y position
-function Inputs:beginFrame(mouse_x, mouse_y)
+function Inputs:resetTraversalContext(mouse_x, mouse_y)
 	self.mouse_x = mouse_x
 	self.mouse_y = mouse_y
 	self.mouse_target = nil
+	table_util.clear(self.mouse_hits)
 	table_util.clear(self.focus_requesters)
 end
 
----@param node ui.Node
-function Inputs:processNode(node)
-	if node.handles_mouse_input or node.handles_keyboard_input then
-		if node.handles_keyboard_input then
-			table.insert(self.focus_requesters, node)
+---@param mouse_x number Global Mouse X position
+---@param mouse_y number Global Mouse Y position
+function Inputs:beginFrame(mouse_x, mouse_y)
+	self:resetTraversalContext(mouse_x, mouse_y)
+end
+
+---@param view ui.View
+function Inputs:processView(view)
+	if not view.visible then
+		return
+	end
+
+	if view.handles_mouse_input or view.handles_keyboard_input then
+		if view.handles_keyboard_input then
+			table.insert(self.focus_requesters, view)
 		end
 
-		if not self.mouse_target and node.handles_mouse_input then
-			local had_focus = node.mouse_over
-			node.mouse_over = node:isMouseOver(self.mouse_x, self.mouse_y)
+		if view.handles_mouse_input then
+			local had_focus = view.mouse_over
+			local is_mouse_over = view:isMouseOver(self.mouse_x, self.mouse_y)
 
-			if node.mouse_over then
-				self.mouse_target = node
+			if is_mouse_over then
+				table.insert(self.mouse_hits, view)
 			end
 
-			if not had_focus and node.mouse_over then
-				local e = HoverEvent(default_modifiers)
-				e.target = node
-				self:dispatchEvent(e)
-			elseif had_focus and not node.mouse_over then
-				local e = HoverLostEvent(default_modifiers)
-				e.target = node
-				self:dispatchEvent(e)
-			end
-		else
-			if node.mouse_over then
-				node.mouse_over = false
+			if not self.mouse_target then
+				view.mouse_over = is_mouse_over
 
-				local e = HoverLostEvent(default_modifiers)
-				e.target = node
-				self:dispatchEvent(e)
+				if view.mouse_over then
+					self.mouse_target = view
+				end
+
+				if not had_focus and view.mouse_over then
+					local e = HoverEvent(default_modifiers)
+					e.target = view
+					self:dispatchEvent(e)
+				elseif had_focus and not view.mouse_over then
+					local e = HoverLostEvent(default_modifiers)
+					e.target = view
+					self:dispatchEvent(e)
+				end
+			else
+				if view.mouse_over then
+					view.mouse_over = false
+
+					local e = HoverLostEvent(default_modifiers)
+					e.target = view
+					self:dispatchEvent(e)
+				end
 			end
 		end
 	end
 end
 
----@param node ui.Node?
----@param modifiers ui.ModifierKeys
-function Inputs:setKeyboardFocus(node, modifiers)
-	if self.keyboard_focus then
-		local e = FocusLostEvent(modifiers)
-		e.target = self.keyboard_focus
-		e.next_focused = node
-		self:dispatchEvent(e)
+---@private
+---@param e ui.MouseEvent
+---@return ui.View? target
+---@return ui.View? current_target
+---@return boolean? handled
+function Inputs:dispatchMouseTargets(e)
+	local target = e.target or self.mouse_hits[1] or self.mouse_target
+	if not target then
+		return
 	end
 
-	if node then
-		local e = FocusEvent(modifiers)
-		e.target = node
-		e.previously_focused = self.keyboard_focus
-		self:dispatchEvent(e)
+	e.target = target
+
+	if #self.mouse_hits > 0 then
+		for _, view in ipairs(self.mouse_hits) do
+			e.current_target = view
+			local handled = self:dispatchEvent(e)
+			if handled then
+				return target, view, handled
+			end
+		end
+	else
+		e.current_target = target
+		local handled = self:dispatchEvent(e)
+		if handled then
+			return target, target, handled
+		end
 	end
 
-	self.keyboard_focus = node
+	return target
 end
 
 ---@private
 ---@param event {name: string, [integer]: any}
 ---@param modifiers ui.ModifierKeys
+---@return ui.View? target
+---@return ui.View? current_target
 ---@return ui.MouseDownEvent
+---@return boolean? handled
 function Inputs:handleMouseDown(event, modifiers)
 	local e = MouseDownEvent(modifiers)
 	e.button = event[3]
+	e.x = self.mouse_x
+	e.y = self.mouse_y
+
+	local target, current_target, handled = self:dispatchMouseTargets(e)
+	e.target = target
+	e.current_target = current_target
 	self.last_mouse_down_event = e
-	return e
+	if target then
+		target.pressed = true
+	end
+
+	if self.keyboard_focus and target ~= self.keyboard_focus then
+		self:setKeyboardFocus(nil, modifiers)
+	end
+
+	return target, current_target, e, handled
+end
+
+---@private
+---@param e ui.MouseEvent
+---@return boolean? handled
+function Inputs:dispatchMouseEventToTarget(e)
+	if not e.target then
+		return
+	end
+	e.current_target = e.current_target or e.target
+	return self:dispatchEvent(e)
 end
 
 ---@private
 ---@param event {name: string, [integer]: any}
 ---@param modifiers ui.ModifierKeys
+---@return ui.View? target
+---@return ui.View? current_target
 ---@return ui.MouseUpEvent?
+---@return boolean? handled
 function Inputs:handleMouseUp(event, modifiers)
 	if not self.last_mouse_down_event then
 		return
+	end
+
+	local pressed_target = self.last_mouse_down_event.target
+	if pressed_target then
+		pressed_target.pressed = false
 	end
 
 	local dx = (self.last_mouse_down_event.x - self.mouse_x)
@@ -146,25 +215,36 @@ function Inputs:handleMouseUp(event, modifiers)
 	if distance < self.MOUSE_CLICK_MAX_DISTANCE then
 		local ce = MouseClickEvent(modifiers)
 		ce.target = self.last_mouse_down_event.target
+		ce.current_target = ce.target
 		ce.x = self.mouse_x
 		ce.y = self.mouse_y
 		ce.button = event[3]
-		self:dispatchEvent(ce)
+		if ce.target then
+			self:dispatchEvent(ce)
+		end
 	end
 
 	if self.last_drag_event then
 		local de = DragEndEvent(modifiers)
 		de.target = self.last_drag_event.target
+		de.current_target = self.last_drag_event.current_target or de.target
 		de.x = self.mouse_x
 		de.y = self.mouse_y
-		self:dispatchEvent(de)
+		if de.target then
+			self:dispatchEvent(de)
+		end
 		self.last_drag_event = nil
 	end
 
 	local e = MouseUpEvent(modifiers)
 	e.button = event[3]
+	e.x = self.mouse_x
+	e.y = self.mouse_y
 	self.last_mouse_down_event = nil
-	return e
+	local target, current_target, handled = self:dispatchMouseTargets(e)
+	e.target = target
+	e.current_target = current_target
+	return target, current_target, e, handled
 end
 
 ---@private
@@ -179,10 +259,9 @@ function Inputs:handleWheel(event, modifiers)
 end
 
 ---@private
----@param event {name: string, [integer]: any}
 ---@param modifiers ui.ModifierKeys
 ---@return ui.MouseEvent?
-function Inputs:handleMouseMove(event, modifiers)
+function Inputs:handleMouseMove(modifiers)
 	if not self.last_mouse_down_event then
 		return
 	end
@@ -191,12 +270,33 @@ function Inputs:handleMouseMove(event, modifiers)
 	local e
 	if not self.last_drag_event then
 		e = DragStartEvent(modifiers)
-		self.last_drag_event = e
 	else
 		e = DragEvent(modifiers)
 		e.target = self.last_drag_event.target
+		e.current_target = self.last_drag_event.current_target or e.target
 	end
 	return e
+end
+---@param node ui.View?
+---@param modifiers ui.ModifierKeys
+function Inputs:setKeyboardFocus(node, modifiers)
+	if self.keyboard_focus then
+		self.keyboard_focus.focused = false
+		local e = FocusLostEvent(modifiers)
+		e.target = self.keyboard_focus
+		e.next_focused = node
+		self:dispatchEvent(e)
+	end
+
+	if node then
+		node.focused = true
+		local e = FocusEvent(modifiers)
+		e.target = node
+		e.previously_focused = self.keyboard_focus
+		self:dispatchEvent(e)
+	end
+
+	self.keyboard_focus = node
 end
 
 ---@private
@@ -205,41 +305,58 @@ end
 ---@return ui.MouseEvent?
 function Inputs:dispatchMouseEvent(event, modifiers)
 	local e = nil ---@type ui.MouseEvent?
+	local target = nil ---@type ui.View?
+	local current_target = nil ---@type ui.View?
+	local handled = nil ---@type boolean?
 
 	if event.name == "mousepressed" then
-		e = self:handleMouseDown(event, modifiers)
-
-		if self.keyboard_focus then
-			local is_descendant = false
-			local current = self.mouse_target
-			while current do
-				if current == self.keyboard_focus then
-					is_descendant = true
-					break
-				end
-				current = current.parent
-			end
-
-			if not is_descendant then
-				self:setKeyboardFocus(nil, modifiers)
-			end
+		target, current_target, e, handled = self:handleMouseDown(event, modifiers)
+		if not target then
+			self.last_mouse_down_event = nil
+			return
 		end
+		if not handled then
+			return e
+		end
+		return e
 	elseif event.name == "mousereleased" then
-		e = self:handleMouseUp(event, modifiers)
+		target, current_target, e, handled = self:handleMouseUp(event, modifiers)
+		if not e then
+			return
+		end
+		if not target then
+			return
+		end
+		return e
 	elseif event.name == "wheelmoved" then
 		e = self:handleWheel(event, modifiers)
 	elseif event.name == "mousemoved" then
-		e = self:handleMouseMove(event, modifiers)
+		e = self:handleMouseMove(modifiers)
 	end
 
 	if not e then
 		return
 	end
 
-	e.target = e.target or self.mouse_target
 	e.x = self.mouse_x
 	e.y = self.mouse_y
-	self:dispatchEvent(e)
+
+	if e.target then
+		self:dispatchMouseEventToTarget(e)
+		return e
+	end
+
+	target, current_target, handled = self:dispatchMouseTargets(e)
+	e.target = target
+	e.current_target = current_target
+	if not target then
+		return
+	end
+
+	if event.name == "mousemoved" and not self.last_drag_event then
+		self.last_drag_event = e
+	end
+
 	return e
 end
 
@@ -292,18 +409,7 @@ end
 ---@param e ui.UIEvent
 ---@return boolean? handled
 function Inputs:dispatchEvent(e)
-	local handled = false ---@type boolean?
-	e.current_target = e.target
-	while e.current_target do
-		handled = handled or e:trigger()
-		if e.stop then
-			return
-		end
-		local parent = e.current_target.parent
-		e.current_target = parent
-	end
-
-	return handled
+	return e:trigger()
 end
 
 return Inputs

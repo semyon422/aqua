@@ -2,11 +2,11 @@ local UIEvent = require("ui.input.UIEvent")
 
 ---@class ui.FocusLostEvent : ui.UIEvent
 ---@operator call: ui.FocusLostEvent
----@field next_focused ui.Node?
+---@field next_focused ui.View?
 local FocusLostEvent = UIEvent + {}
 
 function FocusLostEvent:trigger()
-	return self.current_target:onFocusLost(self)
+	return self:getDispatchTarget():onFocusLost(self)
 end
 
 return FocusLostEvent

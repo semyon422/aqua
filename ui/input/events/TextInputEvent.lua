@@ -5,7 +5,7 @@ local KeyboardEvent = require("ui.input.events.KeyboardEvent")
 local TextInputEvent = KeyboardEvent + {}
 
 function TextInputEvent:trigger()
-	return self.current_target:onTextInput(self)
+	return self:getDispatchTarget():onTextInput(self)
 end
 
 return TextInputEvent
