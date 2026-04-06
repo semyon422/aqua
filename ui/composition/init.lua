@@ -64,9 +64,7 @@ local function is_node(value)
 end
 
 local function is_view(value)
-	return type(value) == "table"
-		and value.transform ~= nil
-		and type(value.refresh) == "function"
+	return type(value) == "table" and value._is_view
 end
 
 ---@param value any

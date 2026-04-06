@@ -120,7 +120,7 @@ function test.scroll_updates_do_not_relayout_children(t)
 	local second = list:addView(CountingView(20))
 	local third = list:addView(CountingView(20))
 
-	list:refresh()
+	list:applyLayout()
 	local first_updates = first.layout_updates
 	local second_updates = second.layout_updates
 	local third_updates = third.layout_updates
@@ -141,7 +141,7 @@ function test.resize_relayouts_children_once(t)
 	list:setSizePercent(1, 1)
 
 	local child = list:addView(CountingView(20))
-	list:refresh()
+	list:applyLayout()
 	local initial_updates = child.layout_updates
 
 	list.box:update(0, 0, 120, 80)

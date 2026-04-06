@@ -41,7 +41,7 @@ function test.refresh_aliases_apply_layout(t)
 	view.box = Box()
 	view.box:update(0, 0, 10, 10, 1)
 
-	view:refresh()
+	view:applyLayout()
 	t:eq(view.layout_updates, 1)
 end
 

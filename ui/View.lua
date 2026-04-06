@@ -25,6 +25,8 @@ local IInputHandler = require("ui.input.IInputHandler")
 ---@field pressed boolean
 local View = IInputHandler + {}
 
+View._is_view = true
+
 function View:new()
 	self.x = 0
 	self.y = 0
@@ -85,11 +87,6 @@ end
 ---@return number
 function View:toScreenSize(value)
 	return value * self.ui_scale
-end
-
----@deprecated
-function View:refresh()
-	self:applyLayout()
 end
 
 local temp_tf = love.math.newTransform()

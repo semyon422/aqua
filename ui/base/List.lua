@@ -480,10 +480,6 @@ function List:applyLayout()
 	self:refreshVisibleLayout()
 end
 
-function List:refresh()
-	self:applyLayout()
-end
-
 function List:updateTransform()
 	View.updateTransform(self)
 	self.content_box.transform:reset()
