@@ -4,6 +4,7 @@ local Box = require("ui.Box")
 ---@class ui.Layer
 ---@operator call: ui.Layer
 ---@field layout? ui.Layout
+---@field composition_root? ui.composition.Node
 ---@field views ui.View[]
 ---@field ui_scale number
 local Layer = class()
@@ -12,27 +13,14 @@ local Layer = class()
 ---@param ui_scale number
 local function attach_view(view, ui_scale)
 	view.ui_scale = ui_scale
-	view:onResolutionChanged()
-	view:syncBoxSize()
-	view:onGeometryChanged()
-	view:updateTransform()
+	view:refresh()
 end
 
 ---@param view ui.View
 ---@param ui_scale number
----@param scale_changed boolean
-local function refresh_view(view, ui_scale, scale_changed)
-	local geometry_changed = false
-	if scale_changed then
-		view.ui_scale = ui_scale
-		view:onResolutionChanged()
-		geometry_changed = true
-	end
-	geometry_changed = view:syncBoxSize() or geometry_changed
-	if geometry_changed then
-		view:onGeometryChanged()
-	end
-	view:updateTransform()
+local function refresh_view(view, ui_scale)
+	view.ui_scale = ui_scale
+	view:refresh()
 end
 
 function Layer:new()
@@ -66,6 +54,12 @@ function Layer:addArray(views)
 	end
 end
 
+---@param views ui.View[]
+function Layer:setViews(views)
+	self.views = {}
+	self:addArray(views)
+end
+
 function Layer:load() end
 
 ---@param w number
@@ -75,8 +69,17 @@ function Layer:load() end
 function Layer:updateDimensions(w, h, layout_scale, ui_scale)
 	ui_scale = ui_scale or layout_scale or 1
 	ui_scale = ui_scale > 0 and ui_scale or 1
-	local scale_changed = self.ui_scale ~= ui_scale
 	self.ui_scale = ui_scale
+
+	if self.composition_root then
+		local views = self.composition_root(0, 0, w / ui_scale, h / ui_scale, ui_scale)
+		if #self.views == 0 then
+			self:setViews(views)
+		else
+			self.views = views
+		end
+	end
+
 	self.box:update(0, 0, w / ui_scale, h / ui_scale, ui_scale)
 
 	if self.layout then
@@ -84,7 +87,7 @@ function Layer:updateDimensions(w, h, layout_scale, ui_scale)
 	end
 
 	for _, v in ipairs(self.views) do
-		refresh_view(v, ui_scale, scale_changed)
+		refresh_view(v, ui_scale)
 	end
 end
 
@@ -113,5 +116,8 @@ function Layer:draw()
 		end
 	end
 end
+
+---@param event table
+function Layer:receive(event) end
 
 return Layer

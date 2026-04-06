@@ -38,13 +38,24 @@ love.timer.getTime = love.timer.getTime or function()
 end
 
 local View = require("ui.View")
+local Box = require("ui.Box")
 
 local CustomValueView = View + {}
+local CountingView = View + {}
 
 function CustomValueView:update(dt)
 	self:getAnimationValue("pulse", {
 		speed = 20,
 	}):set(1)
+end
+
+function CountingView:new()
+	View.new(self)
+	self.layout_updates = 0
+end
+
+function CountingView:onLayoutUpdate()
+	self.layout_updates = self.layout_updates + 1
 end
 
 ---@param t testing.T
@@ -84,6 +95,23 @@ function test.tick_updates_custom_values_after_view_update(t)
 
 	t:assert(pulse:get() > 0)
 	t:eq(pulse.target, 1)
+end
+
+---@param t testing.T
+function test.refresh_detects_box_and_scale_changes(t)
+	local view = CountingView()
+	view.box = Box()
+	view.box:update(10, 20, 100, 50, 1)
+
+	view:refresh()
+	t:eq(view.layout_updates, 1)
+
+	view:refresh()
+	t:eq(view.layout_updates, 2)
+
+	view.ui_scale = 2
+	view:refresh()
+	t:eq(view.layout_updates, 3)
 end
 
 return test

@@ -9,8 +9,7 @@ local IInputHandler = require("ui.input.IInputHandler")
 ---@field y number
 ---@field width number
 ---@field height number
----@field anchor ui.ViewPoint
----@field origin ui.ViewPoint
+---@field pivot ui.ViewPoint
 ---@field rotation number
 ---@field scale_x number
 ---@field scale_y number
@@ -31,8 +30,7 @@ function View:new()
 	self.y = 0
 	self.width = 0
 	self.height = 0
-	self.anchor = {0, 0}
-	self.origin = {0, 0}
+	self.pivot = {0, 0}
 	self.transform = love.math.newTransform()
 	self.box = nil
 	self.visible = true
@@ -49,9 +47,7 @@ function View:new()
 	self.handles_keyboard_input = false
 end
 
-function View:onResolutionChanged() end
-
-function View:onGeometryChanged() end
+function View:onLayoutUpdate() end
 
 ---@param e ui.FocusEvent
 function View:onFocus(e) end
@@ -59,26 +55,15 @@ function View:onFocus(e) end
 ---@param e ui.FocusLostEvent
 function View:onFocusLost(e) end
 
----@return boolean changed
-function View:syncBoxSize()
-	local changed = false
+local function resolve_percent_size(self)
 	if self.width_percent ~= nil then
-		assert(self.box, "ui.View:syncBoxSize() requires self.box")
-		local width = self.box.width * self.width_percent
-		if self.width ~= width then
-			self.width = width
-			changed = true
-		end
+		assert(self.box, "ui.View:refresh() requires self.box")
+		self.width = self.box.width * self.width_percent
 	end
 	if self.height_percent ~= nil then
-		assert(self.box, "ui.View:syncBoxSize() requires self.box")
-		local height = self.box.height * self.height_percent
-		if self.height ~= height then
-			self.height = height
-			changed = true
-		end
+		assert(self.box, "ui.View:refresh() requires self.box")
+		self.height = self.box.height * self.height_percent
 	end
-	return changed
 end
 
 ---@param value number
@@ -94,10 +79,10 @@ function View:toScreenSize(value)
 end
 
 function View:refresh()
-	local geometry_changed = self:syncBoxSize()
-	if geometry_changed then
-		self:onGeometryChanged()
-	end
+	local box = self.box
+	assert(box, "ui.View:refresh() requires self.box")
+	resolve_percent_size(self)
+	self:onLayoutUpdate()
 	self:updateTransform()
 end
 
@@ -106,12 +91,11 @@ local temp_tf = love.math.newTransform()
 function View:updateTransform()
 	local box = self.box
 	assert(box, "ui.View:updateTransform() requires self.box")
-	local anchor = self.anchor
-	local origin = self.origin
+	local pivot = self.pivot
 	local box_width = box.width
 	local box_height = box.height
-	local ax, ay = box_width * anchor[1], box_height * anchor[2]
-	local ox, oy = self.width * origin[1], self.height * origin[2]
+	local ax, ay = box_width * pivot[1], box_height * pivot[2]
+	local ox, oy = self.width * pivot[1], self.height * pivot[2]
 	local x, y = self.x + ax, self.y + ay
 	local sx = self.scale_x
 	local sy = self.scale_y
@@ -225,16 +209,8 @@ end
 ---@param x number
 ---@param y number
 ---@return self
-function View:setAnchor(x, y)
-	self.anchor = {x, y}
-	return self
-end
-
----@param x number
----@param y number
----@return self
-function View:setOrigin(x, y)
-	self.origin = {x, y}
+function View:setPivot(x, y)
+	self.pivot = {x, y}
 	return self
 end
 

@@ -15,22 +15,24 @@ local table_util = require("table_util")
 ---@field last_visible integer
 local List = View + {}
 
+local function resolve_percent_size(view)
+	if view.width_percent ~= nil then
+		assert(view.box, "ui.List:refresh() child requires box")
+		view.width = view.box.width * view.width_percent
+	end
+	if view.height_percent ~= nil then
+		assert(view.box, "ui.List:refresh() child requires box")
+		view.height = view.box.height * view.height_percent
+	end
+end
+
 ---@param view ui.View
 ---@param box ui.Box
----@param box_size_changed boolean
-local function refresh_child_view(view, box, ui_scale, box_size_changed, scale_changed)
-	local box_changed = view.box ~= box
-	local child_scale_changed = view.ui_scale ~= ui_scale
+---@param ui_scale number
+local function refresh_child_view(view, box, ui_scale)
 	view.box = box
-	if scale_changed or child_scale_changed then
-		view.ui_scale = ui_scale
-		view:onResolutionChanged()
-	end
-	local geometry_changed = view:syncBoxSize() or box_changed or scale_changed or child_scale_changed or box_size_changed
-	if geometry_changed then
-		view:onGeometryChanged()
-	end
-	view:updateTransform()
+	view.ui_scale = ui_scale
+	view:refresh()
 end
 
 function List:new()
@@ -48,16 +50,14 @@ function List:new()
 	self.is_focusable = true
 end
 
-function List:onResolutionChanged()
-	self._children_resolution_changed = true
-end
-
 ---@generic T: ui.View
 ---@param view T
 ---@return T
 function List:addView(view)
 	table.insert(self.views, view)
-	self:onGeometryChanged()
+	if self.box then
+		self:refresh()
+	end
 	return view
 end
 
@@ -78,7 +78,9 @@ function List:removeView(view)
 		self.focused_index = nil
 	end
 
-	self:onGeometryChanged()
+	if self.box then
+		self:refresh()
+	end
 
 	if was_focused then
 		self:focusChild(index)
@@ -244,13 +246,15 @@ function List:getItemOffset(index)
 	return y
 end
 
-function List:onGeometryChanged()
-	local children_resolution_changed = self._children_resolution_changed
-	self._children_resolution_changed = false
-	local box_size_changed = self.content_box.width ~= self.width
-		or self.content_box.height ~= self.height
+function List:refresh()
+	assert(self.box, "ui.List:refresh() requires self.box")
+	resolve_percent_size(self)
+
 	self.content_box.width = self.width
 	self.content_box.height = self.height
+	View.updateTransform(self)
+	self.content_box.transform:reset()
+	self.content_box.transform:apply(self.transform)
 
 	local viewport_height = self.height
 	local scroll_position = self.scroll_position
@@ -264,7 +268,7 @@ function List:onGeometryChanged()
 	for i, view in ipairs(self.views) do
 		view.x = 0
 		view.y = y
-		refresh_child_view(view, self.content_box, self.ui_scale, box_size_changed, children_resolution_changed)
+		refresh_child_view(view, self.content_box, self.ui_scale)
 
 		local is_visible = y + view.height > 0 and y < viewport_height
 		if is_visible then
@@ -292,7 +296,7 @@ function List:onGeometryChanged()
 	local clamped_scroll_position = math.max(0, math.min(self.scroll_position, math.max(0, self.content_height - self.height)))
 	if clamped_scroll_position ~= self.scroll_position then
 		self.scroll_position = clamped_scroll_position
-		self:onGeometryChanged()
+		self:refresh()
 	end
 end
 
@@ -302,7 +306,9 @@ function List:updateTransform()
 	self.content_box.transform:apply(self.transform)
 
 	for _, view in ipairs(self.views) do
-		view:updateTransform()
+		if view.box then
+			view:updateTransform()
+		end
 	end
 end
 
@@ -310,7 +316,7 @@ end
 function List:update(dt)
 	if self.scroll_position ~= self.target_scroll_position then
 		self.scroll_position = self.target_scroll_position
-		self:onGeometryChanged()
+		self:refresh()
 	end
 
 	for i = self.first_visible, self.last_visible do
