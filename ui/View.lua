@@ -57,13 +57,22 @@ function View:onFocusLost(e) end
 
 local function resolve_percent_size(self)
 	if self.width_percent ~= nil then
-		assert(self.box, "ui.View:refresh() requires self.box")
+		assert(self.box, "ui.View:applyLayout() requires self.box")
 		self.width = self.box.width * self.width_percent
 	end
 	if self.height_percent ~= nil then
-		assert(self.box, "ui.View:refresh() requires self.box")
+		assert(self.box, "ui.View:applyLayout() requires self.box")
 		self.height = self.box.height * self.height_percent
 	end
+end
+
+function View:applyLayout()
+	local box = self.box
+	assert(box, "ui.View:applyLayout() requires self.box")
+	resolve_percent_size(self)
+
+	self:onLayoutUpdate()
+	self:updateTransform()
 end
 
 ---@param value number
@@ -78,12 +87,9 @@ function View:toScreenSize(value)
 	return value * self.ui_scale
 end
 
+---@deprecated
 function View:refresh()
-	local box = self.box
-	assert(box, "ui.View:refresh() requires self.box")
-	resolve_percent_size(self)
-	self:onLayoutUpdate()
-	self:updateTransform()
+	self:applyLayout()
 end
 
 local temp_tf = love.math.newTransform()

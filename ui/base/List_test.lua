@@ -1,9 +1,11 @@
 local List = require("ui.base.List")
 local View = require("ui.View")
+local Box = require("ui.Box")
 
 local test = {}
 
 local FocusableView = View + {}
+local CountingView = View + {}
 
 function FocusableView:new(height)
 	View.new(self)
@@ -29,6 +31,17 @@ function FocusableView:onKeyDown(e)
 		return true
 	end
 	return false
+end
+
+function CountingView:new(height)
+	View.new(self)
+	self.width = 100
+	self.height = height or 20
+	self.layout_updates = 0
+end
+
+function CountingView:onLayoutUpdate()
+	self.layout_updates = self.layout_updates + 1
 end
 
 ---@param t testing.T
@@ -94,6 +107,46 @@ function test.focus_loss_blurs_child(t)
 	list:onFocusLost({})
 	t:eq(child.focused, false)
 	t:tdeq(child.focus_events, {"focus", "blur"})
+end
+
+---@param t testing.T
+function test.scroll_updates_do_not_relayout_children(t)
+	local list = List()
+	list.box = Box()
+	list.box:update(0, 0, 100, 60)
+	list:setSize(100, 60)
+
+	local first = list:addView(CountingView(20))
+	local second = list:addView(CountingView(20))
+	local third = list:addView(CountingView(20))
+
+	list:refresh()
+	local first_updates = first.layout_updates
+	local second_updates = second.layout_updates
+	local third_updates = third.layout_updates
+
+	list:setTargetScrollPosition(10)
+	list:update(0)
+
+	t:eq(first.layout_updates, first_updates)
+	t:eq(second.layout_updates, second_updates)
+	t:eq(third.layout_updates, third_updates)
+end
+
+---@param t testing.T
+function test.resize_relayouts_children_once(t)
+	local list = List()
+	list.box = Box()
+	list.box:update(0, 0, 100, 60)
+	list:setSizePercent(1, 1)
+
+	local child = list:addView(CountingView(20))
+	list:refresh()
+	local initial_updates = child.layout_updates
+
+	list.box:update(0, 0, 120, 80)
+	list:applyLayout()
+	t:eq(child.layout_updates, initial_updates + 1)
 end
 
 return test

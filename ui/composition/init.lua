@@ -47,6 +47,7 @@ local percent_pattern = "^(%-?%d+%.?%d*)%%$"
 ---@alias ui.composition.HorizontalProps ui.composition.FlowProps
 
 ---@class ui.composition.Node
+---@overload fun(x: number, y: number, available_w: number, available_h: number, layout_scale: number?): ui.View[]
 ---@field composition_node true
 ---@field kind "stack"|"vertical"|"horizontal"
 ---@field props ui.composition.Props|ui.composition.FlowProps

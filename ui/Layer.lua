@@ -1,63 +1,32 @@
 local class = require("class")
-local Box = require("ui.Box")
 
 ---@class ui.Layer
 ---@operator call: ui.Layer
----@field layout? ui.Layout
 ---@field composition_root? ui.composition.Node
 ---@field views ui.View[]
----@field ui_scale number
 local Layer = class()
 
 ---@param view ui.View
----@param ui_scale number
-local function attach_view(view, ui_scale)
-	view.ui_scale = ui_scale
-	view:refresh()
-end
-
----@param view ui.View
----@param ui_scale number
-local function refresh_view(view, ui_scale)
-	view.ui_scale = ui_scale
-	view:refresh()
-end
-
-function Layer:new()
-	self.box = Box()
-	self.views = {}
-	self.ui_scale = 1
-end
-
----@generic T: ui.View
----@param view T
----@return T
-function Layer:add(view)
-	---@cast view ui.View
+local function attach_view(view)
 	if view.transform == nil then
 		error("Call View.new()")
 	end
-
 	if not view.box then
-		view.box = self.box
-	end
-
-	table.insert(self.views, view)
-	attach_view(view, self.ui_scale)
-	return view
-end
-
----@param views ui.View[]
-function Layer:addArray(views)
-	for _, v in ipairs(views) do
-		self:add(v)
+		error("ui.Layer requires composition-assigned view.box")
 	end
 end
 
 ---@param views ui.View[]
-function Layer:setViews(views)
+local function set_views(self, views)
 	self.views = {}
-	self:addArray(views)
+	for _, view in ipairs(views) do
+		attach_view(view)
+		table.insert(self.views, view)
+	end
+end
+
+function Layer:new()
+	self.views = {}
 end
 
 function Layer:load() end
@@ -65,29 +34,16 @@ function Layer:load() end
 ---@param w number
 ---@param h number
 ---@param layout_scale number
----@param ui_scale? number
-function Layer:updateDimensions(w, h, layout_scale, ui_scale)
-	ui_scale = ui_scale or layout_scale or 1
-	ui_scale = ui_scale > 0 and ui_scale or 1
-	self.ui_scale = ui_scale
+function Layer:updateDimensions(w, h, layout_scale)
+	layout_scale = layout_scale > 0 and layout_scale or 1
 
-	if self.composition_root then
-		local views = self.composition_root(0, 0, w / ui_scale, h / ui_scale, ui_scale)
-		if #self.views == 0 then
-			self:setViews(views)
-		else
-			self.views = views
-		end
-	end
-
-	self.box:update(0, 0, w / ui_scale, h / ui_scale, ui_scale)
-
-	if self.layout then
-		self.layout:update(w, h, layout_scale)
-	end
+	assert(self.composition_root, "ui.Layer requires composition_root")
+	local views = self.composition_root(0, 0, w / layout_scale, h / layout_scale, layout_scale)
+	set_views(self, views)
 
 	for _, v in ipairs(self.views) do
-		refresh_view(v, ui_scale)
+		v.ui_scale = layout_scale
+		v:applyLayout()
 	end
 end
 

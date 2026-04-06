@@ -225,9 +225,14 @@ inside a fit-width parent
 
 ## View Refresh
 
-Composition only updates boxes. Views still need `view:refresh()`.
+Composition only updates boxes. Views still need `view:applyLayout()`.
 
 That is handled automatically by `ui.Layer` when `composition_root` is set.
+
+`ui.Layer` is composition-driven. Views should enter a layer through `composition_root`, not through imperative layer insertion.
+
+`applyLayout()` is intended for attach and layout changes, not for normal animation or scrolling.
+Per-frame motion should update transforms or scroll state without rebuilding child layout.
 
 ## Draw And Input Order
 

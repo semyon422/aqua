@@ -15,26 +15,6 @@ local table_util = require("table_util")
 ---@field last_visible integer
 local List = View + {}
 
-local function resolve_percent_size(view)
-	if view.width_percent ~= nil then
-		assert(view.box, "ui.List:refresh() child requires box")
-		view.width = view.box.width * view.width_percent
-	end
-	if view.height_percent ~= nil then
-		assert(view.box, "ui.List:refresh() child requires box")
-		view.height = view.box.height * view.height_percent
-	end
-end
-
----@param view ui.View
----@param box ui.Box
----@param ui_scale number
-local function refresh_child_view(view, box, ui_scale)
-	view.box = box
-	view.ui_scale = ui_scale
-	view:refresh()
-end
-
 function List:new()
 	View.new(self)
 	self.views = {}
@@ -44,10 +24,188 @@ function List:new()
 	self.focused_index = nil
 	self.content_height = 0
 	self.content_box = Box()
+	self.item_offsets = {}
 	self.first_visible = 1
 	self.last_visible = 0
+	self.layout_dirty = true
+	self.visible_layout_dirty = true
 	self.handles_keyboard_input = true
 	self.is_focusable = true
+end
+
+function List:invalidateLayout()
+	self.layout_dirty = true
+	self.visible_layout_dirty = true
+end
+
+function List:invalidateVisibleLayout()
+	self.visible_layout_dirty = true
+end
+
+---@param position number
+function List:onTargetScrollPositionClamped(position) end
+
+---@param position number
+function List:onScrollPositionClamped(position) end
+
+---@return number
+function List:getChildBaseX()
+	return 0
+end
+
+---@return number
+function List:getChildBaseY()
+	return 0
+end
+
+---@return number
+function List:getTrailingInset()
+	return 0
+end
+
+---@return number
+function List:getContentBoxWidth()
+	return self.width
+end
+
+---@return number
+function List:getContentBoxHeight()
+	return self.height
+end
+
+---@return number
+---@return number
+function List:getViewportRange()
+	return 0, self.height
+end
+
+---@return number
+---@return number
+function List:getChildPosition(index)
+	return self:getChildBaseX(), (self.item_offsets[index] or 0) - self.scroll_position
+end
+
+---@protected
+function List:ensureLayout()
+	if not self.box then
+		return
+	end
+
+	if self.layout_dirty then
+		self:applyLayout()
+	end
+end
+
+---@private
+---@param position number?
+---@return number
+function List:clampScrollPosition(position)
+	local max_scroll = math.max(0, self.content_height - self.height)
+	return math.max(0, math.min(position or 0, max_scroll))
+end
+
+---@private
+---@return number
+function List:measureContentHeight()
+	local content_y = self:getChildBaseY()
+	local trailing_inset = self:getTrailingInset()
+	local content_height = content_y + trailing_inset
+
+	for i, view in ipairs(self.views) do
+		content_height = math.max(content_height, content_y + view:getHeight() + trailing_inset)
+		content_y = content_y + view.height
+		if i < #self.views then
+			content_y = content_y + self.gap
+		end
+	end
+
+	return math.max(0, content_height)
+end
+
+---@param start_index integer
+---@param end_index integer
+function List:updateVisibleChildTransforms(start_index, end_index)
+	for i = start_index, end_index do
+		local view = self.views[i]
+		if view then
+			local x, y = self:getChildPosition(i)
+			view.x = x
+			view.y = y
+			view:updateTransform()
+		end
+	end
+end
+
+---@private
+---@param viewport_top number
+---@return integer
+function List:findFirstVisibleIndex(viewport_top)
+	local low = 1
+	local high = #self.views
+	local result = #self.views + 1
+
+	while low <= high do
+		local mid = math.floor((low + high) / 2)
+		local view = self.views[mid]
+		local top = self.item_offsets[mid] or 0
+		if top + view.height > viewport_top then
+			result = mid
+			high = mid - 1
+		else
+			low = mid + 1
+		end
+	end
+
+	return result
+end
+
+---@private
+---@param viewport_bottom number
+---@return integer
+function List:findLastVisibleIndex(viewport_bottom)
+	local low = 1
+	local high = #self.views
+	local result = 0
+
+	while low <= high do
+		local mid = math.floor((low + high) / 2)
+		local top = self.item_offsets[mid] or 0
+		if top < viewport_bottom then
+			result = mid
+			low = mid + 1
+		else
+			high = mid - 1
+		end
+	end
+
+	return result
+end
+
+---@protected
+function List:refreshVisibleLayout()
+	local viewport_top, viewport_bottom = self:getViewportRange()
+	local first_visible = self:findFirstVisibleIndex(viewport_top + self.scroll_position)
+	local last_visible = self:findLastVisibleIndex(viewport_bottom + self.scroll_position)
+
+	if first_visible > last_visible then
+		self.first_visible = 1
+		self.last_visible = 0
+		self.visible_layout_dirty = false
+		return
+	end
+
+	self.first_visible = first_visible
+	self.last_visible = last_visible
+	self:updateVisibleChildTransforms(first_visible, last_visible)
+	self.visible_layout_dirty = false
+end
+
+---@protected
+function List:ensureVisibleLayout()
+	self:ensureLayout()
+	if self.visible_layout_dirty then
+		self:refreshVisibleLayout()
+	end
 end
 
 ---@generic T: ui.View
@@ -55,8 +213,9 @@ end
 ---@return T
 function List:addView(view)
 	table.insert(self.views, view)
+	self:invalidateLayout()
 	if self.box then
-		self:refresh()
+		self:applyLayout()
 	end
 	return view
 end
@@ -78,8 +237,10 @@ function List:removeView(view)
 		self.focused_index = nil
 	end
 
+	self:invalidateLayout()
+
 	if self.box then
-		self:refresh()
+		self:applyLayout()
 	end
 
 	if was_focused then
@@ -95,10 +256,14 @@ function List:clearViews()
 	end
 
 	table_util.clear(self.views)
+	table_util.clear(self.item_offsets)
 	self.focused_index = nil
 	self.content_height = 0
 	self:setTargetScrollPosition(0)
 	self.scroll_position = 0
+	self.first_visible = 1
+	self.last_visible = 0
+	self:invalidateLayout()
 end
 
 ---@return integer?
@@ -211,18 +376,28 @@ end
 ---@param position number
 ---@return boolean changed
 function List:setTargetScrollPosition(position)
-	local max_scroll = math.max(0, self.content_height - self.height)
-	position = math.max(0, math.min(position or 0, max_scroll))
+	if self.box and self.layout_dirty then
+		self:ensureLayout()
+	elseif not self.box then
+		self.content_height = self:measureContentHeight()
+	end
+
+	position = self:clampScrollPosition(position)
 
 	if self.target_scroll_position == position then
 		return false
 	end
 
 	self.target_scroll_position = position
+	self:invalidateVisibleLayout()
 	return true
 end
 
 function List:ensureFocusedChildVisible()
+	if self.box then
+		self:ensureLayout()
+	end
+
 	local child = self.focused_index and self.views[self.focused_index]
 	if not child then
 		self:setTargetScrollPosition(0)
@@ -236,68 +411,77 @@ end
 ---@param index integer
 ---@return number
 function List:getItemOffset(index)
-	local y = 0
+	if self.box then
+		self:ensureLayout()
+	end
 
+	if self.item_offsets[index] ~= nil then
+		return self.item_offsets[index]
+	end
+
+	local y = self:getChildBaseY()
 	for i = 1, index - 1 do
 		local view = self.views[i]
+		if not view then
+			break
+		end
 		y = y + view.height + self.gap
 	end
 
 	return y
 end
 
-function List:refresh()
-	assert(self.box, "ui.List:refresh() requires self.box")
-	resolve_percent_size(self)
+function List:applyLayout()
+	assert(self.box, "ui.List:applyLayout() requires self.box")
+	View.applyLayout(self)
 
-	self.content_box.width = self.width
-	self.content_box.height = self.height
-	View.updateTransform(self)
+	self.content_box.x = self:getChildBaseX()
+	self.content_box.y = self:getChildBaseY()
+	self.content_box.width = math.max(0, self:getContentBoxWidth())
+	self.content_box.height = math.max(0, self:getContentBoxHeight())
 	self.content_box.transform:reset()
 	self.content_box.transform:apply(self.transform)
 
-	local viewport_height = self.height
-	local scroll_position = self.scroll_position
-	local y = -scroll_position
-	local content_y = 0
-	local content_height = 0
-
-	self.first_visible = #self.views + 1
-	self.last_visible = 0
+	local child_x = self:getChildBaseX()
+	local content_y = self:getChildBaseY()
+	local trailing_inset = self:getTrailingInset()
+	local content_height = content_y + trailing_inset
 
 	for i, view in ipairs(self.views) do
-		view.x = 0
-		view.y = y
-		refresh_child_view(view, self.content_box, self.ui_scale)
+		view.box = self.content_box
+		view.ui_scale = self.ui_scale
+		view.x = child_x
+		view.y = content_y - self.scroll_position
+		view:applyLayout()
+		self.item_offsets[i] = content_y
+		content_height = math.max(content_height, content_y + view:getHeight() + trailing_inset)
 
-		local is_visible = y + view.height > 0 and y < viewport_height
-		if is_visible then
-			self.first_visible = math.min(self.first_visible, i)
-			self.last_visible = math.max(self.last_visible, i)
-		end
-
-		content_height = math.max(content_height, content_y + view:getHeight())
-
-		y = y + view.height
 		content_y = content_y + view.height
 		if i < #self.views then
-			y = y + self.gap
 			content_y = content_y + self.gap
 		end
 	end
 
-	if self.last_visible == 0 then
-		self.first_visible = 1
+	self.content_height = math.max(0, content_height)
+	local clamped_target_scroll_position = self:clampScrollPosition(self.target_scroll_position)
+	if clamped_target_scroll_position ~= self.target_scroll_position then
+		self.target_scroll_position = clamped_target_scroll_position
+		self:onTargetScrollPositionClamped(clamped_target_scroll_position)
 	end
 
-	self.content_height = math.max(0, content_height)
-	self:setTargetScrollPosition(self.target_scroll_position)
-
-	local clamped_scroll_position = math.max(0, math.min(self.scroll_position, math.max(0, self.content_height - self.height)))
+	local clamped_scroll_position = self:clampScrollPosition(self.scroll_position)
 	if clamped_scroll_position ~= self.scroll_position then
 		self.scroll_position = clamped_scroll_position
-		self:refresh()
+		self:onScrollPositionClamped(clamped_scroll_position)
 	end
+
+	self.layout_dirty = false
+	self.visible_layout_dirty = true
+	self:refreshVisibleLayout()
+end
+
+function List:refresh()
+	self:applyLayout()
 end
 
 function List:updateTransform()
@@ -305,30 +489,33 @@ function List:updateTransform()
 	self.content_box.transform:reset()
 	self.content_box.transform:apply(self.transform)
 
-	for _, view in ipairs(self.views) do
-		if view.box then
-			view:updateTransform()
-		end
+	if self.first_visible <= self.last_visible then
+		self:updateVisibleChildTransforms(self.first_visible, self.last_visible)
 	end
 end
 
 ---@param dt number
 function List:update(dt)
+	self:ensureVisibleLayout()
+
 	if self.scroll_position ~= self.target_scroll_position then
 		self.scroll_position = self.target_scroll_position
-		self:refresh()
+		self:invalidateVisibleLayout()
+		self:refreshVisibleLayout()
 	end
 
 	for i = self.first_visible, self.last_visible do
 		local view = self.views[i]
 		if view then
-			view:tick(dt)
+			view:update(dt)
 		end
 	end
 end
 
 ---@param inputs ui.Inputs
 function List:acceptInputs(inputs)
+	self:ensureVisibleLayout()
+
 	for i = self.last_visible, self.first_visible, -1 do
 		local view = self.views[i]
 		if view then
@@ -381,6 +568,8 @@ function List:onKeyDown(e)
 end
 
 function List:draw()
+	self:ensureVisibleLayout()
+
 	love.graphics.push("all")
 
 	local x1, y1 = self.transform:transformPoint(0, 0)
