@@ -101,4 +101,28 @@ function test.chunked(t)
 	t:tdeq({soc:receive(100)}, {nil, "timeout", "qwerty"})
 end
 
+---@param t testing.T
+function test.chunked_precedence_over_content_length(t)
+	local str_soc = StringSocket()
+	str_soc:send("POST / HTTP/1.1\r\nContent-Length: 1\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\nqwerty")
+
+	local soc = ExtendedSocket(str_soc)
+	local req = Request(soc)
+
+	t:tdeq({req:receive("*a")}, {"hello"})
+	t:tdeq({req:receive("*a")}, {nil, "closed", ""})
+
+	t:tdeq({soc:receive(100)}, {nil, "timeout", "qwerty"})
+end
+
+---@param t testing.T
+function test.invalid_content_length(t)
+	local str_soc = StringSocket()
+	str_soc:send("POST / HTTP/1.1\r\nContent-Length: -1\r\n\r\nhelloworld")
+
+	local req = Request(ExtendedSocket(str_soc))
+
+	t:tdeq({req:receive("*a")}, {nil, "malformed headers", ""})
+end
+
 return test

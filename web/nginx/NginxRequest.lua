@@ -30,7 +30,10 @@ function NginxRequest:receive_headers()
 		self.headers:set(k, v)
 	end
 
-	RequestResponse.process_headers(self) ---@diagnostic disable-line
+	local ok, _err = RequestResponse.process_headers(self) ---@diagnostic disable-line
+	if not ok then
+		return nil, _err
+	end
 
 	return 1
 end
