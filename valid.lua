@@ -243,6 +243,20 @@ function valid.compose(...)
 	end
 end
 
+---@param path string
+---@param k string|integer
+---@return string
+local function append_path(path, k)
+	if type(k) == "number" then
+		return path .. "[" .. k .. "]"
+	end
+	---@cast k -integer
+	if path == "" then
+		return k
+	end
+	return path .. "." .. k
+end
+
 ---@param errs string|valid.Errors?
 ---@param fmt string?
 ---@param buf string[]?
@@ -265,13 +279,14 @@ function valid.flatten_errors(errs, fmt, buf, prefix)
 	---@type string[]
 	local table_keys = {}
 	for k, v in dpairs(errs) do
+		local key_path = append_path(prefix, k)
 		if v == true then
 			v = "invalid"
 		elseif v == false then
 			v = "not nil"
 		end
 		if type(v) == "string" then
-			table.insert(buf, prefix .. fmt:format(k, v))
+			table.insert(buf, fmt:format(key_path, v))
 		elseif type(v) == "table" then
 			table.insert(table_keys, k)
 		end
@@ -280,7 +295,7 @@ function valid.flatten_errors(errs, fmt, buf, prefix)
 	for _, k in ipairs(table_keys) do
 		local t = errs[k]
 		---@cast t -string, -boolean
-		valid.flatten_errors(t, fmt, buf, prefix .. k .. ".")
+		valid.flatten_errors(t, fmt, buf, append_path(prefix, k))
 	end
 
 	return buf
