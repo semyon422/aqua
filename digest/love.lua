@@ -10,7 +10,7 @@ digest.module = "love.data"
 ---@param hex boolean?
 ---@return string
 function digest.hash(func, s, hex)
-	local hash = love_data.hash(func, s)
+	local hash = love_data.hash("string", func, s)
 	if not hex then
 		return hash
 	end
