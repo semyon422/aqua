@@ -8,6 +8,8 @@ ffi.cdef [[
 	const char *PHYSFS_getLastError(void);
 ]]
 
+-- DEPRECATED: for love <= 11.5
+
 local physfs = {}
 
 function physfs.getLastError()
