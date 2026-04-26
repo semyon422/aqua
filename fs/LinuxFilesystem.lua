@@ -28,6 +28,7 @@ ffi.cdef [[
 	};
 
 	int stat(const char *path, struct stat *buf);
+	int lstat(const char *path, struct stat *buf);
 	char *getcwd(char *buf, unsigned long size);
 	int mkdir(const char *pathname, unsigned int mode);
 	int rmdir(const char *pathname);
@@ -99,7 +100,7 @@ end
 ---@return fs.FileInfo?
 function LinuxFilesystem:getInfo(path, info)
 	local buf = ffi.new("struct stat")
-	if ffi.C.stat(path, buf) ~= 0 then
+	if ffi.C.lstat(path, buf) ~= 0 then
 		return
 	end
 
