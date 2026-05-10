@@ -7,6 +7,11 @@ ffi.cdef [[
 	int libiconv_close (libiconv_t cd);
 ]]
 
+---@class ffi.namespace*
+---@field libiconv_open fun(tocode: string, fromcode: string): ffi.cdata*
+---@field libiconv fun(cd: ffi.cdata*, inbuf: ffi.cdata*?, inbytesleft: ffi.cdata*?, outbuf: ffi.cdata*?, outbytesleft: ffi.cdata*?): integer
+---@field libiconv_close fun(cd: ffi.cdata*): integer
+
 local libiconv = ffi.load("iconv")
 
 ---@class util.Iconv
@@ -19,14 +24,11 @@ iconv.__index = iconv
 ---@return table?
 ---@return string?
 function iconv:open(tocode, fromcode)
-	---@type integer
 	local cd = libiconv.libiconv_open(tocode, fromcode)
 
 	if cd == -1 then
 		return nil, "iconv open error"
 	end
-
-	---@cast cd -integer, +ffi.cdata*
 
 	ffi.gc(cd, libiconv.libiconv_close)
 

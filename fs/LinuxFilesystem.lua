@@ -48,6 +48,16 @@ ffi.cdef [[
 	int closedir(DIR *dirp);
 ]]
 
+---@class ffi.namespace*
+---@field getcwd fun(buf: ffi.cdata*, size: integer): ffi.cdata*
+---@field lstat fun(path: string, buf: ffi.cdata*): integer
+---@field mkdir fun(pathname: string, mode: integer): integer
+---@field rmdir fun(pathname: string): integer
+---@field unlink fun(pathname: string): integer
+---@field opendir fun(name: string): ffi.cdata*
+---@field readdir fun(dirp: ffi.cdata*): ffi.cdata*
+---@field closedir fun(dirp: ffi.cdata*): integer
+
 ---@class fs.LinuxStat
 ---@field st_dev integer
 ---@field st_ino integer
@@ -151,8 +161,8 @@ function LinuxFilesystem:getDirectoryItems(dir)
 	if d == nil then return items end
 
 	while true do
-		---@type fs.LinuxDirEnt
 		local ent = ffi.C.readdir(d)
+		---@cast ent -ffi.cdata*, +fs.LinuxDirEnt
 		if ent == nil then break end
 		local name = ffi.string(ent.d_name)
 		if name ~= "." and name ~= ".." then

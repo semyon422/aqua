@@ -163,6 +163,10 @@ ffi.cdef [[
 		const Byte *src, SizeT *srcLen, ELzmaFinishMode finishMode, ELzmaStatus *status);
 ]]
 
+---@class ffi.namespace*
+---@field malloc fun(size: integer): ffi.cdata*
+---@field free fun(ptr: ffi.cdata*?)
+
 ---@class c7z.BytePtr: ffi.cdata*
 ---@field [integer] integer
 

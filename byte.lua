@@ -10,6 +10,7 @@ local bad_numeric_pattern = "bad argument (number or ctype<uint64_t> expected, g
 ---@return T
 function byte.assert_numeric(value)
 	if type(value) == "cdata" then
+		---@cast value ffi.cdata*
 		assert(
 			ffi.istype("int64_t", value) or ffi.istype("uint64_t", value),
 			bad_numeric_pattern:format(ffi.typeof(value))
@@ -362,7 +363,7 @@ end
 ---@return integer size total processed size
 ---@return any ...
 function byte.apply(seek, proc, ...)
-	---@type byte.Pointer
+	---@type byte.Pointer?
 	local _p
 
 	local ok = true
@@ -568,7 +569,7 @@ function Buffer:string(length, cstr)
 	self.offset = offset + length
 
 	if cstr then
-		length = tonumber(ffi.C.strnlen(p, length))
+		length = tonumber(ffi.C.strnlen(p, length)) --[[@as integer]]
 	end
 
 	return ffi.string(p, length)
@@ -612,6 +613,12 @@ ffi.cdef("void * realloc(void * ptr, size_t newsize);")
 ffi.cdef("void free(void * ptr);")
 ffi.cdef("size_t strnlen(const char * str, size_t strsz);")
 
+---@class ffi.namespace*
+---@field malloc fun(size: integer): ffi.cdata*
+---@field realloc fun(ptr: ffi.cdata*?, size: integer): ffi.cdata*
+---@field free fun(ptr: ffi.cdata*?)
+---@field strnlen fun(str: ffi.cdata*, strsz: integer): integer
+
 ffi.cdef([[
 	typedef struct {
 		unsigned char * ptr;
@@ -645,7 +652,7 @@ function byte.buffer(size)
 	assert(p ~= nil, "allocation error")
 
 	local b = byte.buffer_t(p, size, 0)
-	ffi.gc(b, b.free)
+	ffi.gc(b, Buffer.free)
 	---@cast b byte.Buffer
 
 	_total = _total + size

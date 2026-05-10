@@ -12,4 +12,8 @@ ffi.cdef [[
 	int64_t Avbuf_seek(void *ptr, int64_t pos, int whence);
 ]]
 
+---@class ffi.namespace*
+---@field Avbuf_read fun(ptr: ffi.cdata*, buf: ffi.cdata*, len: integer): integer
+---@field Avbuf_seek fun(ptr: ffi.cdata*, pos: integer, whence: integer): integer
+
 return avbuf

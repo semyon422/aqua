@@ -8,6 +8,12 @@ ffi.cdef [[
 	const char *PHYSFS_getLastError(void);
 ]]
 
+---@class ffi.namespace*
+---@field PHYSFS_mount fun(newDir: string, mountPoint: string, appendToPath: integer): integer
+---@field PHYSFS_unmount fun(oldDir: string): integer
+---@field PHYSFS_setWriteDir fun(newDir: string): integer
+---@field PHYSFS_getLastError fun(): ffi.cdata*
+
 -- DEPRECATED: for love <= 11.5
 
 local physfs = {}

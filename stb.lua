@@ -8,6 +8,10 @@ ffi.cdef [[
 	typedef struct {} stb_t;
 ]]
 
+---@class ffi.namespace*
+---@field realloc fun(ptr: ffi.cdata*?, size: integer): ffi.cdata*
+---@field free fun(ptr: ffi.cdata*?)
+
 local NULL = ffi.new("void *")
 
 ---@param p ffi.cdata*?

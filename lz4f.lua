@@ -21,6 +21,13 @@ ffi.cdef [[
 	const char* LZ4F_getErrorName(LZ4F_errorCode_t code);
 ]]
 
+---@class ffi.namespace*
+---@field LZ4F_createDecompressionContext fun(dctxPtr: ffi.cdata*, version: integer): integer
+---@field LZ4F_freeDecompressionContext fun(dctx: ffi.cdata*): integer
+---@field LZ4F_decompress fun(dctx: ffi.cdata*, dstBuffer: ffi.cdata*, dstSizePtr: ffi.cdata*, srcBuffer: ffi.cdata*, srcSizePtr: ffi.cdata*, dOptPtr: ffi.cdata*?): integer
+---@field LZ4F_isError fun(code: integer): integer
+---@field LZ4F_getErrorName fun(code: integer): ffi.cdata*
+
 local lz4f = {}
 
 local outbuff_size = 2 ^ 16 -- 64k
