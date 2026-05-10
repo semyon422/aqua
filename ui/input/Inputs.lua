@@ -23,7 +23,7 @@ local HoverLostEvent = require("ui.input.events.HoverLostEvent")
 
 ---@class ui.Inputs
 ---@operator call: ui.Inputs
----@field mouse_x number 
+---@field mouse_x number
 ---@field mouse_y number
 ---@field mouse_target ui.Node?
 ---@field focus_requesters ui.Node[]
@@ -36,13 +36,13 @@ local mouse_events = {
 	mousepressed = true,
 	mousereleased = true,
 	mousemoved = true,
-	wheelmoved = true
+	wheelmoved = true,
 }
 
 local keyboard_events = {
 	keypressed = true,
 	keyreleased = true,
-	textinput = true
+	textinput = true,
 }
 
 ---@type ui.ModifierKeys
