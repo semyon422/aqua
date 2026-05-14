@@ -50,8 +50,9 @@ local input_complex = ffi.new("complex[?]", size)
 
 local function load_samples()
 	samples = ffi.new("complex[?]", sampleCount)
+	local getSample = soundData.getSample or soundData.getSampleFloat
 	for i = 0, sampleCount - 1 do
-		samples[i] = cmath.tocomplex(soundData:getSample(i, 1))
+		samples[i] = cmath.tocomplex(getSample(soundData, i, 1))
 	end
 end
 
@@ -208,8 +209,8 @@ local ncbt = {}
 
 function ncbt.onsets(sd)
 	soundData = sd
-	sampleRate = sd:getSampleRate()
-	sampleCount = sd:getSampleCount()
+	sampleRate = sd.sample_rate or sd:getSampleRate()
+	sampleCount = sd.samples_count or sd:getSampleCount()
 
 	sb_cached = {}
 
