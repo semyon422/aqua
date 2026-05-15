@@ -626,6 +626,11 @@ ffi.cdef("void * malloc(size_t size);")
 ffi.cdef("void * realloc(void * ptr, size_t newsize);")
 ffi.cdef("void free(void * ptr);")
 
+---@class ffi.namespace*
+---@field malloc fun(size: integer): ffi.cdata*
+---@field realloc fun(ptr: ffi.cdata*?, size: integer): ffi.cdata*
+---@field free fun(ptr: ffi.cdata*?)
+
 ffi.cdef("typedef struct {unsigned char * pointer; size_t size; size_t offset;} buffer_t;")
 
 local mt = {}

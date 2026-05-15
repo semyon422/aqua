@@ -10,6 +10,11 @@ ffi.cdef [[
 	extern void fftw_destroy_plan(fftw_plan p);
 ]]
 
+---@class ffi.namespace*
+---@field fftw_execute fun(p: ffi.cdata*)
+---@field fftw_plan_dft_1d fun(n: integer, in: ffi.cdata*, out: ffi.cdata*, sign: integer, flags: integer): ffi.cdata*
+---@field fftw_destroy_plan fun(p: ffi.cdata*)
+
 ---@class util.Fftw
 ---@operator call: util.Fftw
 ---@field buffer_in {[integer]: number}

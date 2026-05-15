@@ -46,4 +46,29 @@ function test.lifecycle(t)
 	t:assert(fs:getInfo(TEST_DIR) == nil)
 end
 
+---@param t testing.T
+function test.remove_unlinks_directory_symlink(t)
+	local fs = LinuxFilesystem()
+	local target_dir = TEST_DIR .. "_target"
+	local link_dir = TEST_DIR .. "_link"
+
+	fs:remove(link_dir)
+	fs:remove(target_dir)
+	fs:createDirectory(target_dir)
+	fs:write(target_dir .. "/keep.txt", "data")
+	local target_abs = fs:getWorkingDirectory() .. "/" .. target_dir
+	t:assert(os.execute(string.format("ln -s %q %q", target_abs, link_dir)))
+
+	local info = fs:getInfo(link_dir)
+	t:assert(info)
+	---@cast info -?
+	t:eq(info.type, "symlink")
+
+	t:assert(fs:remove(link_dir))
+	t:assert(fs:getInfo(link_dir) == nil)
+	t:assert(fs:getInfo(target_dir .. "/keep.txt") ~= nil)
+
+	fs:remove(target_dir)
+end
+
 return test

@@ -110,6 +110,44 @@ ffi.cdef [[
 	DWORD BASS_StreamPutFileData(HSTREAM handle, void *buffer, DWORD length);
 ]]
 
+---@class ffi.namespace*
+---@field BASS_Init fun(device: integer, freq: integer, flags: integer, win: ffi.cdata*?, dsguid: ffi.cdata*?): integer
+---@field BASS_Free fun(): integer
+---@field BASS_SampleCreate fun(length: integer, freq: integer, chans: integer, max: integer, flags: integer): integer
+---@field BASS_SampleGetInfo fun(handle: integer, info: ffi.cdata*): integer
+---@field BASS_SampleGetData fun(handle: integer, buffer: ffi.cdata*): integer
+---@field BASS_SampleSetData fun(handle: integer, buffer: ffi.cdata*): integer
+---@field BASS_ChannelSeconds2Bytes fun(handle: integer, pos: number): integer
+---@field BASS_ChannelGetPosition fun(handle: integer, mode: integer): integer
+---@field BASS_ChannelGetInfo fun(handle: integer, info: ffi.cdata*): integer
+---@field BASS_ChannelGetLength fun(handle: integer, mode: integer): integer
+---@field BASS_ChannelGetData fun(handle: integer, buffer: ffi.cdata*, length: integer): integer
+---@field BASS_SampleLoad fun(mem: integer, file: ffi.cdata*, offset: integer, length: integer, max: integer, flags: integer): integer
+---@field BASS_SampleFree fun(handle: integer): integer
+---@field BASS_ChannelFree fun(handle: integer): integer
+---@field BASS_StreamFree fun(handle: integer): integer
+---@field BASS_ChannelSetAttribute fun(handle: integer, attrib: integer, value: number): integer
+---@field BASS_StreamCreate fun(freq: integer, chans: integer, flags: integer, proc: ffi.cdata*, user: ffi.cdata*): integer
+---@field BASS_StreamCreateFile fun(mem: integer, file: ffi.cdata*, offset: integer, length: integer, flags: integer): integer
+---@field BASS_SampleGetChannel fun(handle: integer, flags: integer): integer
+---@field BASS_ChannelPlay fun(handle: integer, restart: integer): integer
+---@field BASS_ChannelStop fun(handle: integer): integer
+---@field BASS_ChannelPause fun(handle: integer): integer
+---@field BASS_ChannelIsActive fun(handle: integer): integer
+---@field BASS_ChannelBytes2Seconds fun(handle: integer, pos: integer): number
+---@field BASS_ChannelSetPosition fun(handle: integer, pos: integer, mode: integer): integer
+---@field BASS_PluginLoad fun(file: string, flags: integer): integer
+---@field BASS_PluginFree fun(handle: integer): integer
+---@field BASS_SampleGetChannels fun(handle: integer, channels: ffi.cdata*): integer
+---@field BASS_ErrorGetCode fun(): integer
+---@field BASS_GetInfo fun(info: ffi.cdata*): integer
+---@field BASS_SetConfig fun(option: integer, value: integer): integer
+---@field BASS_GetConfig fun(option: integer): integer
+---@field BASS_GetDevice fun(): integer
+---@field BASS_GetDeviceInfo fun(device: integer, info: ffi.cdata*): integer
+---@field BASS_StreamPutData fun(handle: integer, buffer: ffi.cdata*, length: integer): integer
+---@field BASS_StreamPutFileData fun(handle: integer, buffer: ffi.cdata*, length: integer): integer
+
 local bass_config = require("bass.config")
 local bass_device_info = require("bass.device_info")
 

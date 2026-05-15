@@ -325,6 +325,19 @@ function test.flatten(t)
 end
 
 ---@param t testing.T
+function test.flatten_array_key_path(t)
+	local errs = {
+		a = {
+			[1] = {
+				b = "not a string",
+			},
+		},
+	}
+
+	t:tdeq(valid.flatten_errors(errs), {"a[1].b is not a string"})
+end
+
+---@param t testing.T
 function test.format(t)
 	local errs = {
 		user_1 = {name = true},
@@ -343,6 +356,19 @@ function test.format(t)
 
 	t:tdeq({f(1)}, {true})
 	t:tdeq({f(0)}, {nil, format_errors})
+end
+
+---@param t testing.T
+function test.format_array_key_path(t)
+	local errs = {
+		a = {
+			[1] = {
+				b = "not a string",
+			},
+		},
+	}
+
+	t:eq(valid.format_errors(errs), "a[1].b is not a string")
 end
 
 ---@param t testing.T

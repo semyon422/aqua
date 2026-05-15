@@ -18,6 +18,9 @@ ffi.cdef [[
 	int nanosleep(const struct timespec *__requested_time, struct timespec *__remaining);
 ]]
 
+---@class ffi.namespace*
+---@field nanosleep fun(req: ffi.cdata*, rem: ffi.cdata*?): integer
+
 ---@class C.timespec
 ---@field tv_sec integer
 ---@field tv_nsec integer

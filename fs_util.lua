@@ -9,23 +9,25 @@ local fs_util = {}
 ---@return string?
 function fs_util.extractAsync(archive, path)
 	require("love.filesystem")
-	local physfs = require("physfs")
 	local rcopy = require("rcopy")
 	local mount = path .. "_temp"
 
-	local fs = love.filesystem
 	if type(archive) == "string" then
-		fs = physfs
-	end
-
-	if not fs.mount(archive, mount, true) then
-		return nil, physfs.getLastError()
+		if not love.filesystem.mountFullPath(archive, mount, "read", true) then
+			return nil, "failed to mount full path"
+		end
+	elseif not love.filesystem.mount(archive, mount, true) then
+		return nil, "failed to mount archive"
 	end
 
 	rcopy(mount, path)
 
-	if not fs.unmount(archive) then
-		return nil, physfs.getLastError()
+	if type(archive) == "string" then
+		if not love.filesystem.unmountFullPath(archive) then
+			return nil, "failed to unmount full path"
+		end
+	elseif not love.filesystem.unmount(archive) then
+		return nil, "failed to unmount archive"
 	end
 
 	return true

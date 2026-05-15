@@ -41,4 +41,13 @@ ffi.cdef [[
 	);
 ]]
 
+---@class ffi.namespace*
+---@field BASS_Mixer_StreamCreate fun(freq: integer, chans: integer, flags: integer): integer
+---@field BASS_Mixer_StreamAddChannel fun(handle: integer, channel: integer, flags: integer): integer
+---@field BASS_Mixer_StreamAddChannelEx fun(handle: integer, channel: integer, flags: integer, start: integer, length: integer): integer
+---@field BASS_Mixer_ChannelGetPosition fun(handle: integer, mode: integer): integer
+---@field BASS_Mixer_ChannelIsActive fun(handle: integer): integer
+---@field BASS_Mixer_ChannelRemove fun(handle: integer): integer
+---@field BASS_Mixer_ChannelSetPosition fun(handle: integer, pos: integer, mode: integer): integer
+
 return setmetatable({}, {__index = ffi.load("bassmix", true)})

@@ -33,13 +33,16 @@ function Request:receive_headers()
 		return nil, err
 	end
 
-	self:process_headers()
+	local ok, _err = self:process_headers()
+	if not ok then
+		return nil, _err
+	end
 
 	return 1
 end
 
 ---@return 1?
----@return "closed"|"timeout"?
+---@return "closed"|"timeout"|"malformed headers"?
 function Request:send_headers()
 	self:assert_mode("w")
 
@@ -58,7 +61,10 @@ function Request:send_headers()
 		return nil, err
 	end
 
-	self:process_headers()
+	local ok, _err = self:process_headers()
+	if not ok then
+		return nil, _err
+	end
 
 	return 1
 end

@@ -1,5 +1,4 @@
 local IFilesystem = require("fs.IFilesystem")
-local physfs = require("physfs")
 
 ---@class fs.LoveFilesystem: fs.IFilesystem
 ---@operator call: fs.LoveFilesystem
@@ -63,14 +62,22 @@ end
 ---@return boolean?
 ---@return string?
 function LoveFilesystem:mount(newDir, mountPoint, appendToPath)
-	return physfs.mount(newDir, mountPoint, appendToPath)
+	local ok = love.filesystem.mountFullPath(newDir, mountPoint, "read", appendToPath or false)
+	if not ok then
+		return nil, "failed to mount full path"
+	end
+	return ok
 end
 
 ---@param oldDir string
 ---@return boolean?
 ---@return string?
 function LoveFilesystem:unmount(oldDir)
-	return physfs.unmount(oldDir)
+	local ok = love.filesystem.unmountFullPath(oldDir)
+	if not ok then
+		return nil, "failed to unmount full path"
+	end
+	return ok
 end
 
 return LoveFilesystem

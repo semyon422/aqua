@@ -10,6 +10,9 @@ ffi.cdef [[
 	int memcmp(const void * p1, const void * p2, size_t n);
 ]]
 
+---@class ffi.namespace*
+---@field memcmp fun(p1: ffi.cdata*, p2: ffi.cdata*, n: integer): integer
+
 ---@alias ngx.return_code "ok"|"error"|"again"
 
 ---@type ngx.chain_t

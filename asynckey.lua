@@ -47,6 +47,9 @@ threadCode = [[
 
 	ffi.cdef("int16_t GetAsyncKeyState(int vKey);")
 
+	---@class ffi.namespace*
+	---@field GetAsyncKeyState fun(vKey: integer): integer
+
 	require("love.timer")
 
 	local keys = {}

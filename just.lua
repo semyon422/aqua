@@ -270,6 +270,15 @@ do
 	end
 end
 
+---@param action string
+---@param value number
+local function draw_stencil(stencil_fn, action, value)
+	love.graphics.setColorMask(false, false, false, false)
+	love.graphics.setStencilState(action, "always", value)
+	stencil_fn()
+	love.graphics.setColorMask(true, true, true, true)
+end
+
 ---@param sf function|string?
 ---@param ... any?
 function just.clip(sf, ...)
@@ -278,14 +287,14 @@ function just.clip(sf, ...)
 	end
 	if not sf then
 		just.pop()
-		love.graphics.stencil(stencilfunction, "decrement", 1, true)
+		draw_stencil(stencilfunction, "decrement", 1)
 		return pop_stencil()
 	end
 	just.push("all")
 	local layer = push_stencil(sf, ...)
 	local action = layer == 0 and "replace" or "increment"
-	love.graphics.stencil(stencilfunction, action, 1, true)
-	love.graphics.setStencilTest("greater", layer)
+	draw_stencil(stencilfunction, action, 1)
+	love.graphics.setStencilState("keep", "greater", layer)
 end
 
 ---@param t table

@@ -4,11 +4,16 @@ local c7z = ffi.load("7z")
 
 local l7z = {}
 
+-- Keep these FFI declarations aligned with the bundled 7z SDK headers in
+-- build/deps/7zsdk/C/ (currently matching the vendored SDK used by lib7z.so).
+-- If lib7z.so is rebuilt from a newer SDK, re-check structs like CLzmaEncProps
+-- first: outdated field layouts can cause silent memory corruption.
 ffi.cdef [[
 	void * malloc(size_t size);
 	void free(void * ptr);
 
 	typedef unsigned int UInt32;
+	typedef int32_t Int32;
 	typedef int64_t Int64;
 	typedef uint64_t UInt64;
 	typedef int SRes;
@@ -54,8 +59,10 @@ ffi.cdef [[
 		UInt32 mc;
 		unsigned writeEndMark;
 		int numThreads;
+		Int32 affinityGroup;
 		UInt64 reduceSize;
 		UInt64 affinity;
+		UInt64 affinityInGroup;
 	} CLzmaEncProps;
 
 	typedef const struct ICompressProgress_ *ICompressProgressPtr;
@@ -74,6 +81,13 @@ ffi.cdef [[
 	SRes LzmaEncode(Byte *dest, SizeT *destLen, const Byte *src, SizeT srcLen,
 	const CLzmaEncProps *props, Byte *propsEncoded, SizeT *propsSize, int writeEndMark,
 	ICompressProgressPtr progress, ISzAllocPtr alloc, ISzAllocPtr allocBig);
+
+	SRes LzmaCompress(Byte *dest, SizeT *destLen, const Byte *src, SizeT srcLen,
+		Byte *outProps, SizeT *outPropsSize,
+		int level, UInt32 dictSize, int lc, int lp, int pb, int fb, int numThreads);
+
+	SRes LzmaUncompress(Byte *dest, SizeT *destLen, const Byte *src, SizeT *srcLen,
+		const Byte *props, SizeT propsSize);
 
 	typedef struct ISeqInStream *ISeqInStreamPtr;
 	typedef struct ISeqInStream ISeqInStream;
@@ -148,6 +162,10 @@ ffi.cdef [[
 	SRes LzmaDec_DecodeToBuf(CLzmaDec *p, Byte *dest, SizeT *destLen,
 		const Byte *src, SizeT *srcLen, ELzmaFinishMode finishMode, ELzmaStatus *status);
 ]]
+
+---@class ffi.namespace*
+---@field malloc fun(size: integer): ffi.cdata*
+---@field free fun(ptr: ffi.cdata*?)
 
 ---@class c7z.BytePtr: ffi.cdata*
 ---@field [integer] integer
@@ -424,7 +442,21 @@ function l7z.encode(src_p, src_size, props_data_p)
 	end
 
 	---@type integer
-	local res = c7z.LzmaEncode(lzma_p, lzma_size_p, src_p, src_size, enc_props, dst_p, props_size_p, 0, nil, g_alloc_p, g_alloc_p)
+	local res = c7z.LzmaCompress(
+		lzma_p,
+		lzma_size_p,
+		src_p,
+		src_size,
+		dst_p,
+		props_size_p,
+		enc_props[0].level,
+		enc_props[0].dictSize,
+		enc_props[0].lc,
+		enc_props[0].lp,
+		enc_props[0].pb,
+		enc_props[0].fb,
+		1
+	)
 	assert(res == res_codes.SZ_OK, res)
 
 	return dst_p, lzma_size_p[0] + HEADER_SIZE
@@ -445,9 +477,8 @@ function l7z.decode(src_p, src_size)
 	local lzma_p = src_p + HEADER_SIZE
 	local lzma_size_p = ffi.new("size_t[1]", src_size - HEADER_SIZE)
 
-	local status = ffi.new("ELzmaStatus[1]")
 	---@type integer
-	local res = c7z.LzmaDecode(dst_p, dst_size_p, lzma_p, lzma_size_p, src_p, LZMA_PROPS_SIZE, "LZMA_FINISH_ANY", status, g_alloc_p)
+	local res = c7z.LzmaUncompress(dst_p, dst_size_p, lzma_p, lzma_size_p, src_p, LZMA_PROPS_SIZE)
 	assert(res == res_codes.SZ_OK, res)
 
 	return dst_p, dst_size_p[0]
@@ -469,7 +500,8 @@ function l7z.encode_s(s, props)
 	end
 	---@cast props_p c7z.BytePtr
 	local src_p, src_size = ffi.cast("const unsigned char *", s), #s
-	return ffi.string(l7z.encode(src_p, src_size, props_p))
+	local dst_p, dst_size = l7z.encode(src_p, src_size, props_p)
+	return ffi.string(dst_p, dst_size)
 end
 
 ---@param s string
@@ -477,7 +509,8 @@ end
 ---@return string
 function l7z.decode_s(s)
 	local src_p, src_size = ffi.cast("const unsigned char *", s), #s
-	return ffi.string(l7z.decode(src_p, src_size)), ffi.string(src_p, LZMA_PROPS_SIZE)
+	local dst_p, dst_size = l7z.decode(src_p, src_size)
+	return ffi.string(dst_p, dst_size), ffi.string(src_p, LZMA_PROPS_SIZE)
 end
 
 --------------------------------------------------------------------------------

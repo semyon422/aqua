@@ -40,13 +40,34 @@ function RequestResponse:set_chunked_encoding()
 end
 
 function RequestResponse:process_headers()
-	local length = self.headers:get("Content-Length")
 	local encoding = self.headers:get("Transfer-Encoding")
-	if length and tonumber(length) then
-		self.soc = ExtendedSocket(LengthSocket(self.soc, tonumber(length)))
-	elseif encoding == "chunked" then
-		self.soc = ExtendedSocket(ChunkedEncoding(self.soc))
+
+	if encoding then
+		if encoding:lower() == "chunked" then
+			self.soc = ExtendedSocket(ChunkedEncoding(self.soc))
+		end
+		-- Transfer-Encoding takes precedence over Content-Length.
+		return 1
 	end
+
+	local length = self.headers:get("Content-Length")
+	if not length then
+		return 1
+	end
+
+	-- RFC 9112: Content-Length is a non-negative decimal integer.
+	if not tostring(length):match("^%d+$") then
+		return nil, "malformed headers"
+	end
+
+	local parsed_length = tonumber(length)
+	if not parsed_length then
+		return nil, "malformed headers"
+	end
+
+	self.soc = ExtendedSocket(LengthSocket(self.soc, parsed_length))
+
+	return 1
 end
 
 ---@param pattern "*a"|"*l"|integer?
@@ -67,7 +88,7 @@ end
 ---@param i integer?
 ---@param j integer?
 ---@return integer?
----@return "closed"|"timeout"?
+---@return "closed"|"timeout"|"malformed headers"?
 ---@return integer?
 function RequestResponse:send(data, i, j)
 	self:assert_mode("w")
