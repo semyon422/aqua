@@ -2,7 +2,6 @@ local IValue = require("ui.anim.IValue")
 local math_util = require("math_util")
 
 ---@class ui.anim.TweenValue.Config
----@field mode? "tween"
 ---@field value? number
 ---@field target? number
 ---@field velocity? number
@@ -12,7 +11,6 @@ local math_util = require("math_util")
 
 ---@class ui.anim.TweenValue: ui.anim.IValue
 ---@overload fun(config: ui.anim.TweenValue.Config?): ui.anim.TweenValue
----@field mode "tween"
 ---@field value number
 ---@field target number
 ---@field velocity number
@@ -88,7 +86,6 @@ end
 
 ---@param config ui.anim.TweenValue.Config?
 function TweenValue:new(config)
-	self.mode = "tween"
 	self.value = 0
 	self.target = 0
 	self.velocity = 0
@@ -117,10 +114,6 @@ end
 function TweenValue:configure(config)
 	if not config then
 		return self
-	end
-
-	if config.mode ~= nil then
-		assert(config.mode == "tween", ("unknown mode: %s"):format(tostring(config.mode)))
 	end
 
 	if config.duration ~= nil then
@@ -159,7 +152,9 @@ end
 ---@param value? number
 ---@return self
 function TweenValue:snap(value)
-	value = value == nil and self.target or value
+	if not value then
+		value = self.target
+	end
 	self.value = value
 	self.target = value
 	self.velocity = 0

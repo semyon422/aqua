@@ -1,7 +1,6 @@
 local IValue = require("ui.anim.IValue")
 
 ---@class ui.anim.SpringValue.Config
----@field mode? "spring"
 ---@field value? number
 ---@field target? number
 ---@field velocity? number
@@ -12,7 +11,6 @@ local IValue = require("ui.anim.IValue")
 
 ---@class ui.anim.SpringValue: ui.anim.IValue
 ---@overload fun(config: ui.anim.SpringValue.Config?): ui.anim.SpringValue
----@field mode "spring"
 ---@field value number
 ---@field target number
 ---@field velocity number
@@ -32,7 +30,6 @@ end
 
 ---@param config ui.anim.SpringValue.Config?
 function SpringValue:new(config)
-	self.mode = "spring"
 	self.value = 0
 	self.target = 0
 	self.velocity = 0
@@ -58,10 +55,6 @@ end
 function SpringValue:configure(config)
 	if not config then
 		return self
-	end
-
-	if config.mode ~= nil then
-		assert(config.mode == "spring", ("unknown mode: %s"):format(tostring(config.mode)))
 	end
 
 	if config.stiffness ~= nil then
