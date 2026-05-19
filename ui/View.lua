@@ -18,7 +18,6 @@ local IInputHandler = require("ui.input.IInputHandler")
 ---@field visible boolean
 ---@field width_percent number? -- 0..1 ratio of parent box width
 ---@field height_percent number? -- 0..1 ratio of parent box height
----@field ui_scale number
 ---@field is_focusable boolean
 ---@field focused boolean
 ---@field mouse_over boolean
@@ -39,7 +38,6 @@ function View:new()
 	self.rotation = 0
 	self.scale_x = 1
 	self.scale_y = 1
-	self.ui_scale = 1
 
 	self.is_focusable = false
 	self.focused = false
@@ -47,47 +45,16 @@ function View:new()
 	self.pressed = false
 	self.handles_mouse_input = false
 	self.handles_keyboard_input = false
+	self._constructed = true
 end
 
-function View:onLayoutUpdate() end
+function View:load() end
 
 ---@param e ui.FocusEvent
 function View:onFocus(e) end
 
 ---@param e ui.FocusLostEvent
 function View:onFocusLost(e) end
-
-local function resolve_percent_size(self)
-	if self.width_percent ~= nil then
-		assert(self.box, "ui.View:applyLayout() requires self.box")
-		self.width = self.box.width * self.width_percent
-	end
-	if self.height_percent ~= nil then
-		assert(self.box, "ui.View:applyLayout() requires self.box")
-		self.height = self.box.height * self.height_percent
-	end
-end
-
-function View:applyLayout()
-	local box = self.box
-	assert(box, "ui.View:applyLayout() requires self.box")
-	resolve_percent_size(self)
-
-	self:onLayoutUpdate()
-	self:updateTransform()
-end
-
----@param value number
----@return number
-function View:toLogicalSize(value)
-	return value / self.ui_scale
-end
-
----@param value number
----@return number
-function View:toScreenSize(value)
-	return value * self.ui_scale
-end
 
 local temp_tf = love.math.newTransform()
 
@@ -99,7 +66,7 @@ function View:updateTransform()
 	local box_height = box.height
 	local ax, ay = box_width * pivot[1], box_height * pivot[2]
 	local ox, oy = self.width * pivot[1], self.height * pivot[2]
-	local x, y = self.x + ax, self.y + ay
+	local x, y = self.x + self.box.x + ax, self.y + self.box.y + ay
 	local sx = self.scale_x
 	local sy = self.scale_y
 	local r = self.rotation
@@ -150,8 +117,6 @@ end
 function View:setSize(width, height)
 	self.width = width
 	self.height = height
-	self.width_percent = nil
-	self.height_percent = nil
 	return self
 end
 
@@ -159,14 +124,6 @@ end
 ---@return self
 function View:setWidth(width)
 	self.width = width
-	self.width_percent = nil
-	return self
-end
-
----@param width_percent number?
----@return self
-function View:setWidthPercent(width_percent)
-	self.width_percent = width_percent
 	return self
 end
 
@@ -174,23 +131,6 @@ end
 ---@return self
 function View:setHeight(height)
 	self.height = height
-	self.height_percent = nil
-	return self
-end
-
----@param height_percent number?
----@return self
-function View:setHeightPercent(height_percent)
-	self.height_percent = height_percent
-	return self
-end
-
----@param width_percent number?
----@param height_percent number?
----@return self
-function View:setSizePercent(width_percent, height_percent)
-	self.width_percent = width_percent
-	self.height_percent = height_percent
 	return self
 end
 
@@ -204,8 +144,6 @@ function View:setBounds(x, y, width, height)
 	self.y = y
 	self.width = width
 	self.height = height
-	self.width_percent = nil
-	self.height_percent = nil
 	return self
 end
 

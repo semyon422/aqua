@@ -16,14 +16,12 @@ end
 ---@param y number
 ---@param width number
 ---@param height number
----@param ui_scale number?
-function Box:update(x, y, width, height, ui_scale)
-	ui_scale = ui_scale or 1
+function Box:update(x, y, width, height)
 	self.x = x
 	self.y = y
 	self.width = width
 	self.height = height
-	self.transform:setTransformation(x * ui_scale, y * ui_scale, 0, ui_scale, ui_scale, 0, 0)
+	self.transform:setTransformation(x, y)
 end
 
 ---@return number
