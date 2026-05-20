@@ -378,6 +378,7 @@ function Inputs:dispatchKeyboardEvent(event, modifiers)
 
 	---@cast e -?
 	e.key = event[1]
+	e.is_repeated = event[3] or false
 
 	if self.keyboard_focus then
 		e.target = self.keyboard_focus
