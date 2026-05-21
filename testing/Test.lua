@@ -7,6 +7,7 @@ local stbl = require("stbl")
 ---@field [integer] string?
 ---@field name string?
 ---@field path string?
+---@field no_color boolean?
 local Test = class()
 
 ---@generic T
@@ -162,7 +163,7 @@ function Test:expected_assert(cond, got, expected, level, msg)
 	expected = format_got_expected(expected)
 
 	local colored_expected, colored_got = tostring(expected), tostring(got)
-	if #colored_expected * #colored_got <= 1e5 then
+	if (not self.no_color) and #colored_expected * #colored_got <= 1e5 then
 		colored_expected, colored_got = get_dual_diff(tostring(colored_expected), tostring(colored_got))
 	end
 

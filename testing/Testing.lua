@@ -156,7 +156,9 @@ end
 ---@param file_pattern string?
 ---@param method_pattern string?
 function Testing:test_json(file_pattern, method_pattern)
+	self.t.no_color = true
 	local result = self:_run(file_pattern, method_pattern)
+	self.t.no_color = false
 	local json = require("json")
 	self.tio:writeStdout(json.encode(result))
 	self.tio:writeStdout("\n")
