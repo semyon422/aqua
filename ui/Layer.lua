@@ -60,7 +60,15 @@ function Layer:draw()
 	end
 end
 
+---@param key string
+function Layer:handleKeyDown(key) end
+
 ---@param event table
-function Layer:receive(event) end
+function Layer:receive(event)
+	if event.name == "keypressed" then
+		local key = event[1] ---@type string
+		self:handleKeyDown(key)
+	end
+end
 
 return Layer

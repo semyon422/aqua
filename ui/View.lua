@@ -98,6 +98,11 @@ function View:update(dt) end
 function View:draw() end
 
 ---@return number
+function View:getWidth()
+	return self.width
+end
+
+---@return number
 function View:getHeight()
 	return self.height
 end
