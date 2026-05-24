@@ -5,7 +5,7 @@ local KeyboardEvent = require("ui.input.events.KeyboardEvent")
 local KeyDownEvent = KeyboardEvent + {}
 
 function KeyDownEvent:trigger()
-	return self.current_target:onKeyDown(self)
+	return self:getDispatchTarget():onKeyDown(self)
 end
 
 return KeyDownEvent

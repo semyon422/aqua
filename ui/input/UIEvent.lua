@@ -2,8 +2,8 @@ local class = require("class")
 
 ---@class ui.UIEvent
 ---@operator call: ui.UIEvent
----@field target ui.Node?
----@field current_target ui.Node?
+---@field target ui.View?
+---@field current_target ui.View?
 ---@field control_pressed boolean
 ---@field shift_pressed boolean
 ---@field alt_pressed boolean
@@ -21,6 +21,11 @@ end
 
 function UIEvent:stopPropagation()
 	self.stop = true
+end
+
+---@return ui.View?
+function UIEvent:getDispatchTarget()
+	return self.current_target or self.target
 end
 
 ---@return boolean?

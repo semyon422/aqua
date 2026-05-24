@@ -7,7 +7,7 @@ local MouseEvent = require("ui.input.events.MouseEvent")
 local ScrollEvent = MouseEvent + {}
 
 function ScrollEvent:trigger()
-	return self.current_target:onScroll(self)
+	return self:getDispatchTarget():onScroll(self)
 end
 
 return ScrollEvent
