@@ -14,10 +14,19 @@ local Route = class()
 function Route:new(pattern)
 	---@type string[]
 	local keys = {}
-	pattern = pattern:gsub("([%:%+%*])([^/]+)", function(_type, key)
+
+	-- First parse route parameters (:key, +key, *key)
+	-- Key is alphanumeric + underscore, ends at non-alphanumeric
+	pattern = pattern:gsub("([%:%+%*])([%w_]+)", function(_type, key)
 		table.insert(keys, key)
 		return type_to_pattern[_type]
 	end)
+
+	-- Then escape remaining Lua pattern special characters
+	-- Note: ( ) [ ] * + ? ^ $ | are NOT escaped because they're part of the pattern groups
+	-- We only escape . % - which are common in URLs but special in Lua patterns
+	pattern = pattern:gsub("([%.%-])", "%%%1")
+
 	self.pattern = "^" .. pattern .. "$"
 	self.keys = keys
 end
