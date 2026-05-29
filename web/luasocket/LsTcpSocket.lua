@@ -17,9 +17,9 @@ function LsTcpSocket:new(ver)
 	if ver == nil then
 		self.soc = socket.tcp()
 	elseif ver == 4 then
-		self.soc = socket.tcp4()
+		self.soc = socket.tcp4 and socket.tcp4() or socket.tcp()
 	elseif ver == 6 then
-		self.soc = socket.tcp6()
+		self.soc = socket.tcp6 and socket.tcp6() or socket.tcp()
 	else
 		error("invalid IP version: " .. tostring(ver))
 	end
