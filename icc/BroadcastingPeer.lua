@@ -21,7 +21,10 @@ end
 function BroadcastingPeer:send(msg)
 	local payload = nats_buffer:encode(msg)
 	local ok, err = self.nc:publish({subject = self.subject, payload = payload})
-	if not ok then return nil, err end
+	if not ok then
+		print("[nats] broadcast error: " .. tostring(err))
+		return 0 -- best-effort: don't crash the caller
+	end
 	return #payload
 end
 

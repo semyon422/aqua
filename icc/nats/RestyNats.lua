@@ -6,6 +6,7 @@ local protocol_parser = require("resty.nats.protocols.parser")
 ---@field host string
 ---@field port integer
 ---@field cli any? underlying NATS client
+---@field connected boolean connection state (true=connected, false=failed, nil=not tried)
 ---@operator call: nats.RestyNats
 local RestyNats = class()
 
@@ -19,14 +20,20 @@ function RestyNats:new(opts)
 	self.host = opts.host or "127.0.0.1"
 	self.port = opts.port or 4222
 	self.cli = nil
+	self.connected = nil
 end
 
 --- Start the underlying NATS connection and receive loop.
 --- Handles socket timeouts gracefully by sleeping and retrying.
----@return any client
+--- On failure, caches the error so subsequent calls don't retry.
+---@return any? client
+---@return string? err
 function RestyNats:start()
 	if self.cli then
 		return self.cli
+	end
+	if self.connected == false then
+		return nil, "NATS not connected"
 	end
 
 	local cli, err = nats_client.connect({
@@ -36,9 +43,12 @@ function RestyNats:start()
 		keepalive = false,
 	})
 	if not cli then
-		error("failed to connect to NATS: " .. tostring(err))
+		self.connected = false
+		print("[nats] failed to connect: " .. tostring(err))
+		return nil, tostring(err)
 	end
 	self.cli = cli
+	self.connected = true
 
 	-- Custom receive loop that handles socket timeouts gracefully.
 	ngx.thread.spawn(function()
@@ -80,27 +90,33 @@ end
 
 --- Get the underlying NATS client (starts connection if needed).
 --- @private
----@return any client
+---@return any? client
+---@return string? err
 function RestyNats:client()
-	self:start()
-	return self.cli
+	return self:start()
 end
 
 ---@param opts {subject: string, reply_to?: string, payload?: string}
 ---@return boolean?, string?
 function RestyNats:publish(opts)
-	return self:client():publish(opts)
+	local client, err = self:client()
+	if not client then
+		return nil, err or "NATS not connected"
+	end
+	return client:publish(opts)
 end
 
 ---@param subject string
 ---@param cb fun(message: {subject: string, reply_to?: string, payload: string})
 ---@return boolean?, string?, integer?
 function RestyNats:subscribe(subject, cb)
-	local client = self:client()
-	local prev_id = client.subscriber_id
-	local ok, err = client:subscribe(subject, cb)
+	local client, err = self:client()
+	if not client then
+		return nil, err or "NATS not connected"
+	end
+	local ok, sub_err = client:subscribe(subject, cb)
 	if not ok then
-		return nil, err
+		return nil, sub_err
 	end
 	-- subscriber_id was incremented inside client:subscribe()
 	return ok, nil, client.subscriber_id
@@ -109,7 +125,10 @@ end
 ---@param sid integer
 ---@return boolean?, string?
 function RestyNats:unsubscribe(sid)
-	local client = self:client()
+	local client, err = self:client()
+	if not client then
+		return nil, err or "NATS not connected"
+	end
 	client.subscribers[sid] = nil
 	-- Clean up subscriber_id_map: remove any entry pointing to this sid
 	for subject, mapped_sid in pairs(client.subscriber_id_map) do
@@ -118,9 +137,9 @@ function RestyNats:unsubscribe(sid)
 			break
 		end
 	end
-	local bytes, err = client.sock:send(require("resty.nats.protocols.unsub").encode({ sid = sid }) .. "\r\n")
+	local bytes, send_err = client.sock:send(require("resty.nats.protocols.unsub").encode({ sid = sid }) .. "\r\n")
 	if not bytes then
-		return nil, "failed to send UNSUB message: " .. err
+		return nil, "failed to send UNSUB message: " .. send_err
 	end
 	return true
 end
