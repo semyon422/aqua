@@ -94,15 +94,35 @@ end
 
 ---@param subject string
 ---@param cb fun(message: {subject: string, reply_to?: string, payload: string})
----@return boolean?, string?
+---@return boolean?, string?, integer?
 function RestyNats:subscribe(subject, cb)
-	return self:client():subscribe(subject, cb)
+	local client = self:client()
+	local prev_id = client.subscriber_id
+	local ok, err = client:subscribe(subject, cb)
+	if not ok then
+		return nil, err
+	end
+	-- subscriber_id was incremented inside client:subscribe()
+	return ok, nil, client.subscriber_id
 end
 
----@param subject string
+---@param sid integer
 ---@return boolean?, string?
-function RestyNats:unsubscribe(subject)
-	return self:client():unsubscribe(subject)
+function RestyNats:unsubscribe(sid)
+	local client = self:client()
+	client.subscribers[sid] = nil
+	-- Clean up subscriber_id_map: remove any entry pointing to this sid
+	for subject, mapped_sid in pairs(client.subscriber_id_map) do
+		if mapped_sid == sid then
+			client.subscriber_id_map[subject] = nil
+			break
+		end
+	end
+	local bytes, err = client.sock:send(require("resty.nats.protocols.unsub").encode({ sid = sid }) .. "\r\n")
+	if not bytes then
+		return nil, "failed to send UNSUB message: " .. err
+	end
+	return true
 end
 
 function RestyNats:close()

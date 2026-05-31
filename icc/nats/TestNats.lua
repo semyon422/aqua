@@ -4,8 +4,9 @@ local class = require("class")
 
 ---@class nats.TestNats: nats.INats
 ---@field published {[integer]: {subject: string, reply_to?: string, payload?: string}}
----@field subscribers {[integer]: {subject: string, callback: function, match: nats.SubjectMatcher}}
+---@field subscribers {[integer]: {sid: integer, subject: string, callback: function, match: nats.SubjectMatcher}}
 ---@field pending {[integer]: {callback: function, msg: {subject: string, reply_to?: string, payload: string}}}
+---@field sid_counter integer
 ---@operator call: nats.TestNats
 local TestNats = class()
 
@@ -13,6 +14,7 @@ function TestNats:new()
 	self.published = {}
 	self.subscribers = {}
 	self.pending = {}
+	self.sid_counter = 0
 end
 
 --- Parse a NATS subject pattern into a matcher function.
@@ -87,25 +89,29 @@ end
 
 ---@param subject string
 ---@param cb fun(message: {subject: string, reply_to?: string, payload: string})
----@return boolean?, string?
+---@return boolean?, string?, integer?
 function TestNats:subscribe(subject, cb)
+	self.sid_counter = self.sid_counter + 1
+	local sid = self.sid_counter
 	table.insert(self.subscribers, {
+		sid = sid,
 		subject = subject,
 		callback = cb,
 		match = parse_subject(subject),
 	})
-	return true
+	return true, nil, sid
 end
 
----@param subject string
+---@param sid integer
 ---@return boolean?, string?
-function TestNats:unsubscribe(subject)
+function TestNats:unsubscribe(sid)
 	for i = #self.subscribers, 1, -1 do
-		if self.subscribers[i].subject == subject then
+		if self.subscribers[i].sid == sid then
 			table.remove(self.subscribers, i)
+			return true
 		end
 	end
-	return true
+	return false, "no such subscription found"
 end
 
 --- Flush pending messages. Call after coroutine yield to simulate async delivery.

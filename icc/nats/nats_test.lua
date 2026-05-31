@@ -125,7 +125,8 @@ function test.test_nats_unsubscribe(t)
 	local nc = TestNats()
 
 	local received = {}
-	nc:subscribe("test.*", function(msg)
+	local sid
+	_, _, sid = nc:subscribe("test.*", function(msg)
 		table.insert(received, msg)
 	end)
 
@@ -133,10 +134,40 @@ function test.test_nats_unsubscribe(t)
 	nc:flush()
 	t:eq(#received, 1)
 
-	nc:unsubscribe("test.*")
+	nc:unsubscribe(sid)
 	nc:publish({subject = "test.b", payload = "2"})
 	nc:flush()
 	t:eq(#received, 1) -- no new delivery
+end
+
+---@param t testing.T
+function test.test_nats_multiple_subscribers_same_subject(t)
+	local nc = TestNats()
+
+	local a_received = {}
+	local b_received = {}
+	local _, _, sid_a = nc:subscribe("test.>", function(msg)
+		table.insert(a_received, msg)
+	end)
+	local _, _, sid_b = nc:subscribe("test.>", function(msg)
+		table.insert(b_received, msg)
+	end)
+
+	nc:publish({subject = "test.foo", payload = "hello"})
+	nc:flush()
+
+	-- Both subscribers get the message
+	t:eq(#a_received, 1)
+	t:eq(#b_received, 1)
+
+	-- Unsubscribe only B
+	nc:unsubscribe(sid_b)
+	nc:publish({subject = "test.bar", payload = "world"})
+	nc:flush()
+
+	-- A still receives, B does not
+	t:eq(#a_received, 2)
+	t:eq(#b_received, 1)
 end
 
 return test
