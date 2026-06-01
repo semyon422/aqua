@@ -7,6 +7,8 @@ local protocol_parser = require("resty.nats.protocols.parser")
 ---@field port integer
 ---@field cli any? underlying NATS client
 ---@field connected boolean connection state (true=connected, false=failed, nil=not tried)
+---@field connect_failed boolean true if initial connect() failed (cached to avoid retry storms)
+---@field receive_thread any? receive loop thread handle
 ---@operator call: nats.RestyNats
 local RestyNats = class()
 
@@ -21,18 +23,21 @@ function RestyNats:new(opts)
 	self.port = opts.port or 4222
 	self.cli = nil
 	self.connected = nil
+	self.connect_failed = false
+	self.receive_thread = nil
 end
 
 --- Start the underlying NATS connection and receive loop.
 --- Handles socket timeouts gracefully by sleeping and retrying.
---- On failure, caches the error so subsequent calls don't retry.
+--- On initial connect failure, caches the error so subsequent calls don't retry.
+--- On receive loop death, resets state so subsequent calls can reconnect.
 ---@return any? client
 ---@return string? err
 function RestyNats:start()
 	if self.cli then
 		return self.cli
 	end
-	if self.connected == false then
+	if self.connect_failed then
 		return nil, "NATS not connected"
 	end
 
@@ -43,7 +48,7 @@ function RestyNats:start()
 		keepalive = false,
 	})
 	if not cli then
-		self.connected = false
+		self.connect_failed = true
 		print("[nats] failed to connect: " .. tostring(err))
 		return nil, tostring(err)
 	end
@@ -51,7 +56,8 @@ function RestyNats:start()
 	self.connected = true
 
 	-- Custom receive loop that handles socket timeouts gracefully.
-	ngx.thread.spawn(function()
+	-- On exit (error or worker shutdown), resets connection state so callers can retry.
+	self.receive_thread = ngx.thread.spawn(function()
 		local sock = cli.sock
 		local parser = protocol_parser.new(function(type, message)
 			if type == protocol_parser.MESSAGE_TYPE.PING then
@@ -72,17 +78,24 @@ function RestyNats:start()
 				if err == "timeout" then
 					ngx.sleep(0.1)
 				else
-					print("nats receive error:", err)
+					print("[nats] receive error:", err)
 					break
 				end
 			else
 				local parse_err = parser:parse(line)
 				if parse_err then
-					print("nats parse error:", parse_err)
+					print("[nats] parse error:", parse_err)
 					break
 				end
 			end
 		end
+
+		-- Connection died — reset state so subsequent calls can reconnect.
+		-- Do NOT set connect_failed; that only blocks initial connect attempts.
+		self.cli = nil
+		self.connected = false
+		self.receive_thread = nil
+		print("[nats] receive loop exited — will reconnect on next call")
 	end)
 
 	return cli
@@ -149,6 +162,17 @@ function RestyNats:close()
 		self.cli:close()
 		self.cli = nil
 	end
+	self.connected = nil
+	self.connect_failed = false
+	self.receive_thread = nil
+end
+
+--- Check if the connection is alive.
+--- Returns false if never connected, connection failed, or receive loop has died.
+--- Does not trigger a reconnection attempt.
+---@return boolean
+function RestyNats:health()
+	return self.connected == true and self.cli ~= nil
 end
 
 --- Get or create the singleton instance.

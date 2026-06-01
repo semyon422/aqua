@@ -170,4 +170,10 @@ function test.test_nats_multiple_subscribers_same_subject(t)
 	t:eq(#b_received, 1)
 end
 
+---@param t testing.T
+function test.test_nats_health(t)
+	local nc = TestNats()
+	t:assert(nc:health())
+end
+
 return test

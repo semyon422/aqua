@@ -17,4 +17,8 @@ function INats:subscribe(subject, cb) end
 ---@return boolean?, string?
 function INats:unsubscribe(sid) end
 
+--- Check if the connection is alive.
+---@return boolean
+function INats:health() end
+
 return INats
