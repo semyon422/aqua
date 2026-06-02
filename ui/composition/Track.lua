@@ -109,7 +109,9 @@ function Track:grow(available_w, available_h)
 		local item = self.combined[i]
 
 		if v == "-" then
-			space_left = space_left - self.getMainSize(item)
+			local s = self.getMainSize(item)
+			self.setSize(item, s, cross_size)
+			space_left = space_left - s
 		elseif type(v) == "number" then
 			if v >= 0 then
 				space_left = space_left - v
