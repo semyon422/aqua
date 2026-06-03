@@ -100,4 +100,16 @@ function RequestResponse:send(data, i, j)
 	return self.soc:send(data, i, j)
 end
 
+---@param pattern string
+---@param options {inclusive: boolean?}?
+---@return fun(size: integer?): string?, "closed"|"timeout"|"malformed headers"?, string?
+function RequestResponse:receiveuntil(pattern, options)
+	local ok, err = self:receive_headers()
+	if not ok then
+		return function() return nil, err, "" end
+	end
+
+	return self.soc:receiveuntil(pattern, options)
+end
+
 return RequestResponse

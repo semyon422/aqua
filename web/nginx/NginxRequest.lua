@@ -52,4 +52,16 @@ function NginxRequest:receive(pattern, prefix)
 	return self.soc:receive(pattern)
 end
 
+---@param pattern string
+---@param options {inclusive: boolean?}?
+---@return fun(size: integer?): string?, "closed"|"timeout"|"malformed headers"?, string?
+function NginxRequest:receiveuntil(pattern, options)
+	local ok, err = self:receive_headers()
+	if not ok then
+		return function() return nil, err, "" end
+	end
+
+	return self.soc:receiveuntil(pattern, options)
+end
+
 return NginxRequest

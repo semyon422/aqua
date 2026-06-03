@@ -76,4 +76,23 @@ function LengthSocket:send(data, i, j)
 	return nil, "closed", bytes
 end
 
+---@param max integer
+---@return string?
+---@return "closed"|"timeout"|"closed early"?
+function LengthSocket:receiveany(max)
+	if self.length == 0 then
+		return nil, "closed"
+	end
+
+	local size = math.min(max, self.length)
+	local data, err = self.soc:receiveany(size)
+
+	if data then
+		self.length = self.length - #data
+		return data
+	end
+
+	return nil, closed_early_or_timeout(err)
+end
+
 return LengthSocket

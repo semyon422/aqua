@@ -96,4 +96,57 @@ function test.send_timeout(t)
 	t:tdeq({soc:send("qwertyuiop")}, {nil, "timeout", 0})
 end
 
+---@param t testing.T
+function test.receiveany_basic(t)
+	local str_soc = StringSocket("hello world")
+	local soc = LengthSocket(str_soc, 5)
+
+	t:tdeq({soc:receiveany(10)}, {"hello"})
+	t:tdeq({soc:receiveany(10)}, {nil, "closed"})
+end
+
+---@param t testing.T
+function test.receiveany_respects_max(t)
+	local str_soc = StringSocket("hello world")
+	local soc = LengthSocket(str_soc, 10)
+
+	t:tdeq({soc:receiveany(3)}, {"hel"})
+	t:tdeq({soc:receiveany(3)}, {"lo "})
+	t:tdeq({soc:receiveany(3)}, {"wor"})
+end
+
+---@param t testing.T
+function test.receiveany_timeout(t)
+	local str_soc = StringSocket()
+	local soc = LengthSocket(str_soc, 10)
+
+	t:tdeq({soc:receiveany(10)}, {nil, "timeout"})
+	t:eq(soc.length, 10)
+
+	str_soc:send("ab")
+	t:tdeq({soc:receiveany(10)}, {"ab"})
+	t:eq(soc.length, 8)
+end
+
+---@param t testing.T
+function test.receiveany_closed(t)
+	local str_soc = StringSocket("hello world")
+	local soc = LengthSocket(str_soc, 5)
+
+	t:tdeq({soc:receiveany(5)}, {"hello"})
+	t:tdeq({soc:receiveany(5)}, {nil, "closed"})
+	t:tdeq({soc:receiveany(5)}, {nil, "closed"})
+end
+
+---@param t testing.T
+function test.receiveany_mixed_with_receive(t)
+	local str_soc = StringSocket("hello world")
+	local soc = LengthSocket(str_soc, 10)
+
+	t:tdeq({soc:receiveany(3)}, {"hel"})
+	t:tdeq({soc:receive(2)}, {"lo"})
+	t:tdeq({soc:receiveany(10)}, {" worl"})
+	t:tdeq({soc:receiveany(10)}, {nil, "closed"})
+end
+
 return test

@@ -101,4 +101,22 @@ function StringSocket:send(data, i, j)
 	return nil, "timeout", last_byte
 end
 
+---@param max integer
+---@return string?
+---@return "closed"|"timeout"|"closed early"?
+function StringSocket:receiveany(max)
+	local rem = self.remainder
+	if #rem > 0 then
+		local size = math.min(#rem, max)
+		self.remainder = rem:sub(size + 1)
+		return rem:sub(1, size)
+	end
+
+	if self.closed then
+		return nil, "closed"
+	end
+
+	return nil, "timeout"
+end
+
 return StringSocket

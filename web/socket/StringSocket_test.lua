@@ -149,4 +149,42 @@ function test.split(t)
 	t:tdeq({soc_1:receive(3)}, {"res"})
 end
 
+---@param t testing.T
+function test.receiveany_basic(t)
+	local soc = StringSocket()
+
+	t:tdeq({soc:send("hello world")}, {11})
+
+	t:tdeq({soc:receiveany(5)}, {"hello"})
+	t:tdeq({soc:receiveany(5)}, {" worl"})
+	t:tdeq({soc:receiveany(5)}, {"d"})
+end
+
+---@param t testing.T
+function test.receiveany_empty_open(t)
+	local soc = StringSocket()
+
+	t:tdeq({soc:receiveany(10)}, {nil, "timeout"})
+end
+
+---@param t testing.T
+function test.receiveany_closed(t)
+	local soc = StringSocket()
+
+	soc:close()
+
+	t:tdeq({soc:receiveany(10)}, {nil, "closed"})
+end
+
+---@param t testing.T
+function test.receiveany_closed_with_data(t)
+	local soc = StringSocket()
+
+	t:tdeq({soc:send("data")}, {4})
+	soc:close()
+
+	t:tdeq({soc:receiveany(10)}, {"data"})
+	t:tdeq({soc:receiveany(10)}, {nil, "closed"})
+end
+
 return test
