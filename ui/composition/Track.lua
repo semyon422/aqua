@@ -5,6 +5,7 @@ local Node = require("ui.composition.Node")
 ---@field gap number
 ---@field space (number | "*" | "-")[]
 ---@field direction "column" | "row"
+---@field align number
 local Track = Node + {}
 
 ---@param item ui.View | ui.Composition.Node
@@ -74,6 +75,8 @@ end
 function Track:applyParams(t)
 	self.space = t.space or {}
 	self.direction = t.direction or "row"
+	self.gap = t.gap or 0
+	self.align = t.align or 0
 	assert(#self.space == (#self.views + #self.nodes), "The number of partitions doesn't match the amount of views and nodes")
 
 	if self.direction == "column" then
@@ -101,7 +104,7 @@ function Track:grow(available_w, available_h)
 	self.width = available_w
 	self.height = available_h
 
-	local space_left = self.getMainSize(self)
+	local space_left = self.getMainSize(self) - ((#self.space - 1) * self.gap)
 	local cross_size = self.getCrossSize(self)
 	local stars_count = 0
 
@@ -157,24 +160,24 @@ function Track:arrange()
 			if v._is_view then
 				v.box.x = x
 				v.box.y = y
-				x = x + v.box.width
+				x = x + v.box.width + self.gap
 			elseif v._is_node then ---@cast v ui.Composition.Node
 				v.layout_x = x
 				v.layout_y = y
-				x = x + v.width
+				x = x + v.width + self.gap
 				v:arrange()
 			end
 		end
 	else
 		for _, v in ipairs(self.combined) do
 			if v._is_view then
-				v.box.x = x
+				v.box.x = x + (self.width - v.width) * self.align
 				v.box.y = y
-				y = y + v.box.height
+				y = y + v.box.height + self.gap
 			elseif v._is_node then ---@cast v ui.Composition.Node
 				v.layout_x = x
-				v.layout_y = y
-				y = y + v.height
+				v.layout_y = y + (self.height - v.height) * self.align
+				y = y + v.height + self.gap
 				v:arrange()
 			end
 		end
