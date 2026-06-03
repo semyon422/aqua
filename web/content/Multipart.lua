@@ -1,12 +1,12 @@
-local class = require("class")
+local IMultipart = require("web.content.IMultipart")
 local Headers = require("web.http.Headers")
 local BoundarySocket = require("web.socket.BoundarySocket")
 
 -- https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html
 
----@class web.Multipart
+---@class web.Multipart: web.IMultipart
 ---@operator call: web.Multipart
-local Multipart = class()
+local Multipart = IMultipart + {}
 
 Multipart.boundary = "------------------------d67fe448c18233b3"
 

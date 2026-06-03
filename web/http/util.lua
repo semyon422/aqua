@@ -6,6 +6,7 @@ local json = require("web.json")
 local HttpClient = require("web.http.HttpClient")
 local MimeType = require("web.http.MimeType")
 local Multipart = require("web.content.Multipart")
+local MultipartString = require("web.content.MultipartString")
 local LsTcpSocket = require("web.luasocket.LsTcpSocket")
 local NginxTcpSocket = require("web.nginx.NginxTcpSocket")
 
@@ -138,9 +139,12 @@ function util.get_form(req)
 end
 
 ---@param req web.IRequest
----@return web.Multipart?
+---@param opts {read_all: boolean?}?
+---@return web.IMultipart?
 ---@return string?
-function util.get_multipart(req)
+function util.get_multipart(req, opts)
+	opts = opts or {}
+
 	local content_type_str = req.headers:get("Content-Type")
 	if not content_type_str then
 		return nil, "missing content type"
@@ -158,6 +162,14 @@ function util.get_multipart(req)
 	local boundary = content_type.params.boundary
 	if not boundary then
 		return nil, "missing boundary"
+	end
+
+	if opts.read_all then
+		local body, err = req:receive("*a")
+		if not body then
+			return nil, err or "failed to receive body"
+		end
+		return MultipartString(body, boundary)
 	end
 
 	return Multipart(req, boundary)
