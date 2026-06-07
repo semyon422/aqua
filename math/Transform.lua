@@ -30,6 +30,7 @@ end
 ---@param sy number?
 ---@param ox number?
 ---@param oy number?
+---@return math.Transform
 function Transform:setTransformation(x, y, angle, sx, sy, ox, oy)
 	local _angle = angle or 0
 	local _sx = sx or 1
@@ -48,6 +49,7 @@ function Transform:setTransformation(x, y, angle, sx, sy, ox, oy)
 	self.d = d
 	self.tx = x - _ox * a - _oy * c
 	self.ty = y - _ox * b - _oy * d
+	return self
 end
 
 ---@param other math.Transform|love.Transform

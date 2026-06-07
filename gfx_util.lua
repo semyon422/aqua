@@ -1,3 +1,5 @@
+local math_util = require("math_util")
+
 local gfx_util = {}
 
 ---@param text string
@@ -123,9 +125,9 @@ local transform
 local args = {}
 
 ---@param ... any
----@return love.Transform
+---@return love.Transform|math.Transform
 function gfx_util.transform(...)
-	transform = transform or love.math.newTransform()
+	transform = transform or math_util.newTransform()
 
 	local t = ...
 	if type(t) ~= "table" then
