@@ -23,6 +23,7 @@ gcc -I%TREE%/include/luajit-2.1 -Iffmpeg/include -fPIC -shared -o video.dll vide
 #include <libavutil/avutil.h>
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
+#include <libswresample/swresample.h>
 #include <libavutil/log.h>
 
 #define MT_NAME "video"
@@ -352,8 +353,298 @@ static const struct luaL_Reg video_reg_mt[] = {
 	{NULL, NULL}
 };
 
+typedef struct {
+	uint8_t *content;
+	int64_t size;
+	int64_t offset;
+} MemoryInput;
+
+static int audioRead(void *ptr, uint8_t *buf, int len) {
+	MemoryInput *input = (MemoryInput *)ptr;
+
+	if (input->offset + len > input->size)
+		len = input->size - input->offset;
+	if (len == 0)
+		return AVERROR_EOF;
+
+	memcpy(buf, input->content + input->offset, len);
+	input->offset += len;
+
+	return len;
+}
+
+static int64_t audioSeek(void *ptr, int64_t pos, int whence) {
+	MemoryInput *input = (MemoryInput *)ptr;
+
+	if (whence == AVSEEK_SIZE)
+		return input->size;
+	if (pos < 0)
+		pos = 0;
+	if (pos > input->size)
+		pos = input->size;
+
+	input->offset = pos;
+
+	return pos;
+}
+
+static void write_u16le(uint8_t *dst, uint16_t v) {
+	dst[0] = v & 0xff;
+	dst[1] = (v >> 8) & 0xff;
+}
+
+static void write_u32le(uint8_t *dst, uint32_t v) {
+	dst[0] = v & 0xff;
+	dst[1] = (v >> 8) & 0xff;
+	dst[2] = (v >> 16) & 0xff;
+	dst[3] = (v >> 24) & 0xff;
+}
+
+static int push_wav(lua_State *L, uint8_t *pcm, int pcm_size, int sample_rate, int channels) {
+	int size = 44 + pcm_size;
+	uint8_t *wav = malloc(size);
+	if (!wav) {
+		lua_pushnil(L);
+		lua_pushstring(L, "Can't allocate WAV buffer");
+		return 2;
+	}
+
+	memcpy(wav, "RIFF", 4);
+	write_u32le(wav + 4, size - 8);
+	memcpy(wav + 8, "WAVEfmt ", 8);
+	write_u32le(wav + 16, 16);
+	write_u16le(wav + 20, 1);
+	write_u16le(wav + 22, channels);
+	write_u32le(wav + 24, sample_rate);
+	write_u32le(wav + 28, sample_rate * channels * 2);
+	write_u16le(wav + 32, channels * 2);
+	write_u16le(wav + 34, 16);
+	memcpy(wav + 36, "data", 4);
+	write_u32le(wav + 40, pcm_size);
+	memcpy(wav + 44, pcm, pcm_size);
+
+	lua_pushlstring(L, (const char *)wav, size);
+	free(wav);
+	return 1;
+}
+
+static int audio_decode_error(lua_State *L, const char *message) {
+	lua_pushnil(L);
+	lua_pushstring(L, message);
+	return 2;
+}
+
+static int Video_decodeAudio(lua_State *L) {
+	MemoryInput input;
+	if (lua_type(L, 1) == LUA_TSTRING) {
+		size_t size = 0;
+		input.content = (uint8_t *)lua_tolstring(L, 1, &size);
+		input.size = size;
+	} else {
+		luaL_checktype(L, 1, LUA_TLIGHTUSERDATA);
+		input.content = lua_touserdata(L, 1);
+		input.size = luaL_checkinteger(L, 2);
+	}
+	input.offset = 0;
+
+	AVFormatContext *formatContext = NULL;
+	AVIOContext *ioContext = NULL;
+	AVCodecContext *codecContext = NULL;
+	const AVCodec *codec = NULL;
+	AVFrame *frame = NULL;
+	AVPacket *packet = NULL;
+	SwrContext *swrContext = NULL;
+	uint8_t *fileBuffer = NULL;
+	uint8_t *pcm = NULL;
+	int pcm_size = 0;
+	int pcm_capacity = 0;
+	int ret = 0;
+	int streamIndex = -1;
+	int result = 0;
+	int out_sample_rate = 44100;
+	int out_channels = 2;
+	AVChannelLayout out_layout;
+
+	fileBuffer = av_malloc(FILE_BUFFER_SIZE);
+	if (!fileBuffer) {
+		result = audio_decode_error(L, "Can't allocate file buffer");
+		goto cleanup;
+	}
+
+	ioContext = avio_alloc_context(fileBuffer, FILE_BUFFER_SIZE, 0, &input, audioRead, NULL, audioSeek);
+	if (!ioContext) {
+		result = audio_decode_error(L, "Can't allocate AVIOContext");
+		goto cleanup;
+	}
+	fileBuffer = NULL;
+
+	formatContext = avformat_alloc_context();
+	if (!formatContext) {
+		result = audio_decode_error(L, "Can't allocate AVFormatContext");
+		goto cleanup;
+	}
+	formatContext->pb = ioContext;
+	formatContext->flags |= AVFMT_FLAG_CUSTOM_IO;
+
+	if (avformat_open_input(&formatContext, "", NULL, NULL) != 0) {
+		result = audio_decode_error(L, "Can't open input");
+		goto cleanup;
+	}
+	if (avformat_find_stream_info(formatContext, NULL) != 0) {
+		result = audio_decode_error(L, "Can't find stream info");
+		goto cleanup;
+	}
+
+	streamIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_AUDIO, -1, -1, &codec, 0);
+	if (streamIndex == AVERROR_STREAM_NOT_FOUND) {
+		result = audio_decode_error(L, "Audio stream not found");
+		goto cleanup;
+	}
+	if (streamIndex == AVERROR_DECODER_NOT_FOUND) {
+		result = audio_decode_error(L, "Audio decoder not found");
+		goto cleanup;
+	}
+
+	codecContext = avcodec_alloc_context3(codec);
+	if (!codecContext) {
+		result = audio_decode_error(L, "Can't allocate AVCodecContext");
+		goto cleanup;
+	}
+	if (avcodec_parameters_to_context(codecContext, formatContext->streams[streamIndex]->codecpar) < 0) {
+		result = audio_decode_error(L, "Can't fill codec context");
+		goto cleanup;
+	}
+	if (avcodec_open2(codecContext, codec, NULL) != 0) {
+		result = audio_decode_error(L, "Can't open audio codec");
+		goto cleanup;
+	}
+
+	av_channel_layout_default(&out_layout, out_channels);
+	if (swr_alloc_set_opts2(
+		&swrContext,
+		&out_layout,
+		AV_SAMPLE_FMT_S16,
+		out_sample_rate,
+		&codecContext->ch_layout,
+		codecContext->sample_fmt,
+		codecContext->sample_rate,
+		0,
+		NULL
+	) < 0 || !swrContext) {
+		av_channel_layout_uninit(&out_layout);
+		result = audio_decode_error(L, "Can't allocate SwrContext");
+		goto cleanup;
+	}
+	av_channel_layout_uninit(&out_layout);
+	if (swr_init(swrContext) < 0) {
+		result = audio_decode_error(L, "Can't initialize SwrContext");
+		goto cleanup;
+	}
+
+	frame = av_frame_alloc();
+	packet = av_packet_alloc();
+	if (!frame || !packet) {
+		result = audio_decode_error(L, "Can't allocate audio frame");
+		goto cleanup;
+	}
+
+	while ((ret = av_read_frame(formatContext, packet)) >= 0) {
+		if (packet->stream_index == streamIndex) {
+			ret = avcodec_send_packet(codecContext, packet);
+			av_packet_unref(packet);
+			if (ret < 0)
+				break;
+
+			while ((ret = avcodec_receive_frame(codecContext, frame)) >= 0) {
+				int out_count = av_rescale_rnd(
+					swr_get_delay(swrContext, codecContext->sample_rate) + frame->nb_samples,
+					out_sample_rate,
+					codecContext->sample_rate,
+					AV_ROUND_UP
+				);
+				int out_size = av_samples_get_buffer_size(NULL, out_channels, out_count, AV_SAMPLE_FMT_S16, 1);
+				if (out_size < 0) {
+					result = audio_decode_error(L, "Can't determine audio buffer size");
+					goto cleanup;
+				}
+				if (pcm_size + out_size > pcm_capacity) {
+					int new_capacity = pcm_capacity == 0 ? out_size * 2 : pcm_capacity;
+					while (new_capacity < pcm_size + out_size)
+						new_capacity *= 2;
+					uint8_t *new_pcm = realloc(pcm, new_capacity);
+					if (!new_pcm) {
+						result = audio_decode_error(L, "Can't allocate PCM buffer");
+						goto cleanup;
+					}
+					pcm = new_pcm;
+					pcm_capacity = new_capacity;
+				}
+				uint8_t *out[] = {pcm + pcm_size};
+				int converted = swr_convert(swrContext, out, out_count, (const uint8_t **)frame->data, frame->nb_samples);
+				if (converted < 0) {
+					result = audio_decode_error(L, "Can't convert audio frame");
+					goto cleanup;
+				}
+				pcm_size += converted * out_channels * 2;
+				av_frame_unref(frame);
+			}
+			if (ret != AVERROR(EAGAIN) && ret != AVERROR_EOF)
+				break;
+		} else {
+			av_packet_unref(packet);
+		}
+	}
+
+	avcodec_send_packet(codecContext, NULL);
+	while (avcodec_receive_frame(codecContext, frame) >= 0) {
+		int out_count = av_rescale_rnd(
+			swr_get_delay(swrContext, codecContext->sample_rate) + frame->nb_samples,
+			out_sample_rate,
+			codecContext->sample_rate,
+			AV_ROUND_UP
+		);
+		int out_size = av_samples_get_buffer_size(NULL, out_channels, out_count, AV_SAMPLE_FMT_S16, 1);
+		if (pcm_size + out_size > pcm_capacity) {
+			int new_capacity = pcm_capacity == 0 ? out_size * 2 : pcm_capacity;
+			while (new_capacity < pcm_size + out_size)
+				new_capacity *= 2;
+			uint8_t *new_pcm = realloc(pcm, new_capacity);
+			if (!new_pcm) {
+				result = audio_decode_error(L, "Can't allocate PCM buffer");
+				goto cleanup;
+			}
+			pcm = new_pcm;
+			pcm_capacity = new_capacity;
+		}
+		uint8_t *out[] = {pcm + pcm_size};
+		int converted = swr_convert(swrContext, out, out_count, (const uint8_t **)frame->data, frame->nb_samples);
+		if (converted < 0) {
+			result = audio_decode_error(L, "Can't convert audio frame");
+			goto cleanup;
+		}
+		pcm_size += converted * out_channels * 2;
+		av_frame_unref(frame);
+	}
+
+	result = push_wav(L, pcm, pcm_size, out_sample_rate, out_channels);
+
+cleanup:
+	if (pcm) free(pcm);
+	if (packet) av_packet_free(&packet);
+	if (frame) av_frame_free(&frame);
+	if (swrContext) swr_free(&swrContext);
+	if (codecContext) avcodec_free_context(&codecContext);
+	if (formatContext) avformat_close_input(&formatContext);
+	if (ioContext && ioContext->buffer) av_free(ioContext->buffer);
+	if (ioContext) avio_context_free(&ioContext);
+	if (fileBuffer) av_free(fileBuffer);
+
+	return result;
+}
+
 static const struct luaL_Reg video_reg[] = {
 	{"open", Video_open},
+	{"decode_audio", Video_decodeAudio},
 	{NULL, NULL}
 };
 
