@@ -13,6 +13,11 @@ thread.coroutines = {}
 thread.total = 0
 thread.current = 0
 
+---@class thread.Future
+---@field done boolean
+---@field waiting thread?
+---@field result any[]?
+
 function thread.unload()
 	return ThreadPool:unload()
 end
@@ -70,6 +75,37 @@ local function run(f, ...)
 	return coroutine.yield()
 end
 
+---@param f function|string
+---@param ... any?
+---@return thread.Future
+local function start(f, ...)
+	---@type thread.Future
+	local future = {
+		done = false,
+	}
+	local args = {n = select("#", ...), ...}
+	runThread(f, args, function(...)
+		future.done = true
+		future.result = {n = select("#", ...), ...}
+		if future.waiting then
+			assert(coroutine.resume(future.waiting))
+		end
+	end)
+	return future
+end
+
+---@param future thread.Future
+---@return any?...
+function thread.wait(future)
+	if not future.done then
+		future.waiting = coroutine.running()
+		coroutine.yield()
+		future.waiting = nil
+	end
+	local result = assert(future.result)
+	return unpack(result, 1, result.n)
+end
+
 ---@param f function
 ---@param ... any?
 ---@return thread
@@ -91,6 +127,14 @@ end
 function thread.async(f)
 	return function(...)
 		return run(f, ...)
+	end
+end
+
+---@param f function|string
+---@return fun(...: any?): thread.Future
+function thread.future(f)
+	return function(...)
+		return start(f, ...)
 	end
 end
 
