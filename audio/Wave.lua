@@ -91,8 +91,14 @@ function Wave:getDuration()
 	return self.samples_count / self.sample_rate
 end
 
-function Wave:encode()
-	local data_size = self:getDataSize()
+---@param channels_count integer
+---@param sample_rate integer
+---@param bytes_per_sample integer
+---@param data_size integer
+---@param audio_format integer?
+---@return string
+function Wave.encodeHeader(channels_count, sample_rate, bytes_per_sample, data_size, audio_format)
+	audio_format = audio_format or 1
 
 	local header_buf = byte.buffer(44)
 
@@ -101,19 +107,25 @@ function Wave:encode()
 	header_buf:fill("WAVE") -- format
 	header_buf:fill("fmt ") -- subchunk1Id
 	header_buf:write("i32", 16) -- subchunk1Size - 16 for PCM
-	header_buf:write("i16", 1) -- audioFormat - no compression
-	header_buf:write("i16", self.channels_count) -- numChannels
-	header_buf:write("i32", self.sample_rate)
-	header_buf:write("i32", self.sample_rate * self.channels_count * self.bytes_per_sample) -- byteRate
-	header_buf:write("i16", self.channels_count * self.bytes_per_sample) -- blockAlign
-	header_buf:write("i16", self.bytes_per_sample * 8)
+	header_buf:write("i16", audio_format)
+	header_buf:write("i16", channels_count)
+	header_buf:write("i32", sample_rate)
+	header_buf:write("i32", sample_rate * channels_count * bytes_per_sample) -- byteRate
+	header_buf:write("i16", channels_count * bytes_per_sample) -- blockAlign
+	header_buf:write("i16", bytes_per_sample * 8)
 	header_buf:fill("data") -- subchunk2ID
-	header_buf:write("i32", data_size) -- Subchunk2Size
+	header_buf:write("i32", data_size)
 
 	assert(header_buf.offset == 44)
+	header_buf:seek(0)
+	return header_buf:string(44)
+end
+
+function Wave:encode()
+	local data_size = self:getDataSize()
 
 	local out_buf = buffer.new(44 + data_size)
-	out_buf:putcdata(header_buf.ptr, 44)
+	out_buf:put(Wave.encodeHeader(self.channels_count, self.sample_rate, self.bytes_per_sample, data_size))
 	out_buf:putcdata(self.data_buf, data_size)
 
 	return out_buf:tostring()

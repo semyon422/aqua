@@ -30,4 +30,15 @@ function test.basic(t)
 	t:eq(wave:secondsToBytes(duration), wave:getDataSize())
 end
 
+---@param t testing.T
+function test.encode_header(t)
+	local header = Wave.encodeHeader(1, 44100, 1, 4)
+
+	t:eq(#header, 44)
+	t:eq(header:sub(1, 4), "RIFF")
+	t:eq(header:sub(9, 12), "WAVE")
+	t:eq(header:sub(13, 16), "fmt ")
+	t:eq(header:sub(37, 40), "data")
+end
+
 return test
