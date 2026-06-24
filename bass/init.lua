@@ -161,8 +161,9 @@ mt.__index = bass
 setmetatable(__bass, {__index = _bass})
 
 local Plugins = {
-	Windows = {"bassopus.dll"},
-	Linux = {"libbassopus.so"},
+	Windows = {"bass_ffmpeg.dll"},
+	Linux = {"libbass_ffmpeg.so"},
+	OSX = {"libbass_ffmpeg.dylib"},
 }
 
 ---@param device number?

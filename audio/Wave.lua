@@ -165,6 +165,7 @@ function Wave:decode(data)
 
 	---@type {[integer]: integer}
 	self.data_buf = ffi.new("int16_t[?]", self.samples_count * self.channels_count)
+	self.byte_ptr = ffi.cast("uint8_t*", self.data_buf)
 
 	ffi.copy(self.data_buf, buf:cur(), data_size)
 end
