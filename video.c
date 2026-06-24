@@ -434,6 +434,219 @@ static int audio_decode_error(lua_State *L, const char *message) {
 	return 2;
 }
 
+static int image_decode_error(lua_State *L, const char *message) {
+	lua_pushnil(L);
+	lua_pushstring(L, message);
+	return 2;
+}
+
+static int Video_decodeImage(lua_State *L) {
+	MemoryInput input;
+	if (lua_type(L, 1) == LUA_TSTRING) {
+		size_t size = 0;
+		input.content = (uint8_t *)lua_tolstring(L, 1, &size);
+		input.size = size;
+	} else {
+		luaL_checktype(L, 1, LUA_TLIGHTUSERDATA);
+		input.content = lua_touserdata(L, 1);
+		input.size = luaL_checkinteger(L, 2);
+	}
+	input.offset = 0;
+
+	AVFormatContext *formatContext = NULL;
+	AVIOContext *ioContext = NULL;
+	AVCodecContext *codecContext = NULL;
+	const AVCodec *codec = NULL;
+	AVFrame *frame = NULL;
+	AVFrame *frameRGBA = NULL;
+	AVPacket *packet = NULL;
+	struct SwsContext *swsContext = NULL;
+	uint8_t *fileBuffer = NULL;
+	uint8_t *image = NULL;
+	int imageSize = 0;
+	int streamIndex = -1;
+	int ret = 0;
+	int result = 0;
+
+	fileBuffer = av_malloc(FILE_BUFFER_SIZE);
+	if (!fileBuffer) {
+		result = image_decode_error(L, "Can't allocate file buffer");
+		goto cleanup;
+	}
+
+	ioContext = avio_alloc_context(fileBuffer, FILE_BUFFER_SIZE, 0, &input, audioRead, NULL, audioSeek);
+	if (!ioContext) {
+		result = image_decode_error(L, "Can't allocate AVIOContext");
+		goto cleanup;
+	}
+	fileBuffer = NULL;
+
+	formatContext = avformat_alloc_context();
+	if (!formatContext) {
+		result = image_decode_error(L, "Can't allocate AVFormatContext");
+		goto cleanup;
+	}
+	formatContext->pb = ioContext;
+	formatContext->flags |= AVFMT_FLAG_CUSTOM_IO;
+
+	if (avformat_open_input(&formatContext, "", NULL, NULL) != 0) {
+		result = image_decode_error(L, "Can't open input");
+		goto cleanup;
+	}
+	if (avformat_find_stream_info(formatContext, NULL) != 0) {
+		result = image_decode_error(L, "Can't find stream info");
+		goto cleanup;
+	}
+
+	streamIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0);
+	if (streamIndex == AVERROR_STREAM_NOT_FOUND) {
+		result = image_decode_error(L, "Image stream not found");
+		goto cleanup;
+	}
+	if (streamIndex == AVERROR_DECODER_NOT_FOUND) {
+		result = image_decode_error(L, "Image decoder not found");
+		goto cleanup;
+	}
+
+	codecContext = avcodec_alloc_context3(codec);
+	if (!codecContext) {
+		result = image_decode_error(L, "Can't allocate AVCodecContext");
+		goto cleanup;
+	}
+	if (avcodec_parameters_to_context(codecContext, formatContext->streams[streamIndex]->codecpar) < 0) {
+		result = image_decode_error(L, "Can't fill codec context");
+		goto cleanup;
+	}
+	if (avcodec_open2(codecContext, codec, NULL) != 0) {
+		result = image_decode_error(L, "Can't open image codec");
+		goto cleanup;
+	}
+
+	frame = av_frame_alloc();
+	frameRGBA = av_frame_alloc();
+	packet = av_packet_alloc();
+	if (!frame || !frameRGBA || !packet) {
+		result = image_decode_error(L, "Can't allocate image frame");
+		goto cleanup;
+	}
+
+	imageSize = av_image_fill_arrays(
+		frameRGBA->data,
+		frameRGBA->linesize,
+		NULL,
+		AV_PIX_FMT_RGBA,
+		codecContext->width,
+		codecContext->height,
+		1
+	);
+	if (imageSize < 0) {
+		result = image_decode_error(L, "Can't determine image buffer size");
+		goto cleanup;
+	}
+
+	image = malloc(imageSize);
+	if (!image) {
+		result = image_decode_error(L, "Can't allocate image buffer");
+		goto cleanup;
+	}
+	if (av_image_fill_arrays(
+		frameRGBA->data,
+		frameRGBA->linesize,
+		image,
+		AV_PIX_FMT_RGBA,
+		codecContext->width,
+		codecContext->height,
+		1
+	) < 0) {
+		result = image_decode_error(L, "Can't setup image data pointers");
+		goto cleanup;
+	}
+
+	swsContext = sws_getContext(
+		codecContext->width,
+		codecContext->height,
+		codecContext->pix_fmt,
+		codecContext->width,
+		codecContext->height,
+		AV_PIX_FMT_RGBA,
+		2,
+		NULL,
+		NULL,
+		NULL
+	);
+	if (!swsContext) {
+		result = image_decode_error(L, "Can't allocate SwsContext");
+		goto cleanup;
+	}
+
+	while ((ret = av_read_frame(formatContext, packet)) >= 0) {
+		if (packet->stream_index == streamIndex) {
+			ret = avcodec_send_packet(codecContext, packet);
+			av_packet_unref(packet);
+			if (ret < 0)
+				break;
+
+			ret = avcodec_receive_frame(codecContext, frame);
+			if (ret == 0) {
+				sws_scale(
+					swsContext,
+					(const uint8_t *const *)(frame->data),
+					frame->linesize,
+					0,
+					codecContext->height,
+					frameRGBA->data,
+					frameRGBA->linesize
+				);
+
+				lua_pushlstring(L, (const char *)image, imageSize);
+				lua_pushinteger(L, codecContext->width);
+				lua_pushinteger(L, codecContext->height);
+				result = 3;
+				goto cleanup;
+			}
+			if (ret != AVERROR(EAGAIN) && ret != AVERROR_EOF)
+				break;
+		} else {
+			av_packet_unref(packet);
+		}
+	}
+
+	avcodec_send_packet(codecContext, NULL);
+	if (avcodec_receive_frame(codecContext, frame) == 0) {
+		sws_scale(
+			swsContext,
+			(const uint8_t *const *)(frame->data),
+			frame->linesize,
+			0,
+			codecContext->height,
+			frameRGBA->data,
+			frameRGBA->linesize
+		);
+
+		lua_pushlstring(L, (const char *)image, imageSize);
+		lua_pushinteger(L, codecContext->width);
+		lua_pushinteger(L, codecContext->height);
+		result = 3;
+		goto cleanup;
+	}
+
+	result = image_decode_error(L, "Can't decode image frame");
+
+cleanup:
+	if (image) free(image);
+	if (swsContext) sws_freeContext(swsContext);
+	if (packet) av_packet_free(&packet);
+	if (frameRGBA) av_frame_free(&frameRGBA);
+	if (frame) av_frame_free(&frame);
+	if (codecContext) avcodec_free_context(&codecContext);
+	if (formatContext) avformat_close_input(&formatContext);
+	if (ioContext && ioContext->buffer) av_free(ioContext->buffer);
+	if (ioContext) avio_context_free(&ioContext);
+	if (fileBuffer) av_free(fileBuffer);
+
+	return result;
+}
+
 static int Video_decodeAudio(lua_State *L) {
 	MemoryInput input;
 	if (lua_type(L, 1) == LUA_TSTRING) {
@@ -644,6 +857,7 @@ cleanup:
 
 static const struct luaL_Reg video_reg[] = {
 	{"open", Video_open},
+	{"decode_image", Video_decodeImage},
 	{"decode_audio", Video_decodeAudio},
 	{NULL, NULL}
 };
