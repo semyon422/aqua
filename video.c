@@ -192,6 +192,8 @@ static int Video_open(lua_State *L) {
 
 	video->formatContext->pb = video->ioContext;
 	video->formatContext->flags |= AVFMT_FLAG_CUSTOM_IO;
+	video->formatContext->probesize = 32768;
+	video->formatContext->max_analyze_duration = AV_TIME_BASE / 4;
 
 	if (avformat_open_input(&video->formatContext, "", NULL, NULL) != 0)
 		return open_error(L, "Can't open input");
@@ -290,6 +292,16 @@ int64_t stream_start_time(AVStream *stream) {
 	return start_time;
 }
 
+static lua_Number frame_time(Video *video) {
+	int64_t effort = video->frame->best_effort_timestamp;
+	AVRational base = video->stream->time_base;
+
+	if (effort < 0) {
+		return 0;
+	}
+	return (lua_Number)(effort - stream_start_time(video->stream)) * base.num / base.den;
+}
+
 static int Video_getDuration(lua_State *L) {
 	Video *video = checkVideo(L, 1, true);
 
@@ -304,15 +316,7 @@ static int Video_getDuration(lua_State *L) {
 static int Video_tell(lua_State *L) {
 	Video *video = checkVideo(L, 1, true);
 
-	int64_t effort = video->frame->best_effort_timestamp;
-	AVRational base = video->stream->time_base;
-
-	if (effort < 0) {
-		lua_pushinteger(L, 0);
-		return 1;
-	}
-	lua_Number time = (lua_Number)(effort - stream_start_time(video->stream)) * base.num / base.den;
-	lua_pushnumber(L, time);
+	lua_pushnumber(L, frame_time(video));
 
 	return 1;
 }
@@ -367,10 +371,12 @@ static int Video_read(lua_State *L) {
 					continue;
 				}
 
+				lua_Number time = frame_time(video);
 				memcpy(dst, video->image, video->imageSize);
 				av_frame_unref(video->frame);
 
-				return Video_tell(L);
+				lua_pushnumber(L, time);
+				return 1;
 			}
 		}
 		av_packet_unref(&packet);

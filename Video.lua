@@ -25,6 +25,7 @@ function Video:new(fileData)
 	self.fileData = fileData
 	self.imageData = love.image.newImageData(v:getDimensions())
 	self.image = love.graphics.newImage(self.imageData)
+	self.time = 0
 end
 
 function Video:release()
@@ -40,6 +41,7 @@ end
 ---@param time number
 function Video:seek(time)
 	self.video:seek(time)
+	self.time = -math.huge
 	self:play(time)
 end
 
@@ -48,10 +50,12 @@ function Video:play(time)
 	local v = self.video
 	local read = false
 
-	while time > v:tell() and time < v:getDuration() do
-		if not v:read(self.imageData:getPointer()) then
+	while time > self.time and time < v:getDuration() do
+		local frame_time = v:read(self.imageData:getPointer())
+		if not frame_time then
 			break
 		end
+		self.time = frame_time
 		read = true
 	end
 
