@@ -36,4 +36,23 @@ function test.multiple(t)
 	t:tdeq(events, {{1}, {1}, {2}, {2}})
 end
 
+---@param t testing.T
+function test.function_observer(t)
+	local observable = Observable()
+
+	local events = {}
+	observable:add(function(event)
+		table.insert(events, event)
+	end)
+	observable:add({
+		receive = function(_, event)
+			table.insert(events, event)
+		end,
+	})
+
+	observable:send({1})
+
+	t:tdeq(events, {{1}, {1}})
+end
+
 return test

@@ -2,16 +2,29 @@ local class = require("class")
 local table_util = require("table_util")
 
 ---@alias util.Observer {receive: fun(self: table, event: table)}
+---@alias util.EventReceiver fun(event: table)
 
 ---@class util.Observable
 ---@operator call: util.Observable
 local Observable = class()
 
----@param observer util.Observer
+---@param observer util.Observer|util.EventReceiver
+---@return util.Observer
 function Observable:add(observer)
+	if type(observer) == "function" then
+		---@cast observer util.EventReceiver
+		local receive = observer
+		observer = {
+			receive = function(_, event)
+				receive(event)
+			end,
+		}
+	end
+	---@cast observer util.Observer
 	if not table_util.indexof(self, observer) then
 		table.insert(self, observer)
 	end
+	return observer
 end
 
 ---@generic T: util.Observer
