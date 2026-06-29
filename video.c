@@ -25,6 +25,7 @@ gcc -I%TREE%/include/luajit-2.1 -Iffmpeg/include -fPIC -shared -o video.dll vide
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/mathematics.h>
 #include <libavutil/pixdesc.h>
 #include <libswscale/swscale.h>
 #include <libavutil/log.h>
@@ -49,6 +50,8 @@ typedef struct {
 	uint8_t *fileContent;
 	int64_t fileSize;
 	int64_t fileOffset;
+	bool hasPendingFrame;
+	lua_Number pendingFrameTime;
 } Video;
 
 static Video *checkVideo(lua_State *L, int i, bool open) {
@@ -368,68 +371,176 @@ static int Video_tell(lua_State *L) {
 	return 1;
 }
 
+static int64_t seconds_to_stream_ts(AVStream *stream, lua_Number time) {
+	int64_t start_time = stream_start_time(stream);
+	int64_t relative_ts = av_rescale_q(
+		(int64_t)llround(time * AV_TIME_BASE),
+		AV_TIME_BASE_Q,
+		stream->time_base
+	);
+	return start_time + relative_ts;
+}
+
 static int Video_seek(lua_State *L) {
 	Video *video = checkVideo(L, 1, true);
 	lua_Number time = luaL_checknumber(L, 2);
 
 	AVStream *stream = video->stream;
-	AVRational base = stream->time_base;
+	int64_t ts = seconds_to_stream_ts(stream, time);
 
-	int64_t start_time = stream_start_time(stream);
-	int64_t ts = time * base.den / base.num - start_time;
-	int64_t cts = video->frame->best_effort_timestamp - start_time;
-
-	int flags = AVSEEK_FLAG_ANY;
-	if (cts > ts) {
-		flags |= AVSEEK_FLAG_BACKWARD;
-	}
-
-	av_seek_frame(
+	int ret = av_seek_frame(
 		video->formatContext,
 		video->streamIndex,
 		ts,
-		flags
+		AVSEEK_FLAG_BACKWARD
 	);
+	if (ret < 0) {
+		av_seek_frame(
+			video->formatContext,
+			video->streamIndex,
+			ts,
+			AVSEEK_FLAG_BACKWARD | AVSEEK_FLAG_ANY
+		);
+	}
 	avcodec_flush_buffers(video->codecContext);
+	av_frame_unref(video->frame);
+	video->hasPendingFrame = false;
 
 	return 0;
 }
 
-AVPacket packet;
+static int receive_frame(Video *video, lua_Number *time) {
+	while (true) {
+		int ret = avcodec_receive_frame(video->codecContext, video->frame);
+		if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+			return 0;
+		}
+		if (ret < 0) {
+			return 0;
+		}
+
+		if (!scale_frame(
+			&video->swsContext,
+			video->frame,
+			video->frameRGB,
+			video->codecContext->width,
+			video->codecContext->height
+		)) {
+			av_frame_unref(video->frame);
+			continue;
+		}
+
+		*time = frame_time(video);
+		av_frame_unref(video->frame);
+		return 1;
+	}
+}
+
+static int read_next_frame(Video *video, lua_Number *time) {
+	if (receive_frame(video, time)) {
+		return 1;
+	}
+
+	AVPacket *packet = av_packet_alloc();
+	if (!packet) {
+		return 0;
+	}
+
+	while (av_read_frame(video->formatContext, packet) >= 0) {
+		if (packet->stream_index == video->streamIndex) {
+			int ret = avcodec_send_packet(video->codecContext, packet);
+			av_packet_unref(packet);
+			if (ret < 0) {
+				break;
+			}
+			if (receive_frame(video, time)) {
+				av_packet_free(&packet);
+				return 1;
+			}
+		} else {
+			av_packet_unref(packet);
+		}
+	}
+
+	avcodec_send_packet(video->codecContext, NULL);
+	if (receive_frame(video, time)) {
+		av_packet_free(&packet);
+		return 1;
+	}
+
+	av_packet_free(&packet);
+	return 0;
+}
+
+static void copy_current_frame(Video *video, void *dst) {
+	copy_rgba_frame(
+		dst,
+		video->frameRGB,
+		video->codecContext->width,
+		video->codecContext->height
+	);
+}
+
 static int Video_read(lua_State *L) {
 	Video *video = checkVideo(L, 1, true);
 	luaL_checktype(L, 2, LUA_TLIGHTUSERDATA);
 	void *dst = lua_touserdata(L, 2);
+	lua_Number time;
 
-	while (!av_read_frame(video->formatContext, &packet)) {
-		if (packet.stream_index == video->streamIndex) {
-			avcodec_send_packet(video->codecContext, &packet);
-			av_packet_unref(&packet);
-
-			if (!avcodec_receive_frame(video->codecContext, video->frame)) {
-				if (!scale_frame(
-					&video->swsContext,
-					video->frame,
-					video->frameRGB,
-					video->codecContext->width,
-					video->codecContext->height
-				)) {
-					av_frame_unref(video->frame);
-					continue;
-				}
-
-				lua_Number time = frame_time(video);
-				copy_rgba_frame(dst, video->frameRGB, video->codecContext->width, video->codecContext->height);
-				av_frame_unref(video->frame);
-
-				lua_pushnumber(L, time);
-				return 1;
-			}
-		}
-		av_packet_unref(&packet);
+	if (video->hasPendingFrame) {
+		copy_current_frame(video, dst);
+		lua_pushnumber(L, video->pendingFrameTime);
+		video->hasPendingFrame = false;
+		return 1;
 	}
 
-	return 0;
+	if (!read_next_frame(video, &time)) {
+		return 0;
+	}
+
+	copy_current_frame(video, dst);
+	lua_pushnumber(L, time);
+	return 1;
+}
+
+static int Video_readAt(lua_State *L) {
+	Video *video = checkVideo(L, 1, true);
+	luaL_checktype(L, 2, LUA_TLIGHTUSERDATA);
+	void *dst = lua_touserdata(L, 2);
+	lua_Number targetTime = luaL_checknumber(L, 3);
+	lua_Number selectedTime = 0;
+	bool hasSelectedFrame = false;
+
+	if (video->hasPendingFrame) {
+		if (video->pendingFrameTime > targetTime) {
+			return 0;
+		}
+
+		copy_current_frame(video, dst);
+		selectedTime = video->pendingFrameTime;
+		hasSelectedFrame = true;
+		video->hasPendingFrame = false;
+	}
+
+	lua_Number time;
+	while (read_next_frame(video, &time)) {
+		if (time > targetTime) {
+			video->hasPendingFrame = true;
+			video->pendingFrameTime = time;
+			break;
+		}
+
+		copy_current_frame(video, dst);
+		selectedTime = time;
+		hasSelectedFrame = true;
+	}
+
+	if (!hasSelectedFrame) {
+		return 0;
+	}
+
+	lua_pushnumber(L, selectedTime);
+	return 1;
 }
 
 static int Video_tostring(lua_State *L) {
@@ -453,6 +564,7 @@ static const struct luaL_Reg video_reg_mt[] = {
 	{"close", Video_close},
 	{"tell", Video_tell},
 	{"read", Video_read},
+	{"readAt", Video_readAt},
 	{"seek", Video_seek},
 	{"getDuration", Video_getDuration},
 	{"getDimensions", Video_getDimensions},

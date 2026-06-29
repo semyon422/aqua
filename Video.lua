@@ -48,18 +48,9 @@ end
 ---@param time number
 function Video:play(time)
 	local v = self.video
-	local read = false
-
-	while time > self.time and time < v:getDuration() do
-		local frame_time = v:read(self.imageData:getPointer())
-		if not frame_time then
-			break
-		end
+	local frame_time = v:readAt(self.imageData:getPointer(), time)
+	if frame_time then
 		self.time = frame_time
-		read = true
-	end
-
-	if read then
 		---@diagnostic disable-next-line: missing-parameter
 		self.image:replacePixels(self.imageData)
 	end
