@@ -15,8 +15,11 @@ gcc -I%TREE%/include/luajit-2.1 -Iffmpeg/include -fPIC -shared -o video.dll vide
 
 #include <lua.h>
 #include <lauxlib.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -57,10 +60,12 @@ static Video *checkVideo(lua_State *L, int i, bool open) {
 int fileRead(void *ptr, uint8_t *buf, int len) {
 	Video *video = (Video *)ptr;
 
-	if (video->fileOffset + len > video->fileSize)
-		len = video->fileSize - video->fileOffset;
-	if (len == 0)
+	if (video->fileOffset >= video->fileSize)
 		return AVERROR_EOF;
+
+	int64_t remaining = video->fileSize - video->fileOffset;
+	if (remaining < len)
+		len = remaining;
 
 	memcpy(buf, video->fileContent + video->fileOffset, len);
 	video->fileOffset += len;
@@ -74,20 +79,40 @@ int64_t fileSeek(void *ptr, int64_t pos, int whence) {
 	if (whence == AVSEEK_SIZE)
 		return video->fileSize;
 
-	video->fileOffset = pos;
+	switch (whence & ~AVSEEK_FORCE) {
+	case SEEK_SET:
+		break;
+	case SEEK_CUR:
+		pos += video->fileOffset;
+		break;
+	case SEEK_END:
+		pos += video->fileSize;
+		break;
+	default:
+		return AVERROR(EINVAL);
+	}
 
+	if (pos < 0)
+		pos = 0;
+	if (pos > video->fileSize)
+		pos = video->fileSize;
+
+	video->fileOffset = pos;
 	return pos;
 }
 
 void _Video_close(Video *video) {
-	if (video->formatContext) avformat_close_input(&video->formatContext);
+	if (video->formatContext) {
+		video->formatContext->pb = NULL;
+		avformat_close_input(&video->formatContext);
+	}
 	if (video->codecContext) avcodec_free_context(&video->codecContext);
-	if (video->ioContext && video->ioContext->buffer) av_free(video->ioContext->buffer);
+	if (video->ioContext && video->ioContext->buffer) av_freep(&video->ioContext->buffer);
 	if (video->ioContext) avio_context_free(&video->ioContext);
-	if (video->frame) av_free(video->frame);
-	if (video->frameRGB) av_free(video->frameRGB);
+	if (video->frame) av_frame_free(&video->frame);
+	if (video->frameRGB) av_frame_free(&video->frameRGB);
 	if (video->swsContext) sws_freeContext(video->swsContext);
-	if (video->image) free(video->image);
+	if (video->image) av_freep(&video->image);
 
 	video->isOpened = false;
 }
@@ -155,6 +180,42 @@ static bool scale_frame(
 		frameRGB->data,
 		frameRGB->linesize
 	) > 0;
+}
+
+static int tight_rgba_size(int width, int height) {
+	return width * height * 4;
+}
+
+// sws_scale writes rows using FFmpeg's aligned linesize, which can include
+// padding past the visible width. Lua/LÖVE callers expect tightly packed RGBA,
+// so copy only the visible bytes from each row.
+static void copy_rgba_frame(uint8_t *dst, AVFrame *frameRGBA, int width, int height) {
+	int rowSize = width * 4;
+
+	if (frameRGBA->linesize[0] == rowSize) {
+		memcpy(dst, frameRGBA->data[0], tight_rgba_size(width, height));
+		return;
+	}
+
+	for (int y = 0; y < height; y++) {
+		memcpy(dst + y * rowSize, frameRGBA->data[0] + y * frameRGBA->linesize[0], rowSize);
+	}
+}
+
+static void push_rgba_frame(lua_State *L, AVFrame *frameRGBA, int width, int height) {
+	int rowSize = width * 4;
+
+	if (frameRGBA->linesize[0] == rowSize) {
+		lua_pushlstring(L, (const char *)frameRGBA->data[0], tight_rgba_size(width, height));
+		return;
+	}
+
+	luaL_Buffer buffer;
+	luaL_buffinit(L, &buffer);
+	for (int y = 0; y < height; y++) {
+		luaL_addlstring(&buffer, (const char *)frameRGBA->data[0] + y * frameRGBA->linesize[0], rowSize);
+	}
+	luaL_pushresult(&buffer);
 }
 
 static int Video_open(lua_State *L) {
@@ -228,32 +289,18 @@ static int Video_open(lua_State *L) {
 
 	AVCodecContext *cctx = video->codecContext;
 
-	video->imageSize = av_image_fill_arrays(
+	video->imageSize = tight_rgba_size(cctx->width, cctx->height);
+
+	if (av_image_alloc(
 		video->frameRGB->data,
 		video->frameRGB->linesize,
-		NULL,
-		AV_PIX_FMT_RGBA,
 		cctx->width,
 		cctx->height,
-		1
-	);
-	if (video->imageSize < 0)
-		return open_error(L, "Can't determine image buffer size");
-
-	video->image = malloc(video->imageSize);
-	if (!video->image)
-		return open_error(L, "Can't allocate image buffer");
-
-	if (av_image_fill_arrays(
-		video->frameRGB->data,
-		video->frameRGB->linesize,
-		video->image,
 		AV_PIX_FMT_RGBA,
-		cctx->width,
-		cctx->height,
-		1
+		32
 	) < 0)
-		return open_error(L, "Can't setup the data pointers");
+		return open_error(L, "Can't allocate image buffer");
+	video->image = video->frameRGB->data[0];
 
 	video->swsContext = sws_getContext(
 		cctx->width,
@@ -372,7 +419,7 @@ static int Video_read(lua_State *L) {
 				}
 
 				lua_Number time = frame_time(video);
-				memcpy(dst, video->image, video->imageSize);
+				copy_rgba_frame(dst, video->frameRGB, video->codecContext->width, video->codecContext->height);
 				av_frame_unref(video->frame);
 
 				lua_pushnumber(L, time);
@@ -421,10 +468,12 @@ typedef struct {
 static int memoryRead(void *ptr, uint8_t *buf, int len) {
 	MemoryInput *input = (MemoryInput *)ptr;
 
-	if (input->offset + len > input->size)
-		len = input->size - input->offset;
-	if (len == 0)
+	if (input->offset >= input->size)
 		return AVERROR_EOF;
+
+	int64_t remaining = input->size - input->offset;
+	if (remaining < len)
+		len = remaining;
 
 	memcpy(buf, input->content + input->offset, len);
 	input->offset += len;
@@ -437,6 +486,20 @@ static int64_t memorySeek(void *ptr, int64_t pos, int whence) {
 
 	if (whence == AVSEEK_SIZE)
 		return input->size;
+
+	switch (whence & ~AVSEEK_FORCE) {
+	case SEEK_SET:
+		break;
+	case SEEK_CUR:
+		pos += input->offset;
+		break;
+	case SEEK_END:
+		pos += input->size;
+		break;
+	default:
+		return AVERROR(EINVAL);
+	}
+
 	if (pos < 0)
 		pos = 0;
 	if (pos > input->size)
@@ -543,54 +606,19 @@ static int Video_decodeImage(lua_State *L) {
 		goto cleanup;
 	}
 
-	imageSize = av_image_fill_arrays(
+	imageSize = av_image_alloc(
 		frameRGBA->data,
 		frameRGBA->linesize,
-		NULL,
-		AV_PIX_FMT_RGBA,
 		codecContext->width,
 		codecContext->height,
-		1
+		AV_PIX_FMT_RGBA,
+		32
 	);
 	if (imageSize < 0) {
-		result = image_decode_error(L, "Can't determine image buffer size");
-		goto cleanup;
-	}
-
-	image = malloc(imageSize);
-	if (!image) {
 		result = image_decode_error(L, "Can't allocate image buffer");
 		goto cleanup;
 	}
-	if (av_image_fill_arrays(
-		frameRGBA->data,
-		frameRGBA->linesize,
-		image,
-		AV_PIX_FMT_RGBA,
-		codecContext->width,
-		codecContext->height,
-		1
-	) < 0) {
-		result = image_decode_error(L, "Can't setup image data pointers");
-		goto cleanup;
-	}
-
-	swsContext = sws_getContext(
-		codecContext->width,
-		codecContext->height,
-		codecContext->pix_fmt,
-		codecContext->width,
-		codecContext->height,
-		AV_PIX_FMT_RGBA,
-		2,
-		NULL,
-		NULL,
-		NULL
-	);
-	if (!swsContext) {
-		result = image_decode_error(L, "Can't allocate SwsContext");
-		goto cleanup;
-	}
+	image = frameRGBA->data[0];
 
 	while ((ret = av_read_frame(formatContext, packet)) >= 0) {
 		if (packet->stream_index == streamIndex) {
@@ -612,7 +640,7 @@ static int Video_decodeImage(lua_State *L) {
 					continue;
 				}
 
-				lua_pushlstring(L, (const char *)image, imageSize);
+				push_rgba_frame(L, frameRGBA, codecContext->width, codecContext->height);
 				lua_pushinteger(L, codecContext->width);
 				lua_pushinteger(L, codecContext->height);
 				result = 3;
@@ -634,7 +662,7 @@ static int Video_decodeImage(lua_State *L) {
 			codecContext->width,
 			codecContext->height
 		)) {
-			lua_pushlstring(L, (const char *)image, imageSize);
+			push_rgba_frame(L, frameRGBA, codecContext->width, codecContext->height);
 			lua_pushinteger(L, codecContext->width);
 			lua_pushinteger(L, codecContext->height);
 			result = 3;
@@ -645,14 +673,17 @@ static int Video_decodeImage(lua_State *L) {
 	result = image_decode_error(L, "Can't decode image frame");
 
 cleanup:
-	if (image) free(image);
+	if (image) av_freep(&image);
 	if (swsContext) sws_freeContext(swsContext);
 	if (packet) av_packet_free(&packet);
 	if (frameRGBA) av_frame_free(&frameRGBA);
 	if (frame) av_frame_free(&frame);
 	if (codecContext) avcodec_free_context(&codecContext);
-	if (formatContext) avformat_close_input(&formatContext);
-	if (ioContext && ioContext->buffer) av_free(ioContext->buffer);
+	if (formatContext) {
+		formatContext->pb = NULL;
+		avformat_close_input(&formatContext);
+	}
+	if (ioContext && ioContext->buffer) av_freep(&ioContext->buffer);
 	if (ioContext) avio_context_free(&ioContext);
 	if (fileBuffer) av_free(fileBuffer);
 
