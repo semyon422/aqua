@@ -46,12 +46,21 @@ function thread.stopThreads()
 	ThreadPool:stopThreads()
 end
 
+---@param f function
+---@return string
+local function getFunctionName(f)
+	local info = debug.getinfo(f, "Sl")
+	return ("%s:%s"):format(info.short_src or info.source or "unknown", info.linedefined or "?")
+end
+
 ---@param f function|string
 ---@param args table
 ---@param callback function
+---@param name string?
 ---@return boolean?
-local function runThread(f, args, callback)
+local function runThread(f, args, callback, name)
 	if type(f) == "function" then
+		name = name or getFunctionName(f)
 		f = string.dump(f)
 	end
 	local task = {
@@ -59,6 +68,7 @@ local function runThread(f, args, callback)
 		args = args,
 		result = callback,
 		trace = debug.traceback(),
+		name = name or "thread task",
 	}
 	return thread.ThreadPool:execute(task)
 end

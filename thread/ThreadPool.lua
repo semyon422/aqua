@@ -3,6 +3,18 @@ local synctable = require("synctable")
 
 local ThreadPool = {}
 
+---@class thread.Task
+---@field f function|string
+---@field args table
+---@field result function
+---@field trace string
+---@field name string
+
+---@class thread.ManagedThread
+---@field name string
+---@field thread {isRunning: fun(self: any): boolean, stop: fun(self: any)?}
+---@field stop_with_pool boolean
+
 local function getLoveTimerNow()
 	if love and love.timer and love.timer.getTime then
 		return love.timer.getTime
@@ -20,8 +32,13 @@ end
 ThreadPool.poolSize = getProcessorCount()
 ThreadPool.keepAliveTime = 10
 
+---@type {[integer]: thread.Thread}
 ThreadPool.threads = {}
+---@type {[integer]: thread.Thread}
 ThreadPool.runningThreads = {}
+---@type {[any]: thread.ManagedThread}
+ThreadPool.managedThreads = {}
+---@type thread.Task[]
 ThreadPool.queue = {}
 ThreadPool.loaded = true
 ThreadPool.lastThreadId = 0
@@ -54,7 +71,52 @@ end
 
 ---@return boolean
 function ThreadPool:isRunning()
-	return next(self.runningThreads) ~= nil
+	if next(self.runningThreads) ~= nil then
+		return true
+	end
+	for _, managed in pairs(self.managedThreads) do
+		if managed.thread:isRunning() then
+			return true
+		end
+	end
+	return false
+end
+
+---@param id any
+---@param name string
+---@param managed_thread thread.ManagedThread.thread
+---@param stop_with_pool boolean?
+function ThreadPool:registerManagedThread(id, name, managed_thread, stop_with_pool)
+	self.managedThreads[id] = {
+		name = name,
+		thread = managed_thread,
+		stop_with_pool = stop_with_pool == true,
+	}
+end
+
+---@param id any
+function ThreadPool:unregisterManagedThread(id)
+	self.managedThreads[id] = nil
+end
+
+---@return string[]
+function ThreadPool:getRunningThreadNames()
+	---@type string[]
+	local names = {}
+	for i, thread in pairs(self.runningThreads) do
+		if thread:isRunning() then
+			local task_name = thread.task and thread.task.name
+			table.insert(names, "thread pool worker " .. tostring(i) .. ": " .. tostring(task_name or "idle"))
+		end
+	end
+	for id, managed in pairs(self.managedThreads) do
+		if managed.thread:isRunning() then
+			table.insert(names, managed.name)
+		else
+			self.managedThreads[id] = nil
+		end
+	end
+	return names
 end
 
 function ThreadPool:waitAsync()
@@ -71,6 +133,11 @@ function ThreadPool:unload()
 	self.queue = {}
 	for _, thread in pairs(self.threads) do
 		thread:pushStop()
+	end
+	for _, managed in pairs(self.managedThreads) do
+		if managed.stop_with_pool and managed.thread.stop then
+			managed.thread:stop()
+		end
 	end
 	self.loaded = false
 end
@@ -99,6 +166,11 @@ function ThreadPool:update()
 	for i, thread in pairs(self.runningThreads) do
 		if not thread:isRunning() then
 			self.runningThreads[i] = nil
+		end
+	end
+	for id, managed in pairs(self.managedThreads) do
+		if not managed.thread:isRunning() then
+			self.managedThreads[id] = nil
 		end
 	end
 

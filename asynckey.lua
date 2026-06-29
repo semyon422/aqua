@@ -5,6 +5,8 @@ if not love or love.system.getOS() ~= "Windows" then
 	return asynckey
 end
 
+local ThreadPool = require("thread.ThreadPool")
+
 local keymap
 
 ---@param event table
@@ -23,6 +25,18 @@ function asynckey.start()
 	thread:start()
 
 	local channel = love.thread.getChannel("AsyncInputChannel")
+	local control_channel = love.thread.getChannel("AsyncInputControlChannel")
+	control_channel:clear()
+	local managed_thread = {
+		isRunning = function()
+			return thread:isRunning()
+		end,
+		stop = function()
+			control_channel:push({name = "stop"})
+		end,
+	}
+	ThreadPool:registerManagedThread(asynckey, "asynckey", managed_thread, true)
+
 	asynckey.events = coroutine.wrap(function()
 		while true do
 			local event = channel:pop()
@@ -33,6 +47,10 @@ function asynckey.start()
 			coroutine.yield()
 		end
 	end)
+
+	function asynckey.stop()
+		managed_thread:stop()
+	end
 
 	function asynckey.clear()
 		channel:clear()
@@ -58,6 +76,7 @@ threadCode = [[
 	end
 
 	local channel = love.thread.getChannel("AsyncInputChannel")
+	local control_channel = love.thread.getChannel("AsyncInputControlChannel")
 	local event = {}
 	local function send(key, state, time)
 		event.key = key
@@ -67,6 +86,11 @@ threadCode = [[
 	end
 
 	while true do
+		local control_event = control_channel:pop()
+		if control_event and control_event.name == "stop" then
+			return
+		end
+
 		local time = love.timer.getTime()
 		for key = 0, 255 do
 			local state = bit.band(ffi.C.GetAsyncKeyState(key), 0x8000) ~= 0

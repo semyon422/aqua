@@ -4,6 +4,7 @@ local Remote = require("icc.Remote")
 local TaskHandler = require("icc.TaskHandler")
 local RemoteHandler = require("icc.RemoteHandler")
 local Message = require("icc.Message")
+local ThreadPool = require("thread.ThreadPool")
 
 ---@type string
 local codestring
@@ -25,6 +26,9 @@ end
 ---@operator call: threadremote.ThreadRemote
 local ThreadRemote = IPeer + {}
 
+---@type {[threadremote.ThreadRemote]: true?}
+ThreadRemote.instances = setmetatable({}, {__mode = "k"})
+
 ---@param id integer
 ---@param t table
 function ThreadRemote:new(id, t)
@@ -43,6 +47,8 @@ function ThreadRemote:new(id, t)
 	self.task_handler.timeout = 60
 
 	self.thread = love.thread.newThread(getCodeString(id))
+	ThreadPool:registerManagedThread(self, "thread remote " .. tostring(id), self)
+	ThreadRemote.instances[self] = true
 
 	---@param ctx icc.IPeerContext
 	---@param obj {[any]: any}
@@ -99,6 +105,18 @@ function ThreadRemote:update()
 		end
 		event = output_channel:pop()
 	end
+	task_handler:update()
+end
+
+---@return boolean
+function ThreadRemote:isRunning()
+	return self.thread:isRunning()
+end
+
+function ThreadRemote.updateAll()
+	for remote in pairs(ThreadRemote.instances) do
+		remote:update()
+	end
 end
 
 function ThreadRemote:reset()
@@ -115,8 +133,24 @@ function ThreadRemote:reset()
 end
 
 function ThreadRemote:stop()
-	self.input_channel:push({name = "stop"})
+	ThreadRemote.instances[self] = nil
 	self:reset()
+	self.input_channel:push({name = "stop"})
+	if not self:isRunning() then
+		ThreadPool:unregisterManagedThread(self)
+	end
+end
+
+function ThreadRemote:stopDetached()
+	ThreadRemote.instances[self] = nil
+	self.input_channel:clear()
+	self.output_channel:clear()
+	self.task_handler.callbacks = {}
+	self.task_handler.timeouts = {}
+	self.input_channel:push({name = "stop"})
+	if not self:isRunning() then
+		ThreadPool:unregisterManagedThread(self)
+	end
 end
 
 return ThreadRemote
