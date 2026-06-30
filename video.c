@@ -52,6 +52,8 @@ typedef struct {
 	int64_t fileOffset;
 	bool hasPendingFrame;
 	lua_Number pendingFrameTime;
+	bool hasLastReturnedFrame;
+	lua_Number lastReturnedFrameTime;
 } Video;
 
 static Video *checkVideo(lua_State *L, int i, bool open) {
@@ -333,6 +335,24 @@ static int Video_getDimensions(lua_State *L) {
 	return 2;
 }
 
+static int Video_getFrameRate(lua_State *L) {
+	Video *video = checkVideo(L, 1, true);
+	AVRational frame_rate = av_guess_frame_rate(video->formatContext, video->stream, NULL);
+
+	if (frame_rate.num <= 0 || frame_rate.den <= 0) {
+		frame_rate = video->stream->avg_frame_rate;
+	}
+	if (frame_rate.num <= 0 || frame_rate.den <= 0) {
+		frame_rate = video->stream->r_frame_rate;
+	}
+	if (frame_rate.num <= 0 || frame_rate.den <= 0) {
+		return 0;
+	}
+
+	lua_pushnumber(L, (lua_Number)frame_rate.num / frame_rate.den);
+	return 1;
+}
+
 // https://ffmpeg.org/doxygen/trunk/structAVStream.html#a7c67ae70632c91df8b0f721658ec5377
 int64_t stream_start_time(AVStream *stream) {
 	int64_t start_time = stream->start_time;
@@ -381,10 +401,7 @@ static int64_t seconds_to_stream_ts(AVStream *stream, lua_Number time) {
 	return start_time + relative_ts;
 }
 
-static int Video_seek(lua_State *L) {
-	Video *video = checkVideo(L, 1, true);
-	lua_Number time = luaL_checknumber(L, 2);
-
+static void video_seek(Video *video, lua_Number time) {
 	AVStream *stream = video->stream;
 	int64_t ts = seconds_to_stream_ts(stream, time);
 
@@ -405,6 +422,14 @@ static int Video_seek(lua_State *L) {
 	avcodec_flush_buffers(video->codecContext);
 	av_frame_unref(video->frame);
 	video->hasPendingFrame = false;
+	video->hasLastReturnedFrame = false;
+}
+
+static int Video_seek(lua_State *L) {
+	Video *video = checkVideo(L, 1, true);
+	lua_Number time = luaL_checknumber(L, 2);
+
+	video_seek(video, time);
 
 	return 0;
 }
@@ -490,6 +515,8 @@ static int Video_read(lua_State *L) {
 	if (video->hasPendingFrame) {
 		copy_current_frame(video, dst);
 		lua_pushnumber(L, video->pendingFrameTime);
+		video->hasLastReturnedFrame = true;
+		video->lastReturnedFrameTime = video->pendingFrameTime;
 		video->hasPendingFrame = false;
 		return 1;
 	}
@@ -500,7 +527,25 @@ static int Video_read(lua_State *L) {
 
 	copy_current_frame(video, dst);
 	lua_pushnumber(L, time);
+	video->hasLastReturnedFrame = true;
+	video->lastReturnedFrameTime = time;
 	return 1;
+}
+
+static bool should_seek_for_read_at(Video *video, lua_Number targetTime) {
+	if (video->hasPendingFrame && video->pendingFrameTime > targetTime) {
+		return true;
+	}
+
+	if (!video->hasLastReturnedFrame) {
+		return true;
+	}
+
+	if (targetTime < video->lastReturnedFrameTime) {
+		return true;
+	}
+
+	return targetTime - video->lastReturnedFrameTime > 1.0;
 }
 
 static int Video_readAt(lua_State *L) {
@@ -510,6 +555,10 @@ static int Video_readAt(lua_State *L) {
 	lua_Number targetTime = luaL_checknumber(L, 3);
 	lua_Number selectedTime = 0;
 	bool hasSelectedFrame = false;
+
+	if (should_seek_for_read_at(video, targetTime)) {
+		video_seek(video, targetTime);
+	}
 
 	if (video->hasPendingFrame) {
 		if (video->pendingFrameTime > targetTime) {
@@ -540,6 +589,8 @@ static int Video_readAt(lua_State *L) {
 	}
 
 	lua_pushnumber(L, selectedTime);
+	video->hasLastReturnedFrame = true;
+	video->lastReturnedFrameTime = selectedTime;
 	return 1;
 }
 
@@ -568,6 +619,7 @@ static const struct luaL_Reg video_reg_mt[] = {
 	{"seek", Video_seek},
 	{"getDuration", Video_getDuration},
 	{"getDimensions", Video_getDimensions},
+	{"getFrameRate", Video_getFrameRate},
 	{NULL, NULL}
 };
 
