@@ -754,7 +754,11 @@ static int Video_readAt(lua_State *L) {
 
 	if (video->hasPendingFrame) {
 		if (video->pendingFrameTime > targetTime) {
-			return 0;
+			copy_current_frame(video, dst);
+			selectedTime = video->pendingFrameTime;
+			hasSelectedFrame = true;
+			video->hasPendingFrame = false;
+			goto done;
 		}
 
 		copy_current_frame(video, dst);
@@ -766,6 +770,12 @@ static int Video_readAt(lua_State *L) {
 	lua_Number time;
 	while (read_next_frame(video, &time)) {
 		if (time > targetTime) {
+			if (!hasSelectedFrame) {
+				copy_current_frame(video, dst);
+				selectedTime = time;
+				hasSelectedFrame = true;
+				break;
+			}
 			video->hasPendingFrame = true;
 			video->pendingFrameTime = time;
 			break;
@@ -780,6 +790,7 @@ static int Video_readAt(lua_State *L) {
 		return 0;
 	}
 
+done:
 	lua_pushnumber(L, selectedTime);
 	video->hasLastReturnedFrame = true;
 	video->lastReturnedFrameTime = selectedTime;
