@@ -20,6 +20,11 @@ gcc -I%TREE%/include/luajit-2.1 -Iffmpeg/include -fPIC -shared -o video.dll vide
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -29,6 +34,100 @@ gcc -I%TREE%/include/luajit-2.1 -Iffmpeg/include -fPIC -shared -o video.dll vide
 #include <libavutil/pixdesc.h>
 #include <libswscale/swscale.h>
 #include <libavutil/log.h>
+
+typedef long long PHYSFS_sint64;
+typedef unsigned long long PHYSFS_uint64;
+typedef struct PHYSFS_File PHYSFS_File;
+
+typedef PHYSFS_File *(*PHYSFS_openReadFunc)(const char *fname);
+typedef PHYSFS_sint64 (*PHYSFS_readBytesFunc)(PHYSFS_File *handle, void *buffer, PHYSFS_uint64 len);
+typedef PHYSFS_sint64 (*PHYSFS_tellFunc)(PHYSFS_File *handle);
+typedef PHYSFS_sint64 (*PHYSFS_fileLengthFunc)(PHYSFS_File *handle);
+typedef int (*PHYSFS_seekFunc)(PHYSFS_File *handle, PHYSFS_uint64 pos);
+typedef int (*PHYSFS_closeFunc)(PHYSFS_File *handle);
+typedef const char *(*PHYSFS_getLastErrorFunc)(void);
+typedef int (*PHYSFS_getLastErrorCodeFunc)(void);
+typedef const char *(*PHYSFS_getErrorByCodeFunc)(int code);
+
+typedef struct {
+	PHYSFS_openReadFunc openRead;
+	PHYSFS_readBytesFunc readBytes;
+	PHYSFS_tellFunc tell;
+	PHYSFS_fileLengthFunc fileLength;
+	PHYSFS_seekFunc seek;
+	PHYSFS_closeFunc close;
+	PHYSFS_getLastErrorFunc getLastError;
+	PHYSFS_getLastErrorCodeFunc getLastErrorCode;
+	PHYSFS_getErrorByCodeFunc getErrorByCode;
+	bool loaded;
+	bool attempted;
+} PhysFSApi;
+
+static PhysFSApi physfs;
+
+static void *load_symbol(const char *name) {
+#ifdef _WIN32
+	HMODULE modules[] = {
+		GetModuleHandleA(NULL),
+		GetModuleHandleA("love.dll"),
+		GetModuleHandleA("love"),
+		LoadLibraryA("love.dll"),
+	};
+	for (size_t i = 0; i < sizeof(modules) / sizeof(modules[0]); i++) {
+		if (!modules[i])
+			continue;
+		void *symbol = (void *)GetProcAddress(modules[i], name);
+		if (symbol)
+			return symbol;
+	}
+	return NULL;
+#else
+	void *symbol = dlsym(RTLD_DEFAULT, name);
+	if (symbol)
+		return symbol;
+
+	void *handles[] = {
+		dlopen(NULL, RTLD_LAZY),
+		dlopen("liblove-12.0.so", RTLD_LAZY | RTLD_NOLOAD),
+		dlopen("liblove-11.0.so", RTLD_LAZY | RTLD_NOLOAD),
+		dlopen("liblove.so", RTLD_LAZY | RTLD_NOLOAD),
+	};
+	for (size_t i = 0; i < sizeof(handles) / sizeof(handles[0]); i++) {
+		if (!handles[i])
+			continue;
+		symbol = dlsym(handles[i], name);
+		if (symbol)
+			return symbol;
+	}
+	return NULL;
+#endif
+}
+
+static bool load_physfs_api(void) {
+	if (physfs.attempted)
+		return physfs.loaded;
+
+	physfs.attempted = true;
+	physfs.openRead = (PHYSFS_openReadFunc)load_symbol("PHYSFS_openRead");
+	physfs.readBytes = (PHYSFS_readBytesFunc)load_symbol("PHYSFS_readBytes");
+	physfs.tell = (PHYSFS_tellFunc)load_symbol("PHYSFS_tell");
+	physfs.fileLength = (PHYSFS_fileLengthFunc)load_symbol("PHYSFS_fileLength");
+	physfs.seek = (PHYSFS_seekFunc)load_symbol("PHYSFS_seek");
+	physfs.close = (PHYSFS_closeFunc)load_symbol("PHYSFS_close");
+	physfs.getLastError = (PHYSFS_getLastErrorFunc)load_symbol("PHYSFS_getLastError");
+	physfs.getLastErrorCode = (PHYSFS_getLastErrorCodeFunc)load_symbol("PHYSFS_getLastErrorCode");
+	physfs.getErrorByCode = (PHYSFS_getErrorByCodeFunc)load_symbol("PHYSFS_getErrorByCode");
+	physfs.loaded = physfs.openRead && physfs.readBytes && physfs.tell && physfs.fileLength && physfs.seek && physfs.close;
+	return physfs.loaded;
+}
+
+static const char *physfs_last_error(void) {
+	if (physfs.getLastError)
+		return physfs.getLastError();
+	if (physfs.getLastErrorCode && physfs.getErrorByCode)
+		return physfs.getErrorByCode(physfs.getLastErrorCode());
+	return NULL;
+}
 
 #define MT_NAME "video"
 #define FILE_BUFFER_SIZE 8192
@@ -50,6 +149,7 @@ typedef struct {
 	uint8_t *fileContent;
 	int64_t fileSize;
 	int64_t fileOffset;
+	PHYSFS_File *physfsFile;
 	bool hasPendingFrame;
 	lua_Number pendingFrameTime;
 	bool hasLastReturnedFrame;
@@ -62,7 +162,7 @@ static Video *checkVideo(lua_State *L, int i, bool open) {
 	return video;
 }
 
-int fileRead(void *ptr, uint8_t *buf, int len) {
+static int memoryVideoRead(void *ptr, uint8_t *buf, int len) {
 	Video *video = (Video *)ptr;
 
 	if (video->fileOffset >= video->fileSize)
@@ -78,7 +178,7 @@ int fileRead(void *ptr, uint8_t *buf, int len) {
 	return len;
 }
 
-int64_t fileSeek(void *ptr, int64_t pos, int whence) {
+static int64_t memoryVideoSeek(void *ptr, int64_t pos, int whence) {
 	Video *video = (Video *)ptr;
 
 	if (whence == AVSEEK_SIZE)
@@ -106,6 +206,53 @@ int64_t fileSeek(void *ptr, int64_t pos, int whence) {
 	return pos;
 }
 
+static int physfsVideoRead(void *ptr, uint8_t *buf, int len) {
+	Video *video = (Video *)ptr;
+	PHYSFS_sint64 read = physfs.readBytes(video->physfsFile, buf, (PHYSFS_uint64)len);
+
+	if (read < 0)
+		return AVERROR(EIO);
+	if (read == 0)
+		return AVERROR_EOF;
+
+	return (int)read;
+}
+
+static int64_t physfsVideoSeek(void *ptr, int64_t pos, int whence) {
+	Video *video = (Video *)ptr;
+	PHYSFS_sint64 size = physfs.fileLength(video->physfsFile);
+
+	if (whence == AVSEEK_SIZE)
+		return size < 0 ? AVERROR(EIO) : size;
+
+	switch (whence & ~AVSEEK_FORCE) {
+	case SEEK_SET:
+		break;
+	case SEEK_CUR: {
+		PHYSFS_sint64 current = physfs.tell(video->physfsFile);
+		if (current < 0)
+			return AVERROR(EIO);
+		pos += current;
+		break;
+	}
+	case SEEK_END:
+		if (size < 0)
+			return AVERROR(EIO);
+		pos += size;
+		break;
+	default:
+		return AVERROR(EINVAL);
+	}
+
+	if (pos < 0)
+		pos = 0;
+
+	if (!physfs.seek(video->physfsFile, (PHYSFS_uint64)pos))
+		return AVERROR(EIO);
+
+	return pos;
+}
+
 void _Video_close(Video *video) {
 	if (video->formatContext) {
 		video->formatContext->pb = NULL;
@@ -114,10 +261,18 @@ void _Video_close(Video *video) {
 	if (video->codecContext) avcodec_free_context(&video->codecContext);
 	if (video->ioContext && video->ioContext->buffer) av_freep(&video->ioContext->buffer);
 	if (video->ioContext) avio_context_free(&video->ioContext);
+	if (video->fileBuffer) {
+		av_free(video->fileBuffer);
+		video->fileBuffer = NULL;
+	}
 	if (video->frame) av_frame_free(&video->frame);
 	if (video->frameRGB) av_frame_free(&video->frameRGB);
 	if (video->swsContext) sws_freeContext(video->swsContext);
 	if (video->image) av_freep(&video->image);
+	if (video->physfsFile) {
+		physfs.close(video->physfsFile);
+		video->physfsFile = NULL;
+	}
 
 	video->isOpened = false;
 }
@@ -128,12 +283,22 @@ static int Video_close(lua_State *L) {
 	return 0;
 }
 
-int open_error(lua_State *L, const char *message) {
+static int open_error(lua_State *L, const char *message) {
 	Video *video = checkVideo(L, -1, true);
 	_Video_close(video);
 	lua_pushnil(L);
 	lua_pushstring(L, message);
 	return 2;
+}
+
+static int open_physfs_error(lua_State *L, const char *message) {
+	const char *physfs_error = physfs_last_error();
+	if (!physfs_error)
+		return open_error(L, message);
+
+	char full_message[1024];
+	snprintf(full_message, sizeof(full_message), "%s: %s", message, physfs_error);
+	return open_error(L, full_message);
 }
 
 static bool scale_frame(
@@ -223,19 +388,21 @@ static void push_rgba_frame(lua_State *L, AVFrame *frameRGBA, int width, int hei
 	luaL_pushresult(&buffer);
 }
 
-static int Video_open(lua_State *L) {
+static Video *new_video(lua_State *L) {
 	Video *video = (Video *)lua_newuserdata(L, sizeof(Video));
 	luaL_getmetatable(L, MT_NAME);
 	lua_setmetatable(L, -2);
-
 	memset(video, 0, sizeof(Video));
-
-	luaL_checktype(L, 1, LUA_TLIGHTUSERDATA);
-	video->fileContent = lua_touserdata(L, 1);
-	video->fileSize = luaL_checkinteger(L, 2);
-
 	video->isOpened = true;
+	return video;
+}
 
+static int open_video_input(
+	lua_State *L,
+	int (*read_packet)(void *opaque, uint8_t *buf, int buf_size),
+	int64_t (*seek)(void *opaque, int64_t offset, int whence)
+) {
+	Video *video = checkVideo(L, -1, true);
 	video->fileBuffer = av_malloc(FILE_BUFFER_SIZE);
 	if (!video->fileBuffer)
 		return open_error(L, "Can't allocate file buffer");
@@ -245,12 +412,13 @@ static int Video_open(lua_State *L) {
 		FILE_BUFFER_SIZE,
 		0,
 		video,
-		fileRead,
+		read_packet,
 		NULL,
-		fileSeek
+		seek
 	);
 	if (!video->ioContext)
 		return open_error(L, "Can't allocate AVIOContext");
+	video->fileBuffer = NULL;
 
 	video->formatContext = avformat_alloc_context();
 	if (!video->formatContext)
@@ -323,6 +491,30 @@ static int Video_open(lua_State *L) {
 		return open_error(L, "Can't allocate SwsContext");
 
 	return 1;
+}
+
+static int Video_open(lua_State *L) {
+	Video *video = new_video(L);
+
+	luaL_checktype(L, 1, LUA_TLIGHTUSERDATA);
+	video->fileContent = lua_touserdata(L, 1);
+	video->fileSize = luaL_checkinteger(L, 2);
+
+	return open_video_input(L, memoryVideoRead, memoryVideoSeek);
+}
+
+static int Video_openPath(lua_State *L) {
+	Video *video = new_video(L);
+	const char *path = luaL_checkstring(L, 1);
+
+	if (!load_physfs_api())
+		return open_error(L, "Can't load PhysFS API from LÖVE runtime");
+
+	video->physfsFile = physfs.openRead(path);
+	if (!video->physfsFile)
+		return open_physfs_error(L, "Can't open PhysFS path");
+
+	return open_video_input(L, physfsVideoRead, physfsVideoSeek);
 }
 
 static int Video_getDimensions(lua_State *L) {
@@ -856,6 +1048,7 @@ cleanup:
 
 static const struct luaL_Reg video_reg[] = {
 	{"open", Video_open},
+	{"openPath", Video_openPath},
 	{"decode_image", Video_decodeImage},
 	{NULL, NULL}
 };
