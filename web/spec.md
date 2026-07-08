@@ -48,6 +48,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
    - Implement nonblocking `sslhandshake` with `wantread` / `wantwrite` handling.
    - Copy timeout and cleanup behavior across the raw-to-SSL socket replacement.
    - Initial fake-socket verification covers `wantread`, `wantwrite`, timeout, and fatal error paths.
+   - Initial real-certificate verification covers a local `wss://` websocket round-trip using temporary `rizu.su` certificate files.
 
 4. Reuse existing HTTP and websocket code.
    - Verify `WebsocketClient:connect`, `Websocket:handshake`, `Websocket:step`, `Request`, and `Response` work over the cosocket adapter.
@@ -81,4 +82,5 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Covered fake SSL handshake behavior for `wantread`, `wantwrite`, timeout, and fatal error paths.
 - Added a real localhost TCP integration test that verifies nonblocking connect, client-to-server send, and server-to-client receive.
 - Added a real localhost websocket smoke test that verifies `WebsocketClient`, HTTP handshake, websocket handshake, and text frame round-trip over `CosocketTcpSocket`.
+- Added a real localhost `wss://` smoke test that verifies LuaSec TLS handshake and websocket round-trip over `CosocketTcpSocket`.
 - Verified the scheduler manually with global `coext.export()` enabled.
