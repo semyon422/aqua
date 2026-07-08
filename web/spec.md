@@ -51,6 +51,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 4. Reuse existing HTTP and websocket code.
    - Verify `WebsocketClient:connect`, `Websocket:handshake`, `Websocket:step`, `Request`, and `Response` work over the cosocket adapter.
    - Avoid changing parser behavior unless tests reveal a transport contract bug.
+   - Initial verification: local `ws://` smoke test over `CosocketTcpSocket`.
 
 5. Add focused tests.
    - Scheduler tests for read wait, write wait, timers, timeout, close, and cancel.
@@ -77,4 +78,5 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added the initial `web.luasocket.CosocketTcpSocket` for nonblocking plain TCP operations over the scheduler.
 - Covered the TCP adapter with fake-socket tests for async connect, operation timeout, partial receive, partial send, `wantread` during send, select polling, and close wakeup.
 - Added a real localhost TCP integration test that verifies nonblocking connect, client-to-server send, and server-to-client receive.
+- Added a real localhost websocket smoke test that verifies `WebsocketClient`, HTTP handshake, websocket handshake, and text frame round-trip over `CosocketTcpSocket`.
 - Verified the scheduler manually with global `coext.export()` enabled.
