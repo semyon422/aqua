@@ -1,5 +1,6 @@
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local CosocketTcpSocket = require("web.luasocket.CosocketTcpSocket")
+local table_util = require("table_util")
 local socket = require("socket")
 
 local test = {}
@@ -12,8 +13,10 @@ function FakeSocket:new()
 		connect_returns = {},
 		receive_returns = {},
 		send_returns = {},
+		handshake_returns = {},
 		receive_calls = {},
 		send_calls = {},
+		handshake_calls = 0,
 		timeout = nil,
 		closed = false,
 	}, self)
@@ -27,17 +30,22 @@ end
 function FakeSocket:connect(host, port)
 	self.connect_host = host
 	self.connect_port = port
-	return unpack(table.remove(self.connect_returns, 1))
+	return table_util.unpack(table.remove(self.connect_returns, 1))
 end
 
 function FakeSocket:receive(pattern, prefix)
 	table.insert(self.receive_calls, {pattern, prefix})
-	return unpack(table.remove(self.receive_returns, 1))
+	return table_util.unpack(table.remove(self.receive_returns, 1))
 end
 
 function FakeSocket:send(data, i, j)
 	table.insert(self.send_calls, {data, i, j})
-	return unpack(table.remove(self.send_returns, 1))
+	return table_util.unpack(table.remove(self.send_returns, 1))
+end
+
+function FakeSocket:dohandshake()
+	self.handshake_calls = self.handshake_calls + 1
+	return table_util.unpack(table.remove(self.handshake_returns, 1))
 end
 
 function FakeSocket:getpeername()
@@ -101,7 +109,7 @@ end
 function test.connect_waits_for_write_readiness(t)
 	local tcp_socket, raw_socket, scheduler, mock = new_socket()
 	raw_socket.connect_returns = {
-		{nil, "timeout"},
+		table_util.pack(nil, "timeout"),
 		{1},
 	}
 
@@ -126,7 +134,7 @@ function test.connect_times_out(t)
 	local tcp_socket, raw_socket, scheduler, mock, time = new_socket()
 	tcp_socket:settimeout(5)
 	raw_socket.connect_returns = {
-		{nil, "timeout"},
+		table_util.pack(nil, "timeout"),
 	}
 
 	local result
@@ -148,7 +156,7 @@ end
 function test.receive_waits_and_preserves_partial(t)
 	local tcp_socket, raw_socket, scheduler, mock = new_socket()
 	raw_socket.receive_returns = {
-		{nil, "timeout", "ab"},
+		table_util.pack(nil, "timeout", "ab"),
 		{"abcd"},
 	}
 
@@ -171,7 +179,7 @@ end
 function test.receive_returns_closed(t)
 	local tcp_socket, raw_socket = new_socket()
 	raw_socket.receive_returns = {
-		{nil, "closed", "ab"},
+		table_util.pack(nil, "closed", "ab"),
 	}
 
 	t:tdeq({tcp_socket:receive(4)}, {nil, "closed", "ab"})
@@ -181,7 +189,7 @@ end
 function test.send_waits_and_continues_after_partial(t)
 	local tcp_socket, raw_socket, scheduler, mock = new_socket()
 	raw_socket.send_returns = {
-		{nil, "timeout", 2},
+		table_util.pack(nil, "timeout", 2),
 		{5},
 	}
 
@@ -204,7 +212,7 @@ end
 function test.send_waits_for_read_on_wantread(t)
 	local tcp_socket, raw_socket, scheduler, mock = new_socket()
 	raw_socket.send_returns = {
-		{nil, "wantread", 0},
+		table_util.pack(nil, "wantread", 0),
 		{3},
 	}
 
@@ -218,6 +226,71 @@ function test.send_waits_for_read_on_wantread(t)
 	t:eq(scheduler:update(), true)
 	t:tdeq(result, {3})
 	t:eq(mock.calls[1].recvt[1], raw_socket)
+end
+
+---@param t testing.T
+function test.sslhandshake_waits_for_read_and_write(t)
+	local tcp_socket, raw_socket, scheduler, mock = new_socket()
+	raw_socket.handshake_returns = {
+		table_util.pack(nil, "wantread"),
+		table_util.pack(nil, "wantwrite"),
+		{1},
+	}
+
+	local result
+	local co = coroutine.create(function()
+		result = {tcp_socket:sslhandshake()}
+	end)
+
+	t:tdeq({coroutine.resume(co)}, {true})
+	t:eq(result, nil)
+	t:eq(raw_socket.handshake_calls, 1)
+
+	mock.ready_read = {raw_socket}
+	t:eq(scheduler:update(), true)
+	t:eq(result, nil)
+	t:eq(raw_socket.handshake_calls, 2)
+	t:eq(mock.calls[1].recvt[1], raw_socket)
+
+	mock.ready_read = {}
+	mock.ready_write = {raw_socket}
+	t:eq(scheduler:update(), true)
+	t:tdeq(result, {1})
+	t:eq(raw_socket.handshake_calls, 3)
+	t:eq(mock.calls[2].sendt[1], raw_socket)
+end
+
+---@param t testing.T
+function test.sslhandshake_times_out(t)
+	local tcp_socket, raw_socket, scheduler, mock, time = new_socket()
+	tcp_socket:settimeout(5)
+	raw_socket.handshake_returns = {
+		table_util.pack(nil, "wantread"),
+	}
+
+	local result
+	local co = coroutine.create(function()
+		result = {tcp_socket:sslhandshake()}
+	end)
+
+	t:tdeq({coroutine.resume(co)}, {true})
+	t:eq(result, nil)
+	t:eq(scheduler:update(60), false)
+	t:eq(mock.calls[1].timeout, 5)
+
+	time[1] = 5
+	t:eq(scheduler:update(60), true)
+	t:tdeq(result, {nil, "timeout"})
+end
+
+---@param t testing.T
+function test.sslhandshake_returns_fatal_error(t)
+	local tcp_socket, raw_socket = new_socket()
+	raw_socket.handshake_returns = {
+		table_util.pack(nil, "certificate verify failed"),
+	}
+
+	t:tdeq({tcp_socket:sslhandshake()}, {nil, "certificate verify failed"})
 end
 
 ---@param t testing.T
@@ -240,7 +313,7 @@ end
 function test.close_wakes_waiter(t)
 	local tcp_socket, raw_socket, scheduler = new_socket()
 	raw_socket.receive_returns = {
-		{nil, "timeout", ""},
+		table_util.pack(nil, "timeout", ""),
 	}
 
 	local result
