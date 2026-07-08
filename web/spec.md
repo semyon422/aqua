@@ -41,6 +41,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
    - Expose a `web.ITcpSocket`-compatible object for nonblocking TCP.
    - Implement async `connect`, `receive`, `send`, `selectreceive`, and `selectsend`.
    - Preserve partial read/write behavior expected by existing socket tests.
+   - Initial implementation: `web.luasocket.CosocketTcpSocket` with fake-socket tests.
 
 3. Add SSL support.
    - Keep `sslwrap` and `sni` compatible with `LsTcpSocket`.
@@ -73,4 +74,6 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 
 - Added the initial `web.luasocket.CosocketScheduler` with injectable `select` and clock dependencies.
 - Covered scheduler behavior with focused tests for read/write readiness, timers, close, cancel, multiple waiters, re-waiting after resume, and select errors.
+- Added the initial `web.luasocket.CosocketTcpSocket` for nonblocking plain TCP operations over the scheduler.
+- Covered the TCP adapter with fake-socket tests for async connect, operation timeout, partial receive, partial send, `wantread` during send, select polling, and close wakeup.
 - Verified the scheduler manually with global `coext.export()` enabled.
