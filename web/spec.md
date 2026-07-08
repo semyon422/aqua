@@ -76,4 +76,5 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Covered scheduler behavior with focused tests for read/write readiness, timers, close, cancel, multiple waiters, re-waiting after resume, and select errors.
 - Added the initial `web.luasocket.CosocketTcpSocket` for nonblocking plain TCP operations over the scheduler.
 - Covered the TCP adapter with fake-socket tests for async connect, operation timeout, partial receive, partial send, `wantread` during send, select polling, and close wakeup.
+- Added a real localhost TCP integration test that verifies nonblocking connect, client-to-server send, and server-to-client receive.
 - Verified the scheduler manually with global `coext.export()` enabled.

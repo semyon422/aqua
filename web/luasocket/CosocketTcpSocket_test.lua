@@ -1,5 +1,6 @@
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local CosocketTcpSocket = require("web.luasocket.CosocketTcpSocket")
+local socket = require("socket")
 
 local test = {}
 
@@ -76,6 +77,24 @@ local function new_socket()
 	local raw_socket = FakeSocket:new()
 	local tcp_socket = CosocketTcpSocket(scheduler, nil, raw_socket)
 	return tcp_socket, raw_socket, scheduler, mock, time
+end
+
+---@param t testing.T
+---@param scheduler web.CosocketScheduler
+---@param condition fun(): boolean
+---@param step fun()?
+local function pump_until(t, scheduler, condition, step)
+	local deadline = socket.gettime() + 2
+	while not condition() do
+		if step then
+			step()
+		end
+		local ok, err = scheduler:update(0.01)
+		if not ok and err then
+			error(err)
+		end
+		t:assert(socket.gettime() < deadline)
+	end
 end
 
 ---@param t testing.T
@@ -236,6 +255,91 @@ function test.close_wakes_waiter(t)
 
 	t:eq(raw_socket.closed, true)
 	t:tdeq(result, {nil, "closed", ""})
+end
+
+---@param t testing.T
+function test.real_tcp_connect_send_receive(t)
+	local server = assert(socket.tcp4 and socket.tcp4() or socket.tcp())
+	assert(server:setoption("reuseaddr", true))
+	assert(server:bind("127.0.0.1", 0))
+	assert(server:listen(1))
+	assert(server:settimeout(0))
+
+	local _ip, port = server:getsockname()
+
+	local scheduler = CosocketScheduler()
+	local client = CosocketTcpSocket(scheduler, 4)
+
+	---@type TCPSocket?
+	local peer
+	local function accept_peer()
+		if peer then
+			return
+		end
+		local _peer, err = server:accept()
+		if _peer then
+			peer = _peer
+			assert(peer:settimeout(0))
+		elseif err ~= "timeout" then
+			error(err)
+		end
+	end
+
+	local connect_result
+	local connect_co = coroutine.create(function()
+		connect_result = {client:connect("127.0.0.1", port)}
+	end)
+	t:tdeq({coroutine.resume(connect_co)}, {true})
+
+	pump_until(t, scheduler, function()
+		return connect_result ~= nil and peer ~= nil
+	end, accept_peer)
+
+	t:tdeq(connect_result, {1})
+	t:assert(peer)
+
+	local send_result
+	local send_co = coroutine.create(function()
+		send_result = {client:send("hello")}
+	end)
+	t:tdeq({coroutine.resume(send_co)}, {true})
+
+	pump_until(t, scheduler, function()
+		return send_result ~= nil
+	end)
+
+	t:tdeq(send_result, {5})
+
+	local server_data
+	pump_until(t, scheduler, function()
+		local data, err = peer:receive(5)
+		if data then
+			server_data = data
+			return true
+		elseif err == "timeout" then
+			return false
+		end
+		error(err)
+	end)
+	t:eq(server_data, "hello")
+
+	local receive_result
+	local receive_co = coroutine.create(function()
+		receive_result = {client:receive(5)}
+	end)
+	t:tdeq({coroutine.resume(receive_co)}, {true})
+
+	assert(peer:send("world"))
+
+	pump_until(t, scheduler, function()
+		return receive_result ~= nil
+	end)
+
+	t:tdeq(receive_result, {"world"})
+
+	client:close()
+	peer:close()
+	server:close()
 end
 
 return test
