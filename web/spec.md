@@ -53,6 +53,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 4. Reuse existing HTTP and websocket code.
    - Verify `WebsocketClient:connect`, `Websocket:handshake`, `Websocket:step`, `Request`, and `Response` work over the cosocket adapter.
    - Provide a small websocket client factory that can create blocking LuaSocket, OpenResty, or scheduler-backed cosocket transports.
+   - Provide a reusable websocket connection helper that owns scheduler pumping, reader coroutine, and single-writer send serialization.
    - Avoid changing parser behavior unless tests reveal a transport contract bug.
    - Initial verification: local `ws://` smoke test over `CosocketTcpSocket`.
 
@@ -63,7 +64,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
    - SSL handshake tests when the local environment can provide stable certificates and LuaSec support.
 
 6. Integrate downstream after `aqua/web` is stable.
-   - Add a main-thread transport option to `rizu.online.SphereWebsocket`.
+   - Add a main-thread transport option using `web.ws.WebsocketConnection`.
    - Make `SeaClient.threaded = false` use the cosocket transport and scheduler updates.
    - Add a separate DNS resolver thread if hostname resolution blocks frame updates in practice.
 
@@ -89,4 +90,5 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added a real localhost websocket smoke test that verifies `WebsocketClient`, HTTP handshake, websocket handshake, and text frame round-trip over `CosocketTcpSocket`.
 - Added a real localhost `wss://` smoke test that verifies LuaSec TLS handshake and websocket round-trip over `CosocketTcpSocket`.
 - Added `web.ws.util.client({scheduler = scheduler})` as the first ordinary websocket client factory path for scheduler-backed cosocket transports.
+- Added `web.ws.WebsocketConnection` as a reusable websocket connection helper with cosocket scheduler pumping, reader coroutine, and single-writer send serialization.
 - Verified the scheduler manually with global `coext.export()` enabled.
