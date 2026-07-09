@@ -104,6 +104,11 @@ function WebsocketConnection:connect(url, connect_host)
 		return nil, err
 	end
 
+	local on_connected = self.options.on_connected
+	if on_connected then
+		on_connected(self)
+	end
+
 	self:startReader()
 
 	return true
@@ -198,6 +203,11 @@ end
 
 function WebsocketConnection:startReader()
 	if not self.scheduler then
+		return
+	end
+
+	local reader_thread = self.reader_thread
+	if reader_thread and coroutine.status(reader_thread) ~= "dead" then
 		return
 	end
 

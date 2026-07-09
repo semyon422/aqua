@@ -9,6 +9,7 @@ local util = {}
 ---@field scheduler web.CosocketScheduler?
 ---@field ip_version 4|6?
 ---@field tcp_socket web.ITcpSocket?
+---@field on_connected (fun(connection: web.WebsocketConnection))?
 
 ---@param options web.WebsocketClientOptions?
 ---@return 4|6

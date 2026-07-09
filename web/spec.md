@@ -95,4 +95,5 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added `web.ws.WebsocketConnection` as a reusable websocket connection helper with cosocket scheduler pumping, reader coroutine, and single-writer send serialization.
 - Added `WebsocketConnection:close()` to close the transport, cancel the reader coroutine, and wake queued websocket writers.
 - Added a websocket `connect_host` path so callers can resolve DNS outside the cosocket scheduler without changing the URL host.
+- Added a `WebsocketConnection` `on_connected` hook so callers can finish connection wiring before incoming frames are handled by the reader coroutine.
 - Verified the scheduler manually with global `coext.export()` enabled.

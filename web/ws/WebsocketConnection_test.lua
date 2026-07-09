@@ -64,6 +64,35 @@ function test.cosocket_reader(t)
 end
 
 ---@param t testing.T
+function test.on_connected_runs_before_reader(t)
+	---@type string[]
+	local events = {}
+	local connection = WebsocketConnection({
+		scheduler = CosocketScheduler(),
+		on_connected = function()
+			table.insert(events, "connected")
+		end,
+	})
+
+	connection.ws = {
+		state = "open",
+		getState = function(self)
+			return self.state
+		end,
+		step = function(self)
+			table.insert(events, "reader")
+			self.state = "closed"
+			return true
+		end,
+	}
+
+	connection.options.on_connected(connection)
+	connection:startReader()
+
+	t:tdeq(events, {"connected", "reader"})
+end
+
+---@param t testing.T
 function test.cosocket_send_serializes_writers(t)
 	local connection = WebsocketConnection({scheduler = CosocketScheduler()})
 
