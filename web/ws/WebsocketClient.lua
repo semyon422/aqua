@@ -28,9 +28,10 @@ function WebsocketClient:new(tcp_soc)
 end
 
 ---@param url string
+---@param connect_host string?
 ---@return {req: web.IRequest, res: web.IResponse}?
 ---@return string?
-function WebsocketClient:connect(url)
+function WebsocketClient:connect(url, connect_host)
 	url = url:gsub("#", "%23") -- no fragment in ws
 
 	local parsed_url, err = socket_url.parse(url, default)
@@ -39,7 +40,7 @@ function WebsocketClient:connect(url)
 	end
 
 	local tcp_soc = self.tcp_soc
-	local ok, err = tcp_soc:connect(parsed_url.host, parsed_url.port or scheme_ports[parsed_url.scheme])
+	local ok, err = tcp_soc:connect(connect_host or parsed_url.host, tonumber(parsed_url.port) or scheme_ports[parsed_url.scheme])
 	if not ok then
 		return nil, err
 	end

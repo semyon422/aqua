@@ -13,6 +13,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Implement nonblocking client networking in `aqua/web`, not in `rizu/online`, so the transport remains reusable.
 - Treat `require("coext").export()` as part of the runtime coroutine model. Cosocket operations may rely on `coext` to ensure socket waits yield to their owning coroutine rather than an unrelated caller coroutine.
 - Keep websocket framing and HTTP parsing transport-agnostic. Prefer adapting `web.ITcpSocket` / `web.IExtendedSocket` implementations over changing `Websocket`, `WebsocketClient`, `Request`, or `Response`.
+- Allow websocket clients to connect to a resolved TCP address while preserving the original URL host for HTTP `Host`, SNI, and future hostname verification.
 - Use the existing `ExtendedSocket.cosocket` and `TcpUpdater` behavior as prior art, but extend the design for client-side `connect`, SSL handshakes, timers, cancellation, and multiple wait states.
 - Use Copas as an implementation reference for nonblocking LuaSocket edge cases:
   - async `connect` waits on write readiness and retries until connected or failed;
@@ -93,4 +94,5 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added `web.ws.util.client({scheduler = scheduler})` as the first ordinary websocket client factory path for scheduler-backed cosocket transports.
 - Added `web.ws.WebsocketConnection` as a reusable websocket connection helper with cosocket scheduler pumping, reader coroutine, and single-writer send serialization.
 - Added `WebsocketConnection:close()` to close the transport, cancel the reader coroutine, and wake queued websocket writers.
+- Added a websocket `connect_host` path so callers can resolve DNS outside the cosocket scheduler without changing the URL host.
 - Verified the scheduler manually with global `coext.export()` enabled.

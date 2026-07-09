@@ -71,9 +71,10 @@ function WebsocketConnection:close(err)
 end
 
 ---@param url string
+---@param connect_host string?
 ---@return true?
 ---@return string?
-function WebsocketConnection:connect(url)
+function WebsocketConnection:connect(url, connect_host)
 	if self.soc or self.ws then
 		self:close("reconnecting")
 	end
@@ -85,7 +86,7 @@ function WebsocketConnection:connect(url)
 	local ws_client = ws_util.client(self.options)
 	self.soc = ws_client.tcp_soc
 
-	local re, err = ws_client:connect(url)
+	local re, err = ws_client:connect(url, connect_host)
 	if not re then
 		self:close(err)
 		return nil, err
