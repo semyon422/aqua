@@ -52,6 +52,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 
 4. Reuse existing HTTP and websocket code.
    - Verify `WebsocketClient:connect`, `Websocket:handshake`, `Websocket:step`, `Request`, and `Response` work over the cosocket adapter.
+   - Provide a small websocket client factory that can create blocking LuaSocket, OpenResty, or scheduler-backed cosocket transports.
    - Avoid changing parser behavior unless tests reveal a transport contract bug.
    - Initial verification: local `ws://` smoke test over `CosocketTcpSocket`.
 
@@ -71,6 +72,10 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Decide whether the scheduler should be per-client object, shared singleton, or explicitly injected into each cosocket.
 - Decide whether `delay` should remain separate from web timers or whether a small timer primitive belongs in the cosocket scheduler.
 - Decide how to expose DNS resolution without coupling `aqua/web` to LÖVE thread APIs.
+- Add TLS certificate verification support for cosocket clients:
+  - accept a CA bundle file or CA directory for LuaSec `verify = "peer"`;
+  - pass the intended TLS hostname for SNI and hostname verification;
+  - allow TCP connection address and TLS hostname to differ, so tests can connect to `127.0.0.1` while validating a certificate for `rizu.su`.
 - Audit whether ICC `TaskHandler` callbacks need scheduler-specific helpers once websocket sends can yield on write readiness.
 
 ## Current Progress
@@ -83,4 +88,5 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added a real localhost TCP integration test that verifies nonblocking connect, client-to-server send, and server-to-client receive.
 - Added a real localhost websocket smoke test that verifies `WebsocketClient`, HTTP handshake, websocket handshake, and text frame round-trip over `CosocketTcpSocket`.
 - Added a real localhost `wss://` smoke test that verifies LuaSec TLS handshake and websocket round-trip over `CosocketTcpSocket`.
+- Added `web.ws.util.client({scheduler = scheduler})` as the first ordinary websocket client factory path for scheduler-backed cosocket transports.
 - Verified the scheduler manually with global `coext.export()` enabled.

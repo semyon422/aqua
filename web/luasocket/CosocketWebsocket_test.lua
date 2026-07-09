@@ -2,6 +2,7 @@ local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local CosocketTcpSocket = require("web.luasocket.CosocketTcpSocket")
 local Websocket = require("web.ws.Websocket")
 local WebsocketClient = require("web.ws.WebsocketClient")
+local ws_util = require("web.ws.util")
 local Request = require("web.http.Request")
 local Response = require("web.http.Response")
 local socket = require("socket")
@@ -94,8 +95,8 @@ function test.websocket_smoke(t)
 	end
 
 	local client_co = coroutine.create(function()
-		local client_tcp = CosocketTcpSocket(scheduler, 4)
-		local ws_client = WebsocketClient(client_tcp)
+		local ws_client = ws_util.client({scheduler = scheduler})
+		local client_tcp = ws_client.tcp_soc
 		local re = t:assert(ws_client:connect(("ws://127.0.0.1:%d/ws"):format(port)))
 		local ws = Websocket(client_tcp, re.req, re.res, "client")
 
