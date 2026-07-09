@@ -8,8 +8,10 @@ local Subprotocol = require("web.ws.Subprotocol")
 ---@operator call: web.WebsocketConnection
 ---@field options web.WebsocketClientOptions
 ---@field scheduler web.CosocketScheduler?
+---@field closed boolean
 ---@field write_locked boolean
 ---@field write_waiters thread[]
+---@field reader_thread thread?
 local WebsocketConnection = class()
 
 ---@param options web.WebsocketClientOptions?
@@ -17,19 +19,75 @@ function WebsocketConnection:new(options)
 	self.protocol = Subprotocol()
 	self.options = options or {}
 	self.scheduler = self.options.scheduler
+	self.closed = false
 	self.write_locked = false
 	self.write_waiters = {}
+end
+
+---@param err string?
+function WebsocketConnection:wakeWriters(err)
+	err = err or "closed"
+	self.write_locked = false
+
+	local waiters = self.write_waiters
+	self.write_waiters = {}
+	for _, co in ipairs(waiters) do
+		if coroutine.status(co) ~= "dead" then
+			local ok, resume_err = coroutine.resume(co, nil, err)
+			if not ok then
+				error(resume_err, 0)
+			end
+		end
+	end
+end
+
+---@param err string?
+---@return 1?
+---@return string?
+function WebsocketConnection:close(err)
+	err = err or "closed"
+	self.closed = true
+	self:wakeWriters(err)
+
+	local scheduler = self.scheduler
+	local ws = self.ws
+	if ws then
+		ws.state = "closed"
+	end
+
+	local reader_thread = self.reader_thread
+	if scheduler and reader_thread and coroutine.status(reader_thread) ~= "dead" then
+		scheduler:cancel(reader_thread, err)
+	end
+	self.reader_thread = nil
+
+	local soc = self.soc
+	self.soc = nil
+	self.ws = nil
+	if soc then
+		return soc:close()
+	end
+	return 1
 end
 
 ---@param url string
 ---@return true?
 ---@return string?
 function WebsocketConnection:connect(url)
+	if self.soc or self.ws then
+		self:close("reconnecting")
+	end
+
+	self.closed = false
+	self.write_locked = false
+	self.write_waiters = {}
+
 	local ws_client = ws_util.client(self.options)
 	self.soc = ws_client.tcp_soc
 
 	local re, err = ws_client:connect(url)
 	if not re then
+		self:close(err)
 		return nil, err
 	end
 
@@ -41,6 +99,7 @@ function WebsocketConnection:connect(url)
 	local ok
 	ok, err = ws:handshake()
 	if not ok then
+		self:close(err)
 		return nil, err
 	end
 
@@ -58,6 +117,10 @@ end
 ---@return true?
 ---@return string?
 function WebsocketConnection:acquireWriter()
+	if self.closed then
+		return nil, "closed"
+	end
+
 	if not self.scheduler then
 		return true
 	end
@@ -87,7 +150,12 @@ function WebsocketConnection:releaseWriter()
 	while waiters[1] do
 		local co = table.remove(waiters, 1)
 		if coroutine.status(co) ~= "dead" then
-			local ok, err = coroutine.resume(co, true)
+			local ok, err
+			if self.closed then
+				ok, err = coroutine.resume(co, nil, "closed")
+			else
+				ok, err = coroutine.resume(co, true)
+			end
 			if not ok then
 				error(err, 0)
 			end
@@ -103,6 +171,10 @@ end
 ---@return integer?
 ---@return string?
 function WebsocketConnection:send(opcode, payload)
+	if self.closed then
+		return nil, "closed"
+	end
+
 	local ws = self.ws
 	if not ws then
 		return nil, "not connected"
@@ -130,11 +202,11 @@ function WebsocketConnection:startReader()
 
 	self.reader_thread = coroutine.create(function()
 		local ws = self.ws
-		while ws and ws:getState() == "open" do
+		while not self.closed and ws and ws:getState() == "open" do
 			local state = ws:getState()
 			local ok, err = ws:step()
 			if not ok then
-				if state ~= "closed" then
+				if not self.closed and state ~= "closed" then
 					print(("websocket error: %s"):format(err))
 				end
 				break
@@ -145,6 +217,10 @@ function WebsocketConnection:startReader()
 end
 
 function WebsocketConnection:update()
+	if self.closed then
+		return
+	end
+
 	local scheduler = self.scheduler
 	if scheduler then
 		local ok, err = scheduler:update(0)

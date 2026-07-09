@@ -26,6 +26,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Cosocket transport methods must not block the main thread on socket readiness.
 - Cosocket socket waits must yield only through the coroutine that owns the network operation.
 - Closed or canceled sockets must be removed from scheduler read/write queues before the next `select`.
+- Websocket connection shutdown must wake connection-owned reader and writer waiters before the object can be reused for reconnect.
 - Existing blocking socket implementations must keep their current contracts.
 - `aqua/web` must not depend on `rizu`, `sea`, or other application-specific modules.
 
@@ -91,4 +92,5 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added a real localhost `wss://` smoke test that verifies LuaSec TLS handshake and websocket round-trip over `CosocketTcpSocket`.
 - Added `web.ws.util.client({scheduler = scheduler})` as the first ordinary websocket client factory path for scheduler-backed cosocket transports.
 - Added `web.ws.WebsocketConnection` as a reusable websocket connection helper with cosocket scheduler pumping, reader coroutine, and single-writer send serialization.
+- Added `WebsocketConnection:close()` to close the transport, cancel the reader coroutine, and wake queued websocket writers.
 - Verified the scheduler manually with global `coext.export()` enabled.
