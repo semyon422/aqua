@@ -1,5 +1,59 @@
+local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local util = require("web.http.util")
 local test = {}
+
+---@class web.FakeTcpSocketForHttpUtil
+---@field timeout number?
+local FakeTcpSocket = {}
+FakeTcpSocket.__index = FakeTcpSocket
+
+---@param timeout number
+function FakeTcpSocket:settimeout(timeout)
+	self.timeout = timeout
+end
+
+---@param t testing.T
+function test.configure_tcp_socket(t)
+	local tcp_socket = setmetatable({}, FakeTcpSocket)
+	local ssl_params = {
+		verify = "peer",
+		nested = {"value"},
+	}
+
+	local configured = util.tcp({
+		tcp_socket = tcp_socket --[[@as any]],
+		timeout = 7,
+		ssl_params = ssl_params,
+	})
+
+	t:eq(configured, tcp_socket)
+	t:eq(tcp_socket.timeout, 7)
+	t:tdeq(tcp_socket.ssl_params, ssl_params)
+	t:ne(tcp_socket.ssl_params, ssl_params)
+	t:ne(tcp_socket.ssl_params.nested, ssl_params.nested)
+end
+
+---@param t testing.T
+function test.client_uses_configured_tcp_socket(t)
+	local tcp_socket = setmetatable({}, FakeTcpSocket)
+
+	local client = util.client({
+		tcp_socket = tcp_socket --[[@as any]],
+		timeout = 3,
+	})
+
+	t:eq(client.tcp_soc, tcp_socket)
+	t:eq(tcp_socket.timeout, 3)
+end
+
+---@param t testing.T
+function test.tcp_uses_scheduler_transport(t)
+	local scheduler = CosocketScheduler()
+
+	local tcp_socket = util.tcp({scheduler = scheduler})
+
+	t:eq(tcp_socket.scheduler, scheduler)
+end
 
 ---@param t testing.T
 function test.parse_content_disposition(t)

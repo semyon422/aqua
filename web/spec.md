@@ -15,6 +15,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Keep websocket framing and HTTP parsing transport-agnostic. Prefer adapting `web.ITcpSocket` / `web.IExtendedSocket` implementations over changing `Websocket`, `WebsocketClient`, `Request`, or `Response`.
 - Allow websocket clients to connect to a resolved TCP address while preserving the original URL host for HTTP `Host`, SNI, and future hostname verification.
 - Keep reusable websocket transport policy injectable: callers may pass operation timeout and LuaSec SSL parameters through `web.ws.util` / `WebsocketConnection`, while `aqua/web` does not choose application CA paths or verification policy.
+- Keep reusable HTTP client transport policy injectable through `web.http.util` as well, using the same scheduler, timeout, TCP socket, SSL parameter, and resolved connect-host concepts as websocket clients.
 - Use the existing `ExtendedSocket.cosocket` and `TcpUpdater` behavior as prior art, but extend the design for client-side `connect`, SSL handshakes, timers, cancellation, and multiple wait states.
 - Use Copas as an implementation reference for nonblocking LuaSocket edge cases:
   - async `connect` waits on write readiness and retries until connected or failed;
@@ -30,6 +31,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Closed or canceled sockets must be removed from scheduler read/write queues before the next `select`.
 - Websocket connection shutdown must wake connection-owned reader and writer waiters before the object can be reused for reconnect.
 - `web.ws.util.tcp` must copy caller-provided SSL parameters before assigning them to a socket so transport instances do not share mutable TLS policy tables.
+- HTTP clients may connect to a resolved address, but must keep the URL host for the HTTP `Host` header and TLS SNI.
 - Existing blocking socket implementations must keep their current contracts.
 - `aqua/web` must not depend on `rizu`, `sea`, or other application-specific modules.
 
@@ -96,4 +98,5 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added a websocket `connect_host` path so callers can resolve DNS outside the cosocket scheduler without changing the URL host.
 - Added a `WebsocketConnection` `on_connected` hook so callers can finish connection wiring before incoming frames are handled by the reader coroutine.
 - Added websocket client options for per-operation socket timeout and caller-provided LuaSec SSL parameters.
+- Added HTTP client options for scheduler-backed cosocket transports, operation timeout, caller-provided LuaSec SSL parameters, injected TCP sockets, and resolved connect hosts.
 - Verified the scheduler manually with global `coext.export()` enabled.

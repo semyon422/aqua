@@ -33,13 +33,14 @@ function HttpClient:close()
 end
 
 ---@param url string
+---@param connect_host string?
 ---@return web.IRequest
 ---@return web.IResponse
-function HttpClient:connect(url)
+function HttpClient:connect(url, connect_host)
 	local parsed_url = socket_url.parse(url, default)
 
 	local tcp_soc = self.tcp_soc
-	assert(tcp_soc:connect(parsed_url.host, parsed_url.port or scheme_ports[parsed_url.scheme]))
+	assert(tcp_soc:connect(connect_host or parsed_url.host, parsed_url.port or scheme_ports[parsed_url.scheme]))
 
 	if parsed_url.scheme == "https" then
 		assert(tcp_soc:sslwrap())
