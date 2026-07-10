@@ -14,6 +14,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Treat `require("coext").export()` as part of the runtime coroutine model. Cosocket operations may rely on `coext` to ensure socket waits yield to their owning coroutine rather than an unrelated caller coroutine.
 - Keep websocket framing and HTTP parsing transport-agnostic. Prefer adapting `web.ITcpSocket` / `web.IExtendedSocket` implementations over changing `Websocket`, `WebsocketClient`, `Request`, or `Response`.
 - Allow websocket clients to connect to a resolved TCP address while preserving the original URL host for HTTP `Host`, SNI, and future hostname verification.
+- Keep reusable websocket transport policy injectable: callers may pass operation timeout and LuaSec SSL parameters through `web.ws.util` / `WebsocketConnection`, while `aqua/web` does not choose application CA paths or verification policy.
 - Use the existing `ExtendedSocket.cosocket` and `TcpUpdater` behavior as prior art, but extend the design for client-side `connect`, SSL handshakes, timers, cancellation, and multiple wait states.
 - Use Copas as an implementation reference for nonblocking LuaSocket edge cases:
   - async `connect` waits on write readiness and retries until connected or failed;
@@ -28,6 +29,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Cosocket socket waits must yield only through the coroutine that owns the network operation.
 - Closed or canceled sockets must be removed from scheduler read/write queues before the next `select`.
 - Websocket connection shutdown must wake connection-owned reader and writer waiters before the object can be reused for reconnect.
+- `web.ws.util.tcp` must copy caller-provided SSL parameters before assigning them to a socket so transport instances do not share mutable TLS policy tables.
 - Existing blocking socket implementations must keep their current contracts.
 - `aqua/web` must not depend on `rizu`, `sea`, or other application-specific modules.
 
@@ -75,10 +77,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Decide whether the scheduler should be per-client object, shared singleton, or explicitly injected into each cosocket.
 - Decide whether `delay` should remain separate from web timers or whether a small timer primitive belongs in the cosocket scheduler.
 - Decide how to expose DNS resolution without coupling `aqua/web` to LÖVE thread APIs.
-- Add TLS certificate verification support for cosocket clients:
-  - accept a CA bundle file or CA directory for LuaSec `verify = "peer"`;
-  - pass the intended TLS hostname for SNI and hostname verification;
-  - allow TCP connection address and TLS hostname to differ, so tests can connect to `127.0.0.1` while validating a certificate for `rizu.su`.
+- Add TLS hostname verification support for cosocket clients if LuaSec does not provide the required hostname check in the deployed runtime.
 - Audit whether ICC `TaskHandler` callbacks need scheduler-specific helpers once websocket sends can yield on write readiness.
 
 ## Current Progress
@@ -96,4 +95,5 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added `WebsocketConnection:close()` to close the transport, cancel the reader coroutine, and wake queued websocket writers.
 - Added a websocket `connect_host` path so callers can resolve DNS outside the cosocket scheduler without changing the URL host.
 - Added a `WebsocketConnection` `on_connected` hook so callers can finish connection wiring before incoming frames are handled by the reader coroutine.
+- Added websocket client options for per-operation socket timeout and caller-provided LuaSec SSL parameters.
 - Verified the scheduler manually with global `coext.export()` enabled.
