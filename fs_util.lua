@@ -40,7 +40,7 @@ fs_util.extractAsync = thread.async(fs_util.extractAsync)
 ---@return table?
 ---@return string?
 function fs_util.downloadAsync(url)
-	local http = require("http")
+	local http_util = require("web.http.util")
 	local thread = require("thread")
 
 	thread.shared.download[url] = {
@@ -49,6 +49,38 @@ function fs_util.downloadAsync(url)
 		speed = 0,
 	}
 	local shared = thread.shared.download[url]
+
+	local client = http_util.client()
+	local ok, req, res = pcall(client.connect, client, url)
+	if not ok then
+		client:close()
+		return nil, req
+	end
+
+	local bytes, err = req:send("")
+	if not bytes then
+		client:close()
+		return nil, err
+	end
+
+	ok, err = res:receive_headers()
+	if not ok then
+		client:close()
+		return nil, err
+	end
+
+	local code = res.status
+	local headers = {}
+	for _, key in ipairs(res.headers:getKeys()) do
+		local name = res.headers.header_names[key] or key
+		local values = res.headers.headers[key]
+		headers[name] = #values == 1 and values[1] or values
+	end
+
+	if code >= 400 then
+		client:close()
+		return nil, code, headers, "HTTP " .. code
+	end
 
 	local total = 0
 	local t = {}
@@ -68,19 +100,23 @@ function fs_util.downloadAsync(url)
 		return true
 	end
 
-	local one, code, headers, status_line = http.request({
-		url = url,
-		method = "GET",
-		sink = sink,
-	})
-	if not one then
-		return nil, code, headers, status_line
-	end
-	if code >= 400 then
-		return nil, code, headers, status_line
+	while true do
+		local chunk, receive_err, partial = res:receive(64 * 1024)
+		if not chunk then
+			if partial and #partial > 0 then
+				sink(partial)
+			end
+			if receive_err == "closed" or receive_err == nil then
+				break
+			end
+			client:close()
+			return nil, receive_err, headers
+		end
+		sink(chunk)
 	end
 
-	return table.concat(t), code, headers, status_line
+	client:close()
+	return table.concat(t), code, headers, "HTTP " .. code
 end
 fs_util.downloadAsync = thread.async(fs_util.downloadAsync)
 
