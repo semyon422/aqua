@@ -32,6 +32,8 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Websocket connection shutdown must wake connection-owned reader and writer waiters before the object can be reused for reconnect.
 - `web.ws.util.tcp` must copy caller-provided SSL parameters before assigning them to a socket so transport instances do not share mutable TLS policy tables.
 - HTTP clients may connect to a resolved address, but must keep the URL host for the HTTP `Host` header and TLS SNI.
+- Main-thread HTTP requests should be called from caller-owned coroutines, keep the natural `res, err = request(...)` control flow, and report upload/download progress through chunk callbacks while the caller pumps the scheduler from its update loop.
+- Duplex HTTP workflows should use `web.http.HttpStream`, where upload chunks and response chunks can be driven by separate caller-owned coroutines over the same request/response pair.
 - Existing blocking socket implementations must keep their current contracts.
 - `aqua/web` must not depend on `rizu`, `sea`, or other application-specific modules.
 
@@ -99,4 +101,6 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added a `WebsocketConnection` `on_connected` hook so callers can finish connection wiring before incoming frames are handled by the reader coroutine.
 - Added websocket client options for per-operation socket timeout and caller-provided LuaSec SSL parameters.
 - Added HTTP client options for scheduler-backed cosocket transports, operation timeout, caller-provided LuaSec SSL parameters, injected TCP sockets, and resolved connect hosts.
+- Added chunked upload and download progress hooks to `web.http.util.request` so callers can keep linear request code while observing transfer progress.
+- Added `web.http.HttpStream` for lower-level streaming requests that need to upload and download concurrently on the same connection.
 - Verified the scheduler manually with global `coext.export()` enabled.

@@ -4,6 +4,7 @@ local table_util = require("table_util")
 local dpairs = require("dpairs")
 local json = require("web.json")
 local HttpClient = require("web.http.HttpClient")
+local HttpStream = require("web.http.HttpStream")
 local MimeType = require("web.http.MimeType")
 local Multipart = require("web.content.Multipart")
 local MultipartString = require("web.content.MultipartString")
@@ -20,6 +21,18 @@ local util = {}
 ---@field timeout number?
 ---@field ssl_params web.SslParams?
 ---@field connect_host string?
+
+---@alias web.HttpChunkSource string[]|fun(): string?
+
+---@class web.HttpRequestOptions: web.HttpClientOptions
+---@field method web.HttpMethod?
+---@field headers {[string]: string|number}?
+---@field request_body string?
+---@field request_chunks web.HttpChunkSource?
+---@field request_length integer?
+---@field chunk_size integer?
+---@field on_upload fun(uploaded: integer, total: integer?, chunk: string)?
+---@field on_download fun(downloaded: integer, total: integer?, chunk: string)?
 
 ---@param options web.HttpClientOptions?
 ---@return 4|6
@@ -73,35 +86,54 @@ function util.client(options)
 end
 
 ---@param url string
----@param body table?
----@param options web.HttpClientOptions?
+---@param body table|string?
+---@param options web.HttpRequestOptions?
 ---@return {status: integer, headers: web.Headers, body: string}?
 ---@return string?
 function util.request(url, body, options)
-	local client = util.client(options)
-	local req, res = client:connect(url, options and options.connect_host)
+	options = table_util.copy(options)
+	options.client_factory = options.client_factory or util.client
 
-	local body_str = ""
-	if body then
-		req.method = "POST"
-		req.headers:set("Content-Type", "application/x-www-form-urlencoded")
-		body_str = util.encode_query_string(body)
-		req:set_length(#body_str)
-	end
-
-	local bytes, err = req:send(body_str)
-	if not bytes then
-		client:close()
+	local stream = HttpStream(options)
+	local ok, err = stream:connect(url)
+	if not ok then
 		return nil, err
 	end
 
-	local _body, err = res:receive("*a")
+	local request_chunks = options.request_chunks
+	if request_chunks then
+		ok, err = stream:sendChunks(request_chunks)
+	else
+		local has_body = body ~= nil or options.request_body ~= nil
+		local body_str = options.request_body or ""
+		if body ~= nil then
+			if type(body) == "string" then
+				body_str = body
+			else
+				assert(stream.req).headers:set("Content-Type", "application/x-www-form-urlencoded")
+				body_str = util.encode_query_string(body)
+			end
+		end
+		if has_body then
+			ok, err = stream:sendBody(body_str)
+		else
+			ok, err = stream:sendHeaders()
+		end
+	end
+	if not ok then
+		stream:close()
+		return nil, err
+	end
+
+	local _body
+	_body, err = stream:receiveBody()
 	if not _body then
-		client:close()
+		stream:close()
 		return nil, err
 	end
 
-	client:close()
+	local res = assert(stream.res)
+	stream:close()
 
 	return {
 		status = res.status,
