@@ -1,6 +1,7 @@
 local socket = require("socket")
 local class = require("class")
 local table_util = require("table_util")
+local coext = require("coext")
 
 ---@alias web.CosocketWaitMode "read"|"write"
 
@@ -24,6 +25,15 @@ local table_util = require("table_util")
 ---@field waiters {[thread]: web.CosocketWaiter}
 ---@field timers web.CosocketTimer[]
 local CosocketScheduler = class()
+
+---@param wait_co thread
+---@return any ...
+local function yield_to_waiter(wait_co)
+	if coroutine.yieldto then
+		return coroutine.yieldto(wait_co)
+	end
+	return coroutine.yield()
+end
 
 ---@param select_func (fun(recvt: any[], sendt: any[], timeout: number?): any[]?, any[]?, string?)?
 ---@param get_time (fun(): number)?
@@ -124,6 +134,7 @@ function CosocketScheduler:wait(mode, soc, timeout)
 	if not co then
 		error("attempt to yield from outside a coroutine")
 	end
+	local wait_co = coext.getowner(co) or co
 
 	local waiters = self:getWaiters(mode)
 	local queue = waiters[soc]
@@ -131,20 +142,20 @@ function CosocketScheduler:wait(mode, soc, timeout)
 		queue = {}
 		waiters[soc] = queue
 	end
-	table.insert(queue, co)
+	table.insert(queue, wait_co)
 
 	---@type web.CosocketWaiter
 	local waiter = {
 		soc = soc,
 		mode = mode,
 	}
-	self.waiters[co] = waiter
+	self.waiters[wait_co] = waiter
 
 	if timeout then
-		waiter.timer = self:addTimer(co, timeout, table_util.pack(nil, "timeout"))
+		waiter.timer = self:addTimer(wait_co, timeout, table_util.pack(nil, "timeout"))
 	end
 
-	return coroutine.yield()
+	return yield_to_waiter(wait_co)
 end
 
 ---@param soc any
@@ -171,13 +182,14 @@ function CosocketScheduler:sleep(duration)
 	if not co then
 		error("attempt to yield from outside a coroutine")
 	end
+	local wait_co = coext.getowner(co) or co
 
-	self.waiters[co] = {
+	self.waiters[wait_co] = {
 		soc = false,
-		timer = self:addTimer(co, duration, table_util.pack(true)),
+		timer = self:addTimer(wait_co, duration, table_util.pack(true)),
 	}
 
-	return coroutine.yield()
+	return yield_to_waiter(wait_co)
 end
 
 ---@param co thread

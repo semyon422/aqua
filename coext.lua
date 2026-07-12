@@ -5,6 +5,13 @@ local running = coroutine.running
 
 local coext = {}
 
+---@type {[thread]: thread?}
+local owners = setmetatable({}, {__mode = "k"})
+
+local function pack(...)
+	return {n = select("#", ...), ...}
+end
+
 function coext.export()
 	coroutine.resume = coext.resume
 	coroutine.yield = coext.yield
@@ -17,6 +24,24 @@ end
 ---@alias coroext.AsyncFunc async fun(...: any): ...: any
 
 ---@param co thread
+---@param ... any
+---@return boolean ok
+---@return any ...
+local function resume_with_owner(co, ...)
+	local owner = running()
+	local old_owner = owners[co]
+	if owner then
+		owners[co] = owner
+	end
+
+	local result = pack(resume(co, ...))
+
+	owners[co] = old_owner
+
+	return unpack(result, 1, result.n)
+end
+
+---@param co thread
 ---@param ok boolean
 ---@param ... any
 ---@return boolean ok
@@ -27,7 +52,7 @@ local function resume_next(co, ok, ...)
 	elseif co == ... then
 		return ok, select(2, ...) -- ended
 	end
-	return resume_next(co, resume(co, yield(...)))
+	return resume_next(co, resume_with_owner(co, yield(...)))
 end
 
 ---@param f coroext.AsyncFunc
@@ -44,7 +69,17 @@ end
 ---@return boolean ok
 ---@return any ...
 function coext.resume(co, ...)
-	return resume_next(co, resume(co, ...))
+	return resume_next(co, resume_with_owner(co, ...))
+end
+
+---@param co thread?
+---@return thread?
+function coext.getowner(co)
+	local owner = owners[co or running()]
+	while owner and owners[owner] do
+		owner = owners[owner]
+	end
+	return owner
 end
 
 ---@async

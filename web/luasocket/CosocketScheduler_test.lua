@@ -225,6 +225,120 @@ function test.coroutine_can_wait_again_after_resume(t)
 	t:tdeq(result, {true, true})
 end
 
+---@param f fun()
+local function with_coext_export(f)
+	local saved = {
+		resume = coroutine.resume,
+		yield = coroutine.yield,
+		create = coroutine.create,
+		wrap = coroutine.wrap,
+		newyield = coroutine.newyield,
+		yieldto = coroutine.yieldto,
+	}
+	require("coext").export()
+	local ok, err = pcall(f)
+	coroutine.resume = saved.resume
+	coroutine.yield = saved.yield
+	coroutine.create = saved.create
+	coroutine.wrap = saved.wrap
+	coroutine.newyield = saved.newyield
+	coroutine.yieldto = saved.yieldto
+	if not ok then
+		error(err, 0)
+	end
+end
+
+---@param t testing.T
+function test.coroutine_iterator_can_wait_in_scheduler(t)
+	local mock, select_func = new_select_mock()
+	local now = 0
+	local scheduler = CosocketScheduler(select_func, function()
+		return now
+	end)
+
+	with_coext_export(function()
+		local values = {}
+		local result
+		local co = coroutine.create(function()
+			local iter = coroutine.wrap(function()
+				coroutine.yield("before")
+				local ok, err = scheduler:sleep(1)
+				coroutine.yield(ok and "after" or err)
+			end)
+
+			for value in iter do
+				table.insert(values, value)
+			end
+			result = "done"
+		end)
+
+		t:tdeq({coroutine.resume(co)}, {true})
+		t:tdeq(values, {"before"})
+		t:eq(result, nil)
+		t:eq(coroutine.status(co), "suspended")
+		t:eq(next(scheduler.waiters) ~= nil, true)
+		t:eq(#mock.calls, 0)
+
+		now = 1
+		t:eq(scheduler:update(), true)
+		t:tdeq(values, {"before", "after"})
+		t:eq(result, "done")
+		t:eq(coroutine.status(co), "dead")
+		t:eq(next(scheduler.waiters), nil)
+	end)
+end
+
+---@param t testing.T
+function test.nested_coroutine_iterators_can_wait_in_scheduler(t)
+	local mock, select_func = new_select_mock()
+	local now = 0
+	local scheduler = CosocketScheduler(select_func, function()
+		return now
+	end)
+
+	with_coext_export(function()
+		local values = {}
+		local result
+		local co = coroutine.create(function()
+			local outer_iter = coroutine.wrap(function()
+				local middle_iter = coroutine.wrap(function()
+					local inner_iter = coroutine.wrap(function()
+						coroutine.yield("before")
+						local ok, err = scheduler:sleep(1)
+						coroutine.yield(ok and "after" or err)
+					end)
+
+					for value in inner_iter do
+						coroutine.yield(value)
+					end
+				end)
+
+				for value in middle_iter do
+					coroutine.yield(value)
+				end
+			end)
+
+			for value in outer_iter do
+				table.insert(values, value)
+			end
+			result = "done"
+		end)
+
+		t:tdeq({coroutine.resume(co)}, {true})
+		t:tdeq(values, {"before"})
+		t:eq(result, nil)
+		t:eq(coroutine.status(co), "suspended")
+		t:eq(next(scheduler.waiters) ~= nil, true)
+
+		now = 1
+		t:eq(scheduler:update(), true)
+		t:tdeq(values, {"before", "after"})
+		t:eq(result, "done")
+		t:eq(coroutine.status(co), "dead")
+		t:eq(next(scheduler.waiters), nil)
+	end)
+end
+
 ---@param t testing.T
 function test.select_error_is_returned(t)
 	local mock, select_func = new_select_mock()
