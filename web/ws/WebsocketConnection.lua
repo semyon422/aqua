@@ -1,4 +1,5 @@
 local class = require("class")
+local coext = require("coext")
 local table_util = require("table_util")
 local Websocket = require("web.ws.Websocket")
 local ws_util = require("web.ws.util")
@@ -218,7 +219,7 @@ function WebsocketConnection:startReader()
 		return
 	end
 
-	self.reader_thread = coroutine.create(function()
+	self.reader_thread = coext.detach(coroutine.create(function()
 		local ws = self.ws
 		while not self.closed and ws and ws:getState() == "open" do
 			local state = ws:getState()
@@ -230,7 +231,7 @@ function WebsocketConnection:startReader()
 				break
 			end
 		end
-	end)
+	end))
 	assert(coroutine.resume(self.reader_thread))
 end
 

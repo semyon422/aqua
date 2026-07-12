@@ -12,6 +12,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 
 - Implement nonblocking client networking in `aqua/web`, not in `rizu/online`, so the transport remains reusable.
 - Treat `require("coext").export()` as part of the runtime coroutine model. Cosocket operations may rely on `coext` to ensure socket waits yield to their owning coroutine rather than an unrelated caller coroutine.
+- Coroutine iterators and manually resumed child coroutines are equivalent under `coext`: scheduler waits inside them yield through the owner and resume back into the child. Independent background coroutines, such as websocket readers, must be marked with `coext.detach(co)` before they are first resumed.
 - Keep websocket framing and HTTP parsing transport-agnostic. Prefer adapting `web.ITcpSocket` / `web.IExtendedSocket` implementations over changing `Websocket`, `WebsocketClient`, `Request`, or `Response`.
 - Allow websocket clients to connect to a resolved TCP address while preserving the original URL host for HTTP `Host`, SNI, and future hostname verification.
 - Keep reusable websocket transport policy injectable: callers may pass operation timeout and LuaSec SSL parameters through `web.ws.util` / `WebsocketConnection`, while `aqua/web` does not choose application CA paths or verification policy.
@@ -29,6 +30,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 
 - Cosocket transport methods must not block the main thread on socket readiness.
 - Cosocket socket waits must yield only through the coroutine that owns the network operation.
+- Detached websocket reader and worker coroutines must wait on themselves, even when they are created and first resumed from another network coroutine.
 - Closed or canceled sockets must be removed from scheduler read/write queues before the next `select`.
 - Websocket connection shutdown must wake connection-owned reader and writer waiters before the object can be reused for reconnect.
 - Scheduler-backed websocket readers must not use the connect timeout as an idle timeout; liveness should be handled by protocol-level ping/heartbeat or by an explicit `read_timeout`.

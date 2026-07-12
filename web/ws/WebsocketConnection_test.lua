@@ -1,12 +1,36 @@
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local Headers = require("web.http.Headers")
 local WebsocketConnection = require("web.ws.WebsocketConnection")
+local coext = require("coext")
 local digest = require("digest")
 local mime = require("mime")
 local table_util = require("table_util")
 local ws_util = require("web.ws.util")
 
 local test = {}
+
+---@param f fun()
+local function with_coext_export(f)
+	local saved = {
+		resume = coroutine.resume,
+		yield = coroutine.yield,
+		create = coroutine.create,
+		wrap = coroutine.wrap,
+		newyield = coroutine.newyield,
+		yieldto = coroutine.yieldto,
+	}
+	coext.export()
+	local ok, err = pcall(f)
+	coroutine.resume = saved.resume
+	coroutine.yield = saved.yield
+	coroutine.create = saved.create
+	coroutine.wrap = saved.wrap
+	coroutine.newyield = saved.newyield
+	coroutine.yieldto = saved.yieldto
+	if not ok then
+		error(err, 0)
+	end
+end
 
 ---@param t testing.T
 ---@param connection web.WebsocketConnection
@@ -94,6 +118,49 @@ function test.on_connected_runs_before_reader(t)
 	connection:startReader()
 
 	t:tdeq(events, {"connected", "reader"})
+end
+
+---@param t testing.T
+function test.cosocket_reader_detaches_from_starting_coroutine(t)
+	local now = 0
+	local scheduler = CosocketScheduler(nil, function()
+		return now
+	end)
+	local connection = WebsocketConnection({scheduler = scheduler})
+	---@type string[]
+	local events = {}
+
+	connection.ws = {
+		state = "open",
+		getState = function(self)
+			return self.state
+		end,
+		step = function(self)
+			local ok, err = scheduler:sleep(1)
+			table.insert(events, ok and "reader resumed" or err)
+			self.state = "closed"
+			return true
+		end,
+	}
+
+	with_coext_export(function()
+		local parent = coroutine.create(function()
+			connection:startReader()
+			table.insert(events, "parent done")
+		end)
+
+		t:tdeq({coroutine.resume(parent)}, {true})
+		t:tdeq(events, {"parent done"})
+		t:eq(coroutine.status(parent), "dead")
+		t:eq(coroutine.status(connection.reader_thread), "suspended")
+		t:eq(scheduler.waiters[connection.reader_thread] ~= nil, true)
+
+		now = 1
+		connection:update()
+		t:tdeq(events, {"parent done", "reader resumed"})
+		t:eq(coroutine.status(connection.reader_thread), "dead")
+		t:eq(next(scheduler.waiters), nil)
+	end)
 end
 
 ---@param t testing.T
