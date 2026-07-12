@@ -19,6 +19,7 @@ local util = {}
 ---@field ip_version 4|6?
 ---@field tcp_socket web.ITcpSocket?
 ---@field timeout number?
+---@field read_timeout number?
 ---@field ssl_params web.SslParams?
 ---@field on_connected (fun(connection: web.WebsocketConnection))?
 

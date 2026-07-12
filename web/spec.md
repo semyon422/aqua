@@ -15,6 +15,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Keep websocket framing and HTTP parsing transport-agnostic. Prefer adapting `web.ITcpSocket` / `web.IExtendedSocket` implementations over changing `Websocket`, `WebsocketClient`, `Request`, or `Response`.
 - Allow websocket clients to connect to a resolved TCP address while preserving the original URL host for HTTP `Host`, SNI, and future hostname verification.
 - Keep reusable websocket transport policy injectable: callers may pass operation timeout and LuaSec SSL parameters through `web.ws.util` / `WebsocketConnection`, while `aqua/web` does not choose application CA paths or verification policy.
+- For scheduler-backed websocket clients, use the ordinary socket timeout for connect and handshake, then switch the long-lived reader to `read_timeout` (default `nil`) so idle websocket connections do not reconnect just because no frame arrived during the connect timeout window.
 - Keep reusable HTTP client transport policy injectable through `web.http.util` as well, using the same scheduler, timeout, TCP socket, SSL parameter, and resolved connect-host concepts as websocket clients.
 - Use the existing `ExtendedSocket.cosocket` and `TcpUpdater` behavior as prior art, but extend the design for client-side `connect`, SSL handshakes, timers, cancellation, and multiple wait states.
 - Use Copas as an implementation reference for nonblocking LuaSocket edge cases:
@@ -30,6 +31,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Cosocket socket waits must yield only through the coroutine that owns the network operation.
 - Closed or canceled sockets must be removed from scheduler read/write queues before the next `select`.
 - Websocket connection shutdown must wake connection-owned reader and writer waiters before the object can be reused for reconnect.
+- Scheduler-backed websocket readers must not use the connect timeout as an idle timeout; liveness should be handled by protocol-level ping/heartbeat or by an explicit `read_timeout`.
 - `web.ws.util.tcp` must copy caller-provided SSL parameters before assigning them to a socket so transport instances do not share mutable TLS policy tables.
 - HTTP clients may connect to a resolved address, but must keep the URL host for the HTTP `Host` header and TLS SNI.
 - Main-thread HTTP requests should be called from caller-owned coroutines, keep the natural `res, err = request(...)` control flow, and report upload/download progress through chunk callbacks while the caller pumps the scheduler from its update loop.
@@ -100,6 +102,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added a websocket `connect_host` path so callers can resolve DNS outside the cosocket scheduler without changing the URL host.
 - Added a `WebsocketConnection` `on_connected` hook so callers can finish connection wiring before incoming frames are handled by the reader coroutine.
 - Added websocket client options for per-operation socket timeout and caller-provided LuaSec SSL parameters.
+- Added a separate scheduler-backed websocket reader timeout policy so idle connections can keep waiting without treating normal silence as a socket failure.
 - Added HTTP client options for scheduler-backed cosocket transports, operation timeout, caller-provided LuaSec SSL parameters, injected TCP sockets, and resolved connect hosts.
 - Added chunked upload and download progress hooks to `web.http.util.request` so callers can keep linear request code while observing transfer progress.
 - Added `web.http.HttpStream` for lower-level streaming requests that need to upload and download concurrently on the same connection.

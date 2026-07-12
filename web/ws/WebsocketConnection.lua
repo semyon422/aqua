@@ -104,6 +104,13 @@ function WebsocketConnection:connect(url, connect_host)
 		return nil, err
 	end
 
+	if self.scheduler then
+		-- Long-lived websocket readers should not treat normal idle time as a
+		-- broken connection. The connect/handshake timeout still applies above;
+		-- after that, callers may opt into a separate read timeout if desired.
+		self.soc:settimeout(self.options.read_timeout)
+	end
+
 	local on_connected = self.options.on_connected
 	if on_connected then
 		on_connected(self)

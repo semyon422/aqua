@@ -29,7 +29,7 @@ function ITcpSocket:sslhandshake()
 	error("not implemented")
 end
 
----@param time integer
+---@param time number?
 function ITcpSocket:settimeout(time)
 	error("not implemented")
 end

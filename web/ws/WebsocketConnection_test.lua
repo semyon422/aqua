@@ -1,6 +1,10 @@
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
+local Headers = require("web.http.Headers")
 local WebsocketConnection = require("web.ws.WebsocketConnection")
+local digest = require("digest")
+local mime = require("mime")
 local table_util = require("table_util")
+local ws_util = require("web.ws.util")
 
 local test = {}
 
@@ -223,6 +227,70 @@ function test.close_wakes_waiting_writers(t)
 	})
 
 	t:tdeq(table_util.pack(connection:send("text", "third")), table_util.pack(nil, "closed"))
+end
+
+---@param key string
+---@return string
+local function gen_accept(key)
+	return mime.b64(digest.hash("sha1", key .. "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+end
+
+---@param t testing.T
+function test.cosocket_connect_clears_reader_timeout_after_handshake(t)
+	local old_client = ws_util.client
+	---@type string[]
+	local timeouts = {}
+
+	local tcp_socket = {
+		settimeout = function(_, timeout)
+			table.insert(timeouts, timeout == nil and "nil" or tostring(timeout))
+			return 1
+		end,
+		close = function()
+			return 1
+		end,
+	}
+
+	local req = {
+		headers = Headers(),
+		send_headers = function()
+			return true
+		end,
+	}
+	local res = {
+		headers = Headers(),
+		receive_headers = function(self)
+			self.status = 101
+			self.headers:set("Upgrade", "websocket")
+			self.headers:set("Connection", "Upgrade")
+			self.headers:set("Sec-WebSocket-Accept", gen_accept(req.headers:get("Sec-WebSocket-Key")))
+		end,
+	}
+
+	ws_util.client = function()
+		return {
+			tcp_soc = tcp_socket,
+			connect = function()
+				return {req = req, res = res}
+			end,
+		}
+	end
+
+	local ok, err = pcall(function()
+		local connection = WebsocketConnection({
+			scheduler = CosocketScheduler(),
+			timeout = 10,
+		})
+		connection.startReader = function() end
+
+		t:assert(connection:connect("ws://example.test"))
+	end)
+	ws_util.client = old_client
+	if not ok then
+		error(err, 0)
+	end
+
+	t:tdeq(timeouts, {"nil"})
 end
 
 return test
