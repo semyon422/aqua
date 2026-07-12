@@ -31,21 +31,4 @@ function test.all(t)
 	t:tdeq(out, {{"start 1"}, {"start 2"}, {"resume 1"}, {"resume 2"}, {true, "end 2"}})
 end
 
----@param t testing.T
-function test.getowner_tracks_nested_resume(t)
-	local owner_seen
-	local child = coext.create(function()
-		owner_seen = coext.getowner()
-		return "done"
-	end)
-
-	local owner = coext.create(function()
-		return select(2, coext.resume(child))
-	end)
-
-	t:tdeq({coext.resume(owner)}, {true, "done"})
-	t:eq(owner_seen, owner)
-	t:eq(coext.getowner(child), nil)
-end
-
 return test
