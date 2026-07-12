@@ -140,4 +140,64 @@ function test.get_request_headers(t)
 	t:assert(sent:find("Accept: text/plain", 1, true))
 end
 
+---@param t testing.T
+function test.cancel_closes_socket_and_stops_operations(t)
+	local tcp_socket = new_tcp_socket("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+	local close_count = 0
+	local stream = HttpStream({
+		tcp_socket = tcp_socket --[[@as any]],
+		on_close = function()
+			close_count = close_count + 1
+		end,
+	})
+
+	t:tdeq({stream:connect("http://example.test/status")}, {true})
+	stream:cancel("manual cancel")
+	t:eq(stream:isCanceled(), true)
+	t:eq(stream:getCancelError(), "manual cancel")
+	t:eq(tcp_socket.closed, true)
+	t:eq(close_count, 1)
+
+	t:tdeq({stream:sendHeaders()}, {nil, "manual cancel"})
+	t:tdeq({stream:receiveChunk()}, {nil, "manual cancel", ""})
+	t:tdeq({stream:close()}, {1})
+	t:eq(close_count, 1)
+end
+
+---@param t testing.T
+function test.cancel_defaults_to_canceled(t)
+	local tcp_socket = new_tcp_socket("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+	local stream = HttpStream({
+		tcp_socket = tcp_socket --[[@as any]],
+	})
+
+	t:tdeq({stream:connect("http://example.test/status")}, {true})
+	stream:cancel()
+
+	t:tdeq({stream:sendHeaders()}, {nil, "canceled"})
+end
+
+---@param t testing.T
+function test.cancel_during_connect_closes_client(t)
+	local close_count = 0
+	local stream
+	stream = HttpStream({
+		client_factory = function()
+			return {
+				connect = function()
+					stream:cancel("connect canceled")
+					return {}, {}
+				end,
+				close = function()
+					close_count = close_count + 1
+				end,
+			}
+		end,
+	})
+
+	t:tdeq({stream:connect("http://example.test/status")}, {nil, "connect canceled"})
+	t:eq(close_count, 1)
+	t:eq(stream.client, nil)
+end
+
 return test
