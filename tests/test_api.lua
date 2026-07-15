@@ -1,0 +1,40 @@
+local needle = require("needle")
+
+local ctx, err = needle.load("")
+assert(ctx ~= nil, "empty path should still return a context")
+assert(err.code == needle.errors.INVALID_ARGUMENT, "expected invalid argument for empty path")
+assert(err.name == "INVALID_ARGUMENT", "expected invalid argument name")
+
+ctx:clear_error()
+local cleared = ctx:last_error_info()
+assert(cleared.code == needle.errors.OK, "clear_error should reset code")
+assert(cleared.message == "", "clear_error should reset message")
+
+local ok, callback_err, callback_rc = ctx:generate_stream("hello", "[]", nil)
+assert(ok == nil, "bad stream callback should fail")
+assert(callback_rc == needle.errors.INVALID_ARGUMENT, "bad stream callback code mismatch")
+assert(callback_err.name == "INVALID_ARGUMENT", "bad stream callback name mismatch")
+
+ctx:close()
+
+needle.reset_memory_stats()
+local stats = needle.memory_stats()
+assert(type(stats) == "table", "memory_stats should return a table")
+assert(stats.aligned_alloc_count == 0, "reset should clear aligned allocation count")
+assert(stats.aligned_alloc_total_bytes == 0, "reset should clear aligned allocation bytes")
+assert(stats.aligned_alloc_active_count >= 0, "active allocation count should be non-negative")
+assert(stats.aligned_alloc_current_bytes >= 0, "current allocation bytes should be non-negative")
+assert(stats.aligned_alloc_peak_bytes >= stats.aligned_alloc_current_bytes, "peak bytes should cover current bytes")
+assert(stats.dense_q8_projection_count == 0, "reset should clear q8 projection count")
+assert(stats.dense_float_projection_count == 0, "reset should clear float projection count")
+assert(stats.dense_q8_fallback_count == 0, "reset should clear q8 fallback count")
+
+local ok_ctx = assert(needle.load("build/test-model.ndl"))
+local missing = ok_ctx:find_tensor("missing/tensor")
+assert(missing == nil, "missing tensor should return nil")
+assert(ok_ctx:last_error_info().code == needle.errors.OK, "missing tensor lookup should not set an error")
+assert(ok_ctx:embedding(0), "valid embedding lookup should succeed")
+assert(ok_ctx:last_error_info().code == needle.errors.OK, "successful embedding lookup should leave OK status")
+ok_ctx:close()
+
+print("test_api.lua: ok")
