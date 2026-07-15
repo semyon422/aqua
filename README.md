@@ -204,7 +204,7 @@ CPU-specific acceleration is optional. On x86 builds with GCC/Clang, AVX2/FMA ke
 
 The v1 runtime is intentionally single-threaded. It does not create worker threads or own a global thread pool; applications that need parallelism should run independent model/context handles in their own LuaJIT workers or host threads. Do not share one context or KV cache across concurrent calls without external synchronization.
 
-Quantization will start with int8 dense/projection kernels and keep float32 fallback. The intended v1 format is symmetric per-output-channel int8 weights plus float32 scale tensors; int4 and AVX-VNNI-specific kernels are deferred until the portable int8 path is correct and benchmarked.
+Quantization starts with int8 dense/projection kernels plus int8 tied-output embedding logits, while keeping float fallback tensors where the runtime still needs them. Dense kernels use symmetric per-output-channel int8 weights plus float32 scale tensors; tied output projection uses symmetric per-token-row int8 embedding weights plus float32 row scales. Int4 and AVX-VNNI-specific kernels are deferred until the portable int8 path is correct and benchmarked.
 
 Export an experimental int8 container with fallback float weights still present:
 
@@ -219,6 +219,8 @@ Export a smaller int8 container that strips quantized float kernel payloads:
 cd lua
 make export-q8-stripped
 ```
+
+`make export-q8-stripped` replaces float payloads for quantized dense kernels with one-byte placeholders while retaining q8 weights/scales. The runtime dispatches those kernels through q8 and also uses `embedding/embedding.q8` for tied output logits when present. The original embedding stays in the file for token lookup.
 
 Compare the experimental q8 runtime path against float generation:
 

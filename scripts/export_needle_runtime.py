@@ -81,6 +81,10 @@ def is_quantizable_kernel(name: str, arr: np.ndarray) -> bool:
     return name.endswith("/kernel") and arr.ndim >= 2 and np.issubdtype(arr.dtype, np.floating)
 
 
+def is_quantizable_embedding(name: str, arr: np.ndarray) -> bool:
+    return name == "embedding/embedding" and arr.ndim == 2 and np.issubdtype(arr.dtype, np.floating)
+
+
 def quantize_int8_per_output_channel(name: str, arr: np.ndarray) -> list[dict[str, Any]]:
     arr_f32 = np.asarray(arr, dtype=np.float32)
     in_dim = arr_f32.shape[-2]
@@ -127,6 +131,46 @@ def quantize_int8_per_output_channel(name: str, arr: np.ndarray) -> list[dict[st
     ]
 
 
+def quantize_int8_per_row(name: str, arr: np.ndarray) -> list[dict[str, Any]]:
+    arr_f32 = np.asarray(arr, dtype=np.float32)
+    rows = arr_f32.shape[0]
+    q = np.empty(arr_f32.shape, dtype=np.int8)
+    scales = np.empty((rows,), dtype=np.float32)
+    for row in range(rows):
+        values = arr_f32[row, :]
+        max_abs = float(np.max(np.abs(values)))
+        scale = max_abs / 127.0 if max_abs > 0.0 else 1.0
+        scales[row] = scale
+        q[row, :] = np.clip(np.rint(values / scale), -127, 127).astype(np.int8)
+
+    return [
+        {
+            "name": name + ".q8",
+            "dtype_key": "int8",
+            "dtype": DTYPE_TO_NAME["int8"],
+            "dtype_id": DTYPE_TO_ID["int8"],
+            "shape": list(q.shape),
+            "ndim": q.ndim,
+            "nbytes": q.nbytes,
+            "sha256": sha256_bytes(contiguous_bytes(q)),
+            "raw": contiguous_bytes(q),
+            "quantized_from": name,
+        },
+        {
+            "name": name + ".q8_scale",
+            "dtype_key": "float32",
+            "dtype": DTYPE_TO_NAME["float32"],
+            "dtype_id": DTYPE_TO_ID["float32"],
+            "shape": list(scales.shape),
+            "ndim": scales.ndim,
+            "nbytes": scales.nbytes,
+            "sha256": sha256_bytes(contiguous_bytes(scales)),
+            "raw": contiguous_bytes(scales),
+            "quantized_from": name,
+        },
+    ]
+
+
 def collect_tensors(params: Any, quantize_int8: bool = False, strip_quantized_float_kernels: bool = False) -> list[dict[str, Any]]:
     tensors: list[dict[str, Any]] = []
 
@@ -134,8 +178,9 @@ def collect_tensors(params: Any, quantize_int8: bool = False, strip_quantized_fl
         arr = np.asarray(leaf)
         name = tensor_name(path)
         key = dtype_key(arr)
-        quantizable = quantize_int8 and is_quantizable_kernel(name, arr)
-        raw = b"\0" if quantizable and strip_quantized_float_kernels else contiguous_bytes(arr)
+        quantizable_kernel = quantize_int8 and is_quantizable_kernel(name, arr)
+        quantizable_embedding = quantize_int8 and is_quantizable_embedding(name, arr)
+        raw = b"\0" if quantizable_kernel and strip_quantized_float_kernels else contiguous_bytes(arr)
         tensors.append(
             {
                 "name": name,
@@ -147,11 +192,13 @@ def collect_tensors(params: Any, quantize_int8: bool = False, strip_quantized_fl
                 "nbytes": len(raw),
                 "sha256": sha256_bytes(raw),
                 "raw": raw,
-                **({"stripped_quantized_float": True} if quantizable and strip_quantized_float_kernels else {}),
+                **({"stripped_quantized_float": True} if quantizable_kernel and strip_quantized_float_kernels else {}),
             }
         )
-        if quantizable:
+        if quantizable_kernel:
             tensors.extend(quantize_int8_per_output_channel(name, arr))
+        if quantizable_embedding:
+            tensors.extend(quantize_int8_per_row(name, arr))
 
     jax.tree_util.tree_map_with_path(lambda path, leaf: visit(path, leaf), params)
     tensors.sort(key=lambda item: item["name"])

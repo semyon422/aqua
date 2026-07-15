@@ -1102,6 +1102,80 @@ static void q8_project_row(
     q8_project_row_scalar(src, dst, q_data, scales, layer_base, scale_base, in_dim, out_dim);
 }
 
+static float q8_row_dot_scalar(const float *src, const int8_t *q_row, int n) {
+    float sum = 0.0f;
+    for (int i = 0; i < n; i++) {
+        sum += src[i] * (float)q_row[i];
+    }
+    return sum;
+}
+
+#if (defined(__x86_64__) || defined(__i386__)) && (defined(__GNUC__) || defined(__clang__))
+__attribute__((target("avx2,fma")))
+static float q8_row_dot_avx2_fma(const float *src, const int8_t *q_row, int n) {
+    __m256 acc = _mm256_setzero_ps();
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m128i q8 = _mm_loadl_epi64((const __m128i *)(q_row + i));
+        __m256 qf = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(q8));
+        __m256 xv = _mm256_loadu_ps(src + i);
+        acc = _mm256_fmadd_ps(xv, qf, acc);
+    }
+    __m128 lo = _mm256_castps256_ps128(acc);
+    __m128 hi = _mm256_extractf128_ps(acc, 1);
+    __m128 sum = _mm_add_ps(lo, hi);
+    sum = _mm_add_ps(sum, _mm_movehl_ps(sum, sum));
+    sum = _mm_add_ss(sum, _mm_shuffle_ps(sum, sum, 0x55));
+    float out = _mm_cvtss_f32(sum);
+    for (; i < n; i++) {
+        out += src[i] * (float)q_row[i];
+    }
+    return out;
+}
+#endif
+
+static float q8_row_dot(const float *src, const int8_t *q_row, int n) {
+#if (defined(__x86_64__) || defined(__i386__)) && (defined(__GNUC__) || defined(__clang__))
+    if (cpu_has_avx2_fma() && n >= 8) {
+        return q8_row_dot_avx2_fma(src, q_row, n);
+    }
+#endif
+    return q8_row_dot_scalar(src, q_row, n);
+}
+
+static int output_projection_q8_embedding(
+    needle_ctx *ctx,
+    const float *x,
+    int seq_len,
+    int d_model,
+    int vocab_size,
+    float *out) {
+    needle_tensor *q_embedding = find_tensor_ptr(ctx, "embedding/embedding.q8");
+    needle_tensor *scale = find_tensor_ptr(ctx, "embedding/embedding.q8_scale");
+    if (!q_embedding && !scale) {
+        return 1;
+    }
+    if (!q_embedding || !scale ||
+        q_embedding->dtype != NEEDLE_DTYPE_I8 || scale->dtype != NEEDLE_DTYPE_F32 ||
+        q_embedding->ndim != 2 || q_embedding->shape[0] != (uint64_t)vocab_size ||
+        q_embedding->shape[1] != (uint64_t)d_model ||
+        scale->ndim != 1 || scale->shape[0] != (uint64_t)vocab_size) {
+        return -1;
+    }
+
+    const int8_t *q_data = (const int8_t *)q_embedding->data;
+    const float *scales = (const float *)scale->data;
+    for (int t = 0; t < seq_len; t++) {
+        const float *row = x + (size_t)t * (size_t)d_model;
+        float *dst = out + (size_t)t * (size_t)vocab_size;
+        for (int vocab = 0; vocab < vocab_size; vocab++) {
+            const int8_t *q_row = q_data + (size_t)vocab * (size_t)d_model;
+            dst[vocab] = q8_row_dot(row, q_row, d_model) * scales[vocab];
+        }
+    }
+    return 0;
+}
+
 static int dense_project_layer_q8(
     needle_ctx *ctx,
     const float *x,
@@ -1517,6 +1591,16 @@ int needle_output_projection_f32(
     if (!embedding || embedding->ndim != 2 || embedding->shape[0] != (uint64_t)vocab_size ||
         embedding->shape[1] != (uint64_t)d_model) {
         set_error(ctx, NEEDLE_ERR_FORMAT, "embedding tensor shape is invalid for output projection");
+        return NEEDLE_ERR_FORMAT;
+    }
+
+    int q8_rc = output_projection_q8_embedding(ctx, x, seq_len, d_model, vocab_size, out);
+    if (q8_rc == 0) {
+        set_error(ctx, NEEDLE_OK, NULL);
+        return seq_len * vocab_size;
+    }
+    if (q8_rc < 0) {
+        set_error(ctx, NEEDLE_ERR_FORMAT, "embedding q8 tensor shape is invalid for output projection");
         return NEEDLE_ERR_FORMAT;
     }
 

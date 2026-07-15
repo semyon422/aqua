@@ -29,6 +29,10 @@ local q_idx = assert(q8_ctx:find_tensor("encoder/layers/EncoderBlock_0/self_attn
 local s_idx = assert(q8_ctx:find_tensor("encoder/layers/EncoderBlock_0/self_attn/q_proj/kernel.q8_scale"))
 assert(q8_ctx:tensor(q_idx).dtype_name == "i8", "q8 tensor dtype mismatch")
 assert(q8_ctx:tensor(s_idx).dtype_name == "f32", "q8 scale tensor dtype mismatch")
+local emb_q_idx = assert(q8_ctx:find_tensor("embedding/embedding.q8"))
+local emb_s_idx = assert(q8_ctx:find_tensor("embedding/embedding.q8_scale"))
+assert(q8_ctx:tensor(emb_q_idx).dtype_name == "i8", "q8 embedding dtype mismatch")
+assert(q8_ctx:tensor(emb_s_idx).dtype_name == "f32", "q8 embedding scale dtype mismatch")
 
 local src = float_ctx:build_encoder_input(tok, "weather in Paris", "[]", { max_enc_len = 1024 })
 needle.reset_memory_stats()
