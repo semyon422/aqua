@@ -3449,6 +3449,8 @@ static int generate_tokens_greedy_cached_from_encoder_impl(
     int eos_token_id,
     needle_token_filter_callback filter,
     void *user_data,
+    needle_token_callback token_callback,
+    void *token_user_data,
     int *out_ids,
     int out_cap) {
     if (!ctx) {
@@ -3562,6 +3564,14 @@ static int generate_tokens_greedy_cached_from_encoder_impl(
             break;
         }
         tokens[cur_len++] = best_id;
+        if (token_callback) {
+            int cb_rc = token_callback(best_id, step, tokens, cur_len, token_user_data);
+            if (cb_rc < 0) {
+                set_error(ctx, NEEDLE_ERR_INVALID_ARGUMENT, "token callback aborted generation");
+                rc = NEEDLE_ERR_INVALID_ARGUMENT;
+                break;
+            }
+        }
         if (best_id == eos_token_id) {
             break;
         }
@@ -3642,7 +3652,7 @@ static int generate_tokens_greedy_cached_impl(
     if (rc >= 0) {
         rc = generate_tokens_greedy_cached_from_encoder_impl(
             ctx, encoder, src_len, prompt_ids, prompt_len, max_new_tokens, eos_token_id,
-            filter, user_data, out_ids, out_cap);
+            filter, user_data, NULL, NULL, out_ids, out_cap);
     }
     aligned_free(encoder);
     return rc;
@@ -3694,7 +3704,7 @@ int needle_generate_tokens_greedy_cached_from_encoder_filtered(
     int out_cap) {
     return generate_tokens_greedy_cached_from_encoder_impl(
         ctx, encoder_out, enc_len, prompt_ids, prompt_len, max_new_tokens, eos_token_id,
-        filter, user_data, out_ids, out_cap);
+        filter, user_data, NULL, NULL, out_ids, out_cap);
 }
 
 int needle_generate_tokens_greedy_cached_from_state_filtered(
@@ -3717,7 +3727,36 @@ int needle_generate_tokens_greedy_cached_from_state_filtered(
     }
     return generate_tokens_greedy_cached_from_encoder_impl(
         ctx, state->encoder_out, state->enc_len, prompt_ids, prompt_len, max_new_tokens, eos_token_id,
-        filter, user_data, out_ids, out_cap);
+        filter, user_data, NULL, NULL, out_ids, out_cap);
+}
+
+int needle_generate_tokens_greedy_cached_from_state_stream_filtered(
+    needle_ctx *ctx,
+    needle_encoder_state *state,
+    const int *prompt_ids,
+    int prompt_len,
+    int max_new_tokens,
+    int eos_token_id,
+    needle_token_filter_callback filter,
+    void *filter_user_data,
+    needle_token_callback token_callback,
+    void *token_user_data,
+    int *out_ids,
+    int out_cap) {
+    if (!ctx || !state) {
+        return NEEDLE_ERR_NULL_CONTEXT;
+    }
+    if (!token_callback) {
+        set_error(ctx, NEEDLE_ERR_INVALID_ARGUMENT, "token callback is null");
+        return NEEDLE_ERR_INVALID_ARGUMENT;
+    }
+    if (state->ctx != ctx || !state->encoder_out || state->enc_len <= 0 || state->d_model != ctx->config.d_model) {
+        set_error(ctx, NEEDLE_ERR_INVALID_ARGUMENT, "invalid encoder state");
+        return NEEDLE_ERR_INVALID_ARGUMENT;
+    }
+    return generate_tokens_greedy_cached_from_encoder_impl(
+        ctx, state->encoder_out, state->enc_len, prompt_ids, prompt_len, max_new_tokens, eos_token_id,
+        filter, filter_user_data, token_callback, token_user_data, out_ids, out_cap);
 }
 
 int needle_generate(

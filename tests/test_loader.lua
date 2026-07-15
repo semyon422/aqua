@@ -25,9 +25,9 @@ assert(gen_err.name == "INVALID_ARGUMENT", "unexpected generation error name")
 local ok, stream_err, stream_rc = ctx:generate_stream("hello", "[]", function(_)
   return true
 end)
-assert(ok == nil, "streaming generation should still be a stub")
-assert(stream_rc == needle.errors.NOT_IMPLEMENTED, "unexpected streaming return code")
-assert(stream_err.name == "NOT_IMPLEMENTED", "unexpected streaming error name")
+assert(ok == nil, "streaming generation without tokenizer should fail")
+assert(stream_rc == needle.errors.INVALID_ARGUMENT, "unexpected streaming return code")
+assert(stream_err.name == "INVALID_ARGUMENT", "unexpected streaming error name")
 
 ctx:close()
 print("test_loader.lua: ok")

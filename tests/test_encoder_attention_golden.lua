@@ -239,6 +239,29 @@ local raw_callback_constrained, raw_callback_err = ctx:generate_tokens(generatio
 assert(raw_callback_constrained ~= nil, raw_callback_err and raw_callback_err.message or "raw callback constrained generation failed")
 assert(raw_callback_constrained[2] == 1 and raw_callback_constrained[3] == 0, "token_filter_raw was not enforced")
 
+local stream_state = assert(ctx:encode_tokens_state(generation_src))
+local streamed = {}
+local stream_generated, stream_err = ctx:generate_tokens_from_state(stream_state, generation_prompt, {
+  max_new_tokens = 2,
+  eos_token_id = -1,
+  token_filter_raw = function(step)
+    if step == 1 then
+      return { 1 }
+    end
+    return { 0 }
+  end,
+  on_token = function(token_id, step, _, token_count)
+    streamed[#streamed + 1] = token_id
+    assert(step == #streamed, "stream step mismatch")
+    assert(token_count == #generation_prompt + #streamed, "stream token count mismatch")
+    return true
+  end,
+})
+stream_state:close()
+assert(stream_generated ~= nil, stream_err and stream_err.message or "stream generation failed")
+assert(streamed[1] == 1 and streamed[2] == 0, "stream token callback mismatch")
+assert(stream_generated[2] == streamed[1] and stream_generated[3] == streamed[2], "stream output mismatch")
+
 local fake_tokenizer = {}
 function fake_tokenizer:encode(text)
   if text == "q" then return { 0 } end

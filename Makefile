@@ -19,7 +19,7 @@ CFLAGS += -std=c11 -Wall -Wextra -Wpedantic -fPIC -fvisibility=hidden -DNEEDLE_R
 LDFLAGS ?=
 LDFLAGS += -shared -lm
 
-.PHONY: all clean test test-ci test-all example example-tool example-tool-q8 bench-kv bench-profile bench-q8 bench-q8-stripped bench-q8-quality export-q8 export-q8-stripped
+.PHONY: all clean test test-ci test-all example example-tool example-tool-q8 example-stream bench-kv bench-profile bench-q8 bench-q8-stripped bench-q8-quality export-q8 export-q8-stripped
 
 all: $(LIB)
 
@@ -79,6 +79,9 @@ example-tool: $(LIB) $(REAL_MODEL) $(TOKENIZER)
 
 example-tool-q8: $(LIB) $(Q8_STRIPPED_MODEL) $(TOKENIZER)
 	NEEDLE_RUNTIME_LIB="$(abspath $(LIB))" LUA_PATH="./?.lua;;" $(LUAJIT) examples/tool_call.lua "$(abspath $(Q8_STRIPPED_MODEL))" "$(abspath $(TOKENIZER))"
+
+example-stream: $(LIB) $(Q8_STRIPPED_MODEL) $(TOKENIZER)
+	NEEDLE_RUNTIME_LIB="$(abspath $(LIB))" LUA_PATH="./?.lua;;" $(LUAJIT) examples/stream.lua "$(abspath $(Q8_STRIPPED_MODEL))" "$(abspath $(TOKENIZER))"
 
 bench-kv: $(LIB) $(REAL_MODEL) $(TOKENIZER)
 	NEEDLE_RUNTIME_LIB="$(abspath $(LIB))" LUA_PATH="./?.lua;;" $(LUAJIT) benchmarks/kv_cache.lua "$(abspath $(REAL_MODEL))" "$(abspath $(TOKENIZER))"

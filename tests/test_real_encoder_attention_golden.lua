@@ -362,6 +362,26 @@ local tool_text, tool_err = ctx:generate("weather in Paris", pretty_tools, {
 assert(tool_text ~= nil, tool_err and tool_err.message or "pretty tool-call generation failed")
 assert(tool_text:match('^%[%{"name":"get_weather"'), "pretty tools should generate a get_weather JSON call")
 
+local stream_chunks = {}
+local stream_token_count = 0
+local stream_text, stream_err = ctx:generate_stream("weather in Paris", pretty_tools, function(chunk)
+  stream_chunks[#stream_chunks + 1] = chunk
+  return true
+end, {
+  tokenizer_path = "build/tokenizer.ndltok",
+  max_new_tokens = 32,
+  constrained = true,
+  use_cache = true,
+  on_token = function()
+    stream_token_count = stream_token_count + 1
+    return true
+  end,
+})
+assert(stream_text ~= nil, stream_err and stream_err.message or "stream generation failed")
+assert(stream_text == tool_text, "stream final text mismatch")
+assert(table.concat(stream_chunks) == stream_text, "stream chunks should reconstruct final text")
+assert(stream_token_count > 0, "stream token callback was not invoked")
+
 local tok = assert(needle.load_tokenizer("build/tokenizer.ndltok"))
 local src_ids = ctx:build_encoder_input(tok, "weather in Paris", pretty_tools)
 local enc_out = assert(ctx:encode_tokens(src_ids))

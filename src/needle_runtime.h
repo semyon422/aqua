@@ -15,7 +15,7 @@ extern "C" {
 #  define NEEDLE_API __attribute__((visibility("default")))
 #endif
 
-#define NEEDLE_ABI_VERSION 3
+#define NEEDLE_ABI_VERSION 4
 
 #define NEEDLE_OK 0
 #define NEEDLE_ERR_NULL_CONTEXT -1
@@ -38,6 +38,12 @@ typedef struct needle_ctx needle_ctx;
 typedef struct needle_kv_cache needle_kv_cache;
 typedef struct needle_encoder_state needle_encoder_state;
 typedef int (*needle_stream_callback)(const char *chunk, int chunk_len, void *user_data);
+typedef int (*needle_token_callback)(
+    int token_id,
+    int step,
+    const int *tokens,
+    int token_count,
+    void *user_data);
 typedef int (*needle_token_filter_callback)(
     int step,
     const int *tokens,
@@ -276,6 +282,19 @@ NEEDLE_API int needle_generate_tokens_greedy_cached_from_state_filtered(
     int eos_token_id,
     needle_token_filter_callback filter,
     void *user_data,
+    int *out_ids,
+    int out_cap);
+NEEDLE_API int needle_generate_tokens_greedy_cached_from_state_stream_filtered(
+    needle_ctx *ctx,
+    needle_encoder_state *state,
+    const int *prompt_ids,
+    int prompt_len,
+    int max_new_tokens,
+    int eos_token_id,
+    needle_token_filter_callback filter,
+    void *filter_user_data,
+    needle_token_callback token_callback,
+    void *token_user_data,
     int *out_ids,
     int out_cap);
 

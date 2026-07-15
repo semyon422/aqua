@@ -5,6 +5,13 @@ typedef struct needle_ctx needle_ctx;
 typedef struct needle_kv_cache needle_kv_cache;
 typedef struct needle_encoder_state needle_encoder_state;
 typedef struct needle_tokenizer needle_tokenizer;
+typedef int (*needle_token_callback)(
+  int token_id,
+  int step,
+  const int *tokens,
+  int token_count,
+  void *user_data
+);
 typedef int (*needle_token_filter_callback)(
   int step,
   const int *tokens,
@@ -260,6 +267,20 @@ int needle_generate_tokens_greedy_cached_from_state_filtered(
   int *out_ids,
   int out_cap
 );
+int needle_generate_tokens_greedy_cached_from_state_stream_filtered(
+  needle_ctx *ctx,
+  needle_encoder_state *state,
+  const int *prompt_ids,
+  int prompt_len,
+  int max_new_tokens,
+  int eos_token_id,
+  needle_token_filter_callback filter,
+  void *filter_user_data,
+  needle_token_callback token_callback,
+  void *token_user_data,
+  int *out_ids,
+  int out_cap
+);
 
 int needle_generate(
   needle_ctx *ctx,
@@ -337,7 +358,7 @@ int needle_kernel_attention_f32(
 ]]
 
 local M = {}
-M.abi_version = 3
+M.abi_version = 4
 M.errors = {
   OK = 0,
   NULL_CONTEXT = -1,
@@ -463,27 +484,18 @@ function Context:clear_error()
   load_lib().needle_clear_error(self._ctx)
 end
 
-function Context:generate_stream(query, tools_json, callback)
+function Context:generate_stream(query, tools_json, callback, opts)
   ensure_open(self)
   if type(callback) ~= "function" then
     return nil, error_table(M.errors.INVALID_ARGUMENT, "stream callback must be a function"), M.errors.INVALID_ARGUMENT
   end
-
-  local cb
-  cb = ffi.cast("needle_stream_callback", function(chunk, chunk_len, _)
-    local ok, ret = pcall(callback, ffi.string(chunk, chunk_len))
-    if not ok then
-      return -1
-    end
-    return ret == false and -1 or 0
-  end)
-
-  local rc = load_lib().needle_generate_stream(self._ctx, query or "", tools_json or "[]", cb, nil)
-  cb:free()
-  if rc ~= 0 then
-    return nil, context_error(self, rc), rc
+  opts = opts or {}
+  local gen_opts = {}
+  for k, v in pairs(opts) do
+    gen_opts[k] = v
   end
-  return true
+  gen_opts.on_text = callback
+  return self:generate(query, tools_json, gen_opts)
 end
 
 function Context:is_loaded()
@@ -1085,10 +1097,33 @@ function Context:generate_tokens_from_state(state, prompt_ids, opts)
   local out = ffi.new("int[?]", out_cap)
   for i = 1, prompt_len do cprompt[i - 1] = prompt_ids[i] end
   local cb = make_token_filter_callback(opts)
-  local rc = load_lib().needle_generate_tokens_greedy_cached_from_state_filtered(
-    self._ctx, state._state, cprompt, prompt_len, max_new_tokens, eos_token_id, cb, nil, out, out_cap
-  )
+  local token_cb = nil
+  if opts.on_token ~= nil then
+    if type(opts.on_token) ~= "function" then
+      if cb ~= nil then cb:free() end
+      return nil, error_table(M.errors.INVALID_ARGUMENT, "on_token must be a function"), M.errors.INVALID_ARGUMENT
+    end
+    token_cb = ffi.cast("needle_token_callback", function(token_id, step, tokens, token_count, _)
+      local ok, keep_going = pcall(opts.on_token, tonumber(token_id), tonumber(step) + 1, tokens, tonumber(token_count))
+      if not ok or keep_going == false then
+        return -1
+      end
+      return 0
+    end)
+  end
+  local runtime = load_lib()
+  local rc
+  if token_cb ~= nil then
+    rc = runtime.needle_generate_tokens_greedy_cached_from_state_stream_filtered(
+      self._ctx, state._state, cprompt, prompt_len, max_new_tokens, eos_token_id, cb, nil, token_cb, nil, out, out_cap
+    )
+  else
+    rc = runtime.needle_generate_tokens_greedy_cached_from_state_filtered(
+      self._ctx, state._state, cprompt, prompt_len, max_new_tokens, eos_token_id, cb, nil, out, out_cap
+    )
+  end
   if cb ~= nil then cb:free() end
+  if token_cb ~= nil then token_cb:free() end
   if rc < 0 then
     return nil, context_error(self, rc), rc
   end
@@ -1699,6 +1734,129 @@ function Context:generate(query, tools_json, opts)
     else
       token_filter_raw = constraints:token_filter_raw()
     end
+  end
+  local stream_requested = opts.on_token ~= nil or opts.on_text ~= nil
+  if stream_requested then
+    if opts.on_token ~= nil and type(opts.on_token) ~= "function" then
+      if owns_tokenizer then tokenizer:close() end
+      return nil, error_table(M.errors.INVALID_ARGUMENT, "on_token must be a function"), M.errors.INVALID_ARGUMENT
+    end
+    if opts.on_text ~= nil and type(opts.on_text) ~= "function" then
+      if owns_tokenizer then tokenizer:close() end
+      return nil, error_table(M.errors.INVALID_ARGUMENT, "on_text must be a function"), M.errors.INVALID_ARGUMENT
+    end
+
+    local encoder_state, enc_err, enc_rc = self:encode_tokens_state(src_ids)
+    if not encoder_state then
+      if owns_tokenizer then tokenizer:close() end
+      return nil, enc_err, enc_rc
+    end
+
+    local result_ids = {}
+    local emitted_prefix = opts.strip_tool_call == false
+    local pending_text = ""
+    local prefix = "<tool_call>"
+    local trim_after_prefix = false
+    local stream_error = nil
+    local stream_error_code = nil
+
+    local function emit_text(chunk)
+      if chunk == "" or opts.on_text == nil then
+        return true
+      end
+      local ok, keep_going = pcall(opts.on_text, chunk)
+      if not ok then
+        stream_error = error_table(M.errors.INVALID_ARGUMENT, tostring(keep_going))
+        stream_error_code = M.errors.INVALID_ARGUMENT
+        return false
+      end
+      if keep_going == false then
+        stream_error = error_table(M.errors.INVALID_ARGUMENT, "on_text aborted generation")
+        stream_error_code = M.errors.INVALID_ARGUMENT
+        return false
+      end
+      return true
+    end
+
+    local function on_generated_token(token_id, step, tokens, token_count)
+      if opts.on_token ~= nil then
+        local ok, keep_going = pcall(opts.on_token, token_id, step, tokens, token_count)
+        if not ok then
+          stream_error = error_table(M.errors.INVALID_ARGUMENT, tostring(keep_going))
+          stream_error_code = M.errors.INVALID_ARGUMENT
+          return false
+        end
+        if keep_going == false then
+          stream_error = error_table(M.errors.INVALID_ARGUMENT, "on_token aborted generation")
+          stream_error_code = M.errors.INVALID_ARGUMENT
+          return false
+        end
+      end
+      if token_id == eos_token_id then
+        return true
+      end
+      result_ids[#result_ids + 1] = token_id
+      if opts.on_text == nil then
+        return true
+      end
+      local chunk, chunk_err, chunk_rc = tokenizer:token_text(token_id, { out_cap = opts.token_text_cap or 256 })
+      if not chunk then
+        stream_error = chunk_err
+        stream_error_code = chunk_rc
+        return false
+      end
+      if emitted_prefix then
+        if trim_after_prefix then
+          chunk = chunk:gsub("^%s+", "")
+          if chunk == "" then
+            return true
+          end
+          trim_after_prefix = false
+        end
+        return emit_text(chunk)
+      end
+      pending_text = pending_text .. chunk
+      if #pending_text < #prefix and prefix:sub(1, #pending_text) == pending_text then
+        return true
+      end
+      if pending_text:sub(1, #prefix) == prefix then
+        pending_text = pending_text:sub(#prefix + 1):gsub("^%s+", "")
+        trim_after_prefix = pending_text == ""
+      end
+      emitted_prefix = true
+      local to_emit = pending_text
+      pending_text = ""
+      if to_emit ~= "" then
+        trim_after_prefix = false
+      end
+      return emit_text(to_emit)
+    end
+
+    local generated, gen_err, rc = self:generate_tokens_from_state(encoder_state, prompt_ids, {
+      max_new_tokens = max_new_tokens,
+      eos_token_id = eos_token_id,
+      token_filter = token_filter,
+      token_filter_raw = token_filter_raw,
+      on_token = on_generated_token,
+    })
+    encoder_state:close()
+    if not generated then
+      if owns_tokenizer then tokenizer:close() end
+      return nil, stream_error or gen_err, stream_error_code or rc
+    end
+    local text, dec_err, dec_rc = tokenizer:decode(result_ids, { out_cap = opts.out_cap or 8192 })
+    if owns_tokenizer then tokenizer:close() end
+    if not text then
+      return nil, dec_err, dec_rc
+    end
+    if opts.strip_tool_call ~= false and text:sub(1, 11) == "<tool_call>" then
+      text = text:sub(12)
+      text = text:gsub("^%s+", "")
+    end
+    if opts.return_tokens then
+      return text, nil, nil, generated, src_ids
+    end
+    return text
   end
   local generated, gen_err, rc = self:generate_tokens(src_ids, prompt_ids, {
     max_new_tokens = max_new_tokens,

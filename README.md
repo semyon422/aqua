@@ -72,7 +72,7 @@ local ids = assert(ctx:generate_tokens_from_state(state, { 1 }, {
 state:close()
 ```
 
-`make example-tool` and `make example-tool-q8` print query/tools, prefill time, decode time, q8 dispatch counters, and output.
+`make example-tool` and `make example-tool-q8` print query/tools, prefill time, decode time, q8 dispatch counters, and output. `make example-stream` streams text chunks from the q8 tool-call path and verifies they reconstruct the final text.
 
 ## Lua API
 
@@ -98,6 +98,20 @@ if ctx and ctx:is_loaded() then
 end
 ```
 
+Streaming uses the same generation path and returns the final text after the callback has received chunks:
+
+```lua
+local text = assert(ctx:generate_stream("weather in Paris", tools_json, function(chunk)
+  io.write(chunk)
+  io.flush()
+  return true
+end, {
+  tokenizer_path = "build/tokenizer.ndltok",
+  constrained = true,
+  use_cache = true,
+}))
+```
+
 Errors are returned as tables:
 
 ```lua
@@ -108,7 +122,7 @@ Errors are returned as tables:
 }
 ```
 
-The public C ABI is versioned with `needle_abi_version()`. Lua validates it on load and fails fast on ABI mismatch. Current ABI: `3`.
+The public C ABI is versioned with `needle_abi_version()`. Lua validates it on load and fails fast on ABI mismatch. Current ABI: `4`.
 
 Constrained token generation can restrict greedy argmax to valid token IDs:
 
