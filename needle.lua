@@ -1330,9 +1330,114 @@ local function json_object_keys(text, open_pos, close_pos)
   return keys
 end
 
+local function json_object_value_span(text, open_pos, close_pos, key)
+  local pos = open_pos + 1
+  while pos < close_pos do
+    pos = json_skip_ws(text, pos)
+    if text:sub(pos, pos) == "," then
+      pos = json_skip_ws(text, pos + 1)
+    end
+    if text:sub(pos, pos) ~= '"' then
+      break
+    end
+    local cur_key, next_pos = json_read_string(text, pos)
+    if cur_key == nil then
+      break
+    end
+    pos = json_skip_ws(text, next_pos)
+    if text:sub(pos, pos) ~= ":" then
+      break
+    end
+    local value_start = json_skip_ws(text, pos + 1)
+    local ch = text:sub(value_start, value_start)
+    local value_end = value_start
+    if ch == "{" or ch == "[" then
+      value_end = json_find_matching(text, value_start)
+      if value_end == nil then
+        break
+      end
+    elseif ch == '"' then
+      _, value_end = json_read_string(text, value_start)
+      value_end = value_end - 1
+    else
+      local comma = text:find(",", value_start, true) or close_pos
+      value_end = comma - 1
+      while value_end > value_start and text:sub(value_end, value_end):match("%s") do
+        value_end = value_end - 1
+      end
+    end
+    if cur_key == key then
+      return value_start, value_end
+    end
+    pos = value_end + 1
+  end
+  return nil
+end
+
+local function json_string_field(text, open_pos, close_pos, key)
+  local value_start = json_object_value_span(text, open_pos, close_pos, key)
+  if value_start == nil then
+    return nil
+  end
+  value_start = json_skip_ws(text, value_start)
+  return json_read_string(text, value_start)
+end
+
+local function json_string_array(text, open_pos, close_pos)
+  local values = {}
+  local pos = open_pos + 1
+  while pos < close_pos do
+    pos = json_skip_ws(text, pos)
+    if text:sub(pos, pos) == "," then
+      pos = json_skip_ws(text, pos + 1)
+    end
+    if text:sub(pos, pos) ~= '"' then
+      break
+    end
+    local value, next_pos = json_read_string(text, pos)
+    if value == nil then
+      break
+    end
+    values[#values + 1] = value
+    pos = next_pos
+  end
+  return values
+end
+
+local function parse_property_schema(text, open_pos, close_pos)
+  local schema = {}
+  schema.type = json_string_field(text, open_pos, close_pos, "type")
+  local enum_start, enum_end = json_object_value_span(text, open_pos, close_pos, "enum")
+  if enum_start ~= nil and text:sub(enum_start, enum_start) == "[" then
+    local values = json_string_array(text, enum_start, enum_end)
+    if #values > 0 then
+      schema.enum = values
+      schema.enum_trie = trie_new()
+      for _, value in ipairs(values) do
+        trie_insert(schema.enum_trie, value)
+      end
+    end
+  end
+  return schema
+end
+
+local function parse_property_schemas(text, props_open, props_close)
+  local schemas = {}
+  for _, key in ipairs(json_object_keys(text, props_open, props_close)) do
+    local value_start, value_end = json_object_value_span(text, props_open, props_close, key)
+    if value_start ~= nil and text:sub(value_start, value_start) == "{" then
+      schemas[key] = parse_property_schema(text, value_start, value_end)
+    else
+      schemas[key] = {}
+    end
+  end
+  return schemas
+end
+
 local function parse_tool_constraints(tools_json)
   local name_trie = trie_new()
   local param_tries = {}
+  local schemas_by_tool = {}
   local pos = 1
   while true do
     local value_pos = json_find_key(tools_json or "[]", "name", pos)
@@ -1346,6 +1451,7 @@ local function parse_tool_constraints(tools_json)
     else
       trie_insert(name_trie, name)
       local param_trie = trie_new()
+      local param_schemas = {}
       local params_value = json_find_key(tools_json, "parameters", after_name)
       if params_value ~= nil then
         params_value = json_skip_ws(tools_json, params_value)
@@ -1362,21 +1468,24 @@ local function parse_tool_constraints(tools_json)
                   for _, key in ipairs(json_object_keys(tools_json, props_value, props_end)) do
                     trie_insert(param_trie, key)
                   end
+                  param_schemas = parse_property_schemas(tools_json, props_value, props_end)
                 end
               end
             else
               for _, key in ipairs(json_object_keys(tools_json, params_value, params_end)) do
                 trie_insert(param_trie, key)
               end
+              param_schemas = parse_property_schemas(tools_json, params_value, params_end)
             end
           end
         end
       end
       param_tries[name] = param_trie
+      schemas_by_tool[name] = param_schemas
       pos = after_name
     end
   end
-  return name_trie, param_tries
+  return name_trie, param_tries, schemas_by_tool
 end
 
 local ToolCallConstraints = {}
@@ -1403,6 +1512,7 @@ local function state_new()
     buffer = "",
     constrained_buf = "",
     current_function = "",
+    current_arg_key = "",
     started = false,
     completed = false,
     in_arguments = false,
@@ -1423,7 +1533,7 @@ local function state_is_value_quote(st)
   return false
 end
 
-local function state_feed_char(st, ch)
+local function state_feed_char(st, ch, schemas_by_tool)
   if st.completed then
     st.buffer = st.buffer .. ch
     if #st.buffer > 128 then
@@ -1432,10 +1542,12 @@ local function state_feed_char(st, ch)
     return
   end
 
-  if st.state == "name" or st.state == "arg_key" then
+  if st.state == "name" or st.state == "arg_key" or st.state == "arg_value_string" then
     if ch == '"' then
       if st.state == "name" then
         st.current_function = st.constrained_buf
+      elseif st.state == "arg_key" then
+        st.current_arg_key = st.constrained_buf
       end
       st.constrained_buf = ""
       st.state = "free"
@@ -1504,13 +1616,22 @@ local function state_feed_char(st, ch)
   end
 
   if ch == '"' and state_is_value_quote(st) then
-    st.in_string = true
+    local schema = schemas_by_tool
+      and schemas_by_tool[st.current_function]
+      and schemas_by_tool[st.current_function][st.current_arg_key]
+      or nil
+    if schema ~= nil and schema.enum_trie ~= nil then
+      st.state = "arg_value_string"
+      st.constrained_buf = ""
+    else
+      st.in_string = true
+    end
   end
 end
 
-local function state_feed(st, text)
+local function state_feed(st, text, schemas_by_tool)
   for i = 1, #text do
-    state_feed_char(st, text:sub(i, i))
+    state_feed_char(st, text:sub(i, i), schemas_by_tool)
   end
 end
 
@@ -1544,7 +1665,7 @@ function M.build_tool_call_constraints(tools_json, tokenizer, opts)
   end
   opts = opts or {}
   local token_strings, token_index = build_token_data(tokenizer)
-  local name_trie, param_tries = parse_tool_constraints(tools_json or "[]")
+  local name_trie, param_tries, schemas_by_tool = parse_tool_constraints(tools_json or "[]")
   return setmetatable({
     _state = state_new(),
     _seen = 0,
@@ -1552,12 +1673,13 @@ function M.build_tool_call_constraints(tools_json, tokenizer, opts)
     _token_index = token_index,
     _name_trie = name_trie,
     _param_tries = param_tries,
+    _schemas_by_tool = schemas_by_tool,
     _eos_token_id = opts.eos_token_id or 1,
   }, ToolCallConstraints)
 end
 
 function ToolCallConstraints:feed_token(id)
-  state_feed(self._state, self._token_strings[id] or "")
+  state_feed(self._state, self._token_strings[id] or "", self._schemas_by_tool)
 end
 
 function ToolCallConstraints:sync(tokens)
@@ -1584,6 +1706,12 @@ function ToolCallConstraints:allowed_token_ids()
     trie = self._name_trie
   elseif st.state == "arg_key" then
     trie = self._param_tries[st.current_function]
+  elseif st.state == "arg_value_string" then
+    local schema = self._schemas_by_tool
+      and self._schemas_by_tool[st.current_function]
+      and self._schemas_by_tool[st.current_function][st.current_arg_key]
+      or nil
+    trie = schema and schema.enum_trie or nil
   else
     return nil
   end

@@ -6,7 +6,7 @@ assert(tokenizer_path and tokenizer_path ~= "", "tokenizer path required")
 local tok = assert(needle.load_tokenizer(tokenizer_path))
 local eos_token_id = 1
 
-local tools_json = '[{"name":"get_weather","parameters":{"location":{"type":"string"},"unit":{"type":"string"}}},{"name":"set_timer","parameters":{"minutes":{"type":"number"}}}]'
+local tools_json = '[{"name":"get_weather","parameters":{"location":{"type":"string"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}}},{"name":"set_timer","parameters":{"minutes":{"type":"number"}}}]'
 
 local function token_id_for_text(text)
   for id = 0, tok:vocab_size() - 1 do
@@ -48,6 +48,11 @@ assert(not after_escaped_value[token_id_for_text("minutes")], "escaped value sho
 local timer_key_allowed = as_set(assert(sync_allowed('[{"name":"set_timer","arguments":{"')))
 assert(timer_key_allowed[token_id_for_text("minutes")], "valid prefix should still allow timer keys")
 assert(not timer_key_allowed[eos_token_id], "valid arg-key prefix should not fail closed")
+
+assert_only_eos(sync_allowed('[{"name":"get_weather","arguments":{"unit":"kel'), "unknown enum value prefix")
+
+local enum_allowed = as_set(assert(sync_allowed('[{"name":"get_weather","arguments":{"unit":"celsius')))
+assert(enum_allowed[token_id_for_text('"')], "complete enum value should allow closing quote")
 
 tok:close()
 print("test_constraints_malformed.lua: ok")

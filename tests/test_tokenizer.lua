@@ -57,7 +57,7 @@ local function as_set(values)
   return out
 end
 
-local tools_json = '[{"name":"get_weather","parameters":{"location":{"type":"string"},"unit":{"type":"string"}}},{"name":"set_timer","parameters":{"minutes":{"type":"number"}}}]'
+local tools_json = '[{"name":"get_weather","parameters":{"location":{"type":"string"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}}},{"name":"set_timer","parameters":{"minutes":{"type":"number"}}}]'
 local constraints = assert(needle.build_tool_call_constraints(tools_json, tok))
 constraints:sync(assert(tok:encode('[{"name":"')))
 local name_allowed = as_set(assert(constraints:allowed_token_ids()))
@@ -89,6 +89,18 @@ constraints:sync(assert(tok:encode('[{"name":"get_weather","arguments":{"locatio
 local after_value_allowed = as_set(assert(constraints:allowed_token_ids()))
 assert(after_value_allowed[token_id_for_text("unit")], "arg-key constraint should resume after string values")
 assert(not after_value_allowed[token_id_for_text("minutes")], "arg-key constraint after value should use current tool schema")
+
+constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
+constraints:sync(assert(tok:encode('[{"name":"get_weather","arguments":{"unit":"')))
+local unit_allowed = as_set(assert(constraints:allowed_token_ids()))
+assert(unit_allowed[token_id_for_text("celsius")], "enum value should allow celsius")
+assert(unit_allowed[token_id_for_text("fahrenheit")], "enum value should allow fahrenheit")
+assert(not unit_allowed[token_id_for_text("clothing")], "enum value should reject unrelated token")
+
+constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
+constraints:sync(assert(tok:encode('[{"name":"get_weather","arguments":{"unit":"cloth')))
+local bad_unit_allowed = assert(constraints:allowed_token_ids())
+assert(#bad_unit_allowed == 1 and bad_unit_allowed[1] == 1, "unknown enum prefix should fail closed")
 
 tok:close()
 print("test_tokenizer.lua: ok")

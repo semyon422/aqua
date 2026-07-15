@@ -13,7 +13,7 @@ local tools_json = os.getenv("NEEDLE_TOOLS") or [[
       "type": "object",
       "properties": {
         "location": { "type": "string" },
-        "unit": { "type": "string" }
+        "unit": { "type": "string", "enum": ["celsius", "fahrenheit"] }
       }
     }
   },

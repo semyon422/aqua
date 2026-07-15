@@ -13,7 +13,7 @@ local tools_json = [[
       "type": "object",
       "properties": {
         "location": { "type": "string" },
-        "unit": { "type": "string" }
+        "unit": { "type": "string", "enum": ["celsius", "fahrenheit"] }
       }
     }
   },

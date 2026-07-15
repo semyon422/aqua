@@ -337,7 +337,7 @@ local pretty_tools = [[
       "type": "object",
       "properties": {
         "location": { "type": "string" },
-        "unit": { "type": "string" }
+        "unit": { "type": "string", "enum": ["celsius", "fahrenheit"] }
       }
     }
   },
@@ -361,6 +361,10 @@ local tool_text, tool_err = ctx:generate("weather in Paris", pretty_tools, {
 })
 assert(tool_text ~= nil, tool_err and tool_err.message or "pretty tool-call generation failed")
 assert(tool_text:match('^%[%{"name":"get_weather"'), "pretty tools should generate a get_weather JSON call")
+local unit_value = tool_text:match('"unit":"([^"]+)"')
+if unit_value ~= nil then
+  assert(unit_value == "celsius" or unit_value == "fahrenheit", "unit should be constrained to enum")
+end
 
 local stream_chunks = {}
 local stream_token_count = 0
