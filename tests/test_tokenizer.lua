@@ -57,7 +57,17 @@ local function as_set(values)
   return out
 end
 
-local tools_json = '[{"name":"get_weather","parameters":{"location":{"type":"string"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}}},{"name":"set_timer","parameters":{"minutes":{"type":"number"}}}]'
+local function has_token_start(values, ch)
+  for _, id in ipairs(values or {}) do
+    local text = tok:token_text(id)
+    if text:sub(1, 1) == ch then
+      return true
+    end
+  end
+  return false
+end
+
+local tools_json = '[{"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location","unit"]}},{"name":"set_timer","parameters":{"type":"object","properties":{"minutes":{"type":"number"}},"required":["minutes"]}}]'
 local constraints = assert(needle.build_tool_call_constraints(tools_json, tok))
 constraints:sync(assert(tok:encode('[{"name":"')))
 local name_allowed = as_set(assert(constraints:allowed_token_ids()))
@@ -89,6 +99,13 @@ constraints:sync(assert(tok:encode('[{"name":"get_weather","arguments":{"locatio
 local after_value_allowed = as_set(assert(constraints:allowed_token_ids()))
 assert(after_value_allowed[token_id_for_text("unit")], "arg-key constraint should resume after string values")
 assert(not after_value_allowed[token_id_for_text("minutes")], "arg-key constraint after value should use current tool schema")
+assert(not after_value_allowed[token_id_for_text("location")], "arg-key constraint should reject duplicate keys")
+
+constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
+constraints:sync(assert(tok:encode('[{"name":"get_weather","arguments":{"location":"Paris"')))
+local missing_required_allowed = assert(constraints:allowed_token_ids())
+assert(has_token_start(missing_required_allowed, ","), "missing required key should allow comma")
+assert(not has_token_start(missing_required_allowed, "}"), "missing required key should reject object close")
 
 constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
 constraints:sync(assert(tok:encode('[{"name":"get_weather","arguments":{"unit":"')))
@@ -101,6 +118,18 @@ constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_t
 constraints:sync(assert(tok:encode('[{"name":"get_weather","arguments":{"unit":"cloth')))
 local bad_unit_allowed = assert(constraints:allowed_token_ids())
 assert(#bad_unit_allowed == 1 and bad_unit_allowed[1] == 1, "unknown enum prefix should fail closed")
+
+constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
+constraints:sync(assert(tok:encode('[{"name":"get_weather","arguments":{"location":"Paris","unit":"celsius"')))
+local all_required_allowed = assert(constraints:allowed_token_ids())
+assert(has_token_start(all_required_allowed, "}"), "all required keys should allow object close")
+assert(not has_token_start(all_required_allowed, ","), "no remaining keys should reject trailing comma")
+
+constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
+constraints:sync(assert(tok:encode('[{"name":"set_timer","arguments":{"minutes":5')))
+local number_required_allowed = assert(constraints:allowed_token_ids())
+assert(has_token_start(number_required_allowed, "}"), "number required key should allow object close after value")
+assert(not has_token_start(number_required_allowed, ","), "single number key should reject trailing comma")
 
 tok:close()
 print("test_tokenizer.lua: ok")

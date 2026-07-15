@@ -338,7 +338,8 @@ local pretty_tools = [[
       "properties": {
         "location": { "type": "string" },
         "unit": { "type": "string", "enum": ["celsius", "fahrenheit"] }
-      }
+      },
+      "required": ["location", "unit"]
     }
   },
   {
@@ -348,7 +349,8 @@ local pretty_tools = [[
       "type": "object",
       "properties": {
         "minutes": { "type": "number" }
-      }
+      },
+      "required": ["minutes"]
     }
   }
 ]

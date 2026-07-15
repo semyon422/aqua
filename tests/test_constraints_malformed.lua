@@ -6,7 +6,7 @@ assert(tokenizer_path and tokenizer_path ~= "", "tokenizer path required")
 local tok = assert(needle.load_tokenizer(tokenizer_path))
 local eos_token_id = 1
 
-local tools_json = '[{"name":"get_weather","parameters":{"location":{"type":"string"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}}},{"name":"set_timer","parameters":{"minutes":{"type":"number"}}}]'
+local tools_json = '[{"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location","unit"]}},{"name":"set_timer","parameters":{"type":"object","properties":{"minutes":{"type":"number"}},"required":["minutes"]}}]'
 
 local function token_id_for_text(text)
   for id = 0, tok:vocab_size() - 1 do
@@ -23,6 +23,15 @@ local function as_set(values)
     out[value] = true
   end
   return out
+end
+
+local function has_token_start(values, ch)
+  for _, id in ipairs(values or {}) do
+    if tok:token_text(id):sub(1, 1) == ch then
+      return true
+    end
+  end
+  return false
 end
 
 local function sync_allowed(text)
@@ -53,6 +62,12 @@ assert_only_eos(sync_allowed('[{"name":"get_weather","arguments":{"unit":"kel'),
 
 local enum_allowed = as_set(assert(sync_allowed('[{"name":"get_weather","arguments":{"unit":"celsius')))
 assert(enum_allowed[token_id_for_text('"')], "complete enum value should allow closing quote")
+
+local missing_required_allowed = assert(sync_allowed('[{"name":"get_weather","arguments":{"location":"Paris"'))
+assert(not has_token_start(missing_required_allowed, "}"), "required enum key should prevent early object close")
+
+local number_required_allowed = assert(sync_allowed('[{"name":"set_timer","arguments":{"minutes":5'))
+assert(has_token_start(number_required_allowed, "}"), "number required key should be marked after primitive value")
 
 tok:close()
 print("test_constraints_malformed.lua: ok")

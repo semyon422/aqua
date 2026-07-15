@@ -14,7 +14,8 @@ local tools_json = os.getenv("NEEDLE_TOOLS") or [[
       "properties": {
         "location": { "type": "string" },
         "unit": { "type": "string", "enum": ["celsius", "fahrenheit"] }
-      }
+      },
+      "required": ["location", "unit"]
     }
   },
   {
@@ -24,7 +25,8 @@ local tools_json = os.getenv("NEEDLE_TOOLS") or [[
       "type": "object",
       "properties": {
         "minutes": { "type": "number" }
-      }
+      },
+      "required": ["minutes"]
     }
   }
 ]

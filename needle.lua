@@ -1383,6 +1383,22 @@ local function json_string_field(text, open_pos, close_pos, key)
   return json_read_string(text, value_start)
 end
 
+local function json_bool_field(text, open_pos, close_pos, key)
+  local value_start, value_end = json_object_value_span(text, open_pos, close_pos, key)
+  if value_start == nil then
+    return nil
+  end
+  local raw = text:sub(value_start, value_end)
+  raw = raw:gsub("^%s+", ""):gsub("%s+$", "")
+  if raw == "true" then
+    return true
+  end
+  if raw == "false" then
+    return false
+  end
+  return nil
+end
+
 local function json_string_array(text, open_pos, close_pos)
   local values = {}
   local pos = open_pos + 1
@@ -1407,6 +1423,7 @@ end
 local function parse_property_schema(text, open_pos, close_pos)
   local schema = {}
   schema.type = json_string_field(text, open_pos, close_pos, "type")
+  schema.required = json_bool_field(text, open_pos, close_pos, "required")
   local enum_start, enum_end = json_object_value_span(text, open_pos, close_pos, "enum")
   if enum_start ~= nil and text:sub(enum_start, enum_start) == "[" then
     local values = json_string_array(text, enum_start, enum_end)
@@ -1437,7 +1454,9 @@ end
 local function parse_tool_constraints(tools_json)
   local name_trie = trie_new()
   local param_tries = {}
+  local param_keys_by_tool = {}
   local schemas_by_tool = {}
+  local required_by_tool = {}
   local pos = 1
   while true do
     local value_pos = json_find_key(tools_json or "[]", "name", pos)
@@ -1452,12 +1471,19 @@ local function parse_tool_constraints(tools_json)
       trie_insert(name_trie, name)
       local param_trie = trie_new()
       local param_schemas = {}
+      local required_set = {}
       local params_value = json_find_key(tools_json, "parameters", after_name)
       if params_value ~= nil then
         params_value = json_skip_ws(tools_json, params_value)
         if tools_json:sub(params_value, params_value) == "{" then
           local params_end = json_find_matching(tools_json, params_value)
           if params_end ~= nil then
+            local required_start, required_end = json_object_value_span(tools_json, params_value, params_end, "required")
+            if required_start ~= nil and tools_json:sub(required_start, required_start) == "[" then
+              for _, key in ipairs(json_string_array(tools_json, required_start, required_end)) do
+                required_set[key] = true
+              end
+            end
             local props_value = json_find_key(tools_json:sub(params_value, params_end), "properties", 1)
             if props_value ~= nil then
               props_value = params_value + props_value - 1
@@ -1480,12 +1506,23 @@ local function parse_tool_constraints(tools_json)
           end
         end
       end
+      for key, schema in pairs(param_schemas) do
+        if schema.required then
+          required_set[key] = true
+        end
+      end
       param_tries[name] = param_trie
+      local param_keys = {}
+      for key, _ in pairs(param_schemas) do
+        param_keys[#param_keys + 1] = key
+      end
+      param_keys_by_tool[name] = param_keys
       schemas_by_tool[name] = param_schemas
+      required_by_tool[name] = required_set
       pos = after_name
     end
   end
-  return name_trie, param_tries, schemas_by_tool
+  return name_trie, param_tries, param_keys_by_tool, schemas_by_tool, required_by_tool
 end
 
 local ToolCallConstraints = {}
@@ -1513,6 +1550,8 @@ local function state_new()
     constrained_buf = "",
     current_function = "",
     current_arg_key = "",
+    value_string_key = "",
+    seen_arg_keys = {},
     started = false,
     completed = false,
     in_arguments = false,
@@ -1523,6 +1562,18 @@ local function state_new()
   }
 end
 
+local function state_mark_arg_seen(st, key)
+  key = key or st.current_arg_key
+  if key ~= nil and key ~= "" and st.in_arguments then
+    st.seen_arg_keys[key] = true
+  end
+  st.current_arg_key = ""
+  st.value_string_key = ""
+  if st.in_arguments then
+    st.state = "arg_after_value"
+  end
+end
+
 local function state_is_value_quote(st)
   for i = #st.buffer - 1, 1, -1 do
     local ch = st.buffer:sub(i, i)
@@ -1531,6 +1582,19 @@ local function state_is_value_quote(st)
     end
   end
   return false
+end
+
+local function state_is_primitive_value_start(st, ch)
+  if not st.in_arguments or st.current_arg_key == "" or st.state ~= "free" then
+    return false
+  end
+  if ch == '"' or ch == "{" or ch == "[" then
+    return false
+  end
+  if ch == " " or ch == "\t" or ch == "\n" or ch == "\r" then
+    return false
+  end
+  return state_is_value_quote(st)
 end
 
 local function state_feed_char(st, ch, schemas_by_tool)
@@ -1548,9 +1612,13 @@ local function state_feed_char(st, ch, schemas_by_tool)
         st.current_function = st.constrained_buf
       elseif st.state == "arg_key" then
         st.current_arg_key = st.constrained_buf
+      elseif st.state == "arg_value_string" then
+        state_mark_arg_seen(st, st.current_arg_key)
+      end
+      if st.state ~= "arg_after_value" then
+        st.state = "free"
       end
       st.constrained_buf = ""
-      st.state = "free"
     else
       st.constrained_buf = st.constrained_buf .. ch
     end
@@ -1574,8 +1642,15 @@ local function state_feed_char(st, ch, schemas_by_tool)
     end
     if ch == '"' then
       st.in_string = false
+      if st.value_string_key ~= "" then
+        state_mark_arg_seen(st, st.value_string_key)
+      end
     end
     return
+  end
+
+  if state_is_primitive_value_start(st, ch) then
+    state_mark_arg_seen(st, st.current_arg_key)
   end
 
   if ch == "{" or ch == "[" then
@@ -1587,6 +1662,12 @@ local function state_feed_char(st, ch, schemas_by_tool)
     st.nesting_depth = math.max(0, st.nesting_depth - 1)
     if ch == "}" and st.in_arguments and st.nesting_depth < st.arguments_depth then
       st.in_arguments = false
+      st.seen_arg_keys = {}
+      st.current_arg_key = ""
+      st.value_string_key = ""
+      if st.state == "arg_after_value" then
+        st.state = "free"
+      end
     end
     if ch == "]" and st.started and st.nesting_depth == 0 then
       st.completed = true
@@ -1603,6 +1684,9 @@ local function state_feed_char(st, ch, schemas_by_tool)
   if st.buffer:sub(-13) == '"arguments":{' then
     st.in_arguments = true
     st.arguments_depth = st.nesting_depth
+    st.seen_arg_keys = {}
+    st.current_arg_key = ""
+    st.value_string_key = ""
     return
   end
 
@@ -1625,6 +1709,7 @@ local function state_feed_char(st, ch, schemas_by_tool)
       st.constrained_buf = ""
     else
       st.in_string = true
+      st.value_string_key = st.current_arg_key
     end
   end
 end
@@ -1659,13 +1744,48 @@ local function build_token_data(tokenizer)
   return strings, index
 end
 
+local function trie_from_keys(keys, seen)
+  local trie = trie_new()
+  local count = 0
+  for _, key in ipairs(keys or {}) do
+    if not (seen and seen[key]) then
+      trie_insert(trie, key)
+      count = count + 1
+    end
+  end
+  return trie, count
+end
+
+local function required_satisfied(required, seen)
+  for key, needed in pairs(required or {}) do
+    if needed and not (seen and seen[key]) then
+      return false
+    end
+  end
+  return true
+end
+
+local function has_unseen_key(keys, seen)
+  for _, key in ipairs(keys or {}) do
+    if not (seen and seen[key]) then
+      return true
+    end
+  end
+  return false
+end
+
+local function token_starts_with_any(token_text, allowed_first)
+  local first = token_text:sub(1, 1)
+  return allowed_first[first] == true
+end
+
 function M.build_tool_call_constraints(tools_json, tokenizer, opts)
   if tokenizer == nil then
     return nil, error_table(M.errors.INVALID_ARGUMENT, "tool-call constraints require a tokenizer"), M.errors.INVALID_ARGUMENT
   end
   opts = opts or {}
   local token_strings, token_index = build_token_data(tokenizer)
-  local name_trie, param_tries, schemas_by_tool = parse_tool_constraints(tools_json or "[]")
+  local name_trie, param_tries, param_keys_by_tool, schemas_by_tool, required_by_tool = parse_tool_constraints(tools_json or "[]")
   return setmetatable({
     _state = state_new(),
     _seen = 0,
@@ -1673,7 +1793,9 @@ function M.build_tool_call_constraints(tools_json, tokenizer, opts)
     _token_index = token_index,
     _name_trie = name_trie,
     _param_tries = param_tries,
+    _param_keys_by_tool = param_keys_by_tool,
     _schemas_by_tool = schemas_by_tool,
+    _required_by_tool = required_by_tool,
     _eos_token_id = opts.eos_token_id or 1,
   }, ToolCallConstraints)
 end
@@ -1705,13 +1827,47 @@ function ToolCallConstraints:allowed_token_ids()
   if st.state == "name" then
     trie = self._name_trie
   elseif st.state == "arg_key" then
-    trie = self._param_tries[st.current_function]
+    local keys = self._param_keys_by_tool[st.current_function]
+    if keys ~= nil then
+      local count
+      trie, count = trie_from_keys(keys, st.seen_arg_keys)
+      if count == 0 then
+        return { self._eos_token_id }
+      end
+    else
+      trie = self._param_tries[st.current_function]
+    end
   elseif st.state == "arg_value_string" then
     local schema = self._schemas_by_tool
       and self._schemas_by_tool[st.current_function]
       and self._schemas_by_tool[st.current_function][st.current_arg_key]
       or nil
     trie = schema and schema.enum_trie or nil
+  elseif st.state == "arg_after_value" then
+    local keys = self._param_keys_by_tool[st.current_function] or {}
+    local required = self._required_by_tool[st.current_function] or {}
+    local allowed_first = {}
+    if has_unseen_key(keys, st.seen_arg_keys) then
+      allowed_first[","] = true
+    end
+    if required_satisfied(required, st.seen_arg_keys) then
+      allowed_first["}"] = true
+    end
+    local allowed = {}
+    for first, _ in pairs(allowed_first) do
+      local bucket = self._token_index[first]
+      if bucket ~= nil then
+        for _, id in ipairs(bucket) do
+          if token_starts_with_any(self._token_strings[id], allowed_first) then
+            allowed[#allowed + 1] = id
+          end
+        end
+      end
+    end
+    if #allowed == 0 then
+      return { self._eos_token_id }
+    end
+    return allowed
   else
     return nil
   end

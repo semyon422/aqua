@@ -14,7 +14,8 @@ local tools_json = [[
       "properties": {
         "location": { "type": "string" },
         "unit": { "type": "string", "enum": ["celsius", "fahrenheit"] }
-      }
+      },
+      "required": ["location", "unit"]
     }
   },
   {
@@ -24,7 +25,8 @@ local tools_json = [[
       "type": "object",
       "properties": {
         "minutes": { "type": "number" }
-      }
+      },
+      "required": ["minutes"]
     }
   }
 ]

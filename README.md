@@ -146,7 +146,7 @@ local constraints = assert(needle.build_tool_call_constraints(tools_json, tok))
 local filter = constraints:token_filter_raw()
 ```
 
-The built-in tool-call constraint layer tracks compact JSON output, restricts `"name"` values to known tool names and argument keys to that tool's `parameters` keys, constrains string argument values with JSON Schema `enum`, and forces EOS after a complete top-level JSON array. `ctx:generate(..., { constrained = true })` uses the raw constraint path by default when no custom Lua table filter is provided. Non-enum argument values remain flexible.
+The built-in tool-call constraint layer tracks compact JSON output, restricts `"name"` values to known tool names and argument keys to that tool's `parameters` keys, rejects duplicate argument keys, requires JSON Schema `required` keys before closing the `arguments` object, constrains string argument values with JSON Schema `enum`, and forces EOS after a complete top-level JSON array. `ctx:generate(..., { constrained = true })` uses the raw constraint path by default when no custom Lua table filter is provided. Non-enum argument values remain flexible.
 
 ## Tokenizer
 
