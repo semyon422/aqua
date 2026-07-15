@@ -362,6 +362,43 @@ local tool_text, tool_err = ctx:generate("weather in Paris", pretty_tools, {
 assert(tool_text ~= nil, tool_err and tool_err.message or "pretty tool-call generation failed")
 assert(tool_text:match('^%[%{"name":"get_weather"'), "pretty tools should generate a get_weather JSON call")
 
+local tok = assert(needle.load_tokenizer("build/tokenizer.ndltok"))
+local src_ids = ctx:build_encoder_input(tok, "weather in Paris", pretty_tools)
+local enc_out = assert(ctx:encode_tokens(src_ids))
+local constraints = assert(needle.build_tool_call_constraints(pretty_tools, tok, { eos_token_id = 1 }))
+local from_encoder_ids, from_encoder_err = ctx:generate_tokens_from_encoder(enc_out, #src_ids, { 1 }, {
+  max_new_tokens = 32,
+  eos_token_id = 1,
+  token_filter = constraints:token_filter(),
+})
+assert(from_encoder_ids ~= nil, from_encoder_err and from_encoder_err.message or "from-encoder generation failed")
+local encoder_state = assert(ctx:encode_tokens_state(src_ids))
+local state_constraints = assert(needle.build_tool_call_constraints(pretty_tools, tok, { eos_token_id = 1 }))
+local from_state_ids, from_state_err = ctx:generate_tokens_from_state(encoder_state, { 1 }, {
+  max_new_tokens = 32,
+  eos_token_id = 1,
+  token_filter = state_constraints:token_filter(),
+})
+assert(from_state_ids ~= nil, from_state_err and from_state_err.message or "from-state generation failed")
+encoder_state:close()
+local direct_constraints = assert(needle.build_tool_call_constraints(pretty_tools, tok, { eos_token_id = 1 }))
+local direct_ids = assert(ctx:generate_tokens(src_ids, { 1 }, {
+  max_new_tokens = 32,
+  eos_token_id = 1,
+  token_filter = direct_constraints:token_filter(),
+  use_cache = true,
+}))
+assert(#from_encoder_ids == #direct_ids, "from-encoder generation length mismatch")
+for i = 1, #direct_ids do
+  assert(from_encoder_ids[i] == direct_ids[i], ("from-encoder token mismatch at %d: %s vs %s"):format(
+    i, tostring(from_encoder_ids[i]), tostring(direct_ids[i])
+  ))
+  assert(from_state_ids[i] == direct_ids[i], ("from-state token mismatch at %d: %s vs %s"):format(
+    i, tostring(from_state_ids[i]), tostring(direct_ids[i])
+  ))
+end
+tok:close()
+
 ctx:close()
 print(("test_real_encoder_attention_golden.lua: ok max_diff=%.9g dec_max_diff=%.9g cross_max_diff=%.9g dec_block_max_diff=%.9g decoder_max_diff=%.9g block_max_diff=%.9g logits_max_diff=%.9g forward_max_diff=%.9g encoder_max_diff=%.9g"):format(
   max_diff, dec_max_diff, cross_max_diff, dec_block_max_diff, decoder_max_diff, block_max_diff, logits_max_diff, forward_max_diff, encoder_max_diff

@@ -56,6 +56,13 @@ struct needle_kv_cache {
     float *self_v;
 };
 
+struct needle_encoder_state {
+    needle_ctx *ctx;
+    int enc_len;
+    int d_model;
+    float *encoder_out;
+};
+
 static unsigned long long g_aligned_alloc_count = 0;
 static unsigned long long g_aligned_alloc_total_bytes = 0;
 static unsigned long long g_aligned_alloc_active_count = 0;
@@ -1067,13 +1074,17 @@ static int dense_project_layer_q8(
     size_t scale_base = (size_t)layer * (size_t)out_dim;
     for (int t = 0; t < seq_len; t++) {
         const float *src = x + (size_t)t * (size_t)in_dim;
-        for (int j = 0; j < out_dim; j++) {
-            double sum = 0.0;
-            for (int i = 0; i < in_dim; i++) {
-                int8_t qw = q_data[layer_base + (size_t)i * (size_t)out_dim + (size_t)j];
-                sum += (double)src[i] * (double)qw;
+        float *dst = out + (size_t)t * (size_t)out_dim;
+        memset(dst, 0, (size_t)out_dim * sizeof(float));
+        for (int i = 0; i < in_dim; i++) {
+            float xi = src[i];
+            const int8_t *q_row = q_data + layer_base + (size_t)i * (size_t)out_dim;
+            for (int j = 0; j < out_dim; j++) {
+                dst[j] += xi * (float)q_row[j];
             }
-            out[(size_t)t * (size_t)out_dim + (size_t)j] = (float)(sum * (double)scales[scale_base + (size_t)j]);
+        }
+        for (int j = 0; j < out_dim; j++) {
+            dst[j] *= scales[scale_base + (size_t)j];
         }
     }
     return 0;
@@ -2790,6 +2801,62 @@ done:
     return rc;
 }
 
+needle_encoder_state *needle_encoder_state_create(
+    needle_ctx *ctx,
+    const int *src_ids,
+    int src_len) {
+    if (!ctx) {
+        return NULL;
+    }
+    if (!ctx->loaded) {
+        set_error(ctx, NEEDLE_ERR_NOT_LOADED, "model is not loaded");
+        return NULL;
+    }
+    int d_model = ctx->config.d_model;
+    if (!src_ids || src_len <= 0 || d_model <= 0) {
+        set_error(ctx, NEEDLE_ERR_INVALID_ARGUMENT, "invalid encoder state arguments");
+        return NULL;
+    }
+    needle_encoder_state *state = (needle_encoder_state *)calloc(1, sizeof(needle_encoder_state));
+    if (!state) {
+        set_error(ctx, NEEDLE_ERR_OUT_OF_MEMORY, "out of memory while allocating encoder state");
+        return NULL;
+    }
+    state->encoder_out = alloc_floats((size_t)src_len * (size_t)d_model);
+    if (!state->encoder_out) {
+        free(state);
+        set_error(ctx, NEEDLE_ERR_OUT_OF_MEMORY, "out of memory while allocating encoder state");
+        return NULL;
+    }
+    int rc = needle_encode_tokens_f32(ctx, src_ids, src_len, state->encoder_out, src_len * d_model);
+    if (rc < 0) {
+        aligned_free(state->encoder_out);
+        free(state);
+        return NULL;
+    }
+    state->ctx = ctx;
+    state->enc_len = src_len;
+    state->d_model = d_model;
+    set_error(ctx, NEEDLE_OK, NULL);
+    return state;
+}
+
+void needle_encoder_state_free(needle_encoder_state *state) {
+    if (!state) {
+        return;
+    }
+    aligned_free(state->encoder_out);
+    free(state);
+}
+
+int needle_encoder_state_len(needle_encoder_state *state) {
+    return state ? state->enc_len : 0;
+}
+
+int needle_encoder_state_d_model(needle_encoder_state *state) {
+    return state ? state->d_model : 0;
+}
+
 needle_kv_cache *needle_kv_cache_create(needle_ctx *ctx, int max_tokens) {
     if (!ctx) {
         return NULL;
@@ -3204,10 +3271,10 @@ static int select_greedy_token(
     return NEEDLE_OK;
 }
 
-static int generate_tokens_greedy_cached_impl(
+static int generate_tokens_greedy_cached_from_encoder_impl(
     needle_ctx *ctx,
-    const int *src_ids,
-    int src_len,
+    const float *encoder,
+    int enc_len,
     const int *prompt_ids,
     int prompt_len,
     int max_new_tokens,
@@ -3228,7 +3295,7 @@ static int generate_tokens_greedy_cached_impl(
     int heads = ctx->config.num_heads;
     int kv_heads = ctx->config.num_kv_heads;
     int layers = ctx->config.num_decoder_layers;
-    if (!src_ids || !prompt_ids || !out_ids || src_len <= 0 || prompt_len <= 0 ||
+    if (!encoder || !prompt_ids || !out_ids || enc_len <= 0 || prompt_len <= 0 ||
         max_new_tokens < 0 || out_cap < prompt_len + max_new_tokens ||
         d_model <= 0 || vocab_size <= 0 || heads <= 0 || kv_heads <= 0 || layers <= 0 ||
         (d_model % heads) != 0 || (heads % kv_heads) != 0) {
@@ -3237,11 +3304,10 @@ static int generate_tokens_greedy_cached_impl(
     }
     int head_dim = d_model / heads;
     int kv_dim = kv_heads * head_dim;
-    size_t cross_layer_elems = (size_t)src_len * (size_t)kv_dim;
+    size_t cross_layer_elems = (size_t)enc_len * (size_t)kv_dim;
 
     int total_cap = prompt_len + max_new_tokens;
     int *tokens = (int *)malloc((size_t)total_cap * sizeof(int));
-    float *encoder = alloc_floats((size_t)src_len * (size_t)d_model);
     float *decoded = alloc_floats((size_t)d_model);
     float *step_cur = alloc_floats((size_t)d_model);
     float *step_next = alloc_floats((size_t)d_model);
@@ -3260,14 +3326,13 @@ static int generate_tokens_greedy_cached_impl(
     float *cross_v_cache = alloc_floats((size_t)layers * cross_layer_elems);
     float *logits = alloc_floats((size_t)vocab_size);
     int *allowed = filter ? (int *)malloc((size_t)vocab_size * sizeof(int)) : NULL;
-    if (!tokens || !encoder || !decoded || !step_cur || !step_next ||
+    if (!tokens || !decoded || !step_cur || !step_next ||
         !block_normed || !block_attn || !block_hidden ||
         !self_q || !self_k || !self_v || !self_ctx_out ||
         !cross_q || !cross_ctx_out ||
         !cross_k_cache || !cross_v_cache ||
         !logits || (filter && !allowed)) {
         free(tokens);
-        aligned_free(encoder);
         aligned_free(decoded);
         aligned_free(step_cur);
         aligned_free(step_next);
@@ -3293,11 +3358,7 @@ static int generate_tokens_greedy_cached_impl(
         tokens[i] = prompt_ids[i];
     }
 
-    int rc = needle_encode_tokens_f32(ctx, src_ids, src_len, encoder, src_len * d_model);
-    if (rc < 0) {
-        goto done_no_cache;
-    }
-    rc = precompute_decoder_cross_attention_kv(ctx, encoder, src_len, cross_k_cache, cross_v_cache);
+    int rc = precompute_decoder_cross_attention_kv(ctx, encoder, enc_len, cross_k_cache, cross_v_cache);
     if (rc < 0) {
         goto done_no_cache;
     }
@@ -3311,7 +3372,7 @@ static int generate_tokens_greedy_cached_impl(
 
     for (int i = 0; i < prompt_len; i++) {
         rc = decode_token_cached_step_impl(
-            ctx, cache, prompt_ids[i], encoder, src_len, decoded, d_model, step_cur, step_next,
+            ctx, cache, prompt_ids[i], encoder, enc_len, decoded, d_model, step_cur, step_next,
             block_normed, block_attn, block_hidden, self_q, self_k, self_v, self_ctx_out,
             cross_q, cross_k, cross_v, cross_ctx_out,
             cross_k_cache, cross_v_cache, cross_layer_elems);
@@ -3338,7 +3399,7 @@ static int generate_tokens_greedy_cached_impl(
         }
         if (step + 1 < max_new_tokens) {
             rc = decode_token_cached_step_impl(
-                ctx, cache, best_id, encoder, src_len, decoded, d_model, step_cur, step_next,
+                ctx, cache, best_id, encoder, enc_len, decoded, d_model, step_cur, step_next,
                 block_normed, block_attn, block_hidden, self_q, self_k, self_v, self_ctx_out,
                 cross_q, cross_k, cross_v, cross_ctx_out,
                 cross_k_cache, cross_v_cache, cross_layer_elems);
@@ -3359,7 +3420,6 @@ static int generate_tokens_greedy_cached_impl(
 
 done_no_cache:
     free(tokens);
-    aligned_free(encoder);
     aligned_free(decoded);
     aligned_free(step_cur);
     aligned_free(step_next);
@@ -3378,6 +3438,45 @@ done_no_cache:
     aligned_free(cross_v_cache);
     aligned_free(logits);
     free(allowed);
+    return rc;
+}
+
+static int generate_tokens_greedy_cached_impl(
+    needle_ctx *ctx,
+    const int *src_ids,
+    int src_len,
+    const int *prompt_ids,
+    int prompt_len,
+    int max_new_tokens,
+    int eos_token_id,
+    needle_token_filter_callback filter,
+    void *user_data,
+    int *out_ids,
+    int out_cap) {
+    if (!ctx) {
+        return NEEDLE_ERR_NULL_CONTEXT;
+    }
+    if (!ctx->loaded) {
+        set_error(ctx, NEEDLE_ERR_NOT_LOADED, "model is not loaded");
+        return NEEDLE_ERR_NOT_LOADED;
+    }
+    int d_model = ctx->config.d_model;
+    if (!src_ids || src_len <= 0 || d_model <= 0) {
+        set_error(ctx, NEEDLE_ERR_INVALID_ARGUMENT, "invalid cached greedy generation arguments");
+        return NEEDLE_ERR_INVALID_ARGUMENT;
+    }
+    float *encoder = alloc_floats((size_t)src_len * (size_t)d_model);
+    if (!encoder) {
+        set_error(ctx, NEEDLE_ERR_OUT_OF_MEMORY, "out of memory in cached greedy generation");
+        return NEEDLE_ERR_OUT_OF_MEMORY;
+    }
+    int rc = needle_encode_tokens_f32(ctx, src_ids, src_len, encoder, src_len * d_model);
+    if (rc >= 0) {
+        rc = generate_tokens_greedy_cached_from_encoder_impl(
+            ctx, encoder, src_len, prompt_ids, prompt_len, max_new_tokens, eos_token_id,
+            filter, user_data, out_ids, out_cap);
+    }
+    aligned_free(encoder);
     return rc;
 }
 
@@ -3410,6 +3509,46 @@ int needle_generate_tokens_greedy_cached_filtered(
     int out_cap) {
     return generate_tokens_greedy_cached_impl(
         ctx, src_ids, src_len, prompt_ids, prompt_len, max_new_tokens, eos_token_id,
+        filter, user_data, out_ids, out_cap);
+}
+
+int needle_generate_tokens_greedy_cached_from_encoder_filtered(
+    needle_ctx *ctx,
+    const float *encoder_out,
+    int enc_len,
+    const int *prompt_ids,
+    int prompt_len,
+    int max_new_tokens,
+    int eos_token_id,
+    needle_token_filter_callback filter,
+    void *user_data,
+    int *out_ids,
+    int out_cap) {
+    return generate_tokens_greedy_cached_from_encoder_impl(
+        ctx, encoder_out, enc_len, prompt_ids, prompt_len, max_new_tokens, eos_token_id,
+        filter, user_data, out_ids, out_cap);
+}
+
+int needle_generate_tokens_greedy_cached_from_state_filtered(
+    needle_ctx *ctx,
+    needle_encoder_state *state,
+    const int *prompt_ids,
+    int prompt_len,
+    int max_new_tokens,
+    int eos_token_id,
+    needle_token_filter_callback filter,
+    void *user_data,
+    int *out_ids,
+    int out_cap) {
+    if (!ctx || !state) {
+        return NEEDLE_ERR_NULL_CONTEXT;
+    }
+    if (state->ctx != ctx || !state->encoder_out || state->enc_len <= 0 || state->d_model != ctx->config.d_model) {
+        set_error(ctx, NEEDLE_ERR_INVALID_ARGUMENT, "invalid encoder state");
+        return NEEDLE_ERR_INVALID_ARGUMENT;
+    }
+    return generate_tokens_greedy_cached_from_encoder_impl(
+        ctx, state->encoder_out, state->enc_len, prompt_ids, prompt_len, max_new_tokens, eos_token_id,
         filter, user_data, out_ids, out_cap);
 }
 

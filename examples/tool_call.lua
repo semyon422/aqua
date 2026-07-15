@@ -74,19 +74,18 @@ local constraints = assert(needle.build_tool_call_constraints(compact_tools, tok
 
 needle.reset_memory_stats()
 local prefill_start = os.clock()
-assert(ctx:encode_tokens(src_ids))
+local encoder_state = assert(ctx:encode_tokens_state(src_ids))
 local prefill_sec = os.clock() - prefill_start
 local prefill_stats = needle.memory_stats()
 
 needle.reset_memory_stats()
 local generate_start = os.clock()
-local generated, gen_err = ctx:generate_tokens(src_ids, prompt_ids, {
+local generated, gen_err = ctx:generate_tokens_from_state(encoder_state, prompt_ids, {
   max_new_tokens = 32,
   eos_token_id = 1,
   token_filter = constraints:token_filter(),
-  use_cache = true,
 })
-local generate_sec = os.clock() - generate_start
+local decode_sec = os.clock() - generate_start
 local generate_stats = needle.memory_stats()
 
 if not generated then
@@ -110,12 +109,12 @@ if text:sub(1, 11) == "<tool_call>" then
 end
 
 tok:close()
+encoder_state:close()
 ctx:close()
 
-local decode_sec_est = math.max(0, generate_sec - prefill_sec)
 print(("prefill_sec: %.6f"):format(prefill_sec))
-print(("decode_sec_est: %.6f"):format(decode_sec_est))
-print(("total_generate_sec: %.6f"):format(generate_sec))
+print(("decode_sec: %.6f"):format(decode_sec))
+print(("total_sec: %.6f"):format(prefill_sec + decode_sec))
 print(("prefill_q8_projections: %d float_projections: %d q8_fallbacks: %d"):format(
   prefill_stats.dense_q8_projection_count,
   prefill_stats.dense_float_projection_count,

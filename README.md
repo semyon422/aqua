@@ -61,6 +61,19 @@ make example
 
 Generation runs the float32 encoder-decoder path with greedy decoding, optional KV cache, and Lua-side constrained decoding for tool-call JSON. Experimental int8 projection kernels are available through the q8 export path while keeping float fallback weights.
 
+For exact prefill/decode timing and reuse, create a C-owned encoder state:
+
+```lua
+local state = assert(ctx:encode_tokens_state(src_ids))
+local ids = assert(ctx:generate_tokens_from_state(state, { 1 }, {
+  max_new_tokens = 32,
+  token_filter = constraints:token_filter(),
+}))
+state:close()
+```
+
+`make example-tool` and `make example-tool-q8` print query/tools, prefill time, decode time, q8 dispatch counters, and output.
+
 ## Lua API
 
 ```lua
@@ -95,7 +108,7 @@ Errors are returned as tables:
 }
 ```
 
-The public C ABI is versioned with `needle_abi_version()`. Lua validates it on load and fails fast on ABI mismatch.
+The public C ABI is versioned with `needle_abi_version()`. Lua validates it on load and fails fast on ABI mismatch. Current ABI: `2`.
 
 Constrained token generation can restrict greedy argmax to valid token IDs:
 

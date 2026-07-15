@@ -15,7 +15,7 @@ extern "C" {
 #  define NEEDLE_API __attribute__((visibility("default")))
 #endif
 
-#define NEEDLE_ABI_VERSION 1
+#define NEEDLE_ABI_VERSION 2
 
 #define NEEDLE_OK 0
 #define NEEDLE_ERR_NULL_CONTEXT -1
@@ -36,6 +36,7 @@ extern "C" {
 
 typedef struct needle_ctx needle_ctx;
 typedef struct needle_kv_cache needle_kv_cache;
+typedef struct needle_encoder_state needle_encoder_state;
 typedef int (*needle_stream_callback)(const char *chunk, int chunk_len, void *user_data);
 typedef int (*needle_token_filter_callback)(
     int step,
@@ -190,6 +191,13 @@ NEEDLE_API int needle_forward_logits_f32(
     int tgt_len,
     float *out,
     int out_cap);
+NEEDLE_API needle_encoder_state *needle_encoder_state_create(
+    needle_ctx *ctx,
+    const int *src_ids,
+    int src_len);
+NEEDLE_API void needle_encoder_state_free(needle_encoder_state *state);
+NEEDLE_API int needle_encoder_state_len(needle_encoder_state *state);
+NEEDLE_API int needle_encoder_state_d_model(needle_encoder_state *state);
 NEEDLE_API needle_kv_cache *needle_kv_cache_create(needle_ctx *ctx, int max_tokens);
 NEEDLE_API void needle_kv_cache_free(needle_kv_cache *cache);
 NEEDLE_API int needle_kv_cache_reset(needle_kv_cache *cache);
@@ -236,6 +244,29 @@ NEEDLE_API int needle_generate_tokens_greedy_cached_filtered(
     needle_ctx *ctx,
     const int *src_ids,
     int src_len,
+    const int *prompt_ids,
+    int prompt_len,
+    int max_new_tokens,
+    int eos_token_id,
+    needle_token_filter_callback filter,
+    void *user_data,
+    int *out_ids,
+    int out_cap);
+NEEDLE_API int needle_generate_tokens_greedy_cached_from_encoder_filtered(
+    needle_ctx *ctx,
+    const float *encoder_out,
+    int enc_len,
+    const int *prompt_ids,
+    int prompt_len,
+    int max_new_tokens,
+    int eos_token_id,
+    needle_token_filter_callback filter,
+    void *user_data,
+    int *out_ids,
+    int out_cap);
+NEEDLE_API int needle_generate_tokens_greedy_cached_from_state_filtered(
+    needle_ctx *ctx,
+    needle_encoder_state *state,
     const int *prompt_ids,
     int prompt_len,
     int max_new_tokens,

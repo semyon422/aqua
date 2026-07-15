@@ -3,6 +3,7 @@ local ffi = require("ffi")
 ffi.cdef[[
 typedef struct needle_ctx needle_ctx;
 typedef struct needle_kv_cache needle_kv_cache;
+typedef struct needle_encoder_state needle_encoder_state;
 typedef struct needle_tokenizer needle_tokenizer;
 typedef int (*needle_token_filter_callback)(
   int step,
@@ -169,6 +170,10 @@ int needle_forward_logits_f32(
   float *out,
   int out_cap
 );
+needle_encoder_state *needle_encoder_state_create(needle_ctx *ctx, const int *src_ids, int src_len);
+void needle_encoder_state_free(needle_encoder_state *state);
+int needle_encoder_state_len(needle_encoder_state *state);
+int needle_encoder_state_d_model(needle_encoder_state *state);
 needle_kv_cache *needle_kv_cache_create(needle_ctx *ctx, int max_tokens);
 void needle_kv_cache_free(needle_kv_cache *cache);
 int needle_kv_cache_reset(needle_kv_cache *cache);
@@ -218,6 +223,31 @@ int needle_generate_tokens_greedy_cached_filtered(
   needle_ctx *ctx,
   const int *src_ids,
   int src_len,
+  const int *prompt_ids,
+  int prompt_len,
+  int max_new_tokens,
+  int eos_token_id,
+  needle_token_filter_callback filter,
+  void *user_data,
+  int *out_ids,
+  int out_cap
+);
+int needle_generate_tokens_greedy_cached_from_encoder_filtered(
+  needle_ctx *ctx,
+  const float *encoder_out,
+  int enc_len,
+  const int *prompt_ids,
+  int prompt_len,
+  int max_new_tokens,
+  int eos_token_id,
+  needle_token_filter_callback filter,
+  void *user_data,
+  int *out_ids,
+  int out_cap
+);
+int needle_generate_tokens_greedy_cached_from_state_filtered(
+  needle_ctx *ctx,
+  needle_encoder_state *state,
   const int *prompt_ids,
   int prompt_len,
   int max_new_tokens,
@@ -304,7 +334,7 @@ int needle_kernel_attention_f32(
 ]]
 
 local M = {}
-M.abi_version = 1
+M.abi_version = 2
 M.errors = {
   OK = 0,
   NULL_CONTEXT = -1,
@@ -375,6 +405,10 @@ end
 
 local Context = {}
 Context.__index = Context
+
+local EncoderState = {}
+EncoderState.__index = EncoderState
+local ensure_encoder_state_open
 
 local KVCache = {}
 KVCache.__index = KVCache
@@ -810,6 +844,48 @@ function Context:forward_logits(src_ids, tgt_ids, opts)
   return values
 end
 
+function ensure_encoder_state_open(self)
+  if self._state == nil then
+    error("needle encoder state is closed", 2)
+  end
+end
+
+function Context:encode_tokens_state(token_ids)
+  ensure_open(self)
+  local seq_len = #token_ids
+  local ids = ffi.new("int[?]", seq_len)
+  for i = 1, seq_len do ids[i - 1] = token_ids[i] end
+  local state = load_lib().needle_encoder_state_create(self._ctx, ids, seq_len)
+  if state == nil then
+    return nil, context_error(self)
+  end
+  return setmetatable({ _state = state }, EncoderState)
+end
+
+function EncoderState:info()
+  ensure_encoder_state_open(self)
+  local runtime = load_lib()
+  local enc_len = tonumber(runtime.needle_encoder_state_len(self._state))
+  local d_model = tonumber(runtime.needle_encoder_state_d_model(self._state))
+  return {
+    enc_len = enc_len,
+    d_model = d_model,
+    values = enc_len * d_model,
+    bytes = enc_len * d_model * 4,
+  }
+end
+
+function EncoderState:close()
+  if self._state ~= nil then
+    load_lib().needle_encoder_state_free(self._state)
+    self._state = nil
+  end
+end
+
+function EncoderState:__gc()
+  self:close()
+end
+
 function ensure_cache_open(self)
   if self._cache == nil then
     error("needle KV cache is closed", 2)
@@ -868,6 +944,46 @@ function KVCache:__gc()
   self:close()
 end
 
+local function make_token_filter_callback(opts)
+  if opts.allowed_token_ids_by_step == nil and opts.token_filter == nil then
+    return nil
+  end
+  return ffi.cast("needle_token_filter_callback", function(step, tokens, token_count, logits, vocab_size, allowed_ids, allowed_cap, _)
+    local step_index = tonumber(step) + 1
+    local allowed = opts.allowed_token_ids_by_step and opts.allowed_token_ids_by_step[step_index] or nil
+    if opts.token_filter ~= nil then
+      local lua_tokens = {}
+      for i = 0, tonumber(token_count) - 1 do
+        lua_tokens[#lua_tokens + 1] = tonumber(tokens[i])
+      end
+      local ok, filtered = pcall(opts.token_filter, step_index, lua_tokens, logits, tonumber(vocab_size))
+      if not ok then
+        return -1
+      end
+      if filtered ~= nil then
+        allowed = filtered
+      end
+    end
+    if allowed == nil then
+      return 0
+    end
+    local n = #allowed
+    if n <= 0 or n > tonumber(allowed_cap) then
+      return -1
+    end
+    for i = 1, n do
+      allowed_ids[i - 1] = allowed[i]
+    end
+    return n
+  end)
+end
+
+local function read_int_output(out, n)
+  local values = {}
+  for i = 0, n - 1 do values[#values + 1] = tonumber(out[i]) end
+  return values
+end
+
 function Context:generate_tokens(src_ids, prompt_ids, opts)
   ensure_open(self)
   opts = opts or {}
@@ -882,37 +998,9 @@ function Context:generate_tokens(src_ids, prompt_ids, opts)
   for i = 1, src_len do csrc[i - 1] = src_ids[i] end
   for i = 1, prompt_len do cprompt[i - 1] = prompt_ids[i] end
   local runtime = load_lib()
-  local cb
+  local cb = make_token_filter_callback(opts)
   local rc
-  if opts.allowed_token_ids_by_step ~= nil or opts.token_filter ~= nil then
-    cb = ffi.cast("needle_token_filter_callback", function(step, tokens, token_count, logits, vocab_size, allowed_ids, allowed_cap, _)
-      local step_index = tonumber(step) + 1
-      local allowed = opts.allowed_token_ids_by_step and opts.allowed_token_ids_by_step[step_index] or nil
-      if opts.token_filter ~= nil then
-        local lua_tokens = {}
-        for i = 0, tonumber(token_count) - 1 do
-          lua_tokens[#lua_tokens + 1] = tonumber(tokens[i])
-        end
-        local ok, filtered = pcall(opts.token_filter, step_index, lua_tokens, logits, tonumber(vocab_size))
-        if not ok then
-          return -1
-        end
-        if filtered ~= nil then
-          allowed = filtered
-        end
-      end
-      if allowed == nil then
-        return 0
-      end
-      local n = #allowed
-      if n <= 0 or n > tonumber(allowed_cap) then
-        return -1
-      end
-      for i = 1, n do
-        allowed_ids[i - 1] = allowed[i]
-      end
-      return n
-    end)
+  if cb ~= nil then
     if opts.use_cache then
       rc = runtime.needle_generate_tokens_greedy_cached_filtered(
         self._ctx, csrc, src_len, cprompt, prompt_len, max_new_tokens, eos_token_id, cb, nil, out, out_cap
@@ -937,9 +1025,59 @@ function Context:generate_tokens(src_ids, prompt_ids, opts)
   if rc < 0 then
     return nil, context_error(self, rc), rc
   end
-  local values = {}
-  for i = 0, rc - 1 do values[#values + 1] = tonumber(out[i]) end
-  return values
+  return read_int_output(out, rc)
+end
+
+function Context:generate_tokens_from_encoder(encoder_out, enc_len, prompt_ids, opts)
+  ensure_open(self)
+  opts = opts or {}
+  local max_new_tokens = opts.max_new_tokens or 16
+  local eos_token_id = opts.eos_token_id or 1
+  local cfg = assert(self:config(), "model config is unavailable")
+  local d_model = cfg.d_model
+  enc_len = enc_len or (#encoder_out / d_model)
+  if enc_len ~= math.floor(enc_len) then
+    return nil, error_table(M.errors.INVALID_ARGUMENT, "invalid encoder length"), M.errors.INVALID_ARGUMENT
+  end
+  local prompt_len = #prompt_ids
+  local enc_n = enc_len * d_model
+  local cenc = ffi.new("float[?]", enc_n)
+  local cprompt = ffi.new("int[?]", prompt_len)
+  local out_cap = prompt_len + max_new_tokens
+  local out = ffi.new("int[?]", out_cap)
+  for i = 1, enc_n do cenc[i - 1] = encoder_out[i] or 0 end
+  for i = 1, prompt_len do cprompt[i - 1] = prompt_ids[i] end
+  local cb = make_token_filter_callback(opts)
+  local rc = load_lib().needle_generate_tokens_greedy_cached_from_encoder_filtered(
+    self._ctx, cenc, enc_len, cprompt, prompt_len, max_new_tokens, eos_token_id, cb, nil, out, out_cap
+  )
+  if cb ~= nil then cb:free() end
+  if rc < 0 then
+    return nil, context_error(self, rc), rc
+  end
+  return read_int_output(out, rc)
+end
+
+function Context:generate_tokens_from_state(state, prompt_ids, opts)
+  ensure_open(self)
+  ensure_encoder_state_open(state)
+  opts = opts or {}
+  local max_new_tokens = opts.max_new_tokens or 16
+  local eos_token_id = opts.eos_token_id or 1
+  local prompt_len = #prompt_ids
+  local cprompt = ffi.new("int[?]", prompt_len)
+  local out_cap = prompt_len + max_new_tokens
+  local out = ffi.new("int[?]", out_cap)
+  for i = 1, prompt_len do cprompt[i - 1] = prompt_ids[i] end
+  local cb = make_token_filter_callback(opts)
+  local rc = load_lib().needle_generate_tokens_greedy_cached_from_state_filtered(
+    self._ctx, state._state, cprompt, prompt_len, max_new_tokens, eos_token_id, cb, nil, out, out_cap
+  )
+  if cb ~= nil then cb:free() end
+  if rc < 0 then
+    return nil, context_error(self, rc), rc
+  end
+  return read_int_output(out, rc)
 end
 
 local function append_all(dst, src)
