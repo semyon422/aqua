@@ -221,6 +221,24 @@ local callback_constrained, callback_err = ctx:generate_tokens(generation_src, g
 assert(callback_constrained ~= nil, callback_err and callback_err.message or "callback constrained generation failed")
 assert(callback_constrained[2] == 1 and callback_constrained[3] == 0, "token_filter was not enforced")
 
+local raw_callback_constrained, raw_callback_err = ctx:generate_tokens(generation_src, generation_prompt, {
+  max_new_tokens = 2,
+  eos_token_id = -1,
+  token_filter_raw = function(step, tokens, token_count, logits, vocab_size)
+    assert(vocab_size == 2, "raw filter vocab size mismatch")
+    assert(token_count == step, "raw filter token history mismatch")
+    assert(tonumber(tokens[0]) == generation_prompt[1], "raw filter prompt token mismatch")
+    assert(logits[0] ~= nil and logits[1] ~= nil, "raw filter logits unavailable")
+    if step == 1 then
+      return { 1 }
+    end
+    assert(tonumber(tokens[1]) == 1, "raw filter generated token mismatch")
+    return { 0 }
+  end,
+})
+assert(raw_callback_constrained ~= nil, raw_callback_err and raw_callback_err.message or "raw callback constrained generation failed")
+assert(raw_callback_constrained[2] == 1 and raw_callback_constrained[3] == 0, "token_filter_raw was not enforced")
+
 local fake_tokenizer = {}
 function fake_tokenizer:encode(text)
   if text == "q" then return { 0 } end

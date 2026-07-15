@@ -945,12 +945,21 @@ function KVCache:__gc()
 end
 
 local function make_token_filter_callback(opts)
-  if opts.allowed_token_ids_by_step == nil and opts.token_filter == nil then
+  if opts.allowed_token_ids_by_step == nil and opts.token_filter == nil and opts.token_filter_raw == nil then
     return nil
   end
   return ffi.cast("needle_token_filter_callback", function(step, tokens, token_count, logits, vocab_size, allowed_ids, allowed_cap, _)
     local step_index = tonumber(step) + 1
     local allowed = opts.allowed_token_ids_by_step and opts.allowed_token_ids_by_step[step_index] or nil
+    if opts.token_filter_raw ~= nil then
+      local ok, filtered = pcall(opts.token_filter_raw, step_index, tokens, tonumber(token_count), logits, tonumber(vocab_size))
+      if not ok then
+        return -1
+      end
+      if filtered ~= nil then
+        allowed = filtered
+      end
+    end
     if opts.token_filter ~= nil then
       local lua_tokens = {}
       for i = 0, tonumber(token_count) - 1 do
@@ -1517,6 +1526,13 @@ function ToolCallConstraints:sync(tokens)
   self._seen = #tokens
 end
 
+function ToolCallConstraints:sync_c(tokens, token_count)
+  for i = self._seen, token_count - 1 do
+    self:feed_token(tonumber(tokens[i]))
+  end
+  self._seen = token_count
+end
+
 function ToolCallConstraints:allowed_token_ids()
   local st = self._state
   if st.completed then
@@ -1568,6 +1584,13 @@ end
 function ToolCallConstraints:token_filter()
   return function(_, tokens)
     self:sync(tokens)
+    return self:allowed_token_ids()
+  end
+end
+
+function ToolCallConstraints:token_filter_raw()
+  return function(_, tokens, token_count)
+    self:sync_c(tokens, tonumber(token_count))
     return self:allowed_token_ids()
   end
 end
@@ -1626,6 +1649,7 @@ function Context:generate(query, tools_json, opts)
   local max_new_tokens = opts.max_new_tokens or 64
   local eos_token_id = opts.eos_token_id or 1
   local token_filter = opts.token_filter
+  local token_filter_raw = opts.token_filter_raw
   if opts.constrained then
     local constraints, constraint_err, constraint_rc = M.build_tool_call_constraints(tools_json or "[]", tokenizer, {
       eos_token_id = eos_token_id,
@@ -1634,8 +1658,8 @@ function Context:generate(query, tools_json, opts)
       if owns_tokenizer then tokenizer:close() end
       return nil, constraint_err, constraint_rc
     end
-    local constraint_filter = constraints:token_filter()
     if token_filter ~= nil then
+      local constraint_filter = constraints:token_filter()
       local user_filter = token_filter
       token_filter = function(step, tokens, logits, vocab_size)
         local a = constraint_filter(step, tokens, logits, vocab_size)
@@ -1650,14 +1674,31 @@ function Context:generate(query, tools_json, opts)
         end
         return #both > 0 and both or nil
       end
+    elseif token_filter_raw ~= nil then
+      local constraint_filter_raw = constraints:token_filter_raw()
+      local user_filter_raw = token_filter_raw
+      token_filter_raw = function(step, tokens, token_count, logits, vocab_size)
+        local a = constraint_filter_raw(step, tokens, token_count, logits, vocab_size)
+        local b = user_filter_raw(step, tokens, token_count, logits, vocab_size)
+        if a == nil then return b end
+        if b == nil then return a end
+        local seen = {}
+        for _, id in ipairs(a) do seen[id] = true end
+        local both = {}
+        for _, id in ipairs(b) do
+          if seen[id] then both[#both + 1] = id end
+        end
+        return #both > 0 and both or nil
+      end
     else
-      token_filter = constraint_filter
+      token_filter_raw = constraints:token_filter_raw()
     end
   end
   local generated, gen_err, rc = self:generate_tokens(src_ids, prompt_ids, {
     max_new_tokens = max_new_tokens,
     eos_token_id = eos_token_id,
     token_filter = token_filter,
+    token_filter_raw = token_filter_raw,
     use_cache = opts.use_cache,
   })
   if not generated then

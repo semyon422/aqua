@@ -83,7 +83,7 @@ local generate_start = os.clock()
 local generated, gen_err = ctx:generate_tokens_from_state(encoder_state, prompt_ids, {
   max_new_tokens = 32,
   eos_token_id = 1,
-  token_filter = constraints:token_filter(),
+  token_filter_raw = constraints:token_filter_raw(),
 })
 local decode_sec = os.clock() - generate_start
 local generate_stats = needle.memory_stats()

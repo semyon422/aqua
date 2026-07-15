@@ -377,7 +377,7 @@ local state_constraints = assert(needle.build_tool_call_constraints(pretty_tools
 local from_state_ids, from_state_err = ctx:generate_tokens_from_state(encoder_state, { 1 }, {
   max_new_tokens = 32,
   eos_token_id = 1,
-  token_filter = state_constraints:token_filter(),
+  token_filter_raw = state_constraints:token_filter_raw(),
 })
 assert(from_state_ids ~= nil, from_state_err and from_state_err.message or "from-state generation failed")
 encoder_state:close()

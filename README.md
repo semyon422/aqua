@@ -67,7 +67,7 @@ For exact prefill/decode timing and reuse, create a C-owned encoder state:
 local state = assert(ctx:encode_tokens_state(src_ids))
 local ids = assert(ctx:generate_tokens_from_state(state, { 1 }, {
   max_new_tokens = 32,
-  token_filter = constraints:token_filter(),
+  token_filter_raw = constraints:token_filter_raw(),
 }))
 state:close()
 ```
@@ -122,17 +122,17 @@ local ids = assert(ctx:generate_tokens({ 10, 5, 20 }, { 1 }, {
 }))
 ```
 
-For dynamic constraints, pass `token_filter(step, tokens, logits, vocab_size)` and return a Lua array of allowed token IDs. Returning `nil` leaves that step unconstrained.
+For dynamic constraints, pass `token_filter(step, tokens, logits, vocab_size)` and return a Lua array of allowed token IDs. Returning `nil` leaves that step unconstrained. For hot paths, `token_filter_raw(step, tokens, token_count, logits, vocab_size)` receives the C token pointer directly and avoids allocating a Lua token-history table for every decode step.
 
 Tool-call constraints can also be built directly:
 
 ```lua
 local tok = assert(needle.load_tokenizer("build/tokenizer.ndltok"))
 local constraints = assert(needle.build_tool_call_constraints(tools_json, tok))
-local filter = constraints:token_filter()
+local filter = constraints:token_filter_raw()
 ```
 
-The built-in tool-call constraint layer tracks compact JSON output, restricts `"name"` values to known tool names and argument keys to that tool's `parameters` keys, and forces EOS after a complete top-level JSON array. Argument values remain unconstrained.
+The built-in tool-call constraint layer tracks compact JSON output, restricts `"name"` values to known tool names and argument keys to that tool's `parameters` keys, and forces EOS after a complete top-level JSON array. `ctx:generate(..., { constrained = true })` uses the raw constraint path by default when no custom Lua table filter is provided. Argument values remain unconstrained.
 
 ## Tokenizer
 
