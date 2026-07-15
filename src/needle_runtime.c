@@ -1029,6 +1029,79 @@ static int zcrmsnorm_model_final_inplace(float *x, int seq_len, int d_model, con
 
 static needle_tensor *find_tensor_ptr(needle_ctx *ctx, const char *name);
 
+static void q8_project_row_scalar(
+    const float *src,
+    float *dst,
+    const int8_t *q_data,
+    const float *scales,
+    size_t layer_base,
+    size_t scale_base,
+    int in_dim,
+    int out_dim) {
+    memset(dst, 0, (size_t)out_dim * sizeof(float));
+    for (int i = 0; i < in_dim; i++) {
+        float xi = src[i];
+        const int8_t *q_row = q_data + layer_base + (size_t)i * (size_t)out_dim;
+        for (int j = 0; j < out_dim; j++) {
+            dst[j] += xi * (float)q_row[j];
+        }
+    }
+    for (int j = 0; j < out_dim; j++) {
+        dst[j] *= scales[scale_base + (size_t)j];
+    }
+}
+
+#if (defined(__x86_64__) || defined(__i386__)) && (defined(__GNUC__) || defined(__clang__))
+__attribute__((target("avx2,fma")))
+static void q8_project_row_avx2_fma(
+    const float *src,
+    float *dst,
+    const int8_t *q_data,
+    const float *scales,
+    size_t layer_base,
+    size_t scale_base,
+    int in_dim,
+    int out_dim) {
+    int j = 0;
+    for (; j + 8 <= out_dim; j += 8) {
+        __m256 acc = _mm256_setzero_ps();
+        for (int i = 0; i < in_dim; i++) {
+            __m128i q8 = _mm_loadl_epi64((const __m128i *)(q_data + layer_base + (size_t)i * (size_t)out_dim + (size_t)j));
+            __m256 qf = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(q8));
+            __m256 xv = _mm256_set1_ps(src[i]);
+            acc = _mm256_fmadd_ps(xv, qf, acc);
+        }
+        __m256 sv = _mm256_loadu_ps(scales + scale_base + (size_t)j);
+        _mm256_storeu_ps(dst + j, _mm256_mul_ps(acc, sv));
+    }
+    for (; j < out_dim; j++) {
+        float sum = 0.0f;
+        for (int i = 0; i < in_dim; i++) {
+            sum += src[i] * (float)q_data[layer_base + (size_t)i * (size_t)out_dim + (size_t)j];
+        }
+        dst[j] = sum * scales[scale_base + (size_t)j];
+    }
+}
+#endif
+
+static void q8_project_row(
+    const float *src,
+    float *dst,
+    const int8_t *q_data,
+    const float *scales,
+    size_t layer_base,
+    size_t scale_base,
+    int in_dim,
+    int out_dim) {
+#if (defined(__x86_64__) || defined(__i386__)) && (defined(__GNUC__) || defined(__clang__))
+    if (cpu_has_avx2_fma() && out_dim >= 8) {
+        q8_project_row_avx2_fma(src, dst, q_data, scales, layer_base, scale_base, in_dim, out_dim);
+        return;
+    }
+#endif
+    q8_project_row_scalar(src, dst, q_data, scales, layer_base, scale_base, in_dim, out_dim);
+}
+
 static int dense_project_layer_q8(
     needle_ctx *ctx,
     const float *x,
@@ -1075,17 +1148,7 @@ static int dense_project_layer_q8(
     for (int t = 0; t < seq_len; t++) {
         const float *src = x + (size_t)t * (size_t)in_dim;
         float *dst = out + (size_t)t * (size_t)out_dim;
-        memset(dst, 0, (size_t)out_dim * sizeof(float));
-        for (int i = 0; i < in_dim; i++) {
-            float xi = src[i];
-            const int8_t *q_row = q_data + layer_base + (size_t)i * (size_t)out_dim;
-            for (int j = 0; j < out_dim; j++) {
-                dst[j] += xi * (float)q_row[j];
-            }
-        }
-        for (int j = 0; j < out_dim; j++) {
-            dst[j] *= scales[scale_base + (size_t)j];
-        }
+        q8_project_row(src, dst, q_data, scales, layer_base, scale_base, in_dim, out_dim);
     }
     return 0;
 }

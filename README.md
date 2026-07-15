@@ -200,7 +200,7 @@ BENCH_ITERS=5 BENCH_MAX_NEW=8 make bench-profile
 
 The runtime returns structured errors for malformed model files, including invalid magic, truncated headers, unsupported format versions, invalid tensor dtypes, and trailing bytes. These cases are covered by `tests/test_loader_errors.lua`.
 
-CPU-specific acceleration is optional. On x86 builds with GCC/Clang, AVX2/FMA kernels are selected at runtime only when the CPU reports support; otherwise scalar fallback code is used. The shared library remains dependency-free by default.
+CPU-specific acceleration is optional. On x86 builds with GCC/Clang, AVX2/FMA kernels are selected at runtime only when the CPU reports support; otherwise scalar fallback code is used. This includes float dot/projection helpers and q8 projection kernels. The shared library remains dependency-free by default.
 
 The v1 runtime is intentionally single-threaded. It does not create worker threads or own a global thread pool; applications that need parallelism should run independent model/context handles in their own LuaJIT workers or host threads. Do not share one context or KV cache across concurrent calls without external synchronization.
 
