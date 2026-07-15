@@ -108,7 +108,7 @@ Errors are returned as tables:
 }
 ```
 
-The public C ABI is versioned with `needle_abi_version()`. Lua validates it on load and fails fast on ABI mismatch. Current ABI: `2`.
+The public C ABI is versioned with `needle_abi_version()`. Lua validates it on load and fails fast on ABI mismatch. Current ABI: `3`.
 
 Constrained token generation can restrict greedy argmax to valid token IDs:
 
@@ -233,9 +233,9 @@ make bench-q8-quality
 
 `tests/test_memory_stats.lua` exercises model load, encode/decode, uncached generation, cached generation, and explicit KV cache lifecycle, then verifies that runtime aligned allocations return to their baseline after handles are closed. This guards the runtime scratch/KV/tensor-cache allocator; external tools such as ASan or Valgrind can still be layered on top for full process leak checks.
 
-`needle.memory_stats()` also reports dense projection dispatch counters:
-`dense_q8_projection_count`, `dense_float_projection_count`, and `dense_q8_fallback_count`.
-Use these in production smoke checks to confirm an int8 model is actually running q8 kernels instead of silently falling back to float.
+`needle.memory_stats()` also reports dense and output projection dispatch counters:
+`dense_q8_projection_count`, `dense_float_projection_count`, `dense_q8_fallback_count`, `output_q8_projection_count`, `output_float_projection_count`, and `output_q8_fallback_count`.
+Use these in production smoke checks to confirm an int8 model is actually running q8 kernels and q8 output logits instead of silently falling back to float.
 
 ## Packaging
 

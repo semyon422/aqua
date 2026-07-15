@@ -47,6 +47,9 @@ unsigned long long needle_runtime_aligned_alloc_peak_bytes(void);
 unsigned long long needle_runtime_dense_q8_projection_count(void);
 unsigned long long needle_runtime_dense_float_projection_count(void);
 unsigned long long needle_runtime_dense_q8_fallback_count(void);
+unsigned long long needle_runtime_output_q8_projection_count(void);
+unsigned long long needle_runtime_output_float_projection_count(void);
+unsigned long long needle_runtime_output_q8_fallback_count(void);
 
 needle_ctx *needle_load(const char *model_path);
 void needle_free(needle_ctx *ctx);
@@ -334,7 +337,7 @@ int needle_kernel_attention_f32(
 ]]
 
 local M = {}
-M.abi_version = 2
+M.abi_version = 3
 M.errors = {
   OK = 0,
   NULL_CONTEXT = -1,
@@ -400,6 +403,9 @@ function M.memory_stats()
     dense_q8_projection_count = tonumber(runtime.needle_runtime_dense_q8_projection_count()),
     dense_float_projection_count = tonumber(runtime.needle_runtime_dense_float_projection_count()),
     dense_q8_fallback_count = tonumber(runtime.needle_runtime_dense_q8_fallback_count()),
+    output_q8_projection_count = tonumber(runtime.needle_runtime_output_q8_projection_count()),
+    output_float_projection_count = tonumber(runtime.needle_runtime_output_float_projection_count()),
+    output_q8_fallback_count = tonumber(runtime.needle_runtime_output_q8_fallback_count()),
   }
 end
 

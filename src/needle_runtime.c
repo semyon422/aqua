@@ -71,6 +71,9 @@ static unsigned long long g_aligned_alloc_peak_bytes = 0;
 static unsigned long long g_dense_q8_projection_count = 0;
 static unsigned long long g_dense_float_projection_count = 0;
 static unsigned long long g_dense_q8_fallback_count = 0;
+static unsigned long long g_output_q8_projection_count = 0;
+static unsigned long long g_output_float_projection_count = 0;
+static unsigned long long g_output_q8_fallback_count = 0;
 
 static void set_error(needle_ctx *ctx, int code, const char *message) {
     if (!ctx) {
@@ -735,6 +738,9 @@ void needle_runtime_reset_memory_stats(void) {
     g_dense_q8_projection_count = 0;
     g_dense_float_projection_count = 0;
     g_dense_q8_fallback_count = 0;
+    g_output_q8_projection_count = 0;
+    g_output_float_projection_count = 0;
+    g_output_q8_fallback_count = 0;
 }
 
 unsigned long long needle_runtime_aligned_alloc_count(void) {
@@ -767,6 +773,18 @@ unsigned long long needle_runtime_dense_float_projection_count(void) {
 
 unsigned long long needle_runtime_dense_q8_fallback_count(void) {
     return g_dense_q8_fallback_count;
+}
+
+unsigned long long needle_runtime_output_q8_projection_count(void) {
+    return g_output_q8_projection_count;
+}
+
+unsigned long long needle_runtime_output_float_projection_count(void) {
+    return g_output_float_projection_count;
+}
+
+unsigned long long needle_runtime_output_q8_fallback_count(void) {
+    return g_output_q8_fallback_count;
 }
 
 needle_ctx *needle_load(const char *model_path) {
@@ -1596,6 +1614,7 @@ int needle_output_projection_f32(
 
     int q8_rc = output_projection_q8_embedding(ctx, x, seq_len, d_model, vocab_size, out);
     if (q8_rc == 0) {
+        g_output_q8_projection_count++;
         set_error(ctx, NEEDLE_OK, NULL);
         return seq_len * vocab_size;
     }
@@ -1603,6 +1622,8 @@ int needle_output_projection_f32(
         set_error(ctx, NEEDLE_ERR_FORMAT, "embedding q8 tensor shape is invalid for output projection");
         return NEEDLE_ERR_FORMAT;
     }
+    g_output_q8_fallback_count++;
+    g_output_float_projection_count++;
 
     float *embedding_f32 = tensor_f32_data(embedding);
     if (embedding_f32) {

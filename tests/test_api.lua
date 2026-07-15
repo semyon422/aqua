@@ -28,6 +28,9 @@ assert(stats.aligned_alloc_peak_bytes >= stats.aligned_alloc_current_bytes, "pea
 assert(stats.dense_q8_projection_count == 0, "reset should clear q8 projection count")
 assert(stats.dense_float_projection_count == 0, "reset should clear float projection count")
 assert(stats.dense_q8_fallback_count == 0, "reset should clear q8 fallback count")
+assert(stats.output_q8_projection_count == 0, "reset should clear output q8 projection count")
+assert(stats.output_float_projection_count == 0, "reset should clear output float projection count")
+assert(stats.output_q8_fallback_count == 0, "reset should clear output q8 fallback count")
 
 local ok_ctx = assert(needle.load("build/test-model.ndl"))
 local missing = ok_ctx:find_tensor("missing/tensor")

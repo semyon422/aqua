@@ -58,14 +58,25 @@ end
 assert(max_diff <= 0.3, ("q8 encoder max diff %.9g exceeds tolerance"):format(max_diff))
 
 local prompt = { 1 }
+needle.reset_memory_stats()
 local float_tokens = assert(float_ctx:generate_tokens(src, prompt, {
   max_new_tokens = 4,
   use_cache = true,
 }))
+local float_gen_stats = needle.memory_stats()
+assert(float_gen_stats.output_q8_projection_count == 0, "float model should not use q8 output projection")
+assert(float_gen_stats.output_float_projection_count > 0, "float model should use float output projection")
+assert(float_gen_stats.output_q8_fallback_count == float_gen_stats.output_float_projection_count, "float output fallback count should match float projection count")
+
+needle.reset_memory_stats()
 local q8_tokens = assert(q8_ctx:generate_tokens(src, prompt, {
   max_new_tokens = 4,
   use_cache = true,
 }))
+local q8_gen_stats = needle.memory_stats()
+assert(q8_gen_stats.output_q8_projection_count > 0, "q8 model should use q8 output projection")
+assert(q8_gen_stats.output_float_projection_count == 0, "q8 model should not use float output projection")
+assert(q8_gen_stats.output_q8_fallback_count == 0, "q8 model should not fall back for output projection")
 assert(same(float_tokens, q8_tokens), "q8 cached generation IDs should match float smoke case")
 
 q8_ctx:close()

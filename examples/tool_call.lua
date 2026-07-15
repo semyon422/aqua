@@ -125,5 +125,10 @@ print(("generate_q8_projections: %d float_projections: %d q8_fallbacks: %d"):for
   generate_stats.dense_float_projection_count,
   generate_stats.dense_q8_fallback_count
 ))
+print(("generate_output_q8: %d output_float: %d output_q8_fallbacks: %d"):format(
+  generate_stats.output_q8_projection_count,
+  generate_stats.output_float_projection_count,
+  generate_stats.output_q8_fallback_count
+))
 print("output:")
 print(text)
