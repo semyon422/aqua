@@ -18,7 +18,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Keep reusable websocket transport policy injectable: callers may pass operation timeout and LuaSec SSL parameters through `web.ws.util` / `WebsocketConnection`, while `aqua/web` does not choose application CA paths or verification policy.
 - For scheduler-backed websocket clients, use the ordinary socket timeout for connect and handshake, then switch the long-lived reader to `read_timeout` (default `nil`) so idle websocket connections do not reconnect just because no frame arrived during the connect timeout window.
 - Keep reusable HTTP client transport policy injectable through `web.http.util` as well, using the same scheduler, timeout, TCP socket, SSL parameter, and resolved connect-host concepts as websocket clients.
-- Use the existing `ExtendedSocket.cosocket` and `TcpUpdater` behavior as prior art, but extend the design for client-side `connect`, SSL handshakes, timers, cancellation, and multiple wait states.
+- Treat the removed `TcpUpdater` server prototype and existing `ExtendedSocket.cosocket` behavior as historical prior art. New LuaSocket server work should use `CosocketScheduler` instead of reviving the old updater path.
 - Use Copas as an implementation reference for nonblocking LuaSocket edge cases:
   - async `connect` waits on write readiness and retries until connected or failed;
   - LuaSec `dohandshake` may alternate between `wantread` and `wantwrite`;
@@ -83,7 +83,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 
 ## Future Work and Open Questions
 
-- Add a scheduler-backed LuaSocket server/accept adapter that reuses `CosocketScheduler`, runs each accepted client handler as a detached coroutine, and replaces the older `TcpUpdater` prototype with the same timers/cancel/cleanup semantics as client cosockets.
+- Add a scheduler-backed LuaSocket server/accept adapter that reuses `CosocketScheduler`, runs each accepted client handler as a detached coroutine, and uses the same timers/cancel/cleanup semantics as client cosockets.
 - Decide whether the scheduler should be per-client object, shared singleton, or explicitly injected into each cosocket.
 - Decide whether `delay` should remain separate from web timers or whether a small timer primitive belongs in the cosocket scheduler.
 - Decide how to expose DNS resolution without coupling `aqua/web` to LÖVE thread APIs.
@@ -112,3 +112,4 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added `web.http.HttpStream` for lower-level streaming requests that need to upload and download concurrently on the same connection.
 - Added `HttpStream:cancel(err)` and an `on_close` hook so owners can explicitly stop long-running transfers and unregister streams.
 - Verified the scheduler manually with global `coext.export()` enabled.
+- Removed the old LuaSocket server/TcpUpdater prototype so the future server path is documented without keeping unsupported code around.
