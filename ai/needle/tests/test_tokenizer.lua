@@ -89,6 +89,13 @@ local timer_key_allowed = as_set(assert(constraints:allowed_token_ids()))
 assert(timer_key_allowed[token_id_for_text("minutes")], "set_timer should allow minutes key")
 assert(not timer_key_allowed[token_id_for_text("location")], "set_timer should reject get_weather key")
 
+local reordered_tools_json = '[{"parameters":{"type":"object","properties":{"rate":{"type":"number"}},"required":["rate"]},"name":"set_playback_rate"},{"parameters":{"type":"object","properties":{"mode":{"type":"string","enum":["save"]}},"required":["mode"]},"name":"capture_screenshot"}]'
+constraints = assert(needle.build_tool_call_constraints(reordered_tools_json, tok))
+constraints:sync(assert(tok:encode('[{"name":"set_playback_rate","arguments":{"')))
+local reordered_key_allowed = as_set(assert(constraints:allowed_token_ids()))
+assert(reordered_key_allowed[token_id_for_text("rate")], "tool constraints should not depend on object field order")
+assert(not reordered_key_allowed[token_id_for_text("mode")], "field order should not associate parameters with the next tool")
+
 constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
 constraints:sync(assert(tok:encode('[{"name":"get_weather","arguments":{"location":"Paris"}}]')))
 local done_allowed = assert(constraints:allowed_token_ids())
@@ -124,6 +131,14 @@ constraints:sync(assert(tok:encode('[{"name":"get_weather","arguments":{"locatio
 local all_required_allowed = assert(constraints:allowed_token_ids())
 assert(has_token_start(all_required_allowed, "}"), "all required keys should allow object close")
 assert(not has_token_start(all_required_allowed, ","), "no remaining keys should reject trailing comma")
+
+constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
+constraints:sync(assert(tok:encode('[{"name":"set_timer","arguments":{"minutes":')))
+local number_start_allowed = as_set(assert(constraints:allowed_token_ids()))
+local number_comma_id = token_id_for_text("5,")
+if number_comma_id then
+  assert(not number_start_allowed[number_comma_id], "number tokens should not cross into an unchecked delimiter")
+end
 
 constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
 constraints:sync(assert(tok:encode('[{"name":"set_timer","arguments":{"minutes":5')))
