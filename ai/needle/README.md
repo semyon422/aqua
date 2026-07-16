@@ -122,7 +122,7 @@ Errors are returned as tables:
 }
 ```
 
-The public C ABI is versioned with `needle_abi_version()`. Lua validates it on load and fails fast on ABI mismatch. Current ABI: `4`.
+The public C ABI is versioned with `needle_abi_version()`. Lua validates it on load and fails fast on ABI mismatch. Current ABI: `5`.
 
 Constrained token generation can restrict greedy argmax to valid token IDs:
 

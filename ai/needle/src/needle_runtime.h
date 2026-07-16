@@ -15,7 +15,7 @@ extern "C" {
 #  define NEEDLE_API __attribute__((visibility("default")))
 #endif
 
-#define NEEDLE_ABI_VERSION 4
+#define NEEDLE_ABI_VERSION 5
 
 #define NEEDLE_OK 0
 #define NEEDLE_ERR_NULL_CONTEXT -1
@@ -37,6 +37,7 @@ extern "C" {
 typedef struct needle_ctx needle_ctx;
 typedef struct needle_kv_cache needle_kv_cache;
 typedef struct needle_encoder_state needle_encoder_state;
+typedef struct needle_tokenizer needle_tokenizer;
 typedef int (*needle_stream_callback)(const char *chunk, int chunk_len, void *user_data);
 typedef int (*needle_token_callback)(
     int token_id,
@@ -99,6 +100,7 @@ NEEDLE_API int needle_is_loaded(needle_ctx *ctx);
 NEEDLE_API unsigned long long needle_tensor_count(needle_ctx *ctx);
 NEEDLE_API unsigned long long needle_tensor_data_bytes(needle_ctx *ctx);
 NEEDLE_API unsigned long long needle_tokenizer_bytes(needle_ctx *ctx);
+NEEDLE_API needle_tokenizer *needle_tokenizer_from_context(needle_ctx *ctx);
 NEEDLE_API const char *needle_metadata_json(needle_ctx *ctx);
 NEEDLE_API const needle_config *needle_get_config(needle_ctx *ctx);
 NEEDLE_API const char *needle_tensor_name(needle_ctx *ctx, unsigned long long index);

@@ -300,6 +300,7 @@ int needle_generate_stream(
 );
 
 needle_tokenizer *needle_tokenizer_load(const char *path);
+needle_tokenizer *needle_tokenizer_from_context(needle_ctx *ctx);
 void needle_tokenizer_free(needle_tokenizer *tok);
 const char *needle_tokenizer_last_error(needle_tokenizer *tok);
 int needle_tokenizer_last_error_code(needle_tokenizer *tok);
@@ -358,7 +359,7 @@ int needle_kernel_attention_f32(
 ]]
 
 local M = {}
-M.abi_version = 4
+M.abi_version = 5
 M.errors = {
   OK = 0,
   NULL_CONTEXT = -1,
@@ -393,7 +394,7 @@ for name, code in pairs(M.errors) do
   error_names[code] = name
 end
 
-local default_lib_name = package.config:sub(1, 1) == "\\" and "needle_runtime" or "./build/libneedle_runtime.so"
+local default_lib_name = "needle_runtime"
 
 local lib
 
@@ -2182,6 +2183,20 @@ function Context:close()
     load_lib().needle_free(self._ctx)
     self._ctx = nil
   end
+end
+
+function Context:createTokenizer()
+  ensure_open(self)
+  local tok = load_lib().needle_tokenizer_from_context(self._ctx)
+  if tok == nil then
+    return nil, context_error(self)
+  end
+  local tokenizer = setmetatable({ _tok = tok }, Tokenizer)
+  local err = tokenizer:last_error_info()
+  if err.code ~= M.errors.OK or err.message ~= "" then
+    return tokenizer, err
+  end
+  return tokenizer
 end
 
 function Context:__gc()

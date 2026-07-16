@@ -1,5 +1,9 @@
 CC ?= cc
 LUAJIT ?= luajit
+NEEDLE_SOURCE ?= ../../../../needle
+NEEDLE_PYTHON ?= $(NEEDLE_SOURCE)/.venv/bin/python
+NEEDLE_TOKENIZER := $(NEEDLE_SOURCE)/needle/tokenizer/needle.model
+NEEDLE_CHECKPOINT := $(NEEDLE_SOURCE)/checkpoints/needle.pkl
 
 BUILD_DIR := build
 SRC_DIR := src
@@ -32,23 +36,23 @@ $(LIB): $(SRCS) $(HEADERS) | $(BUILD_DIR)
 $(FIXTURE): scripts/write_test_fixture.py | $(BUILD_DIR)
 	python3 scripts/write_test_fixture.py $@
 
-$(TOKENIZER): scripts/export_tokenizer_runtime.py ../needle/tokenizer/needle.model | $(BUILD_DIR)
-	../.venv/bin/python scripts/export_tokenizer_runtime.py --model ../needle/tokenizer/needle.model --output $@
+$(TOKENIZER): scripts/export_tokenizer_runtime.py $(NEEDLE_TOKENIZER) | $(BUILD_DIR)
+	$(NEEDLE_PYTHON) scripts/export_tokenizer_runtime.py --model $(NEEDLE_TOKENIZER) --output $@
 
 $(GOLDEN_ENCODER_ATTN): scripts/golden_encoder_self_attention.py | $(BUILD_DIR)
 	python3 scripts/golden_encoder_self_attention.py
 
-$(REAL_MODEL): scripts/export_needle_runtime.py scripts/export_tokenizer_runtime.py ../checkpoints/needle.pkl ../needle/tokenizer/needle.model | $(BUILD_DIR)
-	../.venv/bin/python scripts/export_needle_runtime.py --checkpoint ../checkpoints/needle.pkl --tokenizer ../needle/tokenizer/needle.model --output $@
+$(REAL_MODEL): scripts/export_needle_runtime.py scripts/export_tokenizer_runtime.py $(NEEDLE_CHECKPOINT) $(NEEDLE_TOKENIZER) | $(BUILD_DIR)
+	$(NEEDLE_PYTHON) scripts/export_needle_runtime.py --checkpoint $(NEEDLE_CHECKPOINT) --tokenizer $(NEEDLE_TOKENIZER) --output $@
 
-$(Q8_MODEL): scripts/export_needle_runtime.py scripts/export_tokenizer_runtime.py ../checkpoints/needle.pkl ../needle/tokenizer/needle.model | $(BUILD_DIR)
-	../.venv/bin/python scripts/export_needle_runtime.py --checkpoint ../checkpoints/needle.pkl --tokenizer ../needle/tokenizer/needle.model --output $@ --quantize-int8
+$(Q8_MODEL): scripts/export_needle_runtime.py scripts/export_tokenizer_runtime.py $(NEEDLE_CHECKPOINT) $(NEEDLE_TOKENIZER) | $(BUILD_DIR)
+	$(NEEDLE_PYTHON) scripts/export_needle_runtime.py --checkpoint $(NEEDLE_CHECKPOINT) --tokenizer $(NEEDLE_TOKENIZER) --output $@ --quantize-int8
 
-$(Q8_STRIPPED_MODEL): scripts/export_needle_runtime.py scripts/export_tokenizer_runtime.py ../checkpoints/needle.pkl ../needle/tokenizer/needle.model | $(BUILD_DIR)
-	../.venv/bin/python scripts/export_needle_runtime.py --checkpoint ../checkpoints/needle.pkl --tokenizer ../needle/tokenizer/needle.model --output $@ --quantize-int8 --strip-quantized-float-kernels
+$(Q8_STRIPPED_MODEL): scripts/export_needle_runtime.py scripts/export_tokenizer_runtime.py $(NEEDLE_CHECKPOINT) $(NEEDLE_TOKENIZER) | $(BUILD_DIR)
+	$(NEEDLE_PYTHON) scripts/export_needle_runtime.py --checkpoint $(NEEDLE_CHECKPOINT) --tokenizer $(NEEDLE_TOKENIZER) --output $@ --quantize-int8 --strip-quantized-float-kernels
 
-$(REAL_GOLDEN_ENCODER_ATTN): scripts/golden_real_encoder_self_attention.py ../checkpoints/needle.pkl | $(BUILD_DIR)
-	../.venv/bin/python scripts/golden_real_encoder_self_attention.py --checkpoint ../checkpoints/needle.pkl --output $@
+$(REAL_GOLDEN_ENCODER_ATTN): scripts/golden_real_encoder_self_attention.py $(NEEDLE_CHECKPOINT) | $(BUILD_DIR)
+	$(NEEDLE_PYTHON) scripts/golden_real_encoder_self_attention.py --checkpoint $(NEEDLE_CHECKPOINT) --tokenizer $(NEEDLE_TOKENIZER) --output $@
 
 test: $(LIB) $(FIXTURE) $(TOKENIZER) $(GOLDEN_ENCODER_ATTN)
 	NEEDLE_RUNTIME_LIB="$(abspath $(LIB))" LUA_PATH="./?.lua;;" $(LUAJIT) tests/test_ffi.lua
@@ -68,6 +72,7 @@ test-ci: test
 test-real: $(LIB) $(REAL_MODEL) $(Q8_STRIPPED_MODEL) $(TOKENIZER) $(REAL_GOLDEN_ENCODER_ATTN)
 	NEEDLE_RUNTIME_LIB="$(abspath $(LIB))" LUA_PATH="./?.lua;;" $(LUAJIT) tests/test_real_encoder_attention_golden.lua "$(abspath $(REAL_MODEL))" "$(abspath $(REAL_GOLDEN_ENCODER_ATTN))"
 	NEEDLE_RUNTIME_LIB="$(abspath $(LIB))" LUA_PATH="./?.lua;;" $(LUAJIT) tests/test_quantized_runtime.lua "$(abspath $(REAL_MODEL))" "$(abspath $(Q8_STRIPPED_MODEL))" "$(abspath $(TOKENIZER))"
+	NEEDLE_RUNTIME_LIB="$(abspath $(LIB))" LUA_PATH="./?.lua;;" $(LUAJIT) tests/test_embedded_tokenizer.lua "$(abspath $(Q8_STRIPPED_MODEL))"
 
 test-all: test test-real
 

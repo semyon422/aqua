@@ -1,4 +1,5 @@
 #include "needle_runtime.h"
+#include "needle_tokenizer.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -38,6 +39,7 @@ struct needle_ctx {
     uint64_t tensor_count;
     uint64_t tensor_data_bytes;
     uint64_t tokenizer_bytes;
+    unsigned char *tokenizer_data;
     int loaded;
     int last_error_code;
     char last_error[NEEDLE_ERROR_CAP];
@@ -261,18 +263,6 @@ static float projection_col_dot(const float *src, const float *weights_col, int 
 
 static int read_exact(FILE *f, void *dst, size_t n) {
     return fread(dst, 1, n, f) == n ? 0 : -1;
-}
-
-static int skip_exact(FILE *f, uint64_t n) {
-    unsigned char buf[4096];
-    while (n > 0) {
-        size_t chunk = n > sizeof(buf) ? sizeof(buf) : (size_t)n;
-        if (read_exact(f, buf, chunk) != 0) {
-            return -1;
-        }
-        n -= chunk;
-    }
-    return 0;
 }
 
 static uint16_t le16(const unsigned char b[2]) {
@@ -598,7 +588,18 @@ static int load_runtime_file(needle_ctx *ctx, const char *model_path) {
     ctx->metadata_json[metadata_len] = '\0';
     parse_config(ctx);
 
-    if (skip_exact(f, tokenizer_len) != 0) {
+    if (tokenizer_len > (uint64_t)SIZE_MAX) {
+        set_error(ctx, NEEDLE_ERR_FORMAT, "tokenizer block is too large");
+        fclose(f);
+        return -1;
+    }
+    ctx->tokenizer_data = (unsigned char *)malloc((size_t)tokenizer_len);
+    if (tokenizer_len > 0 && !ctx->tokenizer_data) {
+        set_error(ctx, NEEDLE_ERR_OUT_OF_MEMORY, "out of memory while reading tokenizer block");
+        fclose(f);
+        return -1;
+    }
+    if (read_exact(f, ctx->tokenizer_data, (size_t)tokenizer_len) != 0) {
         set_error(ctx, NEEDLE_ERR_FORMAT, "truncated tokenizer block");
         fclose(f);
         return -1;
@@ -816,6 +817,7 @@ void needle_free(needle_ctx *ctx) {
     }
     free(ctx->model_path);
     free(ctx->metadata_json);
+    free(ctx->tokenizer_data);
     free_tensors(ctx);
     free(ctx);
 }
@@ -852,6 +854,18 @@ unsigned long long needle_tensor_data_bytes(needle_ctx *ctx) {
 
 unsigned long long needle_tokenizer_bytes(needle_ctx *ctx) {
     return ctx ? (unsigned long long)ctx->tokenizer_bytes : 0ULL;
+}
+
+needle_tokenizer *needle_tokenizer_from_context(needle_ctx *ctx) {
+    if (!ctx || !ctx->loaded || !ctx->tokenizer_data || ctx->tokenizer_bytes == 0) {
+        set_error(ctx, NEEDLE_ERR_NOT_LOADED, "runtime model has no embedded tokenizer");
+        return NULL;
+    }
+    needle_tokenizer *tok = needle_tokenizer_load_memory(ctx->tokenizer_data, ctx->tokenizer_bytes);
+    if (!tok) {
+        set_error(ctx, NEEDLE_ERR_OUT_OF_MEMORY, "could not allocate embedded tokenizer");
+    }
+    return tok;
 }
 
 const char *needle_metadata_json(needle_ctx *ctx) {

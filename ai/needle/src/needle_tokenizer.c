@@ -94,6 +94,47 @@ static int read_f32(FILE *f, float *out) {
     return 0;
 }
 
+typedef struct {
+    const unsigned char *data;
+    size_t size;
+    size_t pos;
+} memory_reader;
+
+static int memory_read(memory_reader *reader, void *dst, size_t n) {
+    if (n > reader->size - reader->pos) return -1;
+    memcpy(dst, reader->data + reader->pos, n);
+    reader->pos += n;
+    return 0;
+}
+
+static int memory_u16(memory_reader *reader, uint16_t *out) {
+    unsigned char b[2];
+    if (memory_read(reader, b, sizeof(b)) != 0) return -1;
+    *out = le16(b);
+    return 0;
+}
+
+static int memory_u32(memory_reader *reader, uint32_t *out) {
+    unsigned char b[4];
+    if (memory_read(reader, b, sizeof(b)) != 0) return -1;
+    *out = le32(b);
+    return 0;
+}
+
+static int memory_u64(memory_reader *reader, uint64_t *out) {
+    unsigned char b[8];
+    if (memory_read(reader, b, sizeof(b)) != 0) return -1;
+    *out = le64(b);
+    return 0;
+}
+
+static int memory_f32(memory_reader *reader, float *out) {
+    uint32_t bits;
+    if (memory_u32(reader, &bits) != 0) return -1;
+    memcpy(out, &bits, sizeof(bits));
+    return 0;
+}
+
 static char *dup_bytes(const char *src, uint32_t len) {
     char *dst = (char *)malloc((size_t)len + 1);
     if (!dst) return NULL;
@@ -252,6 +293,88 @@ static int merge_symbols(needle_tokenizer *tok, symbol **symbols_ptr, int *count
     }
     *count_ptr = count;
     return 0;
+}
+
+needle_tokenizer *needle_tokenizer_load_memory(const unsigned char *data, unsigned long long size) {
+    needle_tokenizer *tok = (needle_tokenizer *)calloc(1, sizeof(needle_tokenizer));
+    if (!tok) return NULL;
+    for (int i = 0; i < 256; i++) tok->byte_id[i] = -1;
+    if (!data || size == 0 || size > (unsigned long long)SIZE_MAX) {
+        tok_set_error(tok, NEEDLE_ERR_INVALID_ARGUMENT, "embedded tokenizer data is empty");
+        return tok;
+    }
+
+    memory_reader reader = {data, (size_t)size, 0};
+    char magic[TOK_MAGIC_SIZE];
+    uint32_t version = 0, flags = 0, vocab = 0;
+    uint64_t string_bytes = 0;
+    if (memory_read(&reader, magic, sizeof(magic)) != 0 || memcmp(magic, TOK_MAGIC, strlen(TOK_MAGIC)) != 0 || magic[7] != '\0' ||
+        memory_u32(&reader, &version) != 0 || memory_u32(&reader, &flags) != 0 || memory_u32(&reader, &vocab) != 0 ||
+        memory_u32(&reader, &tok->unk_id) != 0 || memory_u32(&reader, &tok->bos_id) != 0 || memory_u32(&reader, &tok->eos_id) != 0 ||
+        memory_u32(&reader, &tok->pad_id) != 0 || memory_u32(&reader, &tok->tool_call_id) != 0 || memory_u32(&reader, &tok->tools_id) != 0 ||
+        memory_u64(&reader, &string_bytes) != 0) {
+        tok_set_error(tok, NEEDLE_ERR_FORMAT, "truncated tokenizer header");
+        return tok;
+    }
+    if (version != TOK_VERSION || flags != 0 || vocab == 0 || string_bytes > (uint64_t)1024 * 1024 * 1024) {
+        tok_set_error(tok, NEEDLE_ERR_FORMAT, "invalid tokenizer header");
+        return tok;
+    }
+
+    uint32_t *offsets = (uint32_t *)calloc(vocab, sizeof(uint32_t));
+    uint32_t *lens = (uint32_t *)calloc(vocab, sizeof(uint32_t));
+    float *scores = (float *)calloc(vocab, sizeof(float));
+    uint16_t *types = (uint16_t *)calloc(vocab, sizeof(uint16_t));
+    char *strings = (char *)malloc((size_t)string_bytes);
+    tok->pieces = (tok_piece *)calloc(vocab, sizeof(tok_piece));
+    if (!offsets || !lens || !scores || !types || !strings || !tok->pieces) {
+        tok_set_error(tok, NEEDLE_ERR_OUT_OF_MEMORY, "out of memory while loading tokenizer");
+        free(offsets); free(lens); free(scores); free(types); free(strings);
+        return tok;
+    }
+
+    for (uint32_t i = 0; i < vocab; i++) {
+        uint16_t reserved = 0;
+        if (memory_u32(&reader, &offsets[i]) != 0 || memory_u32(&reader, &lens[i]) != 0 || memory_f32(&reader, &scores[i]) != 0 ||
+            memory_u16(&reader, &types[i]) != 0 || memory_u16(&reader, &reserved) != 0) {
+            tok_set_error(tok, NEEDLE_ERR_FORMAT, "truncated tokenizer piece table");
+            free(offsets); free(lens); free(scores); free(types); free(strings);
+            return tok;
+        }
+    }
+    if (string_bytes > SIZE_MAX || memory_read(&reader, strings, (size_t)string_bytes) != 0 || reader.pos != reader.size) {
+        tok_set_error(tok, NEEDLE_ERR_FORMAT, "invalid tokenizer string table");
+        free(offsets); free(lens); free(scores); free(types); free(strings);
+        return tok;
+    }
+
+    tok->vocab_size = vocab;
+    for (uint32_t i = 0; i < vocab; i++) {
+        if ((uint64_t)offsets[i] + lens[i] > string_bytes) {
+            tok_set_error(tok, NEEDLE_ERR_FORMAT, "invalid tokenizer string offset");
+            free(offsets); free(lens); free(scores); free(types); free(strings);
+            return tok;
+        }
+        tok->pieces[i].text = dup_bytes(strings + offsets[i], lens[i]);
+        if (!tok->pieces[i].text) {
+            tok_set_error(tok, NEEDLE_ERR_OUT_OF_MEMORY, "out of memory while copying tokenizer pieces");
+            free(offsets); free(lens); free(scores); free(types); free(strings);
+            return tok;
+        }
+        tok->pieces[i].len = lens[i];
+        tok->pieces[i].score = scores[i];
+        tok->pieces[i].type = types[i];
+        if (types[i] == 6 && lens[i] == 6 && memcmp(tok->pieces[i].text, "<0x", 3) == 0) {
+            char hex[3] = {tok->pieces[i].text[3], tok->pieces[i].text[4], 0};
+            char *end = NULL;
+            long b = strtol(hex, &end, 16);
+            if (end && *end == '\0' && b >= 0 && b < 256) tok->byte_id[b] = (int)i;
+        }
+    }
+
+    free(offsets); free(lens); free(scores); free(types); free(strings);
+    tok_set_error(tok, NEEDLE_OK, NULL);
+    return tok;
 }
 
 needle_tokenizer *needle_tokenizer_load(const char *path) {

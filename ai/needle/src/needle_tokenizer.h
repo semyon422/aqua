@@ -10,6 +10,7 @@ extern "C" {
 typedef struct needle_tokenizer needle_tokenizer;
 
 NEEDLE_API needle_tokenizer *needle_tokenizer_load(const char *path);
+NEEDLE_API needle_tokenizer *needle_tokenizer_load_memory(const unsigned char *data, unsigned long long size);
 NEEDLE_API void needle_tokenizer_free(needle_tokenizer *tok);
 NEEDLE_API const char *needle_tokenizer_last_error(needle_tokenizer *tok);
 NEEDLE_API int needle_tokenizer_last_error_code(needle_tokenizer *tok);
