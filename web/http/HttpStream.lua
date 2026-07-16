@@ -115,7 +115,8 @@ end
 function HttpStream:notifyDownload(chunk)
 	self.downloaded = self.downloaded + #chunk
 	local res = assert(self.res, "not connected")
-	local total = tonumber(res.headers:get("Content-Length"))
+	local content_length = res.headers:get("Content-Length")
+	local total = tonumber(content_length)
 	local on_download = self.options.on_download
 	if on_download then
 		on_download(self.downloaded, total, chunk)

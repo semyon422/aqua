@@ -141,6 +141,23 @@ function test.get_request_headers(t)
 end
 
 ---@param t testing.T
+function test.download_without_content_length_reports_unknown_total(t)
+	local tcp_socket = new_tcp_socket("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\n")
+	local progress
+	local stream = HttpStream({
+		tcp_socket = tcp_socket --[[@as any]],
+		on_download = function(downloaded, total, chunk)
+			progress = {downloaded, total, chunk}
+		end,
+	})
+
+	t:tdeq({stream:connect("http://example.test/status")}, {true})
+	t:tdeq({stream:sendHeaders()}, {true})
+	t:tdeq({stream:receiveChunk()}, {"hello"})
+	t:tdeq(progress, {5, nil, "hello"})
+end
+
+---@param t testing.T
 function test.cancel_closes_socket_and_stops_operations(t)
 	local tcp_socket = new_tcp_socket("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
 	local close_count = 0
