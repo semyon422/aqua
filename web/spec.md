@@ -83,6 +83,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 
 ## Future Work and Open Questions
 
+- Add a scheduler-backed LuaSocket server/accept adapter that reuses `CosocketScheduler`, runs each accepted client handler as a detached coroutine, and replaces the older `TcpUpdater` prototype with the same timers/cancel/cleanup semantics as client cosockets.
 - Decide whether the scheduler should be per-client object, shared singleton, or explicitly injected into each cosocket.
 - Decide whether `delay` should remain separate from web timers or whether a small timer primitive belongs in the cosocket scheduler.
 - Decide how to expose DNS resolution without coupling `aqua/web` to LÖVE thread APIs.
