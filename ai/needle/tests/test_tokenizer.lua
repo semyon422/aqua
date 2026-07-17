@@ -133,14 +133,6 @@ assert(has_token_start(all_required_allowed, "}"), "all required keys should all
 assert(not has_token_start(all_required_allowed, ","), "no remaining keys should reject trailing comma")
 
 constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
-constraints:sync(assert(tok:encode('[{"name":"set_timer","arguments":{"minutes":')))
-local number_start_allowed = as_set(assert(constraints:allowed_token_ids()))
-local number_comma_id = token_id_for_text("5,")
-if number_comma_id then
-  assert(not number_start_allowed[number_comma_id], "number tokens should not cross into an unchecked delimiter")
-end
-
-constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
 constraints:sync(assert(tok:encode('[{"name":"set_timer","arguments":{"minutes":5')))
 local number_required_allowed = assert(constraints:allowed_token_ids())
 assert(has_token_start(number_required_allowed, "}"), "number required key should allow object close after value")

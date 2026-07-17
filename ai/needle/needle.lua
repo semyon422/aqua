@@ -1545,39 +1545,6 @@ local function token_valid_for_node(token_text, node)
   return true
 end
 
-local function json_number_state(text)
-  local i = 1
-  if text:sub(i, i) == "-" then
-    i = i + 1
-    if i > #text then return true, false end
-  end
-  local first = text:sub(i, i)
-  if first == "0" then
-    i = i + 1
-  elseif first:match("[1-9]") then
-    repeat i = i + 1 until not text:sub(i, i):match("%d")
-  else
-    return false, false
-  end
-  if text:sub(i, i):match("%d") then return false, false end
-  if text:sub(i, i) == "." then
-    i = i + 1
-    local fraction_start = i
-    while text:sub(i, i):match("%d") do i = i + 1 end
-    if i == fraction_start then return i > #text, false end
-  end
-  local exponent = text:sub(i, i)
-  if exponent == "e" or exponent == "E" then
-    i = i + 1
-    local sign = text:sub(i, i)
-    if sign == "+" or sign == "-" then i = i + 1 end
-    local exponent_start = i
-    while text:sub(i, i):match("%d") do i = i + 1 end
-    if i == exponent_start then return i > #text, false end
-  end
-  return i > #text, i > #text
-end
-
 local function state_new()
   return {
     state = "free",
@@ -1641,19 +1608,6 @@ local function state_feed_char(st, ch, schemas_by_tool)
     return
   end
 
-  if st.state == "arg_value_number" or st.state == "arg_value_boolean" then
-    if ch == "," or ch == "}" then
-      state_mark_arg_seen(st, st.current_arg_key)
-      state_feed_char(st, ch, schemas_by_tool)
-    elseif ch ~= " " and ch ~= "\t" and ch ~= "\n" and ch ~= "\r" then
-      st.constrained_buf = st.constrained_buf .. ch
-      st.buffer = st.buffer .. ch
-    else
-      st.buffer = st.buffer .. ch
-    end
-    return
-  end
-
   if st.state == "name" or st.state == "arg_key" or st.state == "arg_value_string" then
     if ch == '"' then
       if st.state == "name" then
@@ -1695,23 +1649,6 @@ local function state_feed_char(st, ch, schemas_by_tool)
       end
     end
     return
-  end
-
-
-  if ch == ":" and st.in_arguments and st.current_arg_key ~= "" then
-    local schema = schemas_by_tool
-      and schemas_by_tool[st.current_function]
-      and schemas_by_tool[st.current_function][st.current_arg_key]
-      or nil
-    if schema and schema.type == "number" then
-      st.state = "arg_value_number"
-      st.constrained_buf = ""
-      return
-    elseif schema and schema.type == "boolean" then
-      st.state = "arg_value_boolean"
-      st.constrained_buf = ""
-      return
-    end
   end
 
   if state_is_primitive_value_start(st, ch) then
@@ -1889,38 +1826,7 @@ function ToolCallConstraints:allowed_token_ids()
     return { self._eos_token_id }
   end
   local trie
-  if st.state == "arg_value_number" then
-    local allowed = {}
-    for id, token_text in pairs(self._token_strings) do
-      if token_text ~= "" and token_text:match("^[%d%.eE%+%-]+$") then
-        local valid = json_number_state(st.constrained_buf .. token_text)
-        if valid then allowed[#allowed + 1] = id end
-      end
-    end
-    local _, complete = json_number_state(st.constrained_buf)
-    if complete then
-      local keys = self._param_keys_by_tool[st.current_function] or {}
-      local required = self._required_by_tool[st.current_function] or {}
-      local seen = {}
-      for key, value in pairs(st.seen_arg_keys) do seen[key] = value end
-      seen[st.current_arg_key] = true
-      for _, delimiter in ipairs({",", "}"}) do
-        local permitted = delimiter == "," and has_unseen_key(keys, seen)
-          or delimiter == "}" and required_satisfied(required, seen)
-        if permitted then
-          for _, id in ipairs(self._token_index[delimiter] or {}) do
-            if self._token_strings[id] == delimiter then allowed[#allowed + 1] = id end
-          end
-        end
-      end
-    end
-    return #allowed > 0 and allowed or { self._eos_token_id }
-  elseif st.state == "arg_value_boolean" then
-    local values = trie_new()
-    trie_insert(values, "true")
-    trie_insert(values, "false")
-    trie = values
-  elseif st.state == "name" then
+  if st.state == "name" then
     trie = self._name_trie
   elseif st.state == "arg_key" then
     local keys = self._param_keys_by_tool[st.current_function]
@@ -1987,28 +1893,11 @@ function ToolCallConstraints:allowed_token_ids()
     end
   end
   if node.terminal then
-    if st.state == "arg_value_boolean" then
-      local keys = self._param_keys_by_tool[st.current_function] or {}
-      local required = self._required_by_tool[st.current_function] or {}
-      local seen = {}
-      for key, value in pairs(st.seen_arg_keys) do seen[key] = value end
-      seen[st.current_arg_key] = true
-      for _, delimiter in ipairs({",", "}"}) do
-        local permitted = delimiter == "," and has_unseen_key(keys, seen)
-          or delimiter == "}" and required_satisfied(required, seen)
-        if permitted then
-          for _, id in ipairs(self._token_index[delimiter] or {}) do
-            if self._token_strings[id] == delimiter then allowed[#allowed + 1] = id end
-          end
-        end
-      end
-    else
-      local bucket = self._token_index['"']
-      if bucket ~= nil then
-        for _, id in ipairs(bucket) do
-          if token_valid_for_node(self._token_strings[id], node) then
-            allowed[#allowed + 1] = id
-          end
+    local bucket = self._token_index['"']
+    if bucket ~= nil then
+      for _, id in ipairs(bucket) do
+        if token_valid_for_node(self._token_strings[id], node) then
+          allowed[#allowed + 1] = id
         end
       end
     end
