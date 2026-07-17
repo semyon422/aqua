@@ -15,7 +15,7 @@ extern "C" {
 #  define NEEDLE_API __attribute__((visibility("default")))
 #endif
 
-#define NEEDLE_ABI_VERSION 5
+#define NEEDLE_ABI_VERSION 6
 
 #define NEEDLE_OK 0
 #define NEEDLE_ERR_NULL_CONTEXT -1
@@ -26,6 +26,7 @@ extern "C" {
 #define NEEDLE_ERR_UNSUPPORTED -6
 #define NEEDLE_ERR_OUT_OF_MEMORY -7
 #define NEEDLE_ERR_NOT_IMPLEMENTED -8
+#define NEEDLE_ERR_CANCELLED -9
 
 #define NEEDLE_DTYPE_F32 1
 #define NEEDLE_DTYPE_F16 2
@@ -39,6 +40,7 @@ typedef struct needle_kv_cache needle_kv_cache;
 typedef struct needle_encoder_state needle_encoder_state;
 typedef struct needle_tokenizer needle_tokenizer;
 typedef int (*needle_stream_callback)(const char *chunk, int chunk_len, void *user_data);
+typedef int (*needle_progress_callback)(int completed, int total, void *user_data);
 typedef int (*needle_token_callback)(
     int token_id,
     int step,
@@ -206,6 +208,12 @@ NEEDLE_API needle_encoder_state *needle_encoder_state_create(
     needle_ctx *ctx,
     const int *src_ids,
     int src_len);
+NEEDLE_API needle_encoder_state *needle_encoder_state_create_cancellable(
+    needle_ctx *ctx,
+    const int *src_ids,
+    int src_len,
+    needle_progress_callback callback,
+    void *user_data);
 NEEDLE_API void needle_encoder_state_free(needle_encoder_state *state);
 NEEDLE_API int needle_encoder_state_len(needle_encoder_state *state);
 NEEDLE_API int needle_encoder_state_d_model(needle_encoder_state *state);

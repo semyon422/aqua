@@ -5,6 +5,7 @@ typedef struct needle_ctx needle_ctx;
 typedef struct needle_kv_cache needle_kv_cache;
 typedef struct needle_encoder_state needle_encoder_state;
 typedef struct needle_tokenizer needle_tokenizer;
+typedef int (*needle_progress_callback)(int completed, int total, void *user_data);
 typedef int (*needle_token_callback)(
   int token_id,
   int step,
@@ -181,6 +182,12 @@ int needle_forward_logits_f32(
   int out_cap
 );
 needle_encoder_state *needle_encoder_state_create(needle_ctx *ctx, const int *src_ids, int src_len);
+needle_encoder_state *needle_encoder_state_create_cancellable(
+  needle_ctx *ctx,
+  const int *src_ids,
+  int src_len,
+  needle_progress_callback callback,
+  void *user_data);
 void needle_encoder_state_free(needle_encoder_state *state);
 int needle_encoder_state_len(needle_encoder_state *state);
 int needle_encoder_state_d_model(needle_encoder_state *state);
@@ -359,7 +366,7 @@ int needle_kernel_attention_f32(
 ]]
 
 local M = {}
-M.abi_version = 5
+M.abi_version = 6
 M.errors = {
   OK = 0,
   NULL_CONTEXT = -1,
@@ -370,6 +377,7 @@ M.errors = {
   UNSUPPORTED = -6,
   OUT_OF_MEMORY = -7,
   NOT_IMPLEMENTED = -8,
+  CANCELLED = -9,
 }
 M.dtypes = {
   F32 = 1,
@@ -869,14 +877,40 @@ function ensure_encoder_state_open(self)
   end
 end
 
-function Context:encode_tokens_state(token_ids)
+function Context:encode_tokens_state(token_ids, opts)
   ensure_open(self)
+  opts = opts or {}
+  if opts.on_progress ~= nil and type(opts.on_progress) ~= "function" then
+    return nil, error_table(M.errors.INVALID_ARGUMENT, "on_progress must be a function"), M.errors.INVALID_ARGUMENT
+  end
   local seq_len = #token_ids
   local ids = ffi.new("int[?]", seq_len)
   for i = 1, seq_len do ids[i - 1] = token_ids[i] end
-  local state = load_lib().needle_encoder_state_create(self._ctx, ids, seq_len)
+  local callback_error
+  local callback
+  if opts.on_progress ~= nil then
+    callback = ffi.cast("needle_progress_callback", function(completed, total)
+      local ok, keep_going = pcall(opts.on_progress, tonumber(completed), tonumber(total))
+      if not ok then
+        callback_error = tostring(keep_going)
+        return 0
+      end
+      return keep_going == false and 0 or 1
+    end)
+  end
+  local state
+  if callback ~= nil then
+    state = load_lib().needle_encoder_state_create_cancellable(self._ctx, ids, seq_len, callback, nil)
+    callback:free()
+  else
+    state = load_lib().needle_encoder_state_create(self._ctx, ids, seq_len)
+  end
   if state == nil then
-    return nil, context_error(self)
+    if callback_error then
+      return nil, error_table(M.errors.INVALID_ARGUMENT, callback_error), M.errors.INVALID_ARGUMENT
+    end
+    local err = context_error(self)
+    return nil, err, err.code
   end
   return setmetatable({ _state = state }, EncoderState)
 end
@@ -2040,7 +2074,9 @@ function Context:generate(query, tools_json, opts)
       return nil, error_table(M.errors.INVALID_ARGUMENT, "on_text must be a function"), M.errors.INVALID_ARGUMENT
     end
 
-    local encoder_state, enc_err, enc_rc = self:encode_tokens_state(src_ids)
+    local encoder_state, enc_err, enc_rc = self:encode_tokens_state(src_ids, {
+      on_progress = opts.on_prefill_progress,
+    })
     if not encoder_state then
       if owns_tokenizer then tokenizer:close() end
       return nil, enc_err, enc_rc

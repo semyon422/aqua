@@ -239,6 +239,27 @@ local raw_callback_constrained, raw_callback_err = ctx:generate_tokens(generatio
 assert(raw_callback_constrained ~= nil, raw_callback_err and raw_callback_err.message or "raw callback constrained generation failed")
 assert(raw_callback_constrained[2] == 1 and raw_callback_constrained[3] == 0, "token_filter_raw was not enforced")
 
+local progress_calls = 0
+local cancelled_state, cancelled_err, cancelled_rc = ctx:encode_tokens_state(generation_src, {
+  on_progress = function(completed, total)
+    progress_calls = progress_calls + 1
+    assert(completed == 0, "first encoder progress callback should precede layer zero")
+    assert(total == cfg.num_encoder_layers, "encoder progress total mismatch")
+    return false
+  end,
+})
+assert(cancelled_state == nil, "cancelled encoder should not return a state")
+assert(cancelled_rc == needle.errors.CANCELLED, "cancelled encoder error code mismatch")
+assert(cancelled_err.name == "CANCELLED", "cancelled encoder error name mismatch")
+assert(progress_calls == 1, "cancelled encoder should stop at its first progress callback")
+
+local invalid_progress_state, invalid_progress_err, invalid_progress_rc = ctx:encode_tokens_state(generation_src, {
+  on_progress = true,
+})
+assert(invalid_progress_state == nil, "invalid encoder progress callback should fail")
+assert(invalid_progress_rc == needle.errors.INVALID_ARGUMENT, "invalid encoder progress callback code mismatch")
+assert(invalid_progress_err.name == "INVALID_ARGUMENT", "invalid encoder progress callback error mismatch")
+
 local stream_state = assert(ctx:encode_tokens_state(generation_src))
 local streamed = {}
 local stream_generated, stream_err = ctx:generate_tokens_from_state(stream_state, generation_prompt, {

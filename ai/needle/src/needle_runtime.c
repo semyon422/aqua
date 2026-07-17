@@ -1671,12 +1671,14 @@ int needle_output_projection_f32(
     return seq_len * vocab_size;
 }
 
-int needle_encode_tokens_f32(
+static int encode_tokens_f32_cancellable(
     needle_ctx *ctx,
     const int *token_ids,
     int seq_len,
     float *out,
-    int out_cap) {
+    int out_cap,
+    needle_progress_callback callback,
+    void *user_data) {
     if (!ctx) {
         return NEEDLE_ERR_NULL_CONTEXT;
     }
@@ -1737,6 +1739,12 @@ int needle_encode_tokens_f32(
         }
     }
 
+    if (callback && !callback(0, layers, user_data)) {
+        set_error(ctx, NEEDLE_ERR_CANCELLED, "encoder cancelled");
+        rc = NEEDLE_ERR_CANCELLED;
+        goto done;
+    }
+
     for (int layer = 0; layer < layers; layer++) {
         rc = encoder_block_impl(
             ctx, layer, cur, seq_len, next, (int)n,
@@ -1747,6 +1755,11 @@ int needle_encode_tokens_f32(
         float *tmp = cur;
         cur = next;
         next = tmp;
+        if (callback && !callback(layer + 1, layers, user_data)) {
+            set_error(ctx, NEEDLE_ERR_CANCELLED, "encoder cancelled");
+            rc = NEEDLE_ERR_CANCELLED;
+            goto done;
+        }
     }
 
     needle_tensor *final_norm = find_tensor_ptr(ctx, "encoder/final_norm/scale");
@@ -1771,6 +1784,15 @@ done:
     aligned_free(self_v);
     aligned_free(self_ctx_out);
     return rc;
+}
+
+int needle_encode_tokens_f32(
+    needle_ctx *ctx,
+    const int *token_ids,
+    int seq_len,
+    float *out,
+    int out_cap) {
+    return encode_tokens_f32_cancellable(ctx, token_ids, seq_len, out, out_cap, NULL, NULL);
 }
 
 static needle_tensor *find_named_layer_tensor(needle_ctx *ctx, const char *scope, const char *suffix) {
@@ -2987,6 +3009,15 @@ needle_encoder_state *needle_encoder_state_create(
     needle_ctx *ctx,
     const int *src_ids,
     int src_len) {
+    return needle_encoder_state_create_cancellable(ctx, src_ids, src_len, NULL, NULL);
+}
+
+needle_encoder_state *needle_encoder_state_create_cancellable(
+    needle_ctx *ctx,
+    const int *src_ids,
+    int src_len,
+    needle_progress_callback callback,
+    void *user_data) {
     if (!ctx) {
         return NULL;
     }
@@ -3010,7 +3041,8 @@ needle_encoder_state *needle_encoder_state_create(
         set_error(ctx, NEEDLE_ERR_OUT_OF_MEMORY, "out of memory while allocating encoder state");
         return NULL;
     }
-    int rc = needle_encode_tokens_f32(ctx, src_ids, src_len, state->encoder_out, src_len * d_model);
+    int rc = encode_tokens_f32_cancellable(
+        ctx, src_ids, src_len, state->encoder_out, src_len * d_model, callback, user_data);
     if (rc < 0) {
         aligned_free(state->encoder_out);
         free(state);
