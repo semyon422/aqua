@@ -13,7 +13,7 @@ Provide Soundsphere with a dependency-free, embeddable Needle inference runtime 
 - This directory is the development home for the runtime formerly maintained in `../needle/lua`; its original Git history and MIT license are retained.
 - C owns model/tokenizer data, tensor execution, KV cache, and constrained greedy decoding. Lua owns FFI lifetime wrappers, tool schema constraints, and streaming callbacks.
 - The runtime library is built by the target-aware `rizu/build` pipeline. The standalone Makefile remains available for runtime development and golden tests.
-- Runtime model files embed their tokenizer. ABI 6 exposes the owned tokenizer API and cancellable encoder-state creation; Lua polls cancellation through `Context:encode_tokens_state(..., {on_progress = ...})` between encoder layers.
+- Runtime model files embed their tokenizer. ABI 7 exposes the owned tokenizer API, cancellable encoder-state creation, and read-only tensor byte pointers for GPU upload; Lua polls cancellation through `Context:encode_tokens_state(..., {on_progress = ...})` between encoder layers.
 - The C runtime stays single-threaded. Applications must put each context on its own host worker and must not share contexts or caches concurrently.
 
 ## Invariants
@@ -24,6 +24,7 @@ Provide Soundsphere with a dependency-free, embeddable Needle inference runtime 
 - Tool constraints accept Needle's native flat `parameters` objects used by training and Python inference. Primitive values remain model-decoded until a JSON delimiter so multi-token values such as decimal numbers are not truncated.
 - The q8 path retains scalar fallbacks for CPUs without AVX2/FMA.
 - Prefill cancellation is cooperative: a layer already executing finishes, then its output is discarded before the next layer starts.
+- `Context:tensor_data(index)` borrows bytes owned by the context. Consumers must copy them before closing the context and must never mutate through the returned pointer.
 
 ## Development
 

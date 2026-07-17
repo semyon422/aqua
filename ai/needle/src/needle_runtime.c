@@ -899,6 +899,17 @@ int needle_tensor_dtype(needle_ctx *ctx, unsigned long long index) {
     return tensor ? (int)tensor->dtype : 0;
 }
 
+const unsigned char *needle_tensor_data(needle_ctx *ctx, unsigned long long index) {
+    if (!ctx || !ctx->loaded || index >= ctx->tensor_count) {
+        if (ctx) {
+            set_error(ctx, !ctx->loaded ? NEEDLE_ERR_NOT_LOADED : NEEDLE_ERR_INVALID_ARGUMENT, "invalid tensor data index");
+        }
+        return NULL;
+    }
+    set_error(ctx, NEEDLE_OK, NULL);
+    return ctx->tensors[index].data;
+}
+
 int needle_tensor_ndim(needle_ctx *ctx, unsigned long long index) {
     needle_tensor *tensor = get_tensor_by_index(ctx, index);
     return tensor ? (int)tensor->ndim : 0;

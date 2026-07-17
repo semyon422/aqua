@@ -15,7 +15,7 @@ extern "C" {
 #  define NEEDLE_API __attribute__((visibility("default")))
 #endif
 
-#define NEEDLE_ABI_VERSION 6
+#define NEEDLE_ABI_VERSION 7
 
 #define NEEDLE_OK 0
 #define NEEDLE_ERR_NULL_CONTEXT -1
@@ -110,6 +110,7 @@ NEEDLE_API int needle_tensor_dtype(needle_ctx *ctx, unsigned long long index);
 NEEDLE_API int needle_tensor_ndim(needle_ctx *ctx, unsigned long long index);
 NEEDLE_API unsigned long long needle_tensor_dim(needle_ctx *ctx, unsigned long long index, int dim);
 NEEDLE_API unsigned long long needle_tensor_nbytes(needle_ctx *ctx, unsigned long long index);
+NEEDLE_API const unsigned char *needle_tensor_data(needle_ctx *ctx, unsigned long long index);
 NEEDLE_API long long needle_find_tensor(needle_ctx *ctx, const char *name);
 NEEDLE_API int needle_embedding_lookup(needle_ctx *ctx, int token_id, float *out, int out_cap);
 NEEDLE_API int needle_encoder_self_attention_f32(

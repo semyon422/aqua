@@ -75,6 +75,7 @@ int needle_tensor_dtype(needle_ctx *ctx, unsigned long long index);
 int needle_tensor_ndim(needle_ctx *ctx, unsigned long long index);
 unsigned long long needle_tensor_dim(needle_ctx *ctx, unsigned long long index, int dim);
 unsigned long long needle_tensor_nbytes(needle_ctx *ctx, unsigned long long index);
+const unsigned char *needle_tensor_data(needle_ctx *ctx, unsigned long long index);
 long long needle_find_tensor(needle_ctx *ctx, const char *name);
 int needle_embedding_lookup(needle_ctx *ctx, int token_id, float *out, int out_cap);
 int needle_encoder_self_attention_f32(
@@ -366,7 +367,7 @@ int needle_kernel_attention_f32(
 ]]
 
 local M = {}
-M.abi_version = 6
+M.abi_version = 7
 M.errors = {
   OK = 0,
   NULL_CONTEXT = -1,
@@ -592,6 +593,19 @@ function Context:find_tensor(name)
     return nil
   end
   return index + 1
+end
+
+---@param index integer
+---@return cdata? pointer
+---@return integer? nbytes
+function Context:tensor_data(index)
+  ensure_open(self)
+  local zero_index = index - 1
+  local pointer = load_lib().needle_tensor_data(self._ctx, zero_index)
+  if pointer == nil then
+    return nil
+  end
+  return pointer, tonumber(load_lib().needle_tensor_nbytes(self._ctx, zero_index))
 end
 
 function Context:embedding(token_id, opts)

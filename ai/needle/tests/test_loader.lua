@@ -16,6 +16,10 @@ assert(info.tokenizer_bytes == #"tiny-tokenizer", "tokenizer byte count mismatch
 assert(info.metadata_json:match('"format":"NDLRTM1"'), "metadata JSON missing format marker")
 assert(info.metadata_json:match('"tensor_count":28'), "metadata JSON missing tensor count")
 
+local tensor_data, tensor_bytes = ctx:tensor_data(1)
+assert(tensor_data ~= nil, "tensor data should be exposed while the context is open")
+assert(tensor_bytes > 0, "tensor data byte count should be positive")
+
 local result, gen_err, rc = ctx:generate("hello", "[]")
 assert(result == nil, "generation without tokenizer should fail")
 assert(rc == needle.errors.INVALID_ARGUMENT, "unexpected generation return code")
