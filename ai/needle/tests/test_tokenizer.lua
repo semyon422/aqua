@@ -96,6 +96,13 @@ local reordered_key_allowed = as_set(assert(constraints:allowed_token_ids()))
 assert(reordered_key_allowed[token_id_for_text("rate")], "tool constraints should not depend on object field order")
 assert(not reordered_key_allowed[token_id_for_text("mode")], "field order should not associate parameters with the next tool")
 
+local native_tools_json = '[{"name":"set_playback_rate","parameters":{"rate":{"type":"number","required":true}}},{"name":"capture_screenshot","parameters":{"mode":{"type":"string","required":true,"enum":["save"]}}}]'
+constraints = assert(needle.build_tool_call_constraints(native_tools_json, tok))
+constraints:sync(assert(tok:encode('[{"name":"set_playback_rate","arguments":{"')))
+local native_key_allowed = as_set(assert(constraints:allowed_token_ids()))
+assert(native_key_allowed[token_id_for_text("rate")], "native Needle parameters should allow the selected tool key")
+assert(not native_key_allowed[token_id_for_text("mode")], "native Needle parameters should remain scoped to the selected tool")
+
 constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
 constraints:sync(assert(tok:encode('[{"name":"get_weather","arguments":{"location":"Paris"}}]')))
 local done_allowed = assert(constraints:allowed_token_ids())
@@ -134,9 +141,12 @@ assert(not has_token_start(all_required_allowed, ","), "no remaining keys should
 
 constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
 constraints:sync(assert(tok:encode('[{"name":"set_timer","arguments":{"minutes":5')))
-local number_required_allowed = assert(constraints:allowed_token_ids())
-assert(has_token_start(number_required_allowed, "}"), "number required key should allow object close after value")
-assert(not has_token_start(number_required_allowed, ","), "single number key should reject trailing comma")
+assert(constraints:allowed_token_ids() == nil, "primitive values should remain model-decoded until their delimiter")
+
+constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = 1 }))
+constraints:sync(assert(tok:encode('[{"name":"set_timer","arguments":{"minutes":5}}]')))
+local number_done_allowed = assert(constraints:allowed_token_ids())
+assert(#number_done_allowed == 1 and number_done_allowed[1] == 1, "delimited primitive value should complete the tool call")
 
 tok:close()
 print("test_tokenizer.lua: ok")

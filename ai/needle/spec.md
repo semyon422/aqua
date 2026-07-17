@@ -21,6 +21,7 @@ Provide Soundsphere with a dependency-free, embeddable Needle inference runtime 
 - Lua validates the native ABI before any runtime call.
 - Model and tokenizer handles are explicitly closeable and safe to close once.
 - Constrained generation permits only tool names and argument keys present in the supplied schema.
+- Tool constraints accept Needle's native flat `parameters` objects used by training and Python inference. Primitive values remain model-decoded until a JSON delimiter so multi-token values such as decimal numbers are not truncated.
 - The q8 path retains scalar fallbacks for CPUs without AVX2/FMA.
 
 ## Development

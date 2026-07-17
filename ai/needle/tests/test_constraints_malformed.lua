@@ -66,8 +66,8 @@ assert(enum_allowed[token_id_for_text('"')], "complete enum value should allow c
 local missing_required_allowed = assert(sync_allowed('[{"name":"get_weather","arguments":{"location":"Paris"'))
 assert(not has_token_start(missing_required_allowed, "}"), "required enum key should prevent early object close")
 
-local number_required_allowed = assert(sync_allowed('[{"name":"set_timer","arguments":{"minutes":5'))
-assert(has_token_start(number_required_allowed, "}"), "number required key should be marked after primitive value")
+assert(sync_allowed('[{"name":"set_timer","arguments":{"minutes":5') == nil,
+  "primitive number should remain model-decoded until its delimiter")
 
 tok:close()
 print("test_constraints_malformed.lua: ok")

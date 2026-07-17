@@ -1553,6 +1553,7 @@ local function state_new()
     current_function = "",
     current_arg_key = "",
     value_string_key = "",
+    primitive_value_key = "",
     seen_arg_keys = {},
     started = false,
     completed = false,
@@ -1571,6 +1572,7 @@ local function state_mark_arg_seen(st, key)
   end
   st.current_arg_key = ""
   st.value_string_key = ""
+  st.primitive_value_key = ""
   if st.in_arguments then
     st.state = "arg_after_value"
   end
@@ -1651,8 +1653,12 @@ local function state_feed_char(st, ch, schemas_by_tool)
     return
   end
 
+  if st.primitive_value_key ~= "" and (ch == "," or ch == "}") then
+    state_mark_arg_seen(st, st.primitive_value_key)
+  end
+
   if state_is_primitive_value_start(st, ch) then
-    state_mark_arg_seen(st, st.current_arg_key)
+    st.primitive_value_key = st.current_arg_key
   end
 
   if ch == "{" or ch == "[" then
@@ -1667,6 +1673,7 @@ local function state_feed_char(st, ch, schemas_by_tool)
       st.seen_arg_keys = {}
       st.current_arg_key = ""
       st.value_string_key = ""
+      st.primitive_value_key = ""
       if st.state == "arg_after_value" then
         st.state = "free"
       end
@@ -1689,6 +1696,7 @@ local function state_feed_char(st, ch, schemas_by_tool)
     st.seen_arg_keys = {}
     st.current_arg_key = ""
     st.value_string_key = ""
+    st.primitive_value_key = ""
     return
   end
 
