@@ -2,6 +2,7 @@ local coext = require("coext")
 local socket = require("socket")
 
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
+local Headers = require("web.http.Headers")
 local http_util = require("web.http.util")
 local json = require("web.json")
 local Server = require("mcp.Server")
@@ -267,6 +268,21 @@ function test.dispatch_batch(t)
 		{jsonrpc = "2.0", id = 3, method = "initialize", params = {protocolVersion = "2025-11-25"}},
 		{jsonrpc = "2.0", id = 4, method = "ping"},
 	}).error.code, -32600)
+end
+
+---@param t testing.T
+function test.bearer_authorization(t)
+	local server = Server(CosocketScheduler(), {make_tool()}, {token = "secret"})
+	local headers = Headers()
+	local req = {headers = headers}
+	t:eq(server:isAuthorized(req --[[@as web.Request]]), false)
+
+	headers:set("Authorization", "Bearer wrong")
+	t:eq(server:isAuthorized(req --[[@as web.Request]]), false)
+	headers:set("Authorization", "Bearer secret")
+	t:eq(server:isAuthorized(req --[[@as web.Request]]), true)
+	headers:add("Authorization", "Bearer secret")
+	t:eq(server:isAuthorized(req --[[@as web.Request]]), false)
 end
 
 ---@param t testing.T

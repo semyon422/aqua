@@ -23,7 +23,7 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 ## Invariants
 
 - The default listener address remains loopback-only, and a non-loopback listener cannot start without a non-empty bearer token.
-- Requests with an `Origin` header are rejected to prevent browser-driven access to a local privileged server.
+- Requests with an `Origin` header are rejected to prevent browser-driven access to a local privileged server. Bearer credentials are accepted only from one Authorization header.
 - The optional bearer token, request body limit, tool set, client limit, rate limit, and timeouts are explicit server inputs. MCP defaults to at most 16 active clients.
 - Non-loopback listeners default to a per-IP fixed-window limit of 120 endpoint requests per minute. `rate_limit` and `rate_limit_window` configure it; an explicit `rate_limit = 0` disables it.
 - Stateless HTTP requests accept supported `MCP-Protocol-Version` values and reject explicitly unsupported versions. JSON-RPC batches produce only requested responses and cannot contain initialization.

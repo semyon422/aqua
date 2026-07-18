@@ -145,7 +145,11 @@ end
 ---@return boolean
 function Server:isAuthorized(req)
 	local token = self.options.token
-	return not token or token == "" or req.headers:get("Authorization") == "Bearer " .. token
+	if not token or token == "" then
+		return true
+	end
+	local authorization = req.headers:getTable("Authorization")
+	return #authorization == 1 and authorization[1] == "Bearer " .. token
 end
 
 ---@param req web.Request
