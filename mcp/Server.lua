@@ -578,12 +578,12 @@ function Server:start()
 end
 
 function Server:stop()
-	self.http_server:stop()
 	local sessions = self.sessions
 	self.sessions = {}
 	for _, session in pairs(sessions) do
 		self:closeSession(session, "MCP server stopped")
 	end
+	self.http_server:stop()
 	self.rate_limits = {}
 end
 
