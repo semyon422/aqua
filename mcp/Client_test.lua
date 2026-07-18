@@ -229,6 +229,89 @@ function test.server_round_trip(t)
 end
 
 ---@param t testing.T
+function test.session_cancellation_and_termination(t)
+	local scheduler = CosocketScheduler()
+	local tool_started = false
+	local canceled_reason
+	local tool = {
+		name = "wait",
+		input_schema = {type = "object", additionalProperties = false},
+		execute = function(_, _, context)
+			tool_started = true
+			context:onCancel(function(reason)
+				canceled_reason = reason
+			end)
+			while not context.canceled do
+				scheduler:sleep(0.01)
+			end
+			return "unused"
+		end,
+	}
+	local server = Server(scheduler, {tool}, {
+		port = 0,
+		session_id_generator = function() return "session-1" end,
+		on_error = function(err) error(err) end,
+	})
+	t:assert(server:start())
+	local _, port = server:getAddress()
+	local client = Client({
+		url = ("http://127.0.0.1:%d/mcp"):format(port),
+		scheduler = scheduler,
+		timeout = 2,
+	})
+
+	local initialize_thread = coext.detach(coroutine.create(function()
+		assert(client:initialize())
+	end))
+	t:assert(coroutine.resume(initialize_thread))
+	pump(t, scheduler, initialize_thread)
+	t:eq(client.session_id, "session-1")
+
+	local request_id = client:allocateRequestId()
+	local call_result
+	local call_error
+	local call_thread = coext.detach(coroutine.create(function()
+		call_result, call_error = client:callToolWithId(request_id, "wait")
+	end))
+	t:assert(coroutine.resume(call_thread))
+	local deadline = socket.gettime() + 2
+	while not tool_started do
+		local ok, err = scheduler:update(0.01)
+		if not ok and err then
+			error(err)
+		end
+		t:assert(socket.gettime() < deadline)
+	end
+
+	local cancel_error
+	local cancel_thread = coext.detach(coroutine.create(function()
+		local _
+		_, cancel_error = client:cancelRequest(request_id, "not needed")
+	end))
+	t:assert(coroutine.resume(cancel_thread))
+	pump(t, scheduler, cancel_thread)
+	pump(t, scheduler, call_thread)
+	t:eq(cancel_error, nil)
+	t:eq(call_error, nil)
+	t:eq(canceled_reason, "not needed")
+	t:eq(call_result.isError, true)
+	t:eq(call_result.content[1].text, "not needed")
+
+	local terminate_error
+	local terminate_thread = coext.detach(coroutine.create(function()
+		local _
+		_, terminate_error = client:terminateSession()
+	end))
+	t:assert(coroutine.resume(terminate_thread))
+	pump(t, scheduler, terminate_thread)
+	t:eq(terminate_error, nil)
+	t:eq(client.session_id, nil)
+	t:eq(next(server.sessions), nil)
+	client:close()
+	server:stop()
+end
+
+---@param t testing.T
 function test.cancels_in_flight_request(t)
 	local scheduler = CosocketScheduler()
 	local tool_started = false

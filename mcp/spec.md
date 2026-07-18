@@ -19,9 +19,10 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 - Tools may publish an output schema. The server advertises it, requires structured content from that tool, and validates the content before returning it to clients.
 - Application adapters may implement multiple tool interfaces so one implementation can serve MCP and other agent protocols without duplicating behavior.
 - Server identity is injected through `server_info`; the reusable module does not depend on `brand` or any application namespace.
-- `mcp.Client` uses the same nonblocking web infrastructure and is suitable for integration tests and application-owned agents. It owns initialization, capability negotiation, bearer headers, JSON-RPC request IDs, tool discovery and calls, pings, notifications, timeouts, cancellation of all in-flight native HTTP streams, and deterministic closure.
+- `mcp.Client` uses the same nonblocking web infrastructure and is suitable for integration tests and application-owned agents. It owns initialization, capability negotiation, bearer and session headers, JSON-RPC request IDs, tool discovery and calls, pings, notifications, local stream cancellation, protocol cancellation, session termination, timeouts, and deterministic closure.
 - Client failures use `mcp.ClientError`, distinguishing transport, HTTP, protocol, and JSON-RPC errors while preserving HTTP status, headers, body, and structured error data when available.
-- The initial transport does not open SSE streams or create sessions. `GET` and `DELETE` return HTTP 405 until server-initiated communication has a concrete consumer.
+- Streamable HTTP remains stateless unless the application supplies `session_id_generator`. Stateful servers issue `Mcp-Session-Id`, scope active requests by session, accept session termination through `DELETE`, and route `notifications/cancelled` to `mcp.RequestContext`.
+- The transport does not open SSE streams. `GET` returns HTTP 405 until server-initiated communication has a concrete consumer.
 
 ## Invariants
 
@@ -34,13 +35,13 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 - Published input and output schemas are runtime contracts, not documentation only; protocol boundaries validate them before application code consumes values.
 - `mcp.JsonSchema` enforces the tool-schema subset currently used by the project: primitive/object/array types, required and additional properties, nested property/item schemas, enums, numeric bounds, and array-size bounds. Expanding that subset requires focused validator tests.
 - Protocol errors use JSON-RPC errors, while successful tool dispatches report tool execution failures through MCP result content and `isError`.
-- JSON-RPC request IDs are client-scoped, not globally unique. The stateless server must not route `notifications/cancelled` to active calls until sessions provide an unambiguous client scope.
+- JSON-RPC request IDs are client-scoped, not globally unique. Cancellation is routed only inside an explicit session; stateless cancellation notifications do not target active calls.
+- Tools receive `mcp.RequestContext`, can register cancellation handlers, and must cooperatively stop long-running work after cancellation. Session shutdown cancels every active context.
 
 ## Protocol and Hardening Plan
 
-1. Add sessions and cooperative tool cancellation together when long-running tools provide the first concrete consumer; session scope is required to route repeated request IDs safely.
-2. Make the native client available to application-owned agents when an integration has a concrete workflow.
-3. Add SSE, progress, server requests, and tool-list change notifications only alongside consumers and lifecycle tests that require them.
+1. Make the native client available to application-owned agents when an integration has a concrete workflow.
+2. Add SSE, progress, server requests, and tool-list change notifications only alongside consumers and lifecycle tests that require them.
 
 ## Future Work and Open Questions
 

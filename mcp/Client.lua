@@ -48,6 +48,7 @@ local json = require("web.json")
 ---@field protocol_version string?
 ---@field server_info mcp.Implementation?
 ---@field server_capabilities table?
+---@field session_id string?
 ---@field next_id integer
 ---@field active_streams {[web.HttpStream]: true}
 ---@field closed boolean
@@ -76,7 +77,7 @@ function Client:new(options)
 end
 
 ---@param url string
----@param body string
+---@param body string?
 ---@param options web.HttpRequestOptions
 ---@return mcp.HttpResponse?
 ---@return mcp.ClientError?
@@ -94,7 +95,11 @@ function Client:requestHttp(url, body, options)
 		close_stream()
 		return nil, client_error("transport", tostring(err))
 	end
-	ok, err = stream:sendBody(body)
+	if body == nil then
+		ok, err = stream:sendHeaders()
+	else
+		ok, err = stream:sendBody(body)
+	end
 	if not ok then
 		close_stream()
 		return nil, client_error("transport", tostring(err))
@@ -119,6 +124,7 @@ end
 ---@param initializing boolean?
 ---@return table?
 ---@return mcp.ClientError?
+---@return mcp.HttpResponse?
 function Client:send(message, initializing)
 	if self.closed then
 		return nil, client_error("protocol", "MCP client is closed")
@@ -134,6 +140,9 @@ function Client:send(message, initializing)
 	end
 	if self.protocol_version and not initializing then
 		headers["MCP-Protocol-Version"] = self.protocol_version
+	end
+	if self.session_id and not initializing then
+		headers["Mcp-Session-Id"] = self.session_id
 	end
 
 	local request_func = self.options.request
@@ -159,7 +168,7 @@ function Client:send(message, initializing)
 		if message.id ~= nil then
 			return nil, client_error("protocol", "MCP request received HTTP 202")
 		end
-		return {}
+		return {}, nil, response
 	end
 
 	local decoded, decode_err = json.decode_safe(response.body)
@@ -186,7 +195,34 @@ function Client:send(message, initializing)
 			body = response.body,
 		})
 	end
-	return decoded.result
+	return decoded.result, nil, response
+end
+
+---@return integer
+function Client:allocateRequestId()
+	local id = self.next_id
+	self.next_id = id + 1
+	return id
+end
+
+---@param id string|number
+---@param method string
+---@param params table?
+---@return any?
+---@return mcp.ClientError?
+function Client:requestWithId(id, method, params)
+	if self.closed then
+		return nil, client_error("protocol", "MCP client is closed")
+	end
+	if not self.protocol_version then
+		return nil, client_error("protocol", "MCP client is not initialized")
+	end
+	return self:send({
+		jsonrpc = "2.0",
+		id = id,
+		method = method,
+		params = params,
+	})
 end
 
 ---@param method string
@@ -194,21 +230,7 @@ end
 ---@return any?
 ---@return mcp.ClientError?
 function Client:request(method, params)
-	if self.closed then
-		return nil, client_error("protocol", "MCP client is closed")
-	end
-	if not self.protocol_version then
-		return nil, client_error("protocol", "MCP client is not initialized")
-	end
-	local id = self.next_id
-	self.next_id = id + 1
-	local message = {
-		jsonrpc = "2.0",
-		id = id,
-		method = method,
-		params = params,
-	}
-	return self:send(message)
+	return self:requestWithId(self:allocateRequestId(), method, params)
 end
 
 ---@param method string
@@ -234,9 +256,8 @@ function Client:initialize()
 		return nil, client_error("protocol", "MCP client is already initialized")
 	end
 	local requested_protocol = self.options.protocol_version or self.default_protocol_version
-	local id = self.next_id
-	self.next_id = id + 1
-	local result, err = self:send({
+	local id = self:allocateRequestId()
+	local result, err, response = self:send({
 		jsonrpc = "2.0",
 		id = id,
 		method = "initialize",
@@ -258,12 +279,18 @@ function Client:initialize()
 	if not Protocol.isSupported(result.protocolVersion) then
 		return nil, client_error("protocol", "unsupported MCP protocol version: " .. result.protocolVersion)
 	end
+	local session_headers = assert(response).headers:getTable("Mcp-Session-Id")
+	if #session_headers > 1 then
+		return nil, client_error("protocol", "initialize response contained multiple MCP session IDs")
+	end
 	self.protocol_version = result.protocolVersion
 	self.server_capabilities = result.capabilities
 	self.server_info = result.serverInfo
+	self.session_id = session_headers[1]
 	local ok, notify_err = self:notify("notifications/initialized")
 	if not ok then
 		self.protocol_version = nil
+		self.session_id = nil
 		return nil, notify_err
 	end
 	return result
@@ -291,10 +318,84 @@ function Client:callTool(name, arguments)
 	})
 end
 
+---@param id string|number
+---@param name string
+---@param arguments {[string]: any}?
+---@return table?
+---@return mcp.ClientError?
+function Client:callToolWithId(id, name, arguments)
+	return self:requestWithId(id, "tools/call", {
+		name = name,
+		arguments = arguments or {},
+	})
+end
+
+---@param request_id string|number
+---@param reason string?
+---@return true?
+---@return mcp.ClientError?
+function Client:cancelRequest(request_id, reason)
+	if not self.session_id then
+		return nil, client_error("protocol", "MCP request cancellation requires a session")
+	end
+	return self:notify("notifications/cancelled", {
+		requestId = request_id,
+		reason = reason,
+	})
+end
+
 ---@return table?
 ---@return mcp.ClientError?
 function Client:ping()
 	return self:request("ping")
+end
+
+---@return true?
+---@return mcp.ClientError?
+function Client:terminateSession()
+	if not self.session_id then
+		return true
+	end
+	local headers = {
+		Accept = "application/json, text/event-stream",
+		["MCP-Protocol-Version"] = assert(self.protocol_version),
+		["Mcp-Session-Id"] = self.session_id,
+	}
+	local token = self.options.token
+	if token and token ~= "" then
+		headers.Authorization = "Bearer " .. token
+	end
+	local options = {
+		method = "DELETE",
+		headers = headers,
+		scheduler = self.options.scheduler,
+		timeout = self.options.timeout,
+	}
+	local request_func = self.options.request
+	local response, request_err
+	if request_func then
+		response, request_err = request_func(self.options.url, "", options)
+	else
+		response, request_err = self:requestHttp(self.options.url, nil, options)
+	end
+	if not response then
+		if type(request_err) == "table" then
+			return nil, request_err
+		end
+		return nil, client_error("transport", tostring(request_err))
+	elseif response.status ~= 200 then
+		local decoded = json.decode_safe(response.body)
+		local rpc_err = type(decoded) == "table" and decoded.error or nil
+		return nil, client_error("http", rpc_err and rpc_err.message or ("MCP HTTP status " .. response.status), {
+			code = rpc_err and rpc_err.code or nil,
+			data = rpc_err and rpc_err.data or nil,
+			status = response.status,
+			headers = response.headers,
+			body = response.body,
+		})
+	end
+	self.session_id = nil
+	return true
 end
 
 ---@param err string?
@@ -316,9 +417,11 @@ function Client:close()
 	if self.closed then
 		return
 	end
+	assert(not self.session_id, "terminateSession must be called before closing a stateful MCP client")
 	self.closed = true
 	self:cancel("MCP client closed")
 	self.protocol_version = nil
+	self.session_id = nil
 	self.server_info = nil
 	self.server_capabilities = nil
 end
