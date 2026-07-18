@@ -13,10 +13,11 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 
 - `mcp.Server` owns JSON-RPC dispatch and the stateless Streamable HTTP request/response transport.
 - Protocol dispatch should remain separable from HTTP transport so the same behavior can be tested directly and reused if another concrete transport is required.
-- Tools implement the small `mcp.Tool` interface directly: MCP-native metadata plus an `execute(args)` method returning text and an optional error flag.
+- Tools implement the small `mcp.Tool` interface directly: MCP-native metadata plus an `execute(args)` method returning text, an optional error flag, and optional structured content.
+- Tools may publish an output schema. The server advertises it, requires structured content from that tool, and validates the content before returning it to clients.
 - Application adapters may implement multiple tool interfaces so one implementation can serve MCP and other agent protocols without duplicating behavior.
 - Server identity is injected through `server_info`; the reusable module does not depend on `brand` or any application namespace.
-- A future `mcp.Client` should use the same nonblocking web infrastructure, expose negotiated capabilities explicitly, and be suitable for both integration tests and application-owned agents.
+- `mcp.Client` uses the same nonblocking web infrastructure and is suitable for integration tests and application-owned agents. It owns initialization, capability negotiation, bearer headers, JSON-RPC request IDs, tool discovery and calls, pings, notifications, timeouts, and deterministic closure.
 - The initial transport does not open SSE streams or create sessions. `GET` and `DELETE` return HTTP 405 until server-initiated communication has a concrete consumer.
 
 ## Invariants
@@ -32,11 +33,10 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 
 ## Protocol and Hardening Plan
 
-1. Harden the HTTP listener: bound headers and concurrent clients, handle disconnects cleanly, and add rate limiting where remote exposure requires it.
-2. Extend tool results with `structuredContent` and optional output schemas while retaining text content for client compatibility.
-3. Implement a native `mcp.Client` with initialization, capability negotiation, tool discovery, calls, cancellation, timeouts, and deterministic shutdown.
-4. Use the native client for end-to-end tests against `mcp.Server`, then make it available to application-owned agents when an integration has a concrete workflow.
-5. Add sessions, SSE, progress, server requests, and tool-list change notifications only alongside consumers and lifecycle tests that require them.
+1. Harden the HTTP listener: bound headers and concurrent clients, and add rate limiting where remote exposure requires it.
+2. Add explicit client request cancellation when an application workflow needs ownership beyond canceling the calling coroutine.
+3. Make the native client available to application-owned agents when an integration has a concrete workflow.
+4. Add sessions, SSE, progress, server requests, and tool-list change notifications only alongside consumers and lifecycle tests that require them.
 
 ## Future Work and Open Questions
 

@@ -150,6 +150,55 @@ function test.call_tool(t)
 end
 
 ---@param t testing.T
+function test.structured_tool_result(t)
+	local tool = make_tool()
+	tool.output_schema = {
+		type = "object",
+		properties = {value = {type = "string"}},
+		required = {"value"},
+		additionalProperties = false,
+	}
+	tool.execute = function(_, args)
+		return "result: " .. args.code, false, {value = args.code}
+	end
+	local server = Server(CosocketScheduler(), {tool})
+	local listed = server:dispatch({jsonrpc = "2.0", id = 1, method = "tools/list"})
+	t:eq(listed.result.tools[1].outputSchema, tool.output_schema)
+
+	local response = server:dispatch({
+		jsonrpc = "2.0",
+		id = 2,
+		method = "tools/call",
+		params = {name = "lua_eval", arguments = {code = "game.ui"}},
+	})
+	t:eq(response.result.content[1].text, "result: game.ui")
+	t:tdeq(response.result.structuredContent, {value = "game.ui"})
+	t:eq(response.result.isError, false)
+end
+
+---@param t testing.T
+function test.rejects_invalid_structured_tool_result(t)
+	local tool = make_tool()
+	tool.output_schema = {
+		type = "object",
+		properties = {value = {type = "string"}},
+		required = {"value"},
+	}
+	tool.execute = function()
+		return "invalid", false, {value = 1}
+	end
+	local server = Server(CosocketScheduler(), {tool})
+	local response = server:dispatch({
+		jsonrpc = "2.0",
+		id = 1,
+		method = "tools/call",
+		params = {name = "lua_eval", arguments = {code = "game.ui"}},
+	})
+	t:eq(response.result.isError, true)
+	t:eq(response.result.content[1].text, "invalid structured tool output: $.value must match type string")
+end
+
+---@param t testing.T
 function test.tool_execution_error(t)
 	local tool = make_tool()
 	tool.execute = function()

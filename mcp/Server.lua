@@ -15,8 +15,9 @@ local json = require("web.json")
 ---@field name string
 ---@field description string?
 ---@field input_schema table
+---@field output_schema table?
 ---@field annotations mcp.ToolAnnotations?
----@field execute fun(self: mcp.Tool, args: {[string]: any}): string, boolean?
+---@field execute fun(self: mcp.Tool, args: {[string]: any}): string, boolean?, table?
 
 ---@class mcp.Implementation
 ---@field name string
@@ -62,6 +63,7 @@ function Server:new(scheduler, tools, options)
 	for _, tool in ipairs(tools) do
 		assert(type(tool.name) == "string", "MCP tool name must be a string")
 		assert(type(tool.input_schema) == "table", "MCP tool input_schema must be a table")
+		assert(tool.output_schema == nil or type(tool.output_schema) == "table", "MCP tool output_schema must be a table")
 		assert(type(tool.execute) == "function", "MCP tool execute must be a function")
 		assert(not self.tools_by_name[tool.name], "duplicate MCP tool: " .. tool.name)
 		self.tools_by_name[tool.name] = tool
@@ -78,6 +80,8 @@ end
 ---@param status integer
 ---@param body string?
 ---@param content_type string?
+---@return integer?
+---@return string?
 local function send_response(res, status, body, content_type)
 	body = body or ""
 	res.status = status
@@ -85,7 +89,10 @@ local function send_response(res, status, body, content_type)
 	if content_type then
 		res.headers:set("Content-Type", content_type)
 	end
-	assert(res:send(body))
+	if body == "" then
+		return res:send_headers()
+	end
+	return res:send(body)
 end
 
 ---@param id any?
@@ -181,6 +188,7 @@ function Server:dispatch(message)
 				name = tool.name,
 				description = tool.description,
 				inputSchema = tool.input_schema,
+				outputSchema = tool.output_schema,
 				annotations = tool.annotations,
 			})
 		end
@@ -203,7 +211,7 @@ function Server:dispatch(message)
 			return rpc_error(id, -32602, "Invalid tool arguments", validation_err)
 		end
 
-		local ok, output, is_error = xpcall(tool.execute, debug.traceback, tool, arguments)
+		local ok, output, is_error, structured_content = xpcall(tool.execute, debug.traceback, tool, arguments)
 		if not ok then
 			return rpc_result(id, {
 				content = {{type = "text", text = tostring(output)}},
@@ -216,8 +224,30 @@ function Server:dispatch(message)
 				isError = true,
 			})
 		end
+		if structured_content ~= nil and type(structured_content) ~= "table" then
+			return rpc_result(id, {
+				content = {{type = "text", text = "tool returned non-table structured content"}},
+				isError = true,
+			})
+		end
+		if tool.output_schema then
+			if structured_content == nil then
+				return rpc_result(id, {
+					content = {{type = "text", text = "tool did not return required structured content"}},
+					isError = true,
+				})
+			end
+			local valid_output, output_err = JsonSchema.validate(tool.output_schema, structured_content)
+			if not valid_output then
+				return rpc_result(id, {
+					content = {{type = "text", text = "invalid structured tool output: " .. output_err}},
+					isError = true,
+				})
+			end
+		end
 		return rpc_result(id, {
 			content = {{type = "text", text = output}},
+			structuredContent = structured_content,
 			isError = is_error == true,
 		})
 	end
