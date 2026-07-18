@@ -5,6 +5,7 @@ local socket_url = require("socket.url")
 local HttpServer = require("web.http.Server")
 local JsonSchema = require("mcp.JsonSchema")
 local Protocol = require("mcp.Protocol")
+local ToolResult = require("mcp.ToolResult")
 local json = require("web.json")
 
 ---@class mcp.ToolAnnotations
@@ -19,7 +20,7 @@ local json = require("web.json")
 ---@field input_schema table
 ---@field output_schema table?
 ---@field annotations mcp.ToolAnnotations?
----@field execute fun(self: mcp.Tool, args: {[string]: any}): string, boolean?, table?
+---@field execute fun(self: mcp.Tool, args: {[string]: any}): string|mcp.ToolResult, boolean?, table?
 
 ---@class mcp.Implementation
 ---@field name string
@@ -138,6 +139,15 @@ local function rpc_result(id, result)
 	return {jsonrpc = "2.0", id = id, result = result}
 end
 
+---@param text string
+---@return mcp.CallToolResult
+local function tool_error(text)
+	return {
+		content = {{type = "text", text = text}},
+		isError = true,
+	}
+end
+
 ---@param req web.Request
 ---@return boolean
 function Server:isAuthorized(req)
@@ -239,43 +249,22 @@ function Server:dispatch(message)
 
 		local ok, output, is_error, structured_content = xpcall(tool.execute, debug.traceback, tool, arguments)
 		if not ok then
-			return rpc_result(id, {
-				content = {{type = "text", text = tostring(output)}},
-				isError = true,
-			})
+			return rpc_result(id, tool_error(tostring(output)))
 		end
-		if type(output) ~= "string" then
-			return rpc_result(id, {
-				content = {{type = "text", text = "tool returned a non-string result"}},
-				isError = true,
-			})
-		end
-		if structured_content ~= nil and type(structured_content) ~= "table" then
-			return rpc_result(id, {
-				content = {{type = "text", text = "tool returned non-table structured content"}},
-				isError = true,
-			})
+		local result, result_err = ToolResult.normalize(output, is_error, structured_content)
+		if not result then
+			return rpc_result(id, tool_error(assert(result_err)))
 		end
 		if tool.output_schema then
-			if structured_content == nil then
-				return rpc_result(id, {
-					content = {{type = "text", text = "tool did not return required structured content"}},
-					isError = true,
-				})
+			if result.structuredContent == nil then
+				return rpc_result(id, tool_error("tool did not return required structured content"))
 			end
-			local valid_output, output_err = JsonSchema.validate(tool.output_schema, structured_content)
+			local valid_output, output_err = JsonSchema.validate(tool.output_schema, result.structuredContent)
 			if not valid_output then
-				return rpc_result(id, {
-					content = {{type = "text", text = "invalid structured tool output: " .. output_err}},
-					isError = true,
-				})
+				return rpc_result(id, tool_error("invalid structured tool output: " .. output_err))
 			end
 		end
-		return rpc_result(id, {
-			content = {{type = "text", text = output}},
-			structuredContent = structured_content,
-			isError = is_error == true,
-		})
+		return rpc_result(id, result)
 	end
 
 	return rpc_error(id, -32601, "Method not found: " .. method)

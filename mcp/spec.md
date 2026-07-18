@@ -14,7 +14,8 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 - `mcp.Protocol` is the shared source of truth for the latest and supported protocol versions. Servers negotiate from it, and clients reject initialize results outside it.
 - `mcp.Server` owns JSON-RPC dispatch and the stateless Streamable HTTP request/response transport.
 - Protocol dispatch should remain separable from HTTP transport so the same behavior can be tested directly and reused if another concrete transport is required.
-- Tools implement the small `mcp.Tool` interface directly: MCP-native metadata plus an `execute(args)` method returning text, an optional error flag, and optional structured content.
+- Tools implement the small `mcp.Tool` interface directly: MCP-native metadata plus an `execute(args)` method returning either `mcp.ToolResult` or the legacy text/error/structured-content tuple.
+- `mcp.ToolResult` supports text, image, audio, embedded-resource, and resource-link content blocks. The server validates block shape and base64 payloads before returning them to clients.
 - Tools may publish an output schema. The server advertises it, requires structured content from that tool, and validates the content before returning it to clients.
 - Application adapters may implement multiple tool interfaces so one implementation can serve MCP and other agent protocols without duplicating behavior.
 - Server identity is injected through `server_info`; the reusable module does not depend on `brand` or any application namespace.
@@ -33,11 +34,13 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 - Published input and output schemas are runtime contracts, not documentation only; protocol boundaries validate them before application code consumes values.
 - `mcp.JsonSchema` enforces the tool-schema subset currently used by the project: primitive/object/array types, required and additional properties, nested property/item schemas, enums, numeric bounds, and array-size bounds. Expanding that subset requires focused validator tests.
 - Protocol errors use JSON-RPC errors, while successful tool dispatches report tool execution failures through MCP result content and `isError`.
+- JSON-RPC request IDs are client-scoped, not globally unique. The stateless server must not route `notifications/cancelled` to active calls until sessions provide an unambiguous client scope.
 
 ## Protocol and Hardening Plan
 
-1. Make the native client available to application-owned agents when an integration has a concrete workflow.
-2. Add sessions, SSE, progress, server requests, and tool-list change notifications only alongside consumers and lifecycle tests that require them.
+1. Add sessions and cooperative tool cancellation together when long-running tools provide the first concrete consumer; session scope is required to route repeated request IDs safely.
+2. Make the native client available to application-owned agents when an integration has a concrete workflow.
+3. Add SSE, progress, server requests, and tool-list change notifications only alongside consumers and lifecycle tests that require them.
 
 ## Future Work and Open Questions
 

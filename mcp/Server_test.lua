@@ -182,7 +182,13 @@ function test.structured_tool_result(t)
 		additionalProperties = false,
 	}
 	tool.execute = function(_, args)
-		return "result: " .. args.code, false, {value = args.code}
+		return {
+			content = {
+				{type = "text", text = "result: " .. args.code},
+				{type = "image", data = "aGVsbG8=", mimeType = "image/png"},
+			},
+			structured_content = {value = args.code},
+		}
 	end
 	local server = Server(CosocketScheduler(), {tool})
 	local listed = server:dispatch({jsonrpc = "2.0", id = 1, method = "tools/list"})
@@ -195,6 +201,8 @@ function test.structured_tool_result(t)
 		params = {name = "lua_eval", arguments = {code = "game.ui"}},
 	})
 	t:eq(response.result.content[1].text, "result: game.ui")
+	t:eq(response.result.content[2].type, "image")
+	t:eq(response.result.content[2].mimeType, "image/png")
 	t:tdeq(response.result.structuredContent, {value = "game.ui"})
 	t:eq(response.result.isError, false)
 end
