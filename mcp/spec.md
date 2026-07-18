@@ -21,21 +21,22 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 
 ## Invariants
 
-- The default listener address remains loopback-only.
+- The default listener address remains loopback-only, and a non-loopback listener cannot start without a non-empty bearer token.
 - Requests with an `Origin` header are rejected to prevent browser-driven access to a local privileged server.
 - The optional bearer token, request body limit, tool set, and timeouts are explicit server inputs.
+- Stateless HTTP requests accept supported `MCP-Protocol-Version` values and reject explicitly unsupported versions. JSON-RPC batches produce only requested responses and cannot contain initialization.
 - Tool calls execute in the coroutine handling the request; applications decide which scheduler thread owns that coroutine.
 - Published input and output schemas are runtime contracts, not documentation only; protocol boundaries validate them before application code consumes values.
+- `mcp.JsonSchema` enforces the tool-schema subset currently used by the project: primitive/object/array types, required and additional properties, nested property/item schemas, enums, numeric bounds, and array-size bounds. Expanding that subset requires focused validator tests.
 - Protocol errors use JSON-RPC errors, while successful tool dispatches report tool execution failures through MCP result content and `isError`.
 
 ## Protocol and Hardening Plan
 
-1. Complete request validation: negotiated protocol-version handling, JSON-RPC batch behavior, method parameter validation, and schema validation for tool arguments.
-2. Harden the HTTP listener: reject unauthenticated non-loopback binds, bound headers and concurrent clients, handle disconnects cleanly, and add rate limiting where remote exposure requires it.
-3. Extend tool results with `structuredContent` and optional output schemas while retaining text content for client compatibility.
-4. Implement a native `mcp.Client` with initialization, capability negotiation, tool discovery, calls, cancellation, timeouts, and deterministic shutdown.
-5. Use the native client for end-to-end tests against `mcp.Server`, then make it available to application-owned agents when an integration has a concrete workflow.
-6. Add sessions, SSE, progress, server requests, and tool-list change notifications only alongside consumers and lifecycle tests that require them.
+1. Harden the HTTP listener: bound headers and concurrent clients, handle disconnects cleanly, and add rate limiting where remote exposure requires it.
+2. Extend tool results with `structuredContent` and optional output schemas while retaining text content for client compatibility.
+3. Implement a native `mcp.Client` with initialization, capability negotiation, tool discovery, calls, cancellation, timeouts, and deterministic shutdown.
+4. Use the native client for end-to-end tests against `mcp.Server`, then make it available to application-owned agents when an integration has a concrete workflow.
+5. Add sessions, SSE, progress, server requests, and tool-list change notifications only alongside consumers and lifecycle tests that require them.
 
 ## Future Work and Open Questions
 

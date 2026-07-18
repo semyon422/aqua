@@ -2,6 +2,7 @@ local class = require("class")
 local socket_url = require("socket.url")
 
 local HttpServer = require("web.http.Server")
+local JsonSchema = require("mcp.JsonSchema")
 local json = require("web.json")
 
 ---@class mcp.ToolAnnotations
@@ -131,6 +132,9 @@ function Server:dispatch(message)
 	if type(method) ~= "string" or message.jsonrpc ~= "2.0" then
 		return rpc_error(id, -32600, "Invalid Request")
 	end
+	if id ~= nil and type(id) ~= "string" and type(id) ~= "number" then
+		return rpc_error(nil, -32600, "Invalid Request")
+	end
 
 	if method == "notifications/initialized" or method == "notifications/cancelled" then
 		return
@@ -141,7 +145,16 @@ function Server:dispatch(message)
 
 	if method == "initialize" then
 		local params = message.params
-		local requested = type(params) == "table" and params.protocolVersion or nil
+		if type(params) ~= "table"
+			or type(params.protocolVersion) ~= "string"
+			or type(params.capabilities) ~= "table"
+			or type(params.clientInfo) ~= "table"
+			or type(params.clientInfo.name) ~= "string"
+			or type(params.clientInfo.version) ~= "string"
+		then
+			return rpc_error(id, -32602, "Invalid initialize parameters")
+		end
+		local requested = params.protocolVersion
 		local protocol_version = self.supported_versions[requested] and requested or self.protocol_version
 		return rpc_result(id, {
 			protocolVersion = protocol_version,
@@ -152,8 +165,15 @@ function Server:dispatch(message)
 			},
 		})
 	elseif method == "ping" then
+		if message.params ~= nil and type(message.params) ~= "table" then
+			return rpc_error(id, -32602, "Invalid ping parameters")
+		end
 		return rpc_result(id, {})
 	elseif method == "tools/list" then
+		local params = message.params
+		if params ~= nil and (type(params) ~= "table" or (params.cursor ~= nil and type(params.cursor) ~= "string")) then
+			return rpc_error(id, -32602, "Invalid tools/list parameters")
+		end
 		---@type table[]
 		local tools = {}
 		for _, tool in ipairs(self.tools) do
@@ -178,6 +198,10 @@ function Server:dispatch(message)
 		if type(arguments) ~= "table" then
 			return rpc_error(id, -32602, "Tool arguments must be an object")
 		end
+		local valid, validation_err = JsonSchema.validate(tool.input_schema, arguments)
+		if not valid then
+			return rpc_error(id, -32602, "Invalid tool arguments", validation_err)
+		end
 
 		local ok, output, is_error = xpcall(tool.execute, debug.traceback, tool, arguments)
 		if not ok then
@@ -199,6 +223,54 @@ function Server:dispatch(message)
 	end
 
 	return rpc_error(id, -32601, "Method not found: " .. method)
+end
+
+---@param messages table[]
+---@return table[]|table?
+function Server:dispatchBatch(messages)
+	if #messages == 0 then
+		return rpc_error(nil, -32600, "Invalid Request")
+	end
+	for _, message in ipairs(messages) do
+		if type(message) == "table" and message.method == "initialize" then
+			return rpc_error(nil, -32600, "Only one initialization request is allowed")
+		end
+	end
+
+	---@type table[]
+	local responses = {}
+	for _, message in ipairs(messages) do
+		local response
+		if type(message) == "table" then
+			response = self:dispatch(message)
+		else
+			response = rpc_error(nil, -32600, "Invalid Request")
+		end
+		if response then
+			table.insert(responses, response)
+		end
+	end
+	if #responses == 0 then
+		return
+	end
+	return responses
+end
+
+---@param host string
+---@return boolean
+local function is_loopback(host)
+	return host == "localhost" or host == "::1" or host:match("^127%.") ~= nil
+end
+
+---@param messages table[]
+---@return boolean
+local function has_initialize(messages)
+	for _, message in ipairs(messages) do
+		if type(message) == "table" and message.method == "initialize" then
+			return true
+		end
+	end
+	return false
 end
 
 ---@param req web.Request
@@ -261,12 +333,29 @@ function Server:handleHttp(req, res, ip, port)
 		return
 	end
 
-	local response = self:dispatch(message)
+	local is_batch = body:match("^%s*%[") ~= nil
+	local initializing = is_batch and has_initialize(message) or message.method == "initialize"
+	local requested_protocol = req.headers:get("MCP-Protocol-Version")
+	if not initializing and requested_protocol and not self.supported_versions[requested_protocol] then
+		send_response(res, 400, json.encode(rpc_error(nil, -32000, "Unsupported MCP protocol version: " .. requested_protocol)), "application/json")
+		return
+	end
+
+	local response
+	if is_batch then
+		response = self:dispatchBatch(message)
+	else
+		response = self:dispatch(message)
+	end
 	if not response then
 		send_response(res, 202)
 		return
 	end
-	res.headers:set("MCP-Protocol-Version", self.protocol_version)
+	local response_protocol = requested_protocol or self.protocol_version
+	if initializing then
+		response_protocol = not is_batch and response.result and response.result.protocolVersion or self.protocol_version
+	end
+	res.headers:set("MCP-Protocol-Version", response_protocol)
 	res.headers:set("Cache-Control", "no-store")
 	send_response(res, 200, json.encode(response), "application/json")
 end
@@ -274,7 +363,12 @@ end
 ---@return true?
 ---@return string?
 function Server:start()
-	return self.http_server:start(self.options.host or self.host, self.options.port or self.port)
+	local host = self.options.host or self.host
+	local token = self.options.token
+	if not is_loopback(host) and (not token or token == "") then
+		return nil, "MCP authentication token is required for a non-loopback listener"
+	end
+	return self.http_server:start(host, self.options.port or self.port)
 end
 
 function Server:stop()
