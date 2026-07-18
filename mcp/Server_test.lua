@@ -27,39 +27,40 @@ local function make_tool()
 end
 
 ---@param t testing.T
----@param message table
----@param headers {[string]: string}?
----@return web.Response?
----@return string?
+---@param options mcp.ServerOptions?
+---@return mcp.Server
+---@return web.CosocketScheduler
+---@return integer
 ---@return string[]
-local function request(t, message, headers)
+local function start_server(t, options)
 	local scheduler = CosocketScheduler()
 	---@type string[]
 	local errors = {}
-	local server = Server(scheduler, {make_tool()}, {
-		port = 0,
-		on_error = function(err)
-			table.insert(errors, err)
-		end,
-	})
+	options = options or {}
+	options.port = 0
+	options.on_error = function(err)
+		table.insert(errors, err)
+	end
+	local server = Server(scheduler, {make_tool()}, options)
 	t:assert(server:start())
 	local _, port = server:getAddress()
+	return server, scheduler, assert(port), errors
+end
 
+---@param t testing.T
+---@param scheduler web.CosocketScheduler
+---@param port integer
+---@param body string?
+---@param options web.HttpRequestOptions
+---@return mcp.HttpResponse?
+---@return string?
+local function run_request(t, scheduler, port, body, options)
 	local response
 	local request_error
-	local request_headers = {
-		["Content-Type"] = "application/json",
-		Accept = "application/json, text/event-stream",
-	}
-	for key, value in pairs(headers or {}) do
-		request_headers[key] = value
-	end
+	options.scheduler = scheduler
+	options.timeout = 1
 	local request_thread = coext.detach(coroutine.create(function()
-		response, request_error = http_util.request(("http://127.0.0.1:%d/mcp"):format(port), json.encode(message), {
-			scheduler = scheduler,
-			timeout = 1,
-			headers = request_headers,
-		})
+		response, request_error = http_util.request(("http://127.0.0.1:%d/mcp"):format(port), body, options)
 	end))
 	t:assert(coroutine.resume(request_thread))
 
@@ -71,6 +72,27 @@ local function request(t, message, headers)
 		end
 		t:assert(socket.gettime() < deadline)
 	end
+	return response, request_error
+end
+
+---@param t testing.T
+---@param message table
+---@param headers {[string]: string}?
+---@return mcp.HttpResponse?
+---@return string?
+---@return string[]
+local function request(t, message, headers)
+	local server, scheduler, port, errors = start_server(t)
+	local request_headers = {
+		["Content-Type"] = "application/json",
+		Accept = "application/json, text/event-stream",
+	}
+	for key, value in pairs(headers or {}) do
+		request_headers[key] = value
+	end
+	local response, request_error = run_request(t, scheduler, port, json.encode(message), {
+		headers = request_headers,
+	})
 	server:stop()
 	return response, request_error, errors
 end
@@ -341,6 +363,107 @@ function test.streamable_http_round_trip(t)
 	t:eq(response.headers:get("MCP-Protocol-Version"), "2025-06-18")
 	local decoded = json.decode(response.body)
 	t:eq(decoded.result.tools[1].name, "lua_eval")
+end
+
+---@param t testing.T
+function test.streamable_http_validation(t)
+	local message = {jsonrpc = "2.0", id = 1, method = "tools/list"}
+	local function headers()
+		return {
+			["Content-Type"] = "application/json",
+			Accept = "application/json, text/event-stream",
+		}
+	end
+
+	local server, scheduler, port = start_server(t, {token = "secret"})
+	local response = assert(run_request(t, scheduler, port, json.encode(message), {headers = headers()}))
+	t:eq(response.status, 401)
+	t:eq(response.headers:get("WWW-Authenticate"), "Bearer")
+	local request_headers = headers()
+	request_headers.Authorization = "Bearer wrong"
+	response = assert(run_request(t, scheduler, port, json.encode(message), {headers = request_headers}))
+	t:eq(response.status, 401)
+	request_headers.Authorization = "Bearer secret"
+	response = assert(run_request(t, scheduler, port, json.encode(message), {headers = request_headers}))
+	t:eq(response.status, 200)
+	server:stop()
+
+	server, scheduler, port = start_server(t)
+	request_headers = headers()
+	request_headers.Origin = "https://example.com"
+	response = assert(run_request(t, scheduler, port, json.encode(message), {headers = request_headers}))
+	t:eq(response.status, 403)
+	request_headers = headers()
+	request_headers.Accept = "application/json"
+	response = assert(run_request(t, scheduler, port, json.encode(message), {headers = request_headers}))
+	t:eq(response.status, 406)
+	request_headers = headers()
+	request_headers["Content-Type"] = "text/plain"
+	response = assert(run_request(t, scheduler, port, json.encode(message), {headers = request_headers}))
+	t:eq(response.status, 415)
+	response = assert(run_request(t, scheduler, port, "{", {headers = headers()}))
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, -32700)
+	local missing_length_headers = Headers()
+	missing_length_headers:set("Content-Type", "application/json")
+	missing_length_headers:set("Accept", "application/json, text/event-stream")
+	local req = {
+		method = "POST",
+		uri = "/mcp",
+		headers = missing_length_headers,
+	}
+	local res = {
+		headers = Headers(),
+		set_length = function(self, length) self.length = length end,
+		send = function(self, body) self.body = body return #body end,
+	}
+	server:handleHttp(req --[[@as web.Request]], res --[[@as web.Response]], "127.0.0.1", 1234)
+	t:eq(res.status, 411)
+	t:eq(res.body, "Content-Length required")
+	server:stop()
+
+	server, scheduler, port = start_server(t, {max_body_size = 4})
+	response = assert(run_request(t, scheduler, port, json.encode(message), {headers = headers()}))
+	t:eq(response.status, 413)
+	server:stop()
+end
+
+---@param t testing.T
+function test.streamable_http_notifications_batches_and_rate_limit(t)
+	local request_headers = {
+		["Content-Type"] = "application/json",
+		Accept = "application/json, text/event-stream",
+	}
+	local server, scheduler, port = start_server(t, {rate_limit = 3})
+	local response = assert(run_request(t, scheduler, port, json.encode({
+		jsonrpc = "2.0",
+		method = "notifications/initialized",
+	}), {headers = request_headers}))
+	t:eq(response.status, 202)
+	t:eq(response.body, "")
+
+	response = assert(run_request(t, scheduler, port, json.encode({
+		{jsonrpc = "2.0", id = 1, method = "ping"},
+		{jsonrpc = "2.0", method = "notifications/initialized"},
+		{jsonrpc = "2.0", id = 2, method = "tools/list"},
+	}), {headers = request_headers}))
+	t:eq(response.status, 200)
+	local batch = json.decode(response.body)
+	t:eq(#batch, 2)
+	t:eq(batch[1].id, 1)
+	t:eq(batch[2].id, 2)
+
+	response = assert(run_request(t, scheduler, port, json.encode({jsonrpc = "2.0", id = 3, method = "ping"}), {
+		headers = request_headers,
+	}))
+	t:eq(response.status, 200)
+	response = assert(run_request(t, scheduler, port, json.encode({jsonrpc = "2.0", id = 4, method = "ping"}), {
+		headers = request_headers,
+	}))
+	t:eq(response.status, 429)
+	t:eq(response.headers:get("Retry-After"), "60")
+	t:eq(json.decode(response.body).error.code, -32000)
+	server:stop()
 end
 
 ---@param t testing.T

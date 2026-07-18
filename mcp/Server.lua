@@ -391,7 +391,8 @@ function Server:handleHttp(req, res, ip, port)
 		send_response(res, 415, "Content-Type must be application/json", "text/plain")
 		return
 	end
-	local content_length = tonumber(req.headers:get("Content-Length"))
+	local content_length_header = req.headers:get("Content-Length")
+	local content_length = tonumber(content_length_header)
 	if not content_length then
 		send_response(res, 411, "Content-Length required", "text/plain")
 		return

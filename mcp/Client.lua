@@ -14,6 +14,19 @@ local json = require("web.json")
 ---@field message string
 ---@field data any?
 
+---@alias mcp.ClientErrorKind "transport"|"http"|"protocol"|"rpc"
+
+---@class mcp.ClientErrorFields
+---@field code integer?
+---@field data any?
+---@field status integer?
+---@field headers web.Headers?
+---@field body string?
+
+---@class mcp.ClientError: mcp.ClientErrorFields
+---@field kind mcp.ClientErrorKind
+---@field message string
+
 ---@class mcp.HttpResponse
 ---@field status integer
 ---@field headers web.Headers
@@ -42,6 +55,17 @@ local Client = class()
 
 Client.default_protocol_version = Protocol.latest_version
 
+---@param kind mcp.ClientErrorKind
+---@param message string
+---@param fields mcp.ClientErrorFields?
+---@return mcp.ClientError
+local function client_error(kind, message, fields)
+	local err = fields or {}
+	err.kind = kind
+	err.message = message
+	return err
+end
+
 ---@param options mcp.ClientOptions
 function Client:new(options)
 	assert(type(options.url) == "string", "MCP client URL is required")
@@ -55,7 +79,7 @@ end
 ---@param body string
 ---@param options web.HttpRequestOptions
 ---@return mcp.HttpResponse?
----@return string?
+---@return mcp.ClientError?
 function Client:requestHttp(url, body, options)
 	local stream = HttpStream(options)
 	self.active_streams[stream] = true
@@ -68,18 +92,18 @@ function Client:requestHttp(url, body, options)
 	local ok, err = stream:connect(url)
 	if not ok then
 		close_stream()
-		return nil, err
+		return nil, client_error("transport", tostring(err))
 	end
 	ok, err = stream:sendBody(body)
 	if not ok then
 		close_stream()
-		return nil, err
+		return nil, client_error("transport", tostring(err))
 	end
 	local response_body
 	response_body, err = stream:receiveBody()
 	if not response_body then
 		close_stream()
-		return nil, err
+		return nil, client_error("transport", tostring(err))
 	end
 	local response = assert(stream.res)
 	local result = {
@@ -94,10 +118,10 @@ end
 ---@param message table
 ---@param initializing boolean?
 ---@return table?
----@return string|mcp.Error?
+---@return mcp.ClientError?
 function Client:send(message, initializing)
 	if self.closed then
-		return nil, "MCP client is closed"
+		return nil, client_error("protocol", "MCP client is closed")
 	end
 
 	local headers = {
@@ -126,24 +150,41 @@ function Client:send(message, initializing)
 		response, request_err = self:requestHttp(self.options.url, json.encode(message), request_options)
 	end
 	if not response then
-		return nil, request_err
+		if type(request_err) == "table" then
+			return nil, request_err
+		end
+		return nil, client_error("transport", tostring(request_err))
 	end
 	if response.status == 202 then
+		if message.id ~= nil then
+			return nil, client_error("protocol", "MCP request received HTTP 202")
+		end
 		return {}
 	end
 
 	local decoded, decode_err = json.decode_safe(response.body)
-	if type(decoded) ~= "table" then
-		return nil, "invalid MCP response: " .. tostring(decode_err)
-	end
 	if response.status ~= 200 then
-		return nil, decoded.error or ("MCP HTTP status " .. response.status)
+		local rpc_err = type(decoded) == "table" and decoded.error or nil
+		return nil, client_error("http", rpc_err and rpc_err.message or ("MCP HTTP status " .. response.status), {
+			code = rpc_err and rpc_err.code or nil,
+			data = rpc_err and rpc_err.data or nil,
+			status = response.status,
+			headers = response.headers,
+			body = response.body,
+		})
+	end
+	if type(decoded) ~= "table" then
+		return nil, client_error("protocol", "invalid MCP response: " .. tostring(decode_err), {body = response.body})
 	end
 	if decoded.jsonrpc ~= "2.0" or decoded.id ~= message.id then
-		return nil, "invalid MCP JSON-RPC response"
+		return nil, client_error("protocol", "invalid MCP JSON-RPC response", {body = response.body})
 	end
 	if decoded.error then
-		return nil, decoded.error
+		return nil, client_error("rpc", decoded.error.message, {
+			code = decoded.error.code,
+			data = decoded.error.data,
+			body = response.body,
+		})
 	end
 	return decoded.result
 end
@@ -151,13 +192,13 @@ end
 ---@param method string
 ---@param params table?
 ---@return any?
----@return string|mcp.Error?
+---@return mcp.ClientError?
 function Client:request(method, params)
 	if self.closed then
-		return nil, "MCP client is closed"
+		return nil, client_error("protocol", "MCP client is closed")
 	end
 	if not self.protocol_version then
-		return nil, "MCP client is not initialized"
+		return nil, client_error("protocol", "MCP client is not initialized")
 	end
 	local id = self.next_id
 	self.next_id = id + 1
@@ -173,7 +214,7 @@ end
 ---@param method string
 ---@param params table?
 ---@return true?
----@return string|mcp.Error?
+---@return mcp.ClientError?
 function Client:notify(method, params)
 	local _, err = self:send({
 		jsonrpc = "2.0",
@@ -187,10 +228,10 @@ function Client:notify(method, params)
 end
 
 ---@return table?
----@return string|mcp.Error?
+---@return mcp.ClientError?
 function Client:initialize()
 	if self.protocol_version then
-		return nil, "MCP client is already initialized"
+		return nil, client_error("protocol", "MCP client is already initialized")
 	end
 	local requested_protocol = self.options.protocol_version or self.default_protocol_version
 	local id = self.next_id
@@ -212,10 +253,10 @@ function Client:initialize()
 		or type(result.capabilities) ~= "table"
 		or type(result.serverInfo) ~= "table"
 	then
-		return nil, "invalid MCP initialize result"
+		return nil, client_error("protocol", "invalid MCP initialize result")
 	end
 	if not Protocol.isSupported(result.protocolVersion) then
-		return nil, "unsupported MCP protocol version: " .. result.protocolVersion
+		return nil, client_error("protocol", "unsupported MCP protocol version: " .. result.protocolVersion)
 	end
 	self.protocol_version = result.protocolVersion
 	self.server_capabilities = result.capabilities
@@ -230,7 +271,7 @@ end
 
 ---@param cursor string?
 ---@return table?
----@return string|mcp.Error?
+---@return mcp.ClientError?
 function Client:listTools(cursor)
 	local params
 	if cursor then
@@ -242,7 +283,7 @@ end
 ---@param name string
 ---@param arguments {[string]: any}?
 ---@return table?
----@return string|mcp.Error?
+---@return mcp.ClientError?
 function Client:callTool(name, arguments)
 	return self:request("tools/call", {
 		name = name,
@@ -251,7 +292,7 @@ function Client:callTool(name, arguments)
 end
 
 ---@return table?
----@return string|mcp.Error?
+---@return mcp.ClientError?
 function Client:ping()
 	return self:request("ping")
 end

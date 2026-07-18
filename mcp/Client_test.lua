@@ -3,6 +3,7 @@ local socket = require("socket")
 
 local Client = require("mcp.Client")
 local Server = require("mcp.Server")
+local Headers = require("web.http.Headers")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local json = require("web.json")
 
@@ -27,7 +28,7 @@ end
 local function response(body, status)
 	return {
 		status = status or 200,
-		headers = {},
+		headers = Headers(),
 		body = body and json.encode(body) or "",
 	}
 end
@@ -101,7 +102,8 @@ function test.rejects_unsupported_server_protocol(t)
 	end)
 	local client = Client({url = "http://127.0.0.1/mcp", request = request})
 	local _, err = client:initialize()
-	t:eq(err, "unsupported MCP protocol version: unknown")
+	t:eq(err.kind, "protocol")
+	t:eq(err.message, "unsupported MCP protocol version: unknown")
 	t:eq(#calls, 1)
 	t:eq(client.protocol_version, nil)
 end
@@ -117,15 +119,61 @@ function test.requires_initialization_and_returns_rpc_errors(t)
 	end)
 	local client = Client({url = "http://127.0.0.1/mcp", request = request})
 	local _, init_err = client:listTools()
-	t:eq(init_err, "MCP client is not initialized")
+	t:eq(init_err.kind, "protocol")
+	t:eq(init_err.message, "MCP client is not initialized")
 
 	client.protocol_version = "2025-11-25"
 	local _, rpc_err = client:listTools()
+	t:eq(rpc_err.kind, "rpc")
 	t:eq(rpc_err.code, -32601)
 	t:eq(rpc_err.message, "missing")
 	client:close()
 	local _, close_err = client:listTools()
-	t:eq(close_err, "MCP client is closed")
+	t:eq(close_err.kind, "protocol")
+	t:eq(close_err.message, "MCP client is closed")
+end
+
+---@param t testing.T
+function test.returns_structured_http_errors(t)
+	local headers = Headers()
+	headers:set("WWW-Authenticate", "Bearer")
+	local client = Client({
+		url = "http://127.0.0.1/mcp",
+		request = function()
+			return {status = 401, headers = headers, body = "unauthorized"}
+		end,
+	})
+	client.protocol_version = "2025-11-25"
+	local _, http_err = client:listTools()
+	t:eq(http_err.kind, "http")
+	t:eq(http_err.status, 401)
+	t:eq(http_err.message, "MCP HTTP status 401")
+	t:eq(http_err.headers:get("WWW-Authenticate"), "Bearer")
+	t:eq(http_err.body, "unauthorized")
+
+	headers = Headers()
+	headers:set("Retry-After", "30")
+	client = Client({
+		url = "http://127.0.0.1/mcp",
+		request = function()
+			return {
+				status = 429,
+				headers = headers,
+				body = json.encode({
+					jsonrpc = "2.0",
+					error = {code = -32000, message = "rate limited", data = {scope = "ip"}},
+				}),
+			}
+		end,
+	})
+	client.protocol_version = "2025-11-25"
+	_, http_err = client:listTools()
+	t:eq(http_err.kind, "http")
+	t:eq(http_err.status, 429)
+	t:eq(http_err.code, -32000)
+	t:eq(http_err.message, "rate limited")
+	t:tdeq(http_err.data, {scope = "ip"})
+	t:eq(http_err.headers:get("Retry-After"), "30")
 end
 
 ---@param t testing.T
@@ -228,7 +276,8 @@ function test.cancels_in_flight_request(t)
 
 	t:eq(client:cancel("test canceled"), 1)
 	pump(t, scheduler, call_thread)
-	t:eq(call_error, "test canceled")
+	t:eq(call_error.kind, "transport")
+	t:eq(call_error.message, "test canceled")
 	t:eq(client.closed, false)
 	t:eq(next(client.active_streams), nil)
 
