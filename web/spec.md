@@ -41,6 +41,8 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - `web.http.HttpStream:cancel(err)` marks the stream as canceled, closes the underlying client, and maps later stream operation errors to the cancellation reason so callers see an intentional stop rather than a generic socket close.
 - Existing blocking socket implementations must keep their current contracts.
 - `aqua/web` must not depend on `rizu`, `sea`, or other application-specific modules.
+- LuaSocket servers use `web.CosocketServer` for nonblocking accept and per-client coroutine ownership. HTTP applications adapt it through `web.HttpServer` and remain responsible for routing and response bodies.
+- `CosocketTcpSocket:receiveany()` returns currently available bytes without waiting for the requested maximum, so request parsers cannot stall on short headers or bodies.
 
 ## Implementation Plan
 
@@ -83,7 +85,6 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 
 ## Future Work and Open Questions
 
-- Add a scheduler-backed LuaSocket server/accept adapter that reuses `CosocketScheduler`, runs each accepted client handler as a detached coroutine, and uses the same timers/cancel/cleanup semantics as client cosockets.
 - Decide whether the scheduler should be per-client object, shared singleton, or explicitly injected into each cosocket.
 - Decide whether `delay` should remain separate from web timers or whether a small timer primitive belongs in the cosocket scheduler.
 - Decide how to expose DNS resolution without coupling `aqua/web` to LÖVE thread APIs.
@@ -113,3 +114,6 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Added `HttpStream:cancel(err)` and an `on_close` hook so owners can explicitly stop long-running transfers and unregister streams.
 - Verified the scheduler manually with global `coext.export()` enabled.
 - Removed the old LuaSocket server/TcpUpdater prototype so the future server path is documented without keeping unsupported code around.
+- Added `web.luasocket.CosocketServer`, which accepts without blocking and runs each client handler in a detached scheduler-owned coroutine.
+- Added `web.http.Server`, a one-request-per-connection HTTP adapter over the cosocket server.
+- Added a true nonblocking `CosocketTcpSocket:receiveany()` implementation, required by server-side HTTP parsing when less than the parser buffer size is available.

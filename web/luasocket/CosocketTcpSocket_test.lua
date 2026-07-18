@@ -186,6 +186,37 @@ function test.receive_returns_closed(t)
 end
 
 ---@param t testing.T
+function test.receiveany_returns_available_partial(t)
+	local tcp_socket, raw_socket = new_socket()
+	raw_socket.receive_returns = {
+		table_util.pack(nil, "timeout", "ab"),
+	}
+
+	t:tdeq({tcp_socket:receiveany(4096)}, {"ab"})
+	t:tdeq(raw_socket.receive_calls[1], {4096, nil})
+end
+
+---@param t testing.T
+function test.receiveany_waits_when_no_data_is_available(t)
+	local tcp_socket, raw_socket, scheduler, mock = new_socket()
+	raw_socket.receive_returns = {
+		table_util.pack(nil, "timeout", ""),
+		table_util.pack(nil, "timeout", "ab"),
+	}
+
+	local result
+	local co = coroutine.create(function()
+		result = {tcp_socket:receiveany(4096)}
+	end)
+
+	t:tdeq({coroutine.resume(co)}, {true})
+	t:eq(result, nil)
+	mock.ready_read = {raw_socket}
+	t:eq(scheduler:update(), true)
+	t:tdeq(result, {"ab"})
+end
+
+---@param t testing.T
 function test.send_waits_and_continues_after_partial(t)
 	local tcp_socket, raw_socket, scheduler, mock = new_socket()
 	raw_socket.send_returns = {

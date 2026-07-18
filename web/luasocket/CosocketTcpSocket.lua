@@ -213,6 +213,33 @@ function CosocketTcpSocket:receive(pattern, prefix)
 	end
 end
 
+---@param max integer
+---@return string?
+---@return "closed"|"timeout"?
+function CosocketTcpSocket:receiveany(max)
+	local deadline = self:getDeadline()
+
+	while true do
+		local data, err, partial = self.soc:receive(max)
+		if data then
+			return data
+		elseif partial and #partial > 0 then
+			return partial
+		end
+
+		local mode = get_wait_mode(err, "read")
+		if not mode then
+			return nil, err
+		end
+
+		local ok
+		ok, err = self:wait(mode, deadline)
+		if not ok then
+			return nil, err
+		end
+	end
+end
+
 ---@param data string
 ---@param i integer?
 ---@param j integer?
