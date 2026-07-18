@@ -1,6 +1,7 @@
 local class = require("class")
 
 local HttpStream = require("web.http.HttpStream")
+local Protocol = require("mcp.Protocol")
 local json = require("web.json")
 
 ---@class mcp.ClientInfo
@@ -39,7 +40,7 @@ local json = require("web.json")
 ---@field closed boolean
 local Client = class()
 
-Client.default_protocol_version = "2025-11-25"
+Client.default_protocol_version = Protocol.latest_version
 
 ---@param options mcp.ClientOptions
 function Client:new(options)
@@ -212,6 +213,9 @@ function Client:initialize()
 		or type(result.serverInfo) ~= "table"
 	then
 		return nil, "invalid MCP initialize result"
+	end
+	if not Protocol.isSupported(result.protocolVersion) then
+		return nil, "unsupported MCP protocol version: " .. result.protocolVersion
 	end
 	self.protocol_version = result.protocolVersion
 	self.server_capabilities = result.capabilities

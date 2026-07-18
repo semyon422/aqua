@@ -87,6 +87,26 @@ function test.initializes_and_sends_protocol_headers(t)
 end
 
 ---@param t testing.T
+function test.rejects_unsupported_server_protocol(t)
+	local request, calls = fake_request(function(message)
+		return response({
+			jsonrpc = "2.0",
+			id = message.id,
+			result = {
+				protocolVersion = "unknown",
+				capabilities = {},
+				serverInfo = {name = "test", version = "dev"},
+			},
+		})
+	end)
+	local client = Client({url = "http://127.0.0.1/mcp", request = request})
+	local _, err = client:initialize()
+	t:eq(err, "unsupported MCP protocol version: unknown")
+	t:eq(#calls, 1)
+	t:eq(client.protocol_version, nil)
+end
+
+---@param t testing.T
 function test.requires_initialization_and_returns_rpc_errors(t)
 	local request = fake_request(function(message)
 		return response({

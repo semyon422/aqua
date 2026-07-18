@@ -11,6 +11,7 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 
 ## Architecture Decisions
 
+- `mcp.Protocol` is the shared source of truth for the latest and supported protocol versions. Servers negotiate from it, and clients reject initialize results outside it.
 - `mcp.Server` owns JSON-RPC dispatch and the stateless Streamable HTTP request/response transport.
 - Protocol dispatch should remain separable from HTTP transport so the same behavior can be tested directly and reused if another concrete transport is required.
 - Tools implement the small `mcp.Tool` interface directly: MCP-native metadata plus an `execute(args)` method returning text, an optional error flag, and optional structured content.

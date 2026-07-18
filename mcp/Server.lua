@@ -4,6 +4,7 @@ local socket_url = require("socket.url")
 
 local HttpServer = require("web.http.Server")
 local JsonSchema = require("mcp.JsonSchema")
+local Protocol = require("mcp.Protocol")
 local json = require("web.json")
 
 ---@class mcp.ToolAnnotations
@@ -59,12 +60,8 @@ local function is_loopback(host)
 	return host == "localhost" or host == "::1" or host:match("^127%.") ~= nil
 end
 
-Server.protocol_version = "2025-11-25"
-Server.supported_versions = {
-	["2025-03-26"] = true,
-	["2025-06-18"] = true,
-	["2025-11-25"] = true,
-}
+Server.protocol_version = Protocol.latest_version
+Server.supported_versions = Protocol.supported_versions
 Server.host = "127.0.0.1"
 Server.port = 38679
 Server.path = "/mcp"
