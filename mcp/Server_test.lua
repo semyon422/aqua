@@ -288,6 +288,7 @@ function test.dispatch_batch(t)
 	})
 	t:eq(#responses, 2)
 	t:eq(responses[1].id, 1)
+	t:eq(json.isObject(responses[1].result), true)
 	t:eq(responses[2].result.tools[1].name, "lua_eval")
 
 	t:eq(server:dispatchBatch({

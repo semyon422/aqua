@@ -263,7 +263,7 @@ function Client:initialize()
 		method = "initialize",
 		params = {
 			protocolVersion = requested_protocol,
-			capabilities = self.options.capabilities or {},
+			capabilities = json.object(self.options.capabilities or {}),
 			clientInfo = self.options.client_info or {name = "aqua-mcp", version = "dev"},
 		},
 	}, true)
@@ -314,7 +314,7 @@ end
 function Client:callTool(name, arguments)
 	return self:request("tools/call", {
 		name = name,
-		arguments = arguments or {},
+		arguments = json.object(arguments or {}),
 	})
 end
 
@@ -326,7 +326,7 @@ end
 function Client:callToolWithId(id, name, arguments)
 	return self:requestWithId(id, "tools/call", {
 		name = name,
-		arguments = arguments or {},
+		arguments = json.object(arguments or {}),
 	})
 end
 

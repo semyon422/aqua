@@ -1,3 +1,5 @@
+local json = require("json")
+
 local ToolResult = {}
 
 ---@class mcp.ContentAnnotations
@@ -189,6 +191,13 @@ function ToolResult.normalize(output, legacy_is_error, legacy_structured_content
 
 	if structured_content ~= nil and type(structured_content) ~= "table" then
 		return nil, "tool returned non-table structured content"
+	elseif structured_content ~= nil then
+		for key in pairs(structured_content) do
+			if type(key) ~= "string" then
+				return nil, "tool structured content must be an object"
+			end
+		end
+		json.object(structured_content)
 	end
 	for index, block in ipairs(content) do
 		local ok, err = validate_block(block, ("content[%d]"):format(index))
@@ -201,6 +210,7 @@ function ToolResult.normalize(output, legacy_is_error, legacy_structured_content
 			return nil, "tool result content must be an array"
 		end
 	end
+	json.array(content)
 	return {
 		content = content,
 		structuredContent = structured_content,

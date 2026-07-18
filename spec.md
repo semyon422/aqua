@@ -18,6 +18,7 @@ The `aqua/` tree provides reusable Lua infrastructure intended to stay general e
 - `aqua/icc/`: message transport and shared-memory queue primitives used by online features.
 - `aqua/web/`: OpenResty and web-server integration points.
 - `aqua/mcp/`: reusable MCP JSON-RPC and Streamable HTTP server infrastructure.
+- `aqua/json.lua`: dependency-free JSON encoding with explicit object, array, and null representations. See `aqua/json_spec.md`.
 - `aqua/testing/`: shared test framework behavior.
 - `aqua/typecheck/`: runtime type-checking and annotation-adjacent utilities used broadly.
 

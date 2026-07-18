@@ -304,14 +304,14 @@ function Server:dispatch(message, session)
 		if message.params ~= nil and type(message.params) ~= "table" then
 			return rpc_error(id, -32602, "Invalid ping parameters")
 		end
-		return rpc_result(id, {})
+		return rpc_result(id, json.object())
 	elseif method == "tools/list" then
 		local params = message.params
 		if params ~= nil and (type(params) ~= "table" or (params.cursor ~= nil and type(params.cursor) ~= "string")) then
 			return rpc_error(id, -32602, "Invalid tools/list parameters")
 		end
 		---@type table[]
-		local tools = {}
+		local tools = json.array()
 		for _, tool in ipairs(self.tools) do
 			table.insert(tools, {
 				name = tool.name,
@@ -389,7 +389,7 @@ function Server:dispatchBatch(messages, session)
 	end
 
 	---@type table[]
-	local responses = {}
+	local responses = json.array()
 	for _, message in ipairs(messages) do
 		local response
 		if type(message) == "table" then
