@@ -33,6 +33,20 @@ local function response(body, status)
 end
 
 ---@param t testing.T
+---@param scheduler web.CosocketScheduler
+---@param thread thread
+local function pump(t, scheduler, thread)
+	local deadline = socket.gettime() + 2
+	while coroutine.status(thread) ~= "dead" do
+		local ok, err = scheduler:update(0.01)
+		if not ok and err then
+			error(err)
+		end
+		t:assert(socket.gettime() < deadline)
+	end
+end
+
+---@param t testing.T
 function test.initializes_and_sends_protocol_headers(t)
 	local request, calls = fake_request(function(message)
 		if message.method == "initialize" then
@@ -137,20 +151,69 @@ function test.server_round_trip(t)
 	end))
 	t:assert(coroutine.resume(client_thread))
 
-	local deadline = socket.gettime() + 2
-	while coroutine.status(client_thread) ~= "dead" do
-		local ok, err = scheduler:update(0.01)
-		if not ok and err then
-			error(err)
-		end
-		t:assert(socket.gettime() < deadline)
-	end
+	pump(t, scheduler, client_thread)
 	client:close()
 	server:stop()
 
 	t:eq(client_error, nil)
 	t:eq(result.content[1].text, "echo")
 	t:eq(result.isError, false)
+end
+
+---@param t testing.T
+function test.cancels_in_flight_request(t)
+	local scheduler = CosocketScheduler()
+	local tool_started = false
+	local tool = {
+		name = "wait",
+		input_schema = {type = "object", additionalProperties = false},
+		execute = function()
+			tool_started = true
+			scheduler:sleep(10)
+			return "late"
+		end,
+	}
+	local server = Server(scheduler, {tool}, {port = 0, on_error = function(err) error(err) end})
+	t:assert(server:start())
+	local _, port = server:getAddress()
+	local client = Client({
+		url = ("http://127.0.0.1:%d/mcp"):format(port),
+		scheduler = scheduler,
+		timeout = 20,
+	})
+
+	local initialize_error
+	local initialize_thread = coext.detach(coroutine.create(function()
+		local initialized
+		initialized, initialize_error = client:initialize()
+	end))
+	t:assert(coroutine.resume(initialize_thread))
+	pump(t, scheduler, initialize_thread)
+	t:eq(initialize_error, nil)
+
+	local call_error
+	local call_thread = coext.detach(coroutine.create(function()
+		local _
+		_, call_error = client:callTool("wait")
+	end))
+	t:assert(coroutine.resume(call_thread))
+	local deadline = socket.gettime() + 2
+	while not tool_started do
+		local ok, err = scheduler:update(0.01)
+		if not ok and err then
+			error(err)
+		end
+		t:assert(socket.gettime() < deadline)
+	end
+
+	t:eq(client:cancel("test canceled"), 1)
+	pump(t, scheduler, call_thread)
+	t:eq(call_error, "test canceled")
+	t:eq(client.closed, false)
+	t:eq(next(client.active_streams), nil)
+
+	client:close()
+	server:stop()
 end
 
 return test

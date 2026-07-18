@@ -1,6 +1,6 @@
 local class = require("class")
 
-local http_util = require("web.http.util")
+local HttpStream = require("web.http.HttpStream")
 local json = require("web.json")
 
 ---@class mcp.ClientInfo
@@ -35,6 +35,7 @@ local json = require("web.json")
 ---@field server_info mcp.Implementation?
 ---@field server_capabilities table?
 ---@field next_id integer
+---@field active_streams {[web.HttpStream]: true}
 ---@field closed boolean
 local Client = class()
 
@@ -45,7 +46,48 @@ function Client:new(options)
 	assert(type(options.url) == "string", "MCP client URL is required")
 	self.options = options
 	self.next_id = 1
+	self.active_streams = {}
 	self.closed = false
+end
+
+---@param url string
+---@param body string
+---@param options web.HttpRequestOptions
+---@return mcp.HttpResponse?
+---@return string?
+function Client:requestHttp(url, body, options)
+	local stream = HttpStream(options)
+	self.active_streams[stream] = true
+
+	local function close_stream()
+		self.active_streams[stream] = nil
+		stream:close()
+	end
+
+	local ok, err = stream:connect(url)
+	if not ok then
+		close_stream()
+		return nil, err
+	end
+	ok, err = stream:sendBody(body)
+	if not ok then
+		close_stream()
+		return nil, err
+	end
+	local response_body
+	response_body, err = stream:receiveBody()
+	if not response_body then
+		close_stream()
+		return nil, err
+	end
+	local response = assert(stream.res)
+	local result = {
+		status = response.status,
+		headers = response.headers,
+		body = response_body,
+	}
+	close_stream()
+	return result
 end
 
 ---@param message table
@@ -69,13 +111,19 @@ function Client:send(message, initializing)
 		headers["MCP-Protocol-Version"] = self.protocol_version
 	end
 
-	local request_func = self.options.request or http_util.request
-	local response, request_err = request_func(self.options.url, json.encode(message), {
+	local request_func = self.options.request
+	local response, request_err
+	local request_options = {
 		method = "POST",
 		headers = headers,
 		scheduler = self.options.scheduler,
 		timeout = self.options.timeout,
-	})
+	}
+	if request_func then
+		response, request_err = request_func(self.options.url, json.encode(message), request_options)
+	else
+		response, request_err = self:requestHttp(self.options.url, json.encode(message), request_options)
+	end
 	if not response then
 		return nil, request_err
 	end
@@ -204,8 +252,27 @@ function Client:ping()
 	return self:request("ping")
 end
 
+---@param err string?
+---@return integer canceled
+function Client:cancel(err)
+	---@type web.HttpStream[]
+	local streams = {}
+	for stream in pairs(self.active_streams) do
+		table.insert(streams, stream)
+	end
+	self.active_streams = {}
+	for _, stream in ipairs(streams) do
+		stream:cancel(err or "MCP request canceled")
+	end
+	return #streams
+end
+
 function Client:close()
+	if self.closed then
+		return
+	end
 	self.closed = true
+	self:cancel("MCP client closed")
 	self.protocol_version = nil
 	self.server_info = nil
 	self.server_capabilities = nil
