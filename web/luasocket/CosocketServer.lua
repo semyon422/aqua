@@ -7,6 +7,7 @@ local CosocketTcpSocket = require("web.luasocket.CosocketTcpSocket")
 ---@class web.CosocketServerOptions
 ---@field backlog integer?
 ---@field client_timeout number?
+---@field max_clients integer?
 ---@field socket_factory (fun(): any)?
 ---@field on_error (fun(err: string))?
 
@@ -18,6 +19,7 @@ local CosocketTcpSocket = require("web.luasocket.CosocketTcpSocket")
 ---@field server any?
 ---@field accept_thread thread?
 ---@field client_threads {[thread]: true}
+---@field active_clients integer
 ---@field host string?
 ---@field port integer?
 ---@field closed boolean
@@ -31,6 +33,7 @@ function CosocketServer:new(scheduler, handler, options)
 	self.handler = handler
 	self.options = options or {}
 	self.client_threads = {}
+	self.active_clients = 0
 	self.closed = true
 end
 
@@ -45,7 +48,14 @@ function CosocketServer:reportError(err)
 end
 
 ---@param peer any
+---@return boolean
 function CosocketServer:startClient(peer)
+	local max_clients = self.options.max_clients
+	if max_clients and self.active_clients >= max_clients then
+		peer:close()
+		return false
+	end
+
 	local client = CosocketTcpSocket(self.scheduler, nil, peer)
 	client:settimeout(self.options.client_timeout)
 	local ip, port = client:getpeername()
@@ -54,19 +64,26 @@ function CosocketServer:startClient(peer)
 	local client_thread
 	client_thread = coext.detach(coroutine.create(function()
 		local ok, err = xpcall(self.handler, debug.traceback, client, ip, port)
-		client:close()
+		local close_ok, close_err = pcall(client.close, client)
 		self.client_threads[client_thread] = nil
+		self.active_clients = self.active_clients - 1
 		if not ok then
 			self:reportError(err)
+		elseif not close_ok then
+			self:reportError(close_err)
 		end
 	end))
 	self.client_threads[client_thread] = true
+	self.active_clients = self.active_clients + 1
 	local ok, err = coroutine.resume(client_thread)
 	if not ok then
 		self.client_threads[client_thread] = nil
+		self.active_clients = self.active_clients - 1
 		client:close()
 		self:reportError(err)
+		return false
 	end
+	return true
 end
 
 function CosocketServer:acceptLoop()
@@ -149,12 +166,18 @@ function CosocketServer:stop()
 		server:close()
 	end
 
+	---@type thread[]
+	local client_threads = {}
 	for client_thread in pairs(self.client_threads) do
+		table.insert(client_threads, client_thread)
+	end
+	for _, client_thread in ipairs(client_threads) do
 		if coroutine.status(client_thread) ~= "dead" then
 			self.scheduler:cancel(client_thread, "server stopped")
 		end
 	end
 	self.client_threads = {}
+	self.active_clients = 0
 	self.accept_thread = nil
 end
 

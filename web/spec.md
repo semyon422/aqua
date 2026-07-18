@@ -42,6 +42,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Existing blocking socket implementations must keep their current contracts.
 - `aqua/web` must not depend on `rizu`, `sea`, or other application-specific modules.
 - LuaSocket servers use `web.CosocketServer` for nonblocking accept and per-client coroutine ownership. HTTP applications adapt it through `web.HttpServer` and remain responsible for routing and response bodies.
+- `CosocketServer` can bound active client coroutines with `max_clients`; excess accepted sockets are closed immediately, and shutdown cancels a snapshot of all active clients so cleanup cannot skip entries while mutating ownership state.
 - `CosocketTcpSocket:receiveany()` returns currently available bytes without waiting for the requested maximum, so request parsers cannot stall on short headers or bodies.
 
 ## Implementation Plan

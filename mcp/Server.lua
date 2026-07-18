@@ -31,6 +31,7 @@ local json = require("web.json")
 ---@field token string?
 ---@field max_body_size integer?
 ---@field client_timeout number?
+---@field max_clients integer?
 ---@field on_error (fun(err: string))?
 ---@field server_info mcp.Implementation?
 
@@ -72,6 +73,7 @@ function Server:new(scheduler, tools, options)
 		self:handleHttp(req, res, ip, port)
 	end, {
 		client_timeout = self.options.client_timeout or 10,
+		max_clients = self.options.max_clients or 16,
 		on_error = self.options.on_error,
 	})
 end

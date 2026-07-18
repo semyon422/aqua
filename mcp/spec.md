@@ -24,7 +24,7 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 
 - The default listener address remains loopback-only, and a non-loopback listener cannot start without a non-empty bearer token.
 - Requests with an `Origin` header are rejected to prevent browser-driven access to a local privileged server.
-- The optional bearer token, request body limit, tool set, and timeouts are explicit server inputs.
+- The optional bearer token, request body limit, tool set, client limit, and timeouts are explicit server inputs. MCP defaults to at most 16 active clients.
 - Stateless HTTP requests accept supported `MCP-Protocol-Version` values and reject explicitly unsupported versions. JSON-RPC batches produce only requested responses and cannot contain initialization.
 - Tool calls execute in the coroutine handling the request; applications decide which scheduler thread owns that coroutine.
 - Published input and output schemas are runtime contracts, not documentation only; protocol boundaries validate them before application code consumes values.
@@ -33,7 +33,7 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 
 ## Protocol and Hardening Plan
 
-1. Harden the HTTP listener: bound headers and concurrent clients, and add rate limiting where remote exposure requires it.
+1. Harden the HTTP listener: bound request lines and headers, and add rate limiting where remote exposure requires it.
 2. Add explicit client request cancellation when an application workflow needs ownership beyond canceling the calling coroutine.
 3. Make the native client available to application-owned agents when an integration has a concrete workflow.
 4. Add sessions, SSE, progress, server requests, and tool-list change notifications only alongside consumers and lifecycle tests that require them.
