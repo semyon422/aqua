@@ -275,6 +275,39 @@ function test.non_loopback_listener_requires_token(t)
 	local ok, err = server:start()
 	t:eq(ok, nil)
 	t:eq(err, "MCP authentication token is required for a non-loopback listener")
+
+	server = Server(CosocketScheduler(), {make_tool()}, {host = "0.0.0.0", port = 0, token = "secret"})
+	t:assert(server:start())
+	t:eq(server.rate_limit, 120)
+	server:stop()
+end
+
+---@param t testing.T
+function test.rate_limits_requests_by_ip(t)
+	local now = 10
+	local server = Server(CosocketScheduler(), {make_tool()}, {
+		port = 0,
+		rate_limit = 2,
+		rate_limit_window = 5,
+		get_time = function() return now end,
+	})
+	t:assert(server:start())
+
+	t:eq(server:checkRateLimit("127.0.0.1"), true)
+	t:eq(server:checkRateLimit("127.0.0.1"), true)
+	local allowed, retry_after = server:checkRateLimit("127.0.0.1")
+	t:eq(allowed, false)
+	t:eq(retry_after, 5)
+	t:eq(server:checkRateLimit("127.0.0.2"), true)
+
+	now = 15
+	t:eq(server:checkRateLimit("127.0.0.1"), true)
+	server:stop()
+
+	server = Server(CosocketScheduler(), {make_tool()}, {port = 0, rate_limit = 0})
+	t:assert(server:start())
+	t:eq(server:checkRateLimit("127.0.0.1"), true)
+	server:stop()
 end
 
 ---@param t testing.T

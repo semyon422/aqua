@@ -1,4 +1,5 @@
 local class = require("class")
+local socket = require("socket")
 local socket_url = require("socket.url")
 
 local HttpServer = require("web.http.Server")
@@ -32,6 +33,9 @@ local json = require("web.json")
 ---@field max_body_size integer?
 ---@field client_timeout number?
 ---@field max_clients integer?
+---@field rate_limit integer?
+---@field rate_limit_window number?
+---@field get_time (fun(): number)?
 ---@field on_error (fun(err: string))?
 ---@field server_info mcp.Implementation?
 
@@ -41,7 +45,19 @@ local json = require("web.json")
 ---@field tools_by_name {[string]: mcp.Tool}
 ---@field options mcp.ServerOptions
 ---@field http_server web.HttpServer
+---@field rate_limit integer?
+---@field rate_limits {[string]: mcp.RateLimitState}
 local Server = class()
+
+---@class mcp.RateLimitState
+---@field started_at number
+---@field count integer
+
+---@param host string
+---@return boolean
+local function is_loopback(host)
+	return host == "localhost" or host == "::1" or host:match("^127%.") ~= nil
+end
 
 Server.protocol_version = "2025-11-25"
 Server.supported_versions = {
@@ -59,6 +75,13 @@ Server.max_body_size = 1024 * 1024
 ---@param options mcp.ServerOptions?
 function Server:new(scheduler, tools, options)
 	self.options = options or {}
+	if self.options.rate_limit ~= nil then
+		assert(self.options.rate_limit >= 0 and self.options.rate_limit % 1 == 0, "MCP rate_limit must be a non-negative integer")
+	end
+	if self.options.rate_limit_window ~= nil then
+		assert(self.options.rate_limit_window > 0, "MCP rate_limit_window must be positive")
+	end
+	self.rate_limits = {}
 	self.tools = tools
 	self.tools_by_name = {}
 	for _, tool in ipairs(tools) do
@@ -288,12 +311,6 @@ function Server:dispatchBatch(messages)
 	return responses
 end
 
----@param host string
----@return boolean
-local function is_loopback(host)
-	return host == "localhost" or host == "::1" or host:match("^127%.") ~= nil
-end
-
 ---@param messages table[]
 ---@return boolean
 local function has_initialize(messages)
@@ -305,6 +322,29 @@ local function has_initialize(messages)
 	return false
 end
 
+---@param ip string
+---@return boolean
+---@return integer? retry_after
+function Server:checkRateLimit(ip)
+	local limit = self.rate_limit
+	if not limit then
+		return true
+	end
+	local window = self.options.rate_limit_window or 60
+	local get_time = self.options.get_time or socket.gettime
+	local now = get_time()
+	local state = self.rate_limits[ip]
+	if not state or now - state.started_at >= window then
+		state = {started_at = now, count = 0}
+		self.rate_limits[ip] = state
+	end
+	if state.count >= limit then
+		return false, math.max(math.ceil(window - (now - state.started_at)), 1)
+	end
+	state.count = state.count + 1
+	return true
+end
+
 ---@param req web.Request
 ---@param res web.Response
 ---@param ip string
@@ -313,6 +353,12 @@ function Server:handleHttp(req, res, ip, port)
 	local parsed_uri = socket_url.parse(req.uri)
 	if not parsed_uri or parsed_uri.path ~= (self.options.path or self.path) then
 		send_response(res, 404, "not found", "text/plain")
+		return
+	end
+	local within_limit, retry_after = self:checkRateLimit(ip)
+	if not within_limit then
+		res.headers:set("Retry-After", assert(retry_after))
+		send_response(res, 429, json.encode(rpc_error(nil, -32000, "MCP request rate limit exceeded")), "application/json")
 		return
 	end
 	if not self:isOriginAllowed(req) then
@@ -400,11 +446,21 @@ function Server:start()
 	if not is_loopback(host) and (not token or token == "") then
 		return nil, "MCP authentication token is required for a non-loopback listener"
 	end
+	self.rate_limits = {}
+	local configured_rate_limit = self.options.rate_limit
+	if configured_rate_limit == nil and not is_loopback(host) then
+		self.rate_limit = 120
+	elseif configured_rate_limit and configured_rate_limit > 0 then
+		self.rate_limit = configured_rate_limit
+	else
+		self.rate_limit = nil
+	end
 	return self.http_server:start(host, self.options.port or self.port)
 end
 
 function Server:stop()
 	self.http_server:stop()
+	self.rate_limits = {}
 end
 
 ---@return string?
