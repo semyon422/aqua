@@ -22,6 +22,7 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 - `mcp.Client` uses the same nonblocking web infrastructure and is suitable for integration tests and application-owned agents. It owns initialization, capability negotiation, bearer and session headers, JSON-RPC request IDs, tool discovery and calls, pings, notifications, local stream cancellation, protocol cancellation, session termination, timeouts, and deterministic closure.
 - Client failures use `mcp.ClientError`, distinguishing transport, HTTP, protocol, and JSON-RPC errors while preserving HTTP status, headers, body, and structured error data when available.
 - Streamable HTTP remains stateless unless the application supplies `session_id_generator`. Stateful servers issue `Mcp-Session-Id`, scope active requests by session, accept session termination through `DELETE`, and route `notifications/cancelled` to `mcp.RequestContext`.
+- Applications may supply `mcp.SessionStore` to restore valid session IDs after process restart. Only the registry is restored; active requests and cancellation contexts remain process-local.
 - The transport does not open SSE streams. `GET` returns HTTP 405 until server-initiated communication has a concrete consumer.
 
 ## Invariants
@@ -36,6 +37,7 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 - `mcp.JsonSchema` enforces the tool-schema subset currently used by the project: primitive/object/array types, required and additional properties, nested property/item schemas, enums, numeric bounds, and array-size bounds. Expanding that subset requires focused validator tests.
 - Protocol errors use JSON-RPC errors, while successful tool dispatches report tool execution failures through MCP result content and `isError`.
 - JSON-RPC request IDs are client-scoped, not globally unique. Cancellation is routed only inside an explicit session; stateless cancellation notifications do not target active calls.
+- Session shutdown preserves IDs owned by `mcp.SessionStore`, while explicit `DELETE` removes them. Restored sessions always begin with an empty active-request set.
 - Tools receive `mcp.RequestContext`, can register cancellation handlers, and must cooperatively stop long-running work after cancellation. Session shutdown cancels every active context.
 
 ## Protocol and Hardening Plan

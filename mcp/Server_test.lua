@@ -329,6 +329,53 @@ function test.non_loopback_listener_requires_token(t)
 end
 
 ---@param t testing.T
+function test.persists_session_registry_across_restart(t)
+	local stored = {old = true}
+	local store = {
+		load = function()
+			local ids = {}
+			for id in pairs(stored) do
+				table.insert(ids, id)
+			end
+			return ids
+		end,
+		add = function(_, id)
+			stored[id] = true
+			return true
+		end,
+		remove = function(_, id)
+			stored[id] = nil
+			return true
+		end,
+	}
+	local server = Server(CosocketScheduler(), {make_tool()}, {
+		port = 0,
+		session_id_generator = function() return "new" end,
+		session_store = store,
+	})
+	t:assert(server:start())
+	t:assert(server.sessions.old)
+	local session = assert(server:createSession())
+	t:eq(session.id, "new")
+	t:eq(stored.new, true)
+	server:stop()
+	t:eq(stored.old, true)
+	t:eq(stored.new, true)
+
+	server = Server(CosocketScheduler(), {make_tool()}, {
+		port = 0,
+		session_id_generator = function() return "unused" end,
+		session_store = store,
+	})
+	t:assert(server:start())
+	t:assert(server.sessions.old)
+	t:assert(server.sessions.new)
+	t:assert(server:closeSession(server.sessions.old, nil, true))
+	t:eq(stored.old, nil)
+	server:stop()
+end
+
+---@param t testing.T
 function test.rate_limits_requests_by_ip(t)
 	local now = 10
 	local server = Server(CosocketScheduler(), {make_tool()}, {

@@ -28,6 +28,11 @@ local json = require("web.json")
 ---@field version string
 ---@field description string?
 
+---@class mcp.SessionStore
+---@field load fun(self: mcp.SessionStore): string[]?, string?
+---@field add fun(self: mcp.SessionStore, id: string): true?, string?
+---@field remove fun(self: mcp.SessionStore, id: string): true?, string?
+
 ---@class mcp.ServerOptions
 ---@field host string?
 ---@field port integer?
@@ -40,6 +45,7 @@ local json = require("web.json")
 ---@field rate_limit_window number?
 ---@field get_time (fun(): number)?
 ---@field session_id_generator (fun(): string)?
+---@field session_store mcp.SessionStore?
 ---@field on_error (fun(err: string))?
 ---@field server_info mcp.Implementation?
 
@@ -86,6 +92,7 @@ function Server:new(scheduler, tools, options)
 	if self.options.rate_limit_window ~= nil then
 		assert(self.options.rate_limit_window > 0, "MCP rate_limit_window must be positive")
 	end
+	assert(not self.options.session_store or self.options.session_id_generator, "MCP session_store requires session_id_generator")
 	self.rate_limits = {}
 	self.sessions = {}
 	self.tools = tools
@@ -132,19 +139,40 @@ function Server:createSession()
 	end
 	local session = {id = id, active_requests = {}}
 	self.sessions[id] = session
+	local store = self.options.session_store
+	if store then
+		local ok, err = store:add(id)
+		if not ok then
+			self.sessions[id] = nil
+			return nil, "failed to persist MCP session: " .. tostring(err)
+		end
+	end
 	return session
 end
 
 ---@param session mcp.Session
 ---@param reason string?
-function Server:closeSession(session, reason)
+---@param remove_persisted boolean
+---@return true?
+---@return string?
+function Server:closeSession(session, reason, remove_persisted)
 	for _, context in pairs(session.active_requests) do
 		local _, err = context:cancel(reason or "MCP session closed")
 		if err then
 			self:reportError(err)
 		end
 	end
+	if remove_persisted then
+		local store = self.options.session_store
+		if store then
+			local ok, err = store:remove(session.id)
+			if not ok then
+				return nil, "failed to remove persisted MCP session: " .. tostring(err)
+			end
+		end
+	end
 	self.sessions[session.id] = nil
+	return true
 end
 
 ---@param res web.Response
@@ -454,7 +482,11 @@ function Server:handleHttp(req, res, ip, port)
 			send_response(res, 404, json.encode(rpc_error(nil, -32001, "Session not found")), "application/json")
 			return
 		end
-		self:closeSession(session)
+		local closed, close_err = self:closeSession(session, nil, true)
+		if not closed then
+			send_response(res, 500, json.encode(rpc_error(nil, -32603, assert(close_err))), "application/json")
+			return
+		end
 		send_response(res, 200, "{}", "application/json")
 		return
 	elseif req.method == "GET" or req.method == "DELETE" then
@@ -552,7 +584,10 @@ function Server:handleHttp(req, res, ip, port)
 	res.headers:set("Cache-Control", "no-store")
 	local sent = send_response(res, 200, json.encode(response), "application/json")
 	if not sent and initializing and session then
-		self:closeSession(session, "MCP initialization response failed")
+		local _, close_err = self:closeSession(session, "MCP initialization response failed", true)
+		if close_err then
+			self:reportError(close_err)
+		end
 	end
 end
 
@@ -566,6 +601,21 @@ function Server:start()
 	end
 	self.rate_limits = {}
 	self.sessions = {}
+	local store = self.options.session_store
+	if store then
+		local ids, load_err = store:load()
+		if not ids then
+			return nil, "failed to load persisted MCP sessions: " .. tostring(load_err)
+		end
+		for _, id in ipairs(ids) do
+			if type(id) ~= "string" or id == "" then
+				return nil, "persisted MCP session IDs must be non-empty strings"
+		elseif self.sessions[id] then
+				return nil, "duplicate persisted MCP session ID"
+		end
+			self.sessions[id] = {id = id, active_requests = {}}
+		end
+	end
 	local configured_rate_limit = self.options.rate_limit
 	if configured_rate_limit == nil and not is_loopback(host) then
 		self.rate_limit = 120
@@ -581,7 +631,7 @@ function Server:stop()
 	local sessions = self.sessions
 	self.sessions = {}
 	for _, session in pairs(sessions) do
-		self:closeSession(session, "MCP server stopped")
+		self:closeSession(session, "MCP server stopped", false)
 	end
 	self.http_server:stop()
 	self.rate_limits = {}
