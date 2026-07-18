@@ -1,4 +1,5 @@
 local class = require("class")
+local receive_line = require("web.http.receive_line")
 
 -- https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html
 
@@ -21,14 +22,18 @@ function RequestLine:new(method, uri)
 end
 
 ---@param soc web.IExtendedSocket
+---@param max_size integer?
 ---@return web.RequestLine?
----@return "closed"|"timeout"?
-function RequestLine:receive(soc)
-	local data, err, partial = soc:receive("*l")
+---@return "closed"|"timeout"|"line too long"|"malformed request line"?
+function RequestLine:receive(soc, max_size)
+	local data, err = receive_line(soc, max_size)
 	if not data then
 		return nil, err
 	end
-	self.method, self.uri, self.version = data:match("^(%S+)%s+(%S+)%s+(%S+)")
+	self.method, self.uri, self.version = data:match("^(%S+)%s+(%S+)%s+(%S+)$")
+	if not self.method then
+		return nil, "malformed request line"
+	end
 	return self
 end
 

@@ -105,6 +105,27 @@ function test.malformed(t)
 end
 
 ---@param t testing.T
+function test.limits(t)
+	local str_soc = StringSocket()
+	local soc = ExtendedSocket(str_soc)
+	str_soc:send("Name: value\r\n\r\n")
+	local headers = Headers()
+	t:tdeq({headers:receive(soc, {max_header_line_size = 4})}, {nil, "line too long"})
+
+	str_soc = StringSocket()
+	soc = ExtendedSocket(str_soc)
+	str_soc:send("A: 1\r\nB: 2\r\n\r\n")
+	headers = Headers()
+	t:tdeq({headers:receive(soc, {max_header_count = 1})}, {nil, "too many headers"})
+
+	str_soc = StringSocket()
+	soc = ExtendedSocket(str_soc)
+	str_soc:send("A: 1\r\n\r\n")
+	headers = Headers()
+	t:tdeq({headers:receive(soc, {max_header_size = 7})}, {nil, "headers too large"})
+end
+
+---@param t testing.T
 function test.no_end_line_timeout(t)
 	local str_soc = StringSocket()
 	local soc = ExtendedSocket(str_soc)

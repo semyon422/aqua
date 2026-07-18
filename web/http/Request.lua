@@ -2,6 +2,9 @@ local IRequest = require("web.http.IRequest")
 local RequestLine = require("web.http.RequestLine")
 local RequestResponse = require("web.http.RequestResponse")
 
+---@class web.HttpRequestLimits: web.HttpHeaderLimits
+---@field max_request_line_size integer?
+
 ---@class web.Request: web.IRequest, web.RequestResponse
 ---@operator call: web.Request
 local Request = IRequest + RequestResponse
@@ -10,9 +13,10 @@ local Request = IRequest + RequestResponse
 Request.method = "GET"
 Request.uri = "/"
 
+---@param limits web.HttpRequestLimits?
 ---@return 1?
----@return "closed"|"timeout"|"malformed headers"?
-function Request:receive_headers()
+---@return "closed"|"timeout"|"malformed request line"|"malformed headers"|"line too long"|"headers too large"|"too many headers"?
+function Request:receive_headers(limits)
 	self:assert_mode("r")
 
 	if self.headers_received then
@@ -20,7 +24,7 @@ function Request:receive_headers()
 	end
 	self.headers_received = true
 
-	local rline, err = RequestLine():receive(self.soc)
+	local rline, err = RequestLine():receive(self.soc, limits and limits.max_request_line_size)
 	if not rline then
 		return nil, err
 	end
@@ -28,7 +32,7 @@ function Request:receive_headers()
 	self.method = rline.method
 	self.uri = rline.uri
 
-	local headers, err = self.headers:receive(self.soc)
+	local headers, err = self.headers:receive(self.soc, limits)
 	if not headers then
 		return nil, err
 	end

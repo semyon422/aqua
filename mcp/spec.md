@@ -33,7 +33,7 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 
 ## Protocol and Hardening Plan
 
-1. Harden the HTTP listener: bound request lines and headers, and add rate limiting where remote exposure requires it.
+1. Add rate limiting where remote exposure requires it.
 2. Add explicit client request cancellation when an application workflow needs ownership beyond canceling the calling coroutine.
 3. Make the native client available to application-owned agents when an integration has a concrete workflow.
 4. Add sessions, SSE, progress, server requests, and tool-list change notifications only alongside consumers and lifecycle tests that require them.

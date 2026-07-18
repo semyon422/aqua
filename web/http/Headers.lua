@@ -1,4 +1,10 @@
 local class = require("class")
+local receive_line = require("web.http.receive_line")
+
+---@class web.HttpHeaderLimits
+---@field max_header_line_size integer?
+---@field max_header_size integer?
+---@field max_header_count integer?
 
 ---@class web.Headers
 ---@operator call: web.Headers
@@ -94,31 +100,54 @@ function Headers:getTable(name)
 end
 
 ---@param soc web.IExtendedSocket
+---@param limits web.HttpHeaderLimits?
 ---@return web.Headers?
----@return "closed"|"timeout"|"malformed headers"?
-function Headers:receive(soc)
-	local line, err, partial = soc:receive("*l")
+---@return "closed"|"timeout"|"malformed headers"|"line too long"|"headers too large"|"too many headers"?
+function Headers:receive(soc, limits)
+	limits = limits or {}
+	local total_size = 0
+	local count = 0
+
+	---@return string?
+	---@return string?
+	local function next_line()
+		local line, err = receive_line(soc, limits.max_header_line_size)
+		if not line then
+			return nil, err
+		end
+		total_size = total_size + #line + 2
+		if limits.max_header_size and total_size > limits.max_header_size then
+			return nil, "headers too large"
+		end
+		return line
+	end
+
+	local line, err = next_line()
 	if not line then
 		return nil, err
 	end
 
 	while line ~= "" do
-		local name, value = line:match("^(.-):%s*(.*)")
-		if not name then
+		count = count + 1
+		if limits.max_header_count and count > limits.max_header_count then
+			return nil, "too many headers"
+		end
+		local name, value = line:match("^([^:]+):%s*(.*)")
+		if not name or not name:match("^[%w!#$%%&'*+%.%^_`|~%-]+$") then
 			return nil, "malformed headers"
 		end
 		---@cast name string
 		---@cast value string
 
 		-- folded values
-		line, err, partial = soc:receive("*l")
+		line, err = next_line()
 		if not line then
 			return nil, err
 		end
 
 		while line:find("^%s") do
 			value = value .. line
-			line, err, partial = soc:receive("*l")
+			line, err = next_line()
 			if not line then
 				return nil, err
 			end

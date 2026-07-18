@@ -43,6 +43,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - `aqua/web` must not depend on `rizu`, `sea`, or other application-specific modules.
 - LuaSocket servers use `web.CosocketServer` for nonblocking accept and per-client coroutine ownership. HTTP applications adapt it through `web.HttpServer` and remain responsible for routing and response bodies.
 - `CosocketServer` can bound active client coroutines with `max_clients`; excess accepted sockets are closed immediately, and shutdown cancels a snapshot of all active clients so cleanup cannot skip entries while mutating ownership state.
+- `web.HttpServer` bounds request lines, individual header lines, total header bytes, and header count before dispatch. Malformed requests receive HTTP 400, limit violations receive HTTP 431, and closed or timed-out clients are dropped without invoking the application handler.
 - `CosocketTcpSocket:receiveany()` returns currently available bytes without waiting for the requested maximum, so request parsers cannot stall on short headers or bodies.
 
 ## Implementation Plan
@@ -117,4 +118,5 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - Removed the old LuaSocket server/TcpUpdater prototype so the future server path is documented without keeping unsupported code around.
 - Added `web.luasocket.CosocketServer`, which accepts without blocking and runs each client handler in a detached scheduler-owned coroutine.
 - Added `web.http.Server`, a one-request-per-connection HTTP adapter over the cosocket server.
+- Added bounded request-line and header parsing with configurable per-line, aggregate-size, and count limits.
 - Added a true nonblocking `CosocketTcpSocket:receiveany()` implementation, required by server-side HTTP parsing when less than the parser buffer size is available.
