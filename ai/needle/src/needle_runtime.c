@@ -43,6 +43,16 @@ struct needle_ctx {
     uint64_t tensor_data_bytes;
     uint64_t tokenizer_bytes;
     unsigned char *tokenizer_data;
+    needle_tensor *embedding_tensor;
+    needle_tensor *encoder_q_kernel;
+    needle_tensor *encoder_k_kernel;
+    needle_tensor *encoder_v_kernel;
+    needle_tensor *encoder_out_kernel;
+    needle_tensor *encoder_q_scale;
+    needle_tensor *encoder_k_scale;
+    needle_tensor *encoder_block_norm_scale;
+    needle_tensor *encoder_attn_gate;
+    needle_tensor *encoder_final_norm;
     int loaded;
     int last_error_code;
     char last_error[NEEDLE_ERROR_CAP];
@@ -623,6 +633,22 @@ static void link_quantized_tensors(needle_ctx *ctx) {
     }
 }
 
+static void link_common_tensors(needle_ctx *ctx) {
+    if (!ctx || !ctx->tensors) {
+        return;
+    }
+    ctx->embedding_tensor = find_tensor_ptr_linear(ctx, "embedding/embedding");
+    ctx->encoder_q_kernel = find_tensor_ptr_linear(ctx, "encoder/layers/EncoderBlock_0/self_attn/q_proj/kernel");
+    ctx->encoder_k_kernel = find_tensor_ptr_linear(ctx, "encoder/layers/EncoderBlock_0/self_attn/k_proj/kernel");
+    ctx->encoder_v_kernel = find_tensor_ptr_linear(ctx, "encoder/layers/EncoderBlock_0/self_attn/v_proj/kernel");
+    ctx->encoder_out_kernel = find_tensor_ptr_linear(ctx, "encoder/layers/EncoderBlock_0/self_attn/out_proj/kernel");
+    ctx->encoder_q_scale = find_tensor_ptr_linear(ctx, "encoder/layers/EncoderBlock_0/self_attn/q_norm/scale");
+    ctx->encoder_k_scale = find_tensor_ptr_linear(ctx, "encoder/layers/EncoderBlock_0/self_attn/k_norm/scale");
+    ctx->encoder_block_norm_scale = find_tensor_ptr_linear(ctx, "encoder/layers/EncoderBlock_0/ZCRMSNorm_0/scale");
+    ctx->encoder_attn_gate = find_tensor_ptr_linear(ctx, "encoder/layers/EncoderBlock_0/attn_gate");
+    ctx->encoder_final_norm = find_tensor_ptr_linear(ctx, "encoder/final_norm/scale");
+}
+
 static float f16_to_f32(uint16_t h) {
     uint32_t sign = ((uint32_t)h & 0x8000U) << 16;
     uint32_t exp = ((uint32_t)h >> 10) & 0x1FU;
@@ -912,6 +938,7 @@ static int load_runtime_file(needle_ctx *ctx, const char *model_path) {
     ctx->tensor_data_bytes = total_tensor_bytes;
     ctx->tokenizer_bytes = tokenizer_len;
     link_quantized_tensors(ctx);
+    link_common_tensors(ctx);
     ctx->loaded = 1;
     set_error(ctx, NEEDLE_OK, NULL);
     return 0;
@@ -1164,12 +1191,11 @@ int needle_embedding_lookup(needle_ctx *ctx, int token_id, float *out, int out_c
         return NEEDLE_ERR_INVALID_ARGUMENT;
     }
 
-    long long index = needle_find_tensor(ctx, "embedding/embedding");
-    if (index < 0) {
+    needle_tensor *embedding = ctx->embedding_tensor;
+    if (!embedding) {
         set_error(ctx, NEEDLE_ERR_FORMAT, "embedding tensor is missing");
         return NEEDLE_ERR_FORMAT;
     }
-    needle_tensor *embedding = &ctx->tensors[index];
     if (embedding->ndim != 2 || embedding->shape[1] > (uint64_t)out_cap || (uint64_t)token_id >= embedding->shape[0]) {
         set_error(ctx, NEEDLE_ERR_INVALID_ARGUMENT, "embedding lookup is out of bounds");
         return NEEDLE_ERR_INVALID_ARGUMENT;
@@ -1430,7 +1456,7 @@ static int output_projection_q8_embedding(
     int d_model,
     int vocab_size,
     float *out) {
-    needle_tensor *embedding = find_tensor_ptr(ctx, "embedding/embedding");
+    needle_tensor *embedding = ctx->embedding_tensor;
     needle_tensor *q_embedding = embedding ? embedding->q8_tensor : find_tensor_ptr(ctx, "embedding/embedding.q8");
     needle_tensor *scale = embedding ? embedding->q8_scale_tensor : find_tensor_ptr(ctx, "embedding/embedding.q8_scale");
     if (!q_embedding && !scale) {
@@ -1673,12 +1699,12 @@ static int encoder_self_attention_impl(
         return NEEDLE_ERR_UNSUPPORTED;
     }
 
-    needle_tensor *q_kernel = find_tensor_ptr(ctx, "encoder/layers/EncoderBlock_0/self_attn/q_proj/kernel");
-    needle_tensor *k_kernel = find_tensor_ptr(ctx, "encoder/layers/EncoderBlock_0/self_attn/k_proj/kernel");
-    needle_tensor *v_kernel = find_tensor_ptr(ctx, "encoder/layers/EncoderBlock_0/self_attn/v_proj/kernel");
-    needle_tensor *out_kernel = find_tensor_ptr(ctx, "encoder/layers/EncoderBlock_0/self_attn/out_proj/kernel");
-    needle_tensor *q_scale = find_tensor_ptr(ctx, "encoder/layers/EncoderBlock_0/self_attn/q_norm/scale");
-    needle_tensor *k_scale = find_tensor_ptr(ctx, "encoder/layers/EncoderBlock_0/self_attn/k_norm/scale");
+    needle_tensor *q_kernel = ctx->encoder_q_kernel;
+    needle_tensor *k_kernel = ctx->encoder_k_kernel;
+    needle_tensor *v_kernel = ctx->encoder_v_kernel;
+    needle_tensor *out_kernel = ctx->encoder_out_kernel;
+    needle_tensor *q_scale = ctx->encoder_q_scale;
+    needle_tensor *k_scale = ctx->encoder_k_scale;
     if (!q_kernel || !k_kernel || !v_kernel || !out_kernel || !q_scale || !k_scale) {
         set_error(ctx, NEEDLE_ERR_FORMAT, "encoder self-attention tensors are missing");
         return NEEDLE_ERR_FORMAT;
@@ -1833,8 +1859,8 @@ static int encoder_block_impl(
         return NEEDLE_ERR_INVALID_ARGUMENT;
     }
 
-    needle_tensor *norm_scale = find_tensor_ptr(ctx, "encoder/layers/EncoderBlock_0/ZCRMSNorm_0/scale");
-    needle_tensor *attn_gate = find_tensor_ptr(ctx, "encoder/layers/EncoderBlock_0/attn_gate");
+    needle_tensor *norm_scale = ctx->encoder_block_norm_scale;
+    needle_tensor *attn_gate = ctx->encoder_attn_gate;
     if (!norm_scale || !attn_gate) {
         set_error(ctx, NEEDLE_ERR_FORMAT, "encoder block tensors are missing");
         return NEEDLE_ERR_FORMAT;
@@ -1921,7 +1947,7 @@ int needle_output_projection_f32(
         set_error(ctx, NEEDLE_ERR_INVALID_ARGUMENT, "invalid output projection arguments");
         return NEEDLE_ERR_INVALID_ARGUMENT;
     }
-    needle_tensor *embedding = find_tensor_ptr(ctx, "embedding/embedding");
+    needle_tensor *embedding = ctx->embedding_tensor;
     if (!embedding || embedding->ndim != 2 || embedding->shape[0] != (uint64_t)vocab_size ||
         embedding->shape[1] != (uint64_t)d_model) {
         set_error(ctx, NEEDLE_ERR_FORMAT, "embedding tensor shape is invalid for output projection");
@@ -2072,7 +2098,7 @@ static int encode_tokens_f32_cancellable(
     }
 
     profile_t = profile_start();
-    needle_tensor *final_norm = find_tensor_ptr(ctx, "encoder/final_norm/scale");
+    needle_tensor *final_norm = ctx->encoder_final_norm;
     if (!final_norm || zcrmsnorm_model_final_inplace(cur, seq_len, d_model, final_norm) != 0) {
         set_error(ctx, NEEDLE_ERR_FORMAT, "encoder final norm tensor is missing or invalid");
         rc = NEEDLE_ERR_FORMAT;
