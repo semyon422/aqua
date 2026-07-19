@@ -122,7 +122,7 @@ Errors are returned as tables:
 }
 ```
 
-The public C ABI is versioned with `needle_abi_version()`. Lua validates it on load and fails fast on ABI mismatch. Current ABI: `7`.
+The public C ABI is versioned with `needle_abi_version()`. Lua validates it on load and fails fast on ABI mismatch. Current ABI: `8`.
 
 Constrained token generation can restrict greedy argmax to valid token IDs:
 
@@ -209,6 +209,8 @@ Profile encoder/generation timing plus aligned allocation churn:
 cd lua
 BENCH_ITERS=5 BENCH_MAX_NEW=8 make bench-profile
 ```
+
+Set `BENCH_PROFILE_ENCODER=1` to also print encoder prefill counters for embedding, projections, norm/RoPE, attention scores, attention value accumulation, residuals, and final norm. The low-level counters are also exposed through `needle.set_profile_enabled()`, `needle.reset_profile_stats()`, and `needle.profile_stats()` for focused runtime investigations.
 
 ## Production Notes
 

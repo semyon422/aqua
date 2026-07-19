@@ -13,7 +13,7 @@ Provide Soundsphere with a dependency-free, embeddable Needle inference runtime 
 - This directory is the development home for the runtime formerly maintained in `../needle/lua`; its original Git history and MIT license are retained.
 - C owns model/tokenizer data, tensor execution, KV cache, and constrained greedy decoding. Lua owns FFI lifetime wrappers, tool schema constraints, and streaming callbacks.
 - The runtime library is built by the target-aware `rizu/build` pipeline. The standalone Makefile remains available for runtime development and golden tests.
-- Runtime model files embed their tokenizer. ABI 7 exposes the owned tokenizer API, cancellable encoder-state creation, and read-only tensor byte pointers for GPU upload; Lua polls cancellation through `Context:encode_tokens_state(..., {on_progress = ...})` between encoder layers.
+- Runtime model files embed their tokenizer. ABI 8 exposes the owned tokenizer API, cancellable encoder-state creation, read-only tensor byte pointers for GPU upload, and opt-in encoder prefill profiling counters; Lua polls cancellation through `Context:encode_tokens_state(..., {on_progress = ...})` between encoder layers.
 - The C runtime stays single-threaded. Applications must put each context on its own host worker and must not share contexts or caches concurrently.
 
 ## Invariants

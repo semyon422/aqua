@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #if defined(__x86_64__) || defined(__i386__)
 #include <immintrin.h>
 #endif
@@ -76,6 +77,44 @@ static unsigned long long g_dense_q8_fallback_count = 0;
 static unsigned long long g_output_q8_projection_count = 0;
 static unsigned long long g_output_float_projection_count = 0;
 static unsigned long long g_output_q8_fallback_count = 0;
+
+enum {
+    NEEDLE_PROFILE_ENCODER_EMBEDDING = 0,
+    NEEDLE_PROFILE_ENCODER_BLOCK_NORM,
+    NEEDLE_PROFILE_ENCODER_Q_PROJ,
+    NEEDLE_PROFILE_ENCODER_K_PROJ,
+    NEEDLE_PROFILE_ENCODER_V_PROJ,
+    NEEDLE_PROFILE_ENCODER_QK_NORM_ROPE,
+    NEEDLE_PROFILE_ENCODER_ATTENTION_SCORES,
+    NEEDLE_PROFILE_ENCODER_ATTENTION_VALUES,
+    NEEDLE_PROFILE_ENCODER_OUT_PROJ,
+    NEEDLE_PROFILE_ENCODER_BLOCK_RESIDUAL,
+    NEEDLE_PROFILE_ENCODER_FINAL_NORM,
+    NEEDLE_PROFILE_COUNT
+};
+
+static int g_profile_enabled = 0;
+static unsigned long long g_profile_ns[NEEDLE_PROFILE_COUNT] = {0};
+
+static unsigned long long profile_now_ns(void) {
+#if defined(CLOCK_MONOTONIC)
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        return (unsigned long long)ts.tv_sec * 1000000000ULL + (unsigned long long)ts.tv_nsec;
+    }
+#endif
+    return (unsigned long long)((double)clock() * (1000000000.0 / (double)CLOCKS_PER_SEC));
+}
+
+static unsigned long long profile_start(void) {
+    return g_profile_enabled ? profile_now_ns() : 0ULL;
+}
+
+static void profile_end(int counter, unsigned long long start) {
+    if (start && counter >= 0 && counter < NEEDLE_PROFILE_COUNT) {
+        g_profile_ns[counter] += profile_now_ns() - start;
+    }
+}
 
 static void set_error(needle_ctx *ctx, int code, const char *message) {
     if (!ctx) {
@@ -204,6 +243,120 @@ static float dot_f32(const float *a, const float *b, int n) {
 
 static float attention_dot(const float *q, const float *k, size_t q_off, size_t k_off, int head_dim) {
     return dot_f32(q + q_off, k + k_off, head_dim);
+}
+
+static void scale_f32_scalar(float *dst, float scale, int n) {
+    for (int i = 0; i < n; i++) {
+        dst[i] *= scale;
+    }
+}
+
+#if (defined(__x86_64__) || defined(__i386__)) && (defined(__GNUC__) || defined(__clang__))
+__attribute__((target("avx2")))
+static void scale_f32_avx2(float *dst, float scale, int n) {
+    __m256 sv = _mm256_set1_ps(scale);
+    int i = 0;
+    for (; i + 16 <= n; i += 16) {
+        __m256 a = _mm256_loadu_ps(dst + i);
+        __m256 b = _mm256_loadu_ps(dst + i + 8);
+        _mm256_storeu_ps(dst + i, _mm256_mul_ps(a, sv));
+        _mm256_storeu_ps(dst + i + 8, _mm256_mul_ps(b, sv));
+    }
+    for (; i + 8 <= n; i += 8) {
+        __m256 a = _mm256_loadu_ps(dst + i);
+        _mm256_storeu_ps(dst + i, _mm256_mul_ps(a, sv));
+    }
+    for (; i < n; i++) {
+        dst[i] *= scale;
+    }
+}
+#endif
+
+static void scale_f32(float *dst, float scale, int n) {
+#if (defined(__x86_64__) || defined(__i386__)) && (defined(__GNUC__) || defined(__clang__))
+    if (cpu_has_avx2_fma() && n >= 8) {
+        scale_f32_avx2(dst, scale, n);
+        return;
+    }
+#endif
+    scale_f32_scalar(dst, scale, n);
+}
+
+static double attention_values_row_scalar(
+    float *dst,
+    const float *v,
+    const float *scores,
+    float max_score,
+    int seq_len,
+    int kv_heads,
+    int kh,
+    int head_dim) {
+    double denom = 0.0;
+    for (int tk = 0; tk < seq_len; tk++) {
+        float weight = expf(scores[tk] - max_score);
+        denom += (double)weight;
+        const float *vv = v + ((size_t)tk * (size_t)kv_heads + (size_t)kh) * (size_t)head_dim;
+        for (int d = 0; d < head_dim; d++) {
+            dst[d] += weight * vv[d];
+        }
+    }
+    return denom;
+}
+
+#if (defined(__x86_64__) || defined(__i386__)) && (defined(__GNUC__) || defined(__clang__))
+__attribute__((target("avx2,fma")))
+static double attention_values_row_avx2_fma(
+    float *dst,
+    const float *v,
+    const float *scores,
+    float max_score,
+    int seq_len,
+    int kv_heads,
+    int kh,
+    int head_dim) {
+    double denom = 0.0;
+    for (int tk = 0; tk < seq_len; tk++) {
+        float weight = expf(scores[tk] - max_score);
+        denom += (double)weight;
+        __m256 wv = _mm256_set1_ps(weight);
+        const float *vv = v + ((size_t)tk * (size_t)kv_heads + (size_t)kh) * (size_t)head_dim;
+        int d = 0;
+        for (; d + 16 <= head_dim; d += 16) {
+            __m256 a = _mm256_loadu_ps(dst + d);
+            __m256 b = _mm256_loadu_ps(dst + d + 8);
+            __m256 x = _mm256_loadu_ps(vv + d);
+            __m256 y = _mm256_loadu_ps(vv + d + 8);
+            _mm256_storeu_ps(dst + d, _mm256_fmadd_ps(wv, x, a));
+            _mm256_storeu_ps(dst + d + 8, _mm256_fmadd_ps(wv, y, b));
+        }
+        for (; d + 8 <= head_dim; d += 8) {
+            __m256 a = _mm256_loadu_ps(dst + d);
+            __m256 x = _mm256_loadu_ps(vv + d);
+            _mm256_storeu_ps(dst + d, _mm256_fmadd_ps(wv, x, a));
+        }
+        for (; d < head_dim; d++) {
+            dst[d] += weight * vv[d];
+        }
+    }
+    return denom;
+}
+#endif
+
+static double attention_values_row(
+    float *dst,
+    const float *v,
+    const float *scores,
+    float max_score,
+    int seq_len,
+    int kv_heads,
+    int kh,
+    int head_dim) {
+#if (defined(__x86_64__) || defined(__i386__)) && (defined(__GNUC__) || defined(__clang__))
+    if (cpu_has_avx2_fma() && head_dim >= 8) {
+        return attention_values_row_avx2_fma(dst, v, scores, max_score, seq_len, kv_heads, kh, head_dim);
+    }
+#endif
+    return attention_values_row_scalar(dst, v, scores, max_score, seq_len, kv_heads, kh, head_dim);
 }
 
 static float projection_col_dot_scalar(const float *src, const float *weights_col, int in_dim, int out_dim) {
@@ -788,6 +941,25 @@ unsigned long long needle_runtime_output_q8_fallback_count(void) {
     return g_output_q8_fallback_count;
 }
 
+void needle_runtime_set_profile_enabled(int enabled) {
+    g_profile_enabled = enabled ? 1 : 0;
+}
+
+int needle_runtime_profile_enabled(void) {
+    return g_profile_enabled;
+}
+
+void needle_runtime_reset_profile_stats(void) {
+    memset(g_profile_ns, 0, sizeof(g_profile_ns));
+}
+
+unsigned long long needle_runtime_profile_counter_ns(int counter) {
+    if (counter < 0 || counter >= NEEDLE_PROFILE_COUNT) {
+        return 0ULL;
+    }
+    return g_profile_ns[counter];
+}
+
 needle_ctx *needle_load(const char *model_path) {
     needle_ctx *ctx = (needle_ctx *)calloc(1, sizeof(needle_ctx));
     if (!ctx) {
@@ -1106,6 +1278,32 @@ static void q8_project_row_avx2_fma(
     int in_dim,
     int out_dim) {
     int j = 0;
+    for (; j + 32 <= out_dim; j += 32) {
+        __m256 acc0 = _mm256_setzero_ps();
+        __m256 acc1 = _mm256_setzero_ps();
+        __m256 acc2 = _mm256_setzero_ps();
+        __m256 acc3 = _mm256_setzero_ps();
+        for (int i = 0; i < in_dim; i++) {
+            const int8_t *q = q_data + layer_base + (size_t)i * (size_t)out_dim + (size_t)j;
+            __m256 xv = _mm256_set1_ps(src[i]);
+            __m128i q8 = _mm_loadl_epi64((const __m128i *)q);
+            acc0 = _mm256_fmadd_ps(xv, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(q8)), acc0);
+            q8 = _mm_loadl_epi64((const __m128i *)(q + 8));
+            acc1 = _mm256_fmadd_ps(xv, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(q8)), acc1);
+            q8 = _mm_loadl_epi64((const __m128i *)(q + 16));
+            acc2 = _mm256_fmadd_ps(xv, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(q8)), acc2);
+            q8 = _mm_loadl_epi64((const __m128i *)(q + 24));
+            acc3 = _mm256_fmadd_ps(xv, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(q8)), acc3);
+        }
+        __m256 sv = _mm256_loadu_ps(scales + scale_base + (size_t)j);
+        _mm256_storeu_ps(dst + j, _mm256_mul_ps(acc0, sv));
+        sv = _mm256_loadu_ps(scales + scale_base + (size_t)j + 8);
+        _mm256_storeu_ps(dst + j + 8, _mm256_mul_ps(acc1, sv));
+        sv = _mm256_loadu_ps(scales + scale_base + (size_t)j + 16);
+        _mm256_storeu_ps(dst + j + 16, _mm256_mul_ps(acc2, sv));
+        sv = _mm256_loadu_ps(scales + scale_base + (size_t)j + 24);
+        _mm256_storeu_ps(dst + j + 24, _mm256_mul_ps(acc3, sv));
+    }
     for (; j + 8 <= out_dim; j += 8) {
         __m256 acc = _mm256_setzero_ps();
         for (int i = 0; i < in_dim; i++) {
@@ -1344,6 +1542,37 @@ static int zcrmsnorm_heads_inplace(float *x, int seq_len, int heads, int head_di
     return 0;
 }
 
+static void build_rope_tables(float *cos_table, float *sin_table, int seq_len, int head_dim, float theta) {
+    int half = head_dim / 2;
+    for (int t = 0; t < seq_len; t++) {
+        for (int i = 0; i < half; i++) {
+            float freq = 1.0f / powf(theta, (float)(2 * i) / (float)head_dim);
+            float angle = (float)t * freq;
+            cos_table[(size_t)t * (size_t)half + (size_t)i] = cosf(angle);
+            sin_table[(size_t)t * (size_t)half + (size_t)i] = sinf(angle);
+        }
+    }
+}
+
+static void apply_rope_seq_heads_table(float *x, int seq_len, int heads, int head_dim, const float *cos_table, const float *sin_table) {
+    int half = head_dim / 2;
+    for (int t = 0; t < seq_len; t++) {
+        for (int h = 0; h < heads; h++) {
+            float *row = x + ((size_t)t * (size_t)heads + (size_t)h) * (size_t)head_dim;
+            const float *cos_row = cos_table + (size_t)t * (size_t)half;
+            const float *sin_row = sin_table + (size_t)t * (size_t)half;
+            for (int i = 0; i < half; i++) {
+                float cs = cos_row[i];
+                float sn = sin_row[i];
+                float x1 = row[i];
+                float x2 = row[half + i];
+                row[i] = x1 * cs - x2 * sn;
+                row[half + i] = x2 * cs + x1 * sn;
+            }
+        }
+    }
+}
+
 static void apply_rope_seq_heads(float *x, int seq_len, int heads, int head_dim, float theta) {
     int half = head_dim / 2;
     for (int t = 0; t < seq_len; t++) {
@@ -1390,7 +1619,9 @@ static int encoder_self_attention_impl(
     float *scratch_q,
     float *scratch_k,
     float *scratch_v,
-    float *scratch_ctx_out) {
+    float *scratch_ctx_out,
+    const float *rope_cos,
+    const float *rope_sin) {
     if (!ctx) {
         return NEEDLE_ERR_NULL_CONTEXT;
     }
@@ -1446,60 +1677,88 @@ static int encoder_self_attention_impl(
     }
 
     int rc = NEEDLE_OK;
-    if (dense_project_layer(ctx, x, q, seq_len, d_model, d_model, q_kernel, layer) != 0 ||
-        dense_project_layer(ctx, x, k, seq_len, d_model, kv_dim, k_kernel, layer) != 0 ||
-        dense_project_layer(ctx, x, v, seq_len, d_model, kv_dim, v_kernel, layer) != 0 ||
-        zcrmsnorm_heads_inplace(q, seq_len, heads, head_dim, q_scale, layer) != 0 ||
+    float *scores = alloc_floats((size_t)seq_len);
+    if (!scores) {
+        set_error(ctx, NEEDLE_ERR_OUT_OF_MEMORY, "out of memory in encoder self-attention scores");
+        rc = NEEDLE_ERR_OUT_OF_MEMORY;
+        goto done;
+    }
+    unsigned long long profile_t = profile_start();
+    if (dense_project_layer(ctx, x, q, seq_len, d_model, d_model, q_kernel, layer) != 0) {
+        set_error(ctx, NEEDLE_ERR_FORMAT, "invalid encoder self-attention tensor shape");
+        rc = NEEDLE_ERR_FORMAT;
+        goto done;
+    }
+    profile_end(NEEDLE_PROFILE_ENCODER_Q_PROJ, profile_t);
+    profile_t = profile_start();
+    if (dense_project_layer(ctx, x, k, seq_len, d_model, kv_dim, k_kernel, layer) != 0) {
+        set_error(ctx, NEEDLE_ERR_FORMAT, "invalid encoder self-attention tensor shape");
+        rc = NEEDLE_ERR_FORMAT;
+        goto done;
+    }
+    profile_end(NEEDLE_PROFILE_ENCODER_K_PROJ, profile_t);
+    profile_t = profile_start();
+    if (dense_project_layer(ctx, x, v, seq_len, d_model, kv_dim, v_kernel, layer) != 0) {
+        set_error(ctx, NEEDLE_ERR_FORMAT, "invalid encoder self-attention tensor shape");
+        rc = NEEDLE_ERR_FORMAT;
+        goto done;
+    }
+    profile_end(NEEDLE_PROFILE_ENCODER_V_PROJ, profile_t);
+
+    profile_t = profile_start();
+    if (zcrmsnorm_heads_inplace(q, seq_len, heads, head_dim, q_scale, layer) != 0 ||
         zcrmsnorm_heads_inplace(k, seq_len, kv_heads, head_dim, k_scale, layer) != 0) {
         set_error(ctx, NEEDLE_ERR_FORMAT, "invalid encoder self-attention tensor shape");
         rc = NEEDLE_ERR_FORMAT;
         goto done;
     }
 
-    apply_rope_seq_heads(q, seq_len, heads, head_dim, cfg->rope_theta);
-    apply_rope_seq_heads(k, seq_len, kv_heads, head_dim, cfg->rope_theta);
+    if (rope_cos && rope_sin) {
+        apply_rope_seq_heads_table(q, seq_len, heads, head_dim, rope_cos, rope_sin);
+        apply_rope_seq_heads_table(k, seq_len, kv_heads, head_dim, rope_cos, rope_sin);
+    } else {
+        apply_rope_seq_heads(q, seq_len, heads, head_dim, cfg->rope_theta);
+        apply_rope_seq_heads(k, seq_len, kv_heads, head_dim, cfg->rope_theta);
+    }
+    profile_end(NEEDLE_PROFILE_ENCODER_QK_NORM_ROPE, profile_t);
 
     int repeats = heads / kv_heads;
     float inv_sqrt = 1.0f / sqrtf((float)head_dim);
     for (int h = 0; h < heads; h++) {
         int kh = h / repeats;
         for (int tq = 0; tq < seq_len; tq++) {
+            size_t q_off = ((size_t)tq * (size_t)heads + (size_t)h) * (size_t)head_dim;
+            size_t ctx_off = q_off;
             float max_score = -3.402823466e38f;
+            profile_t = profile_start();
             for (int tk = 0; tk < seq_len; tk++) {
-                size_t q_off = ((size_t)tq * (size_t)heads + (size_t)h) * (size_t)head_dim;
                 size_t k_off = ((size_t)tk * (size_t)kv_heads + (size_t)kh) * (size_t)head_dim;
                 float score = attention_dot(q, k, q_off, k_off, head_dim) * inv_sqrt;
+                scores[tk] = score;
                 if (score > max_score) max_score = score;
             }
+            profile_end(NEEDLE_PROFILE_ENCODER_ATTENTION_SCORES, profile_t);
 
-            double denom = 0.0;
-            for (int tk = 0; tk < seq_len; tk++) {
-                size_t q_off = ((size_t)tq * (size_t)heads + (size_t)h) * (size_t)head_dim;
-                size_t k_off = ((size_t)tk * (size_t)kv_heads + (size_t)kh) * (size_t)head_dim;
-                float score = attention_dot(q, k, q_off, k_off, head_dim) * inv_sqrt;
-                float weight = expf(score - max_score);
-                denom += (double)weight;
-                for (int d = 0; d < head_dim; d++) {
-                    float vv = v[((size_t)tk * (size_t)kv_heads + (size_t)kh) * (size_t)head_dim + (size_t)d];
-                    ctx_out[((size_t)tq * (size_t)heads + (size_t)h) * (size_t)head_dim + (size_t)d] += weight * vv;
-                }
-            }
+            profile_t = profile_start();
+            double denom = attention_values_row(ctx_out + ctx_off, v, scores, max_score, seq_len, kv_heads, kh, head_dim);
             float inv = denom > 0.0 ? (float)(1.0 / denom) : 0.0f;
-            for (int d = 0; d < head_dim; d++) {
-                ctx_out[((size_t)tq * (size_t)heads + (size_t)h) * (size_t)head_dim + (size_t)d] *= inv;
-            }
+            scale_f32(ctx_out + ctx_off, inv, head_dim);
+            profile_end(NEEDLE_PROFILE_ENCODER_ATTENTION_VALUES, profile_t);
         }
     }
 
+    profile_t = profile_start();
     if (dense_project_layer(ctx, ctx_out, out, seq_len, d_model, d_model, out_kernel, layer) != 0) {
         set_error(ctx, NEEDLE_ERR_FORMAT, "invalid encoder self-attention output projection shape");
         rc = NEEDLE_ERR_FORMAT;
         goto done;
     }
+    profile_end(NEEDLE_PROFILE_ENCODER_OUT_PROJ, profile_t);
 
     set_error(ctx, NEEDLE_OK, NULL);
 
 done:
+    aligned_free(scores);
     if (owns_scratch) {
         aligned_free(q);
         aligned_free(k);
@@ -1516,7 +1775,7 @@ int needle_encoder_self_attention_f32(
     int seq_len,
     float *out,
     int out_cap) {
-    return encoder_self_attention_impl(ctx, layer, x, seq_len, out, out_cap, NULL, NULL, NULL, NULL);
+    return encoder_self_attention_impl(ctx, layer, x, seq_len, out, out_cap, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 static int encoder_block_impl(
@@ -1531,7 +1790,9 @@ static int encoder_block_impl(
     float *self_q,
     float *self_k,
     float *self_v,
-    float *self_ctx_out) {
+    float *self_ctx_out,
+    const float *rope_cos,
+    const float *rope_sin) {
     if (!ctx) {
         return NEEDLE_ERR_NULL_CONTEXT;
     }
@@ -1568,13 +1829,15 @@ static int encoder_block_impl(
     memcpy(normed, x, n * sizeof(float));
 
     int rc = NEEDLE_OK;
+    unsigned long long profile_t = profile_start();
     if (zcrmsnorm_model_inplace(normed, seq_len, d_model, norm_scale, layer) != 0) {
         set_error(ctx, NEEDLE_ERR_FORMAT, "invalid encoder block norm shape");
         rc = NEEDLE_ERR_FORMAT;
         goto done;
     }
+    profile_end(NEEDLE_PROFILE_ENCODER_BLOCK_NORM, profile_t);
     rc = encoder_self_attention_impl(
-        ctx, layer, normed, seq_len, attn, (int)n, self_q, self_k, self_v, self_ctx_out);
+        ctx, layer, normed, seq_len, attn, (int)n, self_q, self_k, self_v, self_ctx_out, rope_cos, rope_sin);
     if (rc != NEEDLE_OK) {
         goto done;
     }
@@ -1585,10 +1848,12 @@ static int encoder_block_impl(
         rc = NEEDLE_ERR_FORMAT;
         goto done;
     }
+    profile_t = profile_start();
     float gate = 1.0f / (1.0f + expf(-gate_raw));
     for (size_t i = 0; i < n; i++) {
         out[i] = x[i] + gate * attn[i];
     }
+    profile_end(NEEDLE_PROFILE_ENCODER_BLOCK_RESIDUAL, profile_t);
     set_error(ctx, NEEDLE_OK, NULL);
 
 done:
@@ -1606,7 +1871,7 @@ int needle_encoder_block_f32(
     int seq_len,
     float *out,
     int out_cap) {
-    return encoder_block_impl(ctx, layer, x, seq_len, out, out_cap, NULL, NULL, NULL, NULL, NULL, NULL);
+    return encoder_block_impl(ctx, layer, x, seq_len, out, out_cap, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 int needle_output_projection_f32(
@@ -1725,7 +1990,9 @@ static int encode_tokens_f32_cancellable(
     float *self_k = alloc_floats(kv_size);
     float *self_v = alloc_floats(kv_size);
     float *self_ctx_out = alloc_floats(q_size);
-    if (!cur || !next || !block_normed || !block_attn || !self_q || !self_k || !self_v || !self_ctx_out) {
+    float *rope_cos = alloc_floats((size_t)seq_len * (size_t)(head_dim / 2));
+    float *rope_sin = alloc_floats((size_t)seq_len * (size_t)(head_dim / 2));
+    if (!cur || !next || !block_normed || !block_attn || !self_q || !self_k || !self_v || !self_ctx_out || !rope_cos || !rope_sin) {
         aligned_free(next_storage);
         aligned_free(block_normed);
         aligned_free(block_attn);
@@ -1733,12 +2000,16 @@ static int encode_tokens_f32_cancellable(
         aligned_free(self_k);
         aligned_free(self_v);
         aligned_free(self_ctx_out);
+        aligned_free(rope_cos);
+        aligned_free(rope_sin);
         set_error(ctx, NEEDLE_ERR_OUT_OF_MEMORY, "out of memory in encoder");
         return NEEDLE_ERR_OUT_OF_MEMORY;
     }
+    build_rope_tables(rope_cos, rope_sin, seq_len, head_dim, ctx->config.rope_theta);
 
     float embed_scale = sqrtf((float)d_model);
     int rc = NEEDLE_OK;
+    unsigned long long profile_t = profile_start();
     for (int t = 0; t < seq_len; t++) {
         int got = needle_embedding_lookup(ctx, token_ids[t], cur + (size_t)t * (size_t)d_model, d_model);
         if (got != d_model) {
@@ -1749,6 +2020,7 @@ static int encode_tokens_f32_cancellable(
             cur[(size_t)t * (size_t)d_model + (size_t)d] *= embed_scale;
         }
     }
+    profile_end(NEEDLE_PROFILE_ENCODER_EMBEDDING, profile_t);
 
     if (callback && !callback(0, layers, user_data)) {
         set_error(ctx, NEEDLE_ERR_CANCELLED, "encoder cancelled");
@@ -1759,7 +2031,7 @@ static int encode_tokens_f32_cancellable(
     for (int layer = 0; layer < layers; layer++) {
         rc = encoder_block_impl(
             ctx, layer, cur, seq_len, next, (int)n,
-            block_normed, block_attn, self_q, self_k, self_v, self_ctx_out);
+            block_normed, block_attn, self_q, self_k, self_v, self_ctx_out, rope_cos, rope_sin);
         if (rc != NEEDLE_OK) {
             goto done;
         }
@@ -1773,12 +2045,14 @@ static int encode_tokens_f32_cancellable(
         }
     }
 
+    profile_t = profile_start();
     needle_tensor *final_norm = find_tensor_ptr(ctx, "encoder/final_norm/scale");
     if (!final_norm || zcrmsnorm_model_final_inplace(cur, seq_len, d_model, final_norm) != 0) {
         set_error(ctx, NEEDLE_ERR_FORMAT, "encoder final norm tensor is missing or invalid");
         rc = NEEDLE_ERR_FORMAT;
         goto done;
     }
+    profile_end(NEEDLE_PROFILE_ENCODER_FINAL_NORM, profile_t);
 
     if (cur != out) {
         memcpy(out, cur, n * sizeof(float));
@@ -1794,6 +2068,8 @@ done:
     aligned_free(self_k);
     aligned_free(self_v);
     aligned_free(self_ctx_out);
+    aligned_free(rope_cos);
+    aligned_free(rope_sin);
     return rc;
 }
 

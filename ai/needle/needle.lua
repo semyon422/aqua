@@ -58,6 +58,10 @@ unsigned long long needle_runtime_dense_q8_fallback_count(void);
 unsigned long long needle_runtime_output_q8_projection_count(void);
 unsigned long long needle_runtime_output_float_projection_count(void);
 unsigned long long needle_runtime_output_q8_fallback_count(void);
+void needle_runtime_set_profile_enabled(int enabled);
+int needle_runtime_profile_enabled(void);
+void needle_runtime_reset_profile_stats(void);
+unsigned long long needle_runtime_profile_counter_ns(int counter);
 
 needle_ctx *needle_load(const char *model_path);
 void needle_free(needle_ctx *ctx);
@@ -367,7 +371,7 @@ int needle_kernel_attention_f32(
 ]]
 
 local M = {}
-M.abi_version = 7
+M.abi_version = 8
 M.errors = {
   OK = 0,
   NULL_CONTEXT = -1,
@@ -438,6 +442,37 @@ function M.memory_stats()
     output_float_projection_count = tonumber(runtime.needle_runtime_output_float_projection_count()),
     output_q8_fallback_count = tonumber(runtime.needle_runtime_output_q8_fallback_count()),
   }
+end
+
+local profile_counter_names = {
+  "encoder_embedding",
+  "encoder_block_norm",
+  "encoder_q_proj",
+  "encoder_k_proj",
+  "encoder_v_proj",
+  "encoder_qk_norm_rope",
+  "encoder_attention_scores",
+  "encoder_attention_values",
+  "encoder_out_proj",
+  "encoder_block_residual",
+  "encoder_final_norm",
+}
+
+function M.set_profile_enabled(enabled)
+  load_lib().needle_runtime_set_profile_enabled(enabled and 1 or 0)
+end
+
+function M.reset_profile_stats()
+  load_lib().needle_runtime_reset_profile_stats()
+end
+
+function M.profile_stats()
+  local runtime = load_lib()
+  local stats = { enabled = runtime.needle_runtime_profile_enabled() ~= 0 }
+  for index, name in ipairs(profile_counter_names) do
+    stats[name .. "_seconds"] = tonumber(runtime.needle_runtime_profile_counter_ns(index - 1)) / 1e9
+  end
+  return stats
 end
 
 local Context = {}

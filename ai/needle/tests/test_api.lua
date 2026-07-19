@@ -32,6 +32,15 @@ assert(stats.output_q8_projection_count == 0, "reset should clear output q8 proj
 assert(stats.output_float_projection_count == 0, "reset should clear output float projection count")
 assert(stats.output_q8_fallback_count == 0, "reset should clear output q8 fallback count")
 
+needle.set_profile_enabled(true)
+needle.reset_profile_stats()
+local profile = needle.profile_stats()
+assert(profile.enabled == true, "profile should be enabled")
+assert(profile.encoder_embedding_seconds == 0, "reset should clear profile counters")
+needle.set_profile_enabled(false)
+profile = needle.profile_stats()
+assert(profile.enabled == false, "profile should be disabled")
+
 local ok_ctx = assert(needle.load("build/test-model.ndl"))
 local missing = ok_ctx:find_tensor("missing/tensor")
 assert(missing == nil, "missing tensor should return nil")

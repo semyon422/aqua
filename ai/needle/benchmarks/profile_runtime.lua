@@ -58,6 +58,7 @@ local tools_json = os.getenv("BENCH_TOOLS") or "[]"
 local max_new_tokens = env_int("BENCH_MAX_NEW", 8)
 local iterations = env_int("BENCH_ITERS", 5)
 local max_enc_len = env_int("BENCH_MAX_ENC", 1024)
+local profile_encoder_ops = os.getenv("BENCH_PROFILE_ENCODER") == "1"
 
 local ctx = assert(needle.load(model_path))
 local tok = assert(needle.load_tokenizer(tokenizer_path))
@@ -93,10 +94,26 @@ print(("d_model=%d enc_layers=%d dec_layers=%d vocab=%d"):format(
 ))
 print(("src_len=%d prompt_len=%d max_new=%d iterations=%d"):format(#src_ids, #prompt_ids, max_new_tokens, iterations))
 
+if profile_encoder_ops then
+  needle.set_profile_enabled(true)
+  needle.reset_profile_stats()
+end
 profile("encoder", iterations, #src_ids, function()
   local out = assert(ctx:encode_tokens(src_ids))
   assert(#out == #src_ids * cfg.d_model, "encoder output length mismatch")
 end)
+if profile_encoder_ops then
+  needle.set_profile_enabled(false)
+  local stats = needle.profile_stats()
+  local names = {}
+  for name in pairs(stats) do
+    if name:match("_seconds$") then names[#names + 1] = name end
+  end
+  table.sort(names)
+  for _, name in ipairs(names) do
+    print(("profile_%s=%.6f"):format(name:gsub("_seconds$", ""), stats[name]))
+  end
+end
 
 profile("uncached_generate", iterations, max_new_tokens, function()
   local ids = assert(ctx:generate_tokens(src_ids, prompt_ids, {

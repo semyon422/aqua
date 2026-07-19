@@ -15,7 +15,7 @@ extern "C" {
 #  define NEEDLE_API __attribute__((visibility("default")))
 #endif
 
-#define NEEDLE_ABI_VERSION 7
+#define NEEDLE_ABI_VERSION 8
 
 #define NEEDLE_OK 0
 #define NEEDLE_ERR_NULL_CONTEXT -1
@@ -92,6 +92,10 @@ NEEDLE_API unsigned long long needle_runtime_dense_q8_fallback_count(void);
 NEEDLE_API unsigned long long needle_runtime_output_q8_projection_count(void);
 NEEDLE_API unsigned long long needle_runtime_output_float_projection_count(void);
 NEEDLE_API unsigned long long needle_runtime_output_q8_fallback_count(void);
+NEEDLE_API void needle_runtime_set_profile_enabled(int enabled);
+NEEDLE_API int needle_runtime_profile_enabled(void);
+NEEDLE_API void needle_runtime_reset_profile_stats(void);
+NEEDLE_API unsigned long long needle_runtime_profile_counter_ns(int counter);
 
 NEEDLE_API needle_ctx *needle_load(const char *model_path);
 NEEDLE_API void needle_free(needle_ctx *ctx);
