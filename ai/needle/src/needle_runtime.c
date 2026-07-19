@@ -21,7 +21,7 @@
 #define NEEDLE_ALIGNMENT 64
 #define NEEDLE_ALLOC_HEADER_SLOTS 2
 
-typedef struct {
+typedef struct needle_tensor {
     char *name;
     uint16_t dtype;
     uint32_t ndim;
@@ -30,6 +30,8 @@ typedef struct {
     unsigned char *data;
     float *f32_data;
     uint64_t f32_count;
+    struct needle_tensor *q8_tensor;
+    struct needle_tensor *q8_scale_tensor;
 } needle_tensor;
 
 struct needle_ctx {
@@ -580,6 +582,47 @@ static void free_tensors(needle_ctx *ctx) {
     ctx->tensors = NULL;
 }
 
+static long long find_tensor_index_linear(needle_ctx *ctx, const char *name) {
+    if (!ctx || !name) {
+        return -1;
+    }
+    for (uint64_t i = 0; i < ctx->tensor_count; i++) {
+        if (ctx->tensors[i].name && strcmp(ctx->tensors[i].name, name) == 0) {
+            return (long long)i;
+        }
+    }
+    return -1;
+}
+
+static needle_tensor *find_tensor_ptr_linear(needle_ctx *ctx, const char *name) {
+    long long index = find_tensor_index_linear(ctx, name);
+    if (index < 0) {
+        return NULL;
+    }
+    return &ctx->tensors[index];
+}
+
+static void link_quantized_tensors(needle_ctx *ctx) {
+    if (!ctx || !ctx->tensors) {
+        return;
+    }
+    char name[512];
+    for (uint64_t i = 0; i < ctx->tensor_count; i++) {
+        needle_tensor *tensor = &ctx->tensors[i];
+        if (!tensor->name) {
+            continue;
+        }
+        int n = snprintf(name, sizeof(name), "%s.q8", tensor->name);
+        if (n > 0 && (size_t)n < sizeof(name)) {
+            tensor->q8_tensor = find_tensor_ptr_linear(ctx, name);
+        }
+        n = snprintf(name, sizeof(name), "%s.q8_scale", tensor->name);
+        if (n > 0 && (size_t)n < sizeof(name)) {
+            tensor->q8_scale_tensor = find_tensor_ptr_linear(ctx, name);
+        }
+    }
+}
+
 static float f16_to_f32(uint16_t h) {
     uint32_t sign = ((uint32_t)h & 0x8000U) << 16;
     uint32_t exp = ((uint32_t)h >> 10) & 0x1FU;
@@ -868,6 +911,7 @@ static int load_runtime_file(needle_ctx *ctx, const char *model_path) {
     ctx->tensor_count = tensor_count;
     ctx->tensor_data_bytes = total_tensor_bytes;
     ctx->tokenizer_bytes = tokenizer_len;
+    link_quantized_tensors(ctx);
     ctx->loaded = 1;
     set_error(ctx, NEEDLE_OK, NULL);
     return 0;
@@ -1104,12 +1148,7 @@ long long needle_find_tensor(needle_ctx *ctx, const char *name) {
     if (!ctx || !ctx->loaded || !name) {
         return -1;
     }
-    for (uint64_t i = 0; i < ctx->tensor_count; i++) {
-        if (ctx->tensors[i].name && strcmp(ctx->tensors[i].name, name) == 0) {
-            return (long long)i;
-        }
-    }
-    return -1;
+    return find_tensor_index_linear(ctx, name);
 }
 
 int needle_embedding_lookup(needle_ctx *ctx, int token_id, float *out, int out_cap) {
@@ -1391,8 +1430,9 @@ static int output_projection_q8_embedding(
     int d_model,
     int vocab_size,
     float *out) {
-    needle_tensor *q_embedding = find_tensor_ptr(ctx, "embedding/embedding.q8");
-    needle_tensor *scale = find_tensor_ptr(ctx, "embedding/embedding.q8_scale");
+    needle_tensor *embedding = find_tensor_ptr(ctx, "embedding/embedding");
+    needle_tensor *q_embedding = embedding ? embedding->q8_tensor : find_tensor_ptr(ctx, "embedding/embedding.q8");
+    needle_tensor *scale = embedding ? embedding->q8_scale_tensor : find_tensor_ptr(ctx, "embedding/embedding.q8_scale");
     if (!q_embedding && !scale) {
         return 1;
     }
@@ -1429,22 +1469,8 @@ static int dense_project_layer_q8(
     if (!ctx || !kernel || !kernel->name) {
         return 1;
     }
-    size_t name_len = strlen(kernel->name);
-    const char *weight_suffix = ".q8";
-    const char *scale_suffix = ".q8_scale";
-    char *q_name = (char *)malloc(name_len + strlen(weight_suffix) + 1);
-    char *scale_name = (char *)malloc(name_len + strlen(scale_suffix) + 1);
-    if (!q_name || !scale_name) {
-        free(q_name);
-        free(scale_name);
-        return -1;
-    }
-    snprintf(q_name, name_len + strlen(weight_suffix) + 1, "%s%s", kernel->name, weight_suffix);
-    snprintf(scale_name, name_len + strlen(scale_suffix) + 1, "%s%s", kernel->name, scale_suffix);
-    needle_tensor *q_kernel = find_tensor_ptr(ctx, q_name);
-    needle_tensor *scale = find_tensor_ptr(ctx, scale_name);
-    free(q_name);
-    free(scale_name);
+    needle_tensor *q_kernel = kernel->q8_tensor;
+    needle_tensor *scale = kernel->q8_scale_tensor;
     if (!q_kernel && !scale) {
         return 1;
     }
