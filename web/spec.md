@@ -31,6 +31,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 ## Invariants
 
 - Cosocket transport methods must not block the main thread on socket readiness.
+- `web.Socks5TcpSocket` wraps any `web.ITcpSocket`, performs SOCKS5 CONNECT before higher-level TLS, and delegates the established tunnel transparently to HTTP and WebSocket clients.
 - Cosocket socket waits must yield only through the coroutine that owns the network operation.
 - Detached websocket reader and worker coroutines must wait on themselves, even when they are created and first resumed from another network coroutine.
 - Closed or canceled sockets must be removed from scheduler read/write queues before the next `select`.
