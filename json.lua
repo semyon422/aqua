@@ -1,5 +1,8 @@
 local json = {}
 
+---@class json.EncodeOptions
+---@field indent string|boolean?
+
 local object_metatable = {__name = "json.object"}
 local array_metatable = {__name = "json.array"}
 local null_metatable = {
@@ -103,8 +106,9 @@ end
 ---@param value any
 ---@param stack {[table]: true}
 ---@param depth integer
+---@param indent string?
 ---@return string
-local function encode_value(value, stack, depth)
+local function encode_value(value, stack, depth, indent)
 	if value == json.null or value == nil then
 		return "null"
 	end
@@ -143,9 +147,13 @@ local function encode_value(value, stack, depth)
 			error("JSON arrays must use contiguous positive integer keys")
 		end
 		for index = 1, size do
-			table.insert(parts, encode_value(value[index], stack, depth + 1))
+			table.insert(parts, encode_value(value[index], stack, depth + 1, indent))
 		end
 		stack[value] = nil
+		if indent and #parts > 0 then
+			local prefix = indent:rep(depth)
+			return "[\n" .. prefix .. table.concat(parts, ",\n" .. prefix) .. "\n" .. indent:rep(depth - 1) .. "]"
+		end
 		return "[" .. table.concat(parts, ",") .. "]"
 	end
 
@@ -159,16 +167,30 @@ local function encode_value(value, stack, depth)
 	end
 	table.sort(keys)
 	for _, key in ipairs(keys) do
-		table.insert(parts, encode_string(key) .. ":" .. encode_value(value[key], stack, depth + 1))
+		local separator = indent and ": " or ":"
+		table.insert(parts, encode_string(key) .. separator .. encode_value(value[key], stack, depth + 1, indent))
 	end
 	stack[value] = nil
+	if indent and #parts > 0 then
+		local prefix = indent:rep(depth)
+		return "{\n" .. prefix .. table.concat(parts, ",\n" .. prefix) .. "\n" .. indent:rep(depth - 1) .. "}"
+	end
 	return "{" .. table.concat(parts, ",") .. "}"
 end
 
 ---@param value any
+---@param options json.EncodeOptions?
 ---@return string
-function json.encode(value)
-	return encode_value(value, {}, 1)
+function json.encode(value, options)
+	---@type string?
+	local indent
+	if options and options.indent then
+		indent = options.indent == true and "\t" or options.indent
+	end
+	if indent ~= nil then
+		assert(type(indent) == "string" and indent ~= "", "JSON indentation must be a non-empty string")
+	end
+	return encode_value(value, {}, 1, indent)
 end
 
 ---@class json.Parser

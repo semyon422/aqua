@@ -76,4 +76,25 @@ function test.validates_output(t)
 	t:has_error(json.encode, function() end)
 end
 
+---@param t testing.T
+function test.pretty_encoding(t)
+	local value = json.object({
+		a = {1, 2},
+		b = json.object({enabled = true}),
+	})
+	local expected = [[{
+	"a": [
+		1,
+		2
+	],
+	"b": {
+		"enabled": true
+	}
+}]]
+
+	t:eq(json.encode(value, {indent = "\t"}), expected)
+	t:tdeq(json.decode(json.encode(value, {indent = "\t"})), value)
+	t:has_error(json.encode, value, {indent = ""})
+end
+
 return test

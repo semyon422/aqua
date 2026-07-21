@@ -40,4 +40,23 @@ function test.all(t)
 	t:has_error(stbl.decode, [[ "no end ]])
 end
 
+---@param t testing.T
+function test.pretty_encoding(t)
+	local tbl = {
+		2,
+		name = "config",
+		nested = {enabled = true},
+	}
+	local expected = [[{
+	2,
+	name = "config",
+	nested = {
+		enabled = true,
+	},
+}]]
+
+	t:eq(stbl.encode_pretty(tbl), expected)
+	t:tdeq(stbl.decode(stbl.encode_pretty(tbl)), tbl)
+end
+
 return test

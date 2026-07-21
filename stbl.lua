@@ -161,6 +161,86 @@ function stbl.encode(v, tables, safe)
 	return encoder(v, tables, safe)
 end
 
+---@param v any
+---@param tables {[table]: boolean}
+---@param safe boolean?
+---@param depth integer
+---@param indent string
+---@return string
+local function encode_pretty(v, tables, safe, depth, indent)
+	if v == nil then
+		return ""
+	end
+
+	local value_type = type(v)
+	if value_type ~= "table" then
+		local encoder = stbl.enc[value_type]
+		if not encoder then
+			if safe then return "nil" end
+			error("unsupported value type '" .. value_type .. "'")
+		end
+		return encoder(v)
+	elseif tables[v] then
+		return "nil"
+	end
+
+	tables[v] = true
+	if next(v) == nil then
+		return "{}"
+	end
+
+	---@cast v {[any]: any}
+	local max_int_key = 0
+	---@type number[]
+	local float_keys = {}
+	---@type string[]
+	local str_keys = {}
+
+	for key in pairs(v) do
+		if type(key) == "number" then
+			if key > 0 and key % 1 == 0 then
+				max_int_key = math.max(max_int_key, key)
+			else
+				table.insert(float_keys, key)
+			end
+		elseif type(key) == "string" then
+			table.insert(str_keys, key)
+		else
+			error("unsupported key type '" .. type(key) .. "'")
+		end
+	end
+
+	table.sort(float_keys)
+	table.sort(str_keys)
+
+	local line_indent = indent:rep(depth + 1)
+	---@type string[]
+	local lines = {}
+	for index = 1, max_int_key do
+		local value = v[index]
+		local encoded = value == nil and "nil" or encode_pretty(value, tables, safe, depth + 1, indent)
+		table.insert(lines, line_indent .. encoded .. ",")
+	end
+	for _, key in ipairs(float_keys) do
+		local encoded_key = encode_pretty(key, tables, safe, depth + 1, indent)
+		local encoded_value = encode_pretty(v[key], tables, safe, depth + 1, indent)
+		table.insert(lines, ("%s[%s] = %s,"):format(line_indent, encoded_key, encoded_value))
+	end
+	for _, key in ipairs(str_keys) do
+		local encoded_value = encode_pretty(v[key], tables, safe, depth + 1, indent)
+		table.insert(lines, ("%s%s = %s,"):format(line_indent, stbl.skey(key), encoded_value))
+	end
+
+	return "{\n" .. table.concat(lines, "\n") .. "\n" .. indent:rep(depth) .. "}"
+end
+
+---@param v any
+---@param safe boolean?
+---@return string
+function stbl.encode_pretty(v, safe)
+	return encode_pretty(v, {}, safe, 0, "\t")
+end
+
 ---@param state stbl.ParseState
 local function skip_whitespace(state)
 	state.pos = state.str:find("%S", state.pos) or state.pos
