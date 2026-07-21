@@ -235,7 +235,12 @@ function test.tool_execution_error(t)
 	tool.execute = function()
 		return "invalid input", true
 	end
-	local server = Server(CosocketScheduler(), {tool})
+	local failure
+	local server = Server(CosocketScheduler(), {tool}, {
+		on_tool_failure = function(name, arguments, err)
+			failure = {name = name, arguments = arguments, err = err}
+		end,
+	})
 	local response = server:dispatch({
 		jsonrpc = "2.0",
 		id = 1,
@@ -244,6 +249,9 @@ function test.tool_execution_error(t)
 	})
 	t:eq(response.result.isError, true)
 	t:eq(response.result.content[1].text, "invalid input")
+	t:eq(failure.name, "lua_eval")
+	t:eq(failure.arguments.code, "invalid")
+	t:eq(failure.err, "invalid input")
 end
 
 ---@param t testing.T

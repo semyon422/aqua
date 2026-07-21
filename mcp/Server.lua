@@ -47,6 +47,7 @@ local json = require("web.json")
 ---@field session_id_generator (fun(): string)?
 ---@field session_store mcp.SessionStore?
 ---@field on_error (fun(err: string))?
+---@field on_tool_failure fun(name: string?, arguments: any, err: string)?
 ---@field server_info mcp.Implementation?
 
 ---@class mcp.Session
@@ -121,6 +122,16 @@ function Server:reportError(err)
 		on_error(err)
 	else
 		print("MCP server error: " .. err)
+	end
+end
+
+---@param name string?
+---@param arguments any
+---@param err string
+function Server:reportToolFailure(name, arguments, err)
+	local callback = self.options.on_tool_failure
+	if callback then
+		pcall(callback, name, arguments, err)
 	end
 end
 
@@ -325,22 +336,27 @@ function Server:dispatch(message, session)
 	elseif method == "tools/call" then
 		local params = message.params
 		if type(params) ~= "table" or type(params.name) ~= "string" then
+			self:reportToolFailure(nil, params, "Invalid tools/call parameters")
 			return rpc_error(id, -32602, "Invalid tools/call parameters")
 		end
 		local tool = self.tools_by_name[params.name]
 		if not tool then
+			self:reportToolFailure(params.name, params.arguments, "Unknown tool: " .. params.name)
 			return rpc_error(id, -32602, "Unknown tool: " .. params.name)
 		end
 		local arguments = params.arguments or {}
 		if type(arguments) ~= "table" then
+			self:reportToolFailure(params.name, arguments, "Tool arguments must be an object")
 			return rpc_error(id, -32602, "Tool arguments must be an object")
 		end
 		local valid, validation_err = JsonSchema.validate(tool.input_schema, arguments)
 		if not valid then
+			self:reportToolFailure(params.name, arguments, "Invalid tool arguments: " .. validation_err)
 			return rpc_error(id, -32602, "Invalid tool arguments", validation_err)
 		end
 
 		if session and session.active_requests[id] then
+			self:reportToolFailure(params.name, arguments, "Request ID is already active")
 			return rpc_error(id, -32600, "Request ID is already active")
 		end
 		local context = RequestContext(id)
@@ -352,22 +368,30 @@ function Server:dispatch(message, session)
 			session.active_requests[id] = nil
 		end
 		if not ok then
+			self:reportToolFailure(params.name, arguments, tostring(output))
 			return rpc_result(id, tool_error(tostring(output)))
 		elseif context.canceled then
+			self:reportToolFailure(params.name, arguments, assert(context.cancel_reason))
 			return rpc_result(id, tool_error(assert(context.cancel_reason)))
 		end
 		local result, result_err = ToolResult.normalize(output, is_error, structured_content)
 		if not result then
+			self:reportToolFailure(params.name, arguments, assert(result_err))
 			return rpc_result(id, tool_error(assert(result_err)))
 		end
 		if tool.output_schema then
 			if result.structuredContent == nil then
+				self:reportToolFailure(params.name, arguments, "tool did not return required structured content")
 				return rpc_result(id, tool_error("tool did not return required structured content"))
 			end
 			local valid_output, output_err = JsonSchema.validate(tool.output_schema, result.structuredContent)
 			if not valid_output then
+				self:reportToolFailure(params.name, arguments, "invalid structured tool output: " .. output_err)
 				return rpc_result(id, tool_error("invalid structured tool output: " .. output_err))
 			end
+		end
+		if result.isError then
+			self:reportToolFailure(params.name, arguments, type(output) == "string" and output or "tool returned an execution error")
 		end
 		return rpc_result(id, result)
 	end

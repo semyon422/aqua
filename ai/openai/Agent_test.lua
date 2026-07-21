@@ -61,7 +61,12 @@ end
 
 ---@param t testing.T
 function test.invalid_arguments_and_unknown_tools_are_results(t)
-	local agent = Agent(makeClient({}), {makeTool()})
+	local failures = {}
+	local agent = Agent(makeClient({}), {makeTool()}, {
+		on_tool_failure = function(name, arguments, err)
+			table.insert(failures, {name = name, arguments = arguments, err = err})
+		end,
+	})
 	local invalid = agent:executeTool({
 		id = "1",
 		type = "function",
@@ -75,6 +80,33 @@ function test.invalid_arguments_and_unknown_tools_are_results(t)
 		["function"] = {name = "missing", arguments = "{}"},
 	})
 	t:eq(json.decode(unknown).error, "unknown tool: missing")
+	t:eq(#failures, 2)
+	t:eq(failures[1].name, "lua_eval")
+	t:eq(failures[2].name, "missing")
+	t:eq(failures[2].err, "unknown tool: missing")
+end
+
+---@param t testing.T
+function test.reports_explicit_tool_errors(t)
+	local tool = makeTool()
+	tool.execute = function()
+		return "source file not found", true
+	end
+	local failure
+	local agent = Agent(makeClient({}), {tool}, {
+		on_tool_failure = function(name, arguments, err)
+			failure = {name = name, arguments = arguments, err = err}
+		end,
+	})
+	local result = agent:executeTool({
+		id = "1",
+		type = "function",
+		["function"] = {name = "lua_eval", arguments = [[{"code":"missing"}]]},
+	})
+	t:eq(result, "source file not found")
+	t:eq(failure.name, "lua_eval")
+	t:eq(failure.arguments.code, "missing")
+	t:eq(failure.err, "source file not found")
 end
 
 ---@param t testing.T

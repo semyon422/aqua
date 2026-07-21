@@ -16,6 +16,7 @@ Provide a small reusable client and agent loop for OpenAI-compatible Chat Comple
 - `Client:completeStream()` implements Chat Completions server-sent events without changing the existing complete-response API. It emits text deltas while assembling one protocol-valid assistant message, including fragmented tool call IDs, names, and JSON arguments.
 - The client owns at most one active stream. `cancel()` closes that stream and causes the pending completion to return a cancellation error.
 - Assistant messages containing `tool_calls` are preserved in conversation history. Each tool result is appended with role `tool` and the matching `tool_call_id` before the next completion request.
+- Applications may observe failed tool calls through `on_tool_failure`, including malformed calls, unknown tools, invalid arguments, execution exceptions, invalid results, and explicit tool error returns.
 
 ## Invariants
 

@@ -23,11 +23,12 @@ local json = require("web.json")
 ---@class aqua.openai.Tool
 ---@field name string
 ---@field schema aqua.openai.ToolSchema
----@field execute fun(self: aqua.openai.Tool, args: {[string]: any}): string
+---@field execute fun(self: aqua.openai.Tool, args: {[string]: any}): string, boolean?
 
 ---@class aqua.openai.AgentOptions
 ---@field max_tool_rounds integer?
 ---@field on_tool_result fun(tool_call: aqua.openai.ToolCall, content: string)?
+---@field on_tool_failure fun(name: string?, arguments: any, err: string)?
 ---@field on_text_delta fun(content: string)?
 ---@field streaming boolean?
 
@@ -38,6 +39,7 @@ local json = require("web.json")
 ---@field tool_schemas aqua.openai.ToolSchema[]
 ---@field max_tool_rounds integer
 ---@field on_tool_result fun(tool_call: aqua.openai.ToolCall, content: string)?
+---@field on_tool_failure fun(name: string?, arguments: any, err: string)?
 ---@field on_text_delta fun(content: string)?
 ---@field streaming boolean
 local Agent = class()
@@ -52,6 +54,7 @@ function Agent:new(client, tools, options)
 	self.tool_schemas = {}
 	self.max_tool_rounds = options.max_tool_rounds or 8
 	self.on_tool_result = options.on_tool_result
+	self.on_tool_failure = options.on_tool_failure
 	self.on_text_delta = options.on_text_delta
 	self.streaming = options.streaming == true
 	for _, tool in ipairs(tools) do
@@ -67,31 +70,53 @@ local function encodeError(message)
 	return json.encode({ok = false, error = message})
 end
 
+---@param name string?
+---@param arguments any
+---@param err string
+function Agent:reportToolFailure(name, arguments, err)
+	local callback = self.on_tool_failure
+	if callback then
+		pcall(callback, name, arguments, err)
+	end
+end
+
+---@param name string?
+---@param arguments any
+---@param err string
+---@return string
+function Agent:toolError(name, arguments, err)
+	self:reportToolFailure(name, arguments, err)
+	return encodeError(err)
+end
+
 ---@param tool_call aqua.openai.ToolCall
 ---@return string
 function Agent:executeTool(tool_call)
 	local call_function = tool_call["function"]
 	if type(tool_call.id) ~= "string" or type(call_function) ~= "table" then
-		return encodeError("invalid tool call")
+		return self:toolError(nil, tool_call, "invalid tool call")
 	end
 
 	local name = call_function.name
 	local tool = type(name) == "string" and self.tools[name] or nil
 	if not tool then
-		return encodeError("unknown tool: " .. tostring(name))
+		return self:toolError(type(name) == "string" and name or nil, call_function.arguments, "unknown tool: " .. tostring(name))
 	end
 
 	local args, err = json.decode_safe(call_function.arguments or "")
 	if type(args) ~= "table" then
-		return encodeError("invalid tool arguments: " .. tostring(err or "expected a JSON object"))
+		return self:toolError(name, call_function.arguments, "invalid tool arguments: " .. tostring(err or "expected a JSON object"))
 	end
 
-	local ok, content = xpcall(tool.execute, debug.traceback, tool, args)
+	local ok, content, is_error = xpcall(tool.execute, debug.traceback, tool, args)
 	if not ok then
-		return encodeError(tostring(content))
+		return self:toolError(name, args, tostring(content))
 	end
 	if type(content) ~= "string" then
-		return encodeError("tool returned a non-string result")
+		return self:toolError(name, args, "tool returned a non-string result")
+	end
+	if is_error == true then
+		self:reportToolFailure(name, args, content)
 	end
 	return content
 end

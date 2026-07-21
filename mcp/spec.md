@@ -7,6 +7,7 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 - Applications can expose MCP tools to standard clients over the existing nonblocking `aqua/web` stack.
 - MCP clients can initialize, discover tools, and call them through one Streamable HTTP endpoint.
 - Applications inject their own server identity, native MCP tool metadata, authentication token, and listener configuration.
+- Applications may log failed tool calls through `on_tool_failure` without coupling reusable protocol code to a logging backend.
 - A reusable native MCP client can drive protocol integration tests and later provide application-owned agents with MCP access without duplicating protocol code.
 
 ## Architecture Decisions
