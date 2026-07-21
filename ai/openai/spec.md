@@ -16,6 +16,7 @@ Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription cli
 - `SubscriptionClient` translates common agent messages and function tools to the Responses input protocol. It assembles output from typed SSE events and retains provider-owned output items, including encrypted reasoning, across stateless tool rounds.
 - The HTTP request function is injected. The common layer does not create a scheduler or depend on `rizu.net.NetworkService`.
 - `Agent` owns the reusable tool-calling loop. Tools provide an OpenAI function schema and a Lua handler; application-specific tool implementations remain outside `aqua`.
+- `Agent:setClient()` changes the completion backend only when coordinated by the application; the common agent does not decide how provider/model selection affects conversation history.
 - `Client:completeStream()` implements Chat Completions server-sent events without changing the existing complete-response API. It emits text deltas while assembling one protocol-valid assistant message, including fragmented tool call IDs, names, and JSON arguments.
 - The client owns at most one active stream. `cancel()` closes that stream and causes the pending completion to return a cancellation error.
 - Assistant messages containing `tool_calls` are preserved in conversation history. Each tool result is appended with role `tool` and the matching `tool_call_id` before the next completion request.

@@ -35,7 +35,7 @@ local json = require("web.json")
 
 ---@class aqua.openai.Agent
 ---@operator call: aqua.openai.Agent
----@field client aqua.openai.Client
+---@field client aqua.openai.Client|aqua.openai.SubscriptionClient
 ---@field tools {[string]: aqua.openai.Tool}
 ---@field tool_schemas aqua.openai.ToolSchema[]
 ---@field max_tool_rounds integer
@@ -45,7 +45,7 @@ local json = require("web.json")
 ---@field streaming boolean
 local Agent = class()
 
----@param client aqua.openai.Client
+---@param client aqua.openai.Client|aqua.openai.SubscriptionClient
 ---@param tools aqua.openai.Tool[]
 ---@param options aqua.openai.AgentOptions?
 function Agent:new(client, tools, options)
@@ -63,6 +63,11 @@ function Agent:new(client, tools, options)
 		self.tools[tool.name] = tool
 		table.insert(self.tool_schemas, tool.schema)
 	end
+end
+
+---@param client aqua.openai.Client|aqua.openai.SubscriptionClient
+function Agent:setClient(client)
+	self.client = client
 end
 
 ---@param message string

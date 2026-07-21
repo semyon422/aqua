@@ -167,4 +167,14 @@ function test.streams_and_cancels(t)
 	t:eq(canceled, true)
 end
 
+---@param t testing.T
+function test.switches_client(t)
+	local first = makeClient({{role = "assistant", content = "first"}})
+	local second = makeClient({{role = "assistant", content = "second"}})
+	local agent = Agent(first, {makeTool()})
+	t:eq(assert(agent:run({})).content, "first")
+	agent:setClient(second)
+	t:eq(assert(agent:run({})).content, "second")
+end
+
 return test
