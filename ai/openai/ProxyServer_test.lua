@@ -134,6 +134,7 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 					return {
 						role = "assistant",
 						content = "hello",
+						finish_reason = "length",
 						reasoning_content = "brief thought",
 						response_items = {{type = "reasoning", encrypted_content = "private"}},
 						usage = {input_tokens = 12, output_tokens = 5, total_tokens = 17},
@@ -176,11 +177,44 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 	t:eq(seen.messages[1].content, "hi")
 	t:eq(decoded.object, "chat.completion")
 	t:eq(decoded.choices[1].message.content, "hello")
+	t:eq(decoded.choices[1].finish_reason, "length")
 	t:eq(decoded.choices[1].message.reasoning_content, "brief thought")
 	t:eq(decoded.choices[1].message.response_items, nil)
 	t:eq(decoded.usage.prompt_tokens, 12)
 	t:eq(decoded.usage.completion_tokens, 5)
 	t:eq(decoded.usage.total_tokens, 17)
+	server:stop()
+end
+
+---@param t testing.T
+function test.streams_preserved_completion_finish_reason(t)
+	local scheduler = CosocketScheduler()
+	local server = ProxyServer({
+		scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}},
+		models = {"model-a"},
+		create_client = function()
+			return {
+				completeStream = function(_, _, _, on_text_delta)
+					on_text_delta("Partial")
+					return {role = "assistant", content = "Partial", finish_reason = "length"}
+				end,
+			}
+		end,
+		logger = function() end,
+	})
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+	local response = request(t, scheduler, assert(port), "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		stream = true,
+	}, "proxy-secret")
+
+	t:eq(response.status, 200)
+	t:assert(response.body:find('"content":"Partial"', 1, true))
+	t:assert(response.body:find('"finish_reason":"length"', 1, true))
+	t:assert(response.body:find("data: [DONE]", 1, true))
 	server:stop()
 end
 

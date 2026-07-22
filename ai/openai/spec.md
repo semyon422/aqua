@@ -34,6 +34,8 @@ Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription cli
 - Provider response tables are not exposed until the required `choices[1].message` shape has been validated.
 - Streaming input is parsed incrementally because SSE records and JSON payloads may cross arbitrary transport chunk boundaries.
 - Responses text, refusal, and function-call arguments are assembled from typed incremental events. A terminal response with an empty output array must not discard already assembled output items.
+- A Responses result ending with `incomplete_details.reason = max_output_tokens` remains a successful partial Chat Completion with `finish_reason = length`, including when the limit is reached before visible text. Unknown incomplete reasons remain upstream errors rather than being reported as successful completion.
+- A completed refusal is preserved as assistant text with `finish_reason = stop`. Local or upstream cancellation remains a transport error because Chat Completions has no cancellation finish reason.
 - `[DONE]` terminates a successful stream. A closed stream without `[DONE]` is an error unless it was explicitly canceled.
 - Proxy model names are allowlisted. Proxy logs contain only the configured user name, remote address, method, path, status, and duration; prompts, responses, client tokens, and subscription credentials are never logged.
 - Every upstream request has a unique `x-client-request-id`. Provider failures return the bounded `x-request-id` when available, or that client request ID as a troubleshooting fallback.
@@ -65,7 +67,7 @@ The proxy targets agent clients that speak OpenAI Chat Completions while using t
 | Direct `/v1/responses` | Planned | Avoids lossy translation for Responses-native clients. |
 | Upstream error fidelity | Implemented | Returns bounded provider status, code, message, and request ID without logging prompts or credentials. |
 | Optional generation parameters | Implemented with backend limits | Harmless defaults are accepted. Non-default sampling, stop, logprob, seed, penalty, logit-bias, and multi-choice controls return explicit unsupported-parameter errors. |
-| Completion state mapping | Planned | Preserve incomplete, refusal, cancellation, and output-limit finish reasons. |
+| Completion state mapping | Implemented | Preserves normal, tool-call, output-limit, and content-filter terminal reasons. Completed refusals are normal assistant output; cancellation and unknown incomplete states remain errors. |
 | Legacy function aliases | Planned | Translate deprecated `functions` and `function_call` requests. |
 
 ## Standalone Proxy

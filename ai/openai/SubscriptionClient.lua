@@ -298,8 +298,9 @@ end
 
 ---@param items table[]
 ---@param usage aqua.openai.TokenUsage?
+---@param finish_reason "length"|"content_filter"?
 ---@return aqua.openai.Message
-local function createMessage(items, usage)
+local function createMessage(items, usage, finish_reason)
 	---@type aqua.openai.Message
 	local message = {role = "assistant", content = "", response_items = items, usage = usage}
 	local text_parts = {}
@@ -331,6 +332,7 @@ local function createMessage(items, usage)
 	message.content = table.concat(text_parts)
 	if #reasoning_parts > 0 then message.reasoning_content = table.concat(reasoning_parts) end
 	if #tool_calls > 0 then message.tool_calls = tool_calls end
+	message.finish_reason = finish_reason or (message.tool_calls and "tool_calls" or "stop")
 	return message
 end
 
@@ -390,6 +392,8 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 	local provider_error
 	local received_size = 0
 	local items = {}
+	---@type "length"|"content_filter"?
+	local finish_reason
 	---@type {[integer]: integer}
 	local tool_call_indexes = {}
 	local next_tool_call_index = 0
@@ -490,7 +494,30 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 				usage = normalizeUsage(event.response.usage)
 			end
 			done = true
-		elseif event.type == "response.failed" or event.type == "response.incomplete" then
+		elseif event.type == "response.incomplete" then
+			local response = type(event.response) == "table" and event.response or {}
+			if type(response.output) == "table" and #response.output > 0 then
+				items = response.output
+			end
+			usage = normalizeUsage(response.usage)
+			local incomplete_details = type(response.incomplete_details) == "table" and response.incomplete_details or {}
+			local reason = incomplete_details.reason
+			if reason == "max_output_tokens" then
+				finish_reason = "length"
+				done = true
+			elseif reason == "content_filter" then
+				finish_reason = "content_filter"
+				done = true
+			else
+				local reason_text = sanitizeErrorValue(reason, "unknown", 128)
+				parse_err = "OpenAI response incomplete: " .. reason_text
+				provider_error = createProviderError(502, json.encode({error = {
+					message = parse_err,
+					type = "upstream_incomplete",
+					code = reason_text,
+				}}), res.headers, self.session_id)
+			end
+		elseif event.type == "response.failed" then
 			local response_error = type(event.response) == "table" and event.response.error or nil
 			parse_err = type(response_error) == "table" and tostring(response_error.message) or "OpenAI response failed"
 			if type(response_error) == "table" then
@@ -519,8 +546,8 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 	self.active_stream = nil
 	if parse_err then return nil, parse_err, provider_error end
 	if not done then return nil, err or "Responses stream closed before completion" end
-	local message = createMessage(items, usage)
-	if message.content == "" and not message.tool_calls then
+	local message = createMessage(items, usage, finish_reason)
+	if message.content == "" and not message.tool_calls and not finish_reason then
 		return nil, "OpenAI response has neither text nor tool calls"
 	end
 	return message

@@ -98,6 +98,7 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	t:eq(table.concat(deltas), "Hi")
 	t:eq(table.concat(reasoning_deltas), "Thought")
 	t:eq(message.content, "Hi")
+	t:eq(message.finish_reason, "stop")
 	t:eq(message.reasoning_content, "Thought")
 	t:eq(message.response_items[1].encrypted_content, "opaque")
 	t:eq(message.usage.input_tokens, 120)
@@ -112,6 +113,36 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	}, nil)
 	t:eq(next_body.input[1], message.response_items[1])
 	t:eq(next_body.input[2], message.response_items[2])
+end
+
+---@param t testing.T
+function test.preserves_incomplete_output_limit_responses(t)
+	local stream = makeStream({
+		[[data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"Partial"}]] .. "\n\n",
+		[[data: {"type":"response.incomplete","response":{"output":[],"incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":20,"output_tokens":10,"total_tokens":30}}}]] .. "\n\n",
+	})
+	local client = makeClient(function() return stream end)
+	local message = assert(client:completeStream({{role = "user", content = "hello"}}))
+	t:eq(message.content, "Partial")
+	t:eq(message.finish_reason, "length")
+	t:eq(message.usage.total_tokens, 30)
+
+	stream = makeStream({
+		[[data: {"type":"response.output_item.done","output_index":0,"item":{"type":"reasoning","summary":[]}}]] .. "\n\n",
+		[[data: {"type":"response.incomplete","response":{"output":[],"incomplete_details":{"reason":"max_output_tokens"}}}]] .. "\n\n",
+	})
+	client = makeClient(function() return stream end)
+	message = assert(client:completeStream({{role = "user", content = "hello"}}))
+	t:eq(message.content, "")
+	t:eq(message.finish_reason, "length")
+
+	stream = makeStream({
+		[[data: {"type":"response.incomplete","response":{"output":[],"incomplete_details":{"reason":"content_filter"}}}]] .. "\n\n",
+	})
+	client = makeClient(function() return stream end)
+	message = assert(client:completeStream({{role = "user", content = "hello"}}))
+	t:eq(message.content, "")
+	t:eq(message.finish_reason, "content_filter")
 end
 
 ---@param t testing.T
@@ -223,6 +254,16 @@ function test.reports_auth_and_stream_errors(t)
 	t:eq(message, nil)
 	t:eq(err, "OpenAI subscription response is too large")
 	t:assert(stream.closed)
+
+	stream = makeStream({
+		[[data: {"type":"response.incomplete","response":{"incomplete_details":{"reason":"unexpected_reason"}}}]] .. "\n\n",
+	})
+	client = makeClient(function() return stream end)
+	message, err, provider_error = client:completeStream({})
+	t:eq(message, nil)
+	t:eq(err, "OpenAI response incomplete: unexpected_reason")
+	t:eq(provider_error.type, "upstream_incomplete")
+	t:eq(provider_error.code, "unexpected_reason")
 end
 
 return test

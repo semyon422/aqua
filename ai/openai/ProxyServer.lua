@@ -202,7 +202,7 @@ local function createCompletion(model, message, completion_id, created)
 		choices = {{
 			index = 0,
 			message = output_message,
-			finish_reason = message.tool_calls and "tool_calls" or "stop",
+			finish_reason = message.finish_reason or (message.tool_calls and "tool_calls" or "stop"),
 		}},
 	}
 	if message.usage then completion.usage = createCompletionUsage(message.usage) end
@@ -705,7 +705,8 @@ function ProxyServer:complete(res, request)
 		end
 		sendChunk(res, request.model, completion_id, created, {tool_calls = tool_calls}, nil, include_usage)
 	end
-	sendChunk(res, request.model, completion_id, created, json.object(), message.tool_calls and "tool_calls" or "stop", include_usage)
+	sendChunk(res, request.model, completion_id, created, json.object(),
+		message.finish_reason or (message.tool_calls and "tool_calls" or "stop"), include_usage)
 	if include_usage and message.usage then
 		sendUsageChunk(res, request.model, completion_id, created, message.usage)
 	end
