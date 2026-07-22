@@ -182,18 +182,33 @@ local function createCompletionUsage(usage)
 	}
 end
 
+---@param message aqua.openai.Message
+---@param legacy_functions boolean
+---@return "stop"|"length"|"tool_calls"|"content_filter"|"function_call"
+local function getFinishReason(message, legacy_functions)
+	local finish_reason = message.finish_reason or (message.tool_calls and "tool_calls" or "stop")
+	if legacy_functions and finish_reason == "tool_calls" then return "function_call" end
+	return finish_reason
+end
+
 ---@param model string
 ---@param message aqua.openai.Message
 ---@param completion_id string
 ---@param created integer
+---@param legacy_functions boolean
 ---@return table
-local function createCompletion(model, message, completion_id, created)
+local function createCompletion(model, message, completion_id, created, legacy_functions)
 	local output_message = {
 		role = "assistant",
 		content = message.content or "",
 	}
 	if message.reasoning_content then output_message.reasoning_content = message.reasoning_content end
-	if message.tool_calls then output_message.tool_calls = message.tool_calls end
+	if legacy_functions and message.tool_calls then
+		output_message.content = message.content ~= "" and message.content or json.null
+		output_message.function_call = message.tool_calls[1]["function"]
+	elseif message.tool_calls then
+		output_message.tool_calls = message.tool_calls
+	end
 	local completion = {
 		id = completion_id,
 		object = "chat.completion",
@@ -202,7 +217,7 @@ local function createCompletion(model, message, completion_id, created)
 		choices = {{
 			index = 0,
 			message = output_message,
-			finish_reason = message.finish_reason or (message.tool_calls and "tool_calls" or "stop"),
+			finish_reason = getFinishReason(message, legacy_functions),
 		}},
 	}
 	if message.usage then completion.usage = createCompletionUsage(message.usage) end
@@ -374,11 +389,43 @@ end
 ---@return boolean
 local function normalizeMessages(messages)
 	if not json.isArray(messages) or #messages == 0 then return false end
+	---@type {id: string, name: string}?
+	local pending_legacy_call
 	for _, message in ipairs(messages) do
 		if not json.isObject(message) then return false end
 		local role = message.role
-		if role ~= "developer" and role ~= "system" and role ~= "user" and role ~= "assistant" and role ~= "tool" then
+		if pending_legacy_call and role ~= "function" then return false end
+		if role ~= "developer" and role ~= "system" and role ~= "user" and role ~= "assistant"
+			and role ~= "tool" and role ~= "function"
+		then
 			return false
+		end
+		if role == "assistant" and message.function_call ~= nil then
+			local function_call = message.function_call
+			if message.tool_calls ~= nil or not json.isObject(function_call)
+				or type(function_call.name) ~= "string" or function_call.name == ""
+				or type(function_call.arguments) ~= "string"
+			then
+				return false
+			end
+			pending_legacy_call = {id = "legacy_call_" .. random.hex(12), name = function_call.name}
+			message.tool_calls = json.array({{
+				id = pending_legacy_call.id,
+				type = "function",
+				["function"] = {name = function_call.name, arguments = function_call.arguments},
+			}})
+			message.function_call = nil
+		elseif role == "function" then
+			if not pending_legacy_call or type(message.name) ~= "string"
+				or message.name ~= pending_legacy_call.name
+			then
+				return false
+			end
+			message.role = "tool"
+			message.tool_call_id = pending_legacy_call.id
+			message.name = nil
+			role = "tool"
+			pending_legacy_call = nil
 		end
 		if message.content ~= nil and message.content ~= json.null then
 			local content = normalizeContent(message.content, role)
@@ -431,6 +478,40 @@ end
 ---@return boolean
 local function isPresent(value)
 	return value ~= nil and value ~= json.null
+end
+
+---@param request table
+---@return boolean legacy_functions
+---@return string?
+local function normalizeLegacyFunctions(request)
+	local has_functions = isPresent(request.functions)
+	local has_function_call = isPresent(request.function_call)
+	if not has_functions and not has_function_call then return false end
+	if not has_functions then return false, "function_call requires functions" end
+	if isPresent(request.tools) then return false, "functions and tools are mutually exclusive" end
+	if isPresent(request.tool_choice) then return false, "function_call and tool_choice are mutually exclusive" end
+	if not json.isArray(request.functions) then return false, "functions must be an array" end
+
+	local tools = json.array()
+	for _, schema in ipairs(request.functions) do
+		table.insert(tools, {type = "function", ["function"] = schema})
+	end
+	if not validateTools(tools) then return false, "functions contain an invalid definition" end
+	request.tools = tools
+	if has_function_call then
+		local function_call = request.function_call
+		if function_call == "none" or function_call == "auto" then
+			request.tool_choice = function_call
+		elseif json.isObject(function_call) and type(function_call.name) == "string" and function_call.name ~= "" then
+			request.tool_choice = json.object({
+				type = "function",
+				["function"] = json.object({name = function_call.name}),
+			})
+		else
+			return false, "function_call has an unsupported shape"
+		end
+	end
+	return true
 end
 
 ---@param res web.Response
@@ -502,8 +583,12 @@ end
 ---@param request table
 ---@return integer status
 function ProxyServer:complete(res, request)
+	local legacy_functions, legacy_functions_err = normalizeLegacyFunctions(request)
 	if type(request.model) ~= "string" or not self.models_set[request.model] then
 		sendError(res, 400, "model is not available", "invalid_request_error", "model_not_found")
+		return 400
+	elseif legacy_functions_err then
+		sendError(res, 400, legacy_functions_err, "invalid_request_error", "invalid_functions")
 		return 400
 	elseif not normalizeMessages(request.messages) then
 		sendError(res, 400, "messages have an unsupported shape", "invalid_request_error", "invalid_messages")
@@ -524,6 +609,10 @@ function ProxyServer:complete(res, request)
 		return 400
 	elseif request.parallel_tool_calls ~= nil and type(request.parallel_tool_calls) ~= "boolean" then
 		sendError(res, 400, "parallel_tool_calls must be a boolean", "invalid_request_error", "invalid_parallel_tool_calls")
+		return 400
+	elseif legacy_functions and request.parallel_tool_calls == true then
+		sendError(res, 400, "legacy functions do not support parallel_tool_calls",
+			"invalid_request_error", "invalid_parallel_tool_calls")
 		return 400
 	elseif request.verbosity ~= nil and not verbosities[request.verbosity] then
 		sendError(res, 400, "verbosity is invalid", "invalid_request_error", "invalid_verbosity")
@@ -622,7 +711,7 @@ function ProxyServer:complete(res, request)
 		prompt_cache_key = request.prompt_cache_key,
 		prompt_cache_options = prompt_cache_options,
 		tool_choice = tool_choice,
-		parallel_tool_calls = request.parallel_tool_calls ~= false,
+		parallel_tool_calls = not legacy_functions and request.parallel_tool_calls ~= false,
 		verbosity = request.verbosity,
 		text_format = text_format,
 	})
@@ -638,7 +727,7 @@ function ProxyServer:complete(res, request)
 			sendError(res, 502, "upstream request failed", "upstream_error", "upstream_error")
 			return 502
 		end
-		sendJson(res, createCompletion(request.model, message, completion_id, created))
+		sendJson(res, createCompletion(request.model, message, completion_id, created, legacy_functions))
 		return 200
 	end
 
@@ -659,6 +748,13 @@ function ProxyServer:complete(res, request)
 	end, function(delta)
 		ensureStarted()
 		streamed_tool_calls = true
+		if legacy_functions then
+			sendChunk(res, request.model, completion_id, created, {function_call = {
+				name = delta.name,
+				arguments = delta.arguments,
+			}}, nil, include_usage)
+			return
+		end
 		local tool_call = {index = delta.index}
 		if delta.id then
 			tool_call.id = delta.id
@@ -694,19 +790,24 @@ function ProxyServer:complete(res, request)
 	end
 	ensureStarted()
 	if message.tool_calls and not streamed_tool_calls then
-		local tool_calls = {}
-		for index, tool_call in ipairs(message.tool_calls) do
-			tool_calls[index] = {
-				index = index - 1,
-				id = tool_call.id,
-				type = "function",
-				["function"] = tool_call["function"],
-			}
+		if legacy_functions then
+			sendChunk(res, request.model, completion_id, created,
+				{function_call = message.tool_calls[1]["function"]}, nil, include_usage)
+		else
+			local tool_calls = {}
+			for index, tool_call in ipairs(message.tool_calls) do
+				tool_calls[index] = {
+					index = index - 1,
+					id = tool_call.id,
+					type = "function",
+					["function"] = tool_call["function"],
+				}
+			end
+			sendChunk(res, request.model, completion_id, created, {tool_calls = tool_calls}, nil, include_usage)
 		end
-		sendChunk(res, request.model, completion_id, created, {tool_calls = tool_calls}, nil, include_usage)
 	end
 	sendChunk(res, request.model, completion_id, created, json.object(),
-		message.finish_reason or (message.tool_calls and "tool_calls" or "stop"), include_usage)
+		getFinishReason(message, legacy_functions), include_usage)
 	if include_usage and message.usage then
 		sendUsageChunk(res, request.model, completion_id, created, message.usage)
 	end

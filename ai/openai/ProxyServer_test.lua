@@ -187,6 +187,65 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 end
 
 ---@param t testing.T
+function test.translates_legacy_function_requests_and_history(t)
+	local scheduler = CosocketScheduler()
+	local seen
+	local server = ProxyServer({
+		scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}},
+		models = {"model-a"},
+		create_client = function(_, _, request_options)
+			t:eq(request_options.parallel_tool_calls, false)
+			t:eq(request_options.tool_choice.type, "function")
+			t:eq(request_options.tool_choice.name, "inspect")
+			return {
+				completeStream = function(_, messages, tools)
+					seen = {messages = messages, tools = tools}
+					return {
+						role = "assistant",
+						content = "",
+						finish_reason = "tool_calls",
+						tool_calls = {{
+							id = "call_new",
+							type = "function",
+							["function"] = {name = "inspect", arguments = [[{"path":"next"}]]},
+						}},
+					}
+				end,
+			}
+		end,
+		logger = function() end,
+	})
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+	local response = request(t, scheduler, assert(port), "/v1/chat/completions", {
+		model = "model-a",
+		messages = {
+			{role = "user", content = "inspect"},
+			{role = "assistant", content = json.null,
+				function_call = {name = "inspect", arguments = [[{"path":"old"}]]}},
+			{role = "function", name = "inspect", content = "old result"},
+			{role = "user", content = "continue"},
+		},
+		functions = {{name = "inspect", description = "Inspect", parameters = {type = "object"}}},
+		function_call = {name = "inspect"},
+	}, "proxy-secret")
+
+	t:eq(response.status, 200)
+	t:eq(seen.tools[1].type, "function")
+	t:eq(seen.tools[1]["function"].name, "inspect")
+	t:eq(seen.messages[2].tool_calls[1].id, seen.messages[3].tool_call_id)
+	t:eq(seen.messages[3].role, "tool")
+	t:eq(seen.messages[3].content, "old result")
+	local decoded = json.decode(response.body)
+	t:eq(decoded.choices[1].message.function_call.name, "inspect")
+	t:eq(decoded.choices[1].message.function_call.arguments, [[{"path":"next"}]])
+	t:eq(decoded.choices[1].message.tool_calls, nil)
+	t:eq(decoded.choices[1].finish_reason, "function_call")
+	server:stop()
+end
+
+---@param t testing.T
 function test.streams_preserved_completion_finish_reason(t)
 	local scheduler = CosocketScheduler()
 	local server = ProxyServer({
@@ -430,6 +489,51 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 end
 
 ---@param t testing.T
+function test.streams_legacy_function_call_chunks(t)
+	local scheduler = CosocketScheduler()
+	local server = ProxyServer({
+		scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}},
+		models = {"model-a"},
+		create_client = function()
+			return {
+				completeStream = function(_, _, _, _, _, on_tool_call_delta)
+					on_tool_call_delta({index = 0, id = "call_1", name = "inspect", arguments = ""})
+					on_tool_call_delta({index = 0, arguments = [[{"path":"game"}]]})
+					return {
+						role = "assistant",
+						content = "",
+						finish_reason = "tool_calls",
+						tool_calls = {{
+							id = "call_1",
+							type = "function",
+							["function"] = {name = "inspect", arguments = [[{"path":"game"}]]},
+						}},
+					}
+				end,
+			}
+		end,
+		logger = function() end,
+	})
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+	local response = request(t, scheduler, assert(port), "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "inspect"}},
+		functions = {{name = "inspect", parameters = {type = "object"}}},
+		stream = true,
+	}, "proxy-secret")
+
+	t:eq(response.status, 200)
+	t:assert(response.body:find('"function_call":{', 1, true))
+	t:assert(response.body:find('"name":"inspect"', 1, true))
+	t:assert(response.body:find('"arguments":"{\\"path\\":\\"game\\"}"', 1, true))
+	t:assert(response.body:find('"finish_reason":"function_call"', 1, true))
+	t:assert(not response.body:find('"tool_calls"', 1, true))
+	server:stop()
+end
+
+---@param t testing.T
 function test.preserves_sanitized_upstream_errors(t)
 	local scheduler = CosocketScheduler()
 	local server = ProxyServer({
@@ -614,6 +718,31 @@ function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 	}, "proxy-secret")
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "invalid_response_format")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		functions = {{name = "inspect", parameters = {type = "object"}}},
+		tools = {{type = "function", ["function"] = {name = "inspect", parameters = {type = "object"}}}},
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_functions")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "function", name = "inspect", content = "orphaned"}},
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_messages")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		functions = {{name = "inspect", parameters = {type = "object"}}},
+		parallel_tool_calls = true,
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_parallel_tool_calls")
 	server:stop()
 end
 
