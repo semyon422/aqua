@@ -7,6 +7,7 @@ Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription cli
 - Applications can send a conversation to an OpenAI-compatible provider and receive either an assistant response or function-tool calls.
 - Applications can register local tools and let the agent repeat the request/tool/result cycle until it produces a final answer.
 - Applications can opt into a browser-based ChatGPT subscription login with a PKCE loopback callback and use the Codex Responses compatibility backend.
+- Operators can run a small authenticated OpenAI-compatible HTTP proxy backed by one ChatGPT subscription.
 - Transport, provider, JSON, and tool failures are returned as useful errors instead of escaping into the application loop.
 
 ## Architecture Decisions
@@ -18,6 +19,9 @@ Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription cli
 - `Agent` owns the reusable tool-calling loop. Tools provide an OpenAI function schema and a Lua handler; application-specific tool implementations remain outside `aqua`.
 - `Agent:setClient()` changes the completion backend only when coordinated by the application; the common agent does not decide how provider/model selection affects conversation history.
 - `Client:completeStream()` implements Chat Completions server-sent events without changing the existing complete-response API. It emits text deltas while assembling one protocol-valid assistant message, including fragmented tool call IDs, names, and JSON arguments.
+- `ProxyServer` exposes `GET /v1/models` and `POST /v1/chat/completions`, translates subscription results back to Chat Completions JSON or SSE, and authenticates callers against named bearer tokens from a Lua config.
+- Each proxy request creates its own `SubscriptionClient`, so concurrent requests do not share cancellation or response-assembly state. The subscription authentication object and refreshed credentials remain shared, with access and refresh checks serialized to avoid racing refresh-token rotation.
+- `ProxyNetwork` applies the same SOCKS5 domain whitelist and blacklist semantics as the game network service. The standalone entrypoint loads ignored `userdata/network.lua`, so subscription inference and OAuth refresh requests follow the user's existing route without copying proxy credentials.
 - The client owns at most one active stream. `cancel()` closes that stream and causes the pending completion to return a cancellation error.
 - Assistant messages containing `tool_calls` are preserved in conversation history. Each tool result is appended with role `tool` and the matching `tool_call_id` before the next completion request.
 - Applications may observe failed tool calls through `on_tool_failure`, including malformed calls, unknown tools, invalid arguments, execution exceptions, invalid results, and explicit tool error returns.
@@ -31,6 +35,18 @@ Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription cli
 - Streaming input is parsed incrementally because SSE records and JSON payloads may cross arbitrary transport chunk boundaries.
 - Responses text, refusal, and function-call arguments are assembled from typed incremental events. A terminal response with an empty output array must not discard already assembled output items.
 - `[DONE]` terminates a successful stream. A closed stream without `[DONE]` is an error unless it was explicitly canceled.
+- Proxy model names are allowlisted. Proxy logs contain only the configured user name, remote address, method, path, status, and duration; prompts, responses, client tokens, and subscription credentials are never logged.
+- The proxy accepts the connector's supported Chat Completions subset: string-content `system`, `user`, `assistant`, and `tool` messages plus function tools. Unsupported message shapes fail instead of being silently discarded.
+
+## Standalone Proxy
+
+Copy `aqua/ai/openai/proxy_config.example.lua` to the ignored `userdata/ai_proxy.lua`, replace the client access token, and start the service from the repository root:
+
+```bash
+./luajit aqua/ai/openai/proxy.lua
+```
+
+An alternate config path can be passed as the first argument. The default listener is loopback-only at `http://127.0.0.1:28081/v1`; binding a non-loopback address should be paired with a TLS-terminating reverse proxy. The service loads subscription OAuth credentials from ignored `userdata/ai_auth.lua`, loads SOCKS5 routing from ignored `userdata/network.lua`, verifies upstream TLS against the repository CA bundle, and atomically persists refreshed credentials.
 
 ## Future Work and Open Questions
 
