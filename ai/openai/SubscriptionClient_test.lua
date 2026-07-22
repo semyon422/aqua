@@ -84,6 +84,24 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 end
 
 ---@param t testing.T
+function test.preserves_multimodal_responses_input_parts(t)
+	local client = makeClient(function() error("not used") end)
+	local content = {
+		{type = "input_text", text = "inspect"},
+		{type = "input_image", image_url = "data:image/png;base64,aGVsbG8=", detail = "high"},
+		{type = "input_audio", input_audio = {data = "aGVsbG8=", format = "wav"}},
+		{type = "input_file", file_data = "data:text/plain;base64,aGVsbG8=", filename = "hello.txt"},
+	}
+	local body = client:createBody({
+		{role = "developer", content = "developer instructions"},
+		{role = "system", content = "system instructions"},
+		{role = "user", content = content},
+	}, nil)
+	t:eq(body.instructions, "developer instructions\n\nsystem instructions")
+	t:eq(body.input[1].content, content)
+end
+
+---@param t testing.T
 function test.converts_function_calls_and_tool_results(t)
 	local stream = makeStream({
 		[[data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","call_id":"call_1","name":"inspect","arguments":""}}]] .. "\n\n",

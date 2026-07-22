@@ -119,6 +119,87 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 end
 
 ---@param t testing.T
+function test.normalizes_openai_text_content_parts(t)
+	local scheduler = CosocketScheduler()
+	local seen_messages
+	local server = ProxyServer({
+		scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}},
+		models = {"model-a"},
+		create_client = function()
+			return {
+				completeStream = function(_, messages)
+					seen_messages = messages
+					return {role = "assistant", content = "ok"}
+				end,
+			}
+		end,
+		logger = function() end,
+	})
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+	local response = request(t, scheduler, assert(port), "/v1/chat/completions", {
+		model = "model-a",
+		messages = {
+			{role = "system", content = {{type = "text", text = "first"}, {type = "text", text = " second"}}},
+			{role = "user", content = {{type = "text", text = "hello"}}},
+		},
+	}, "proxy-secret")
+
+	t:eq(response.status, 200)
+	t:eq(seen_messages[1].content, "first second")
+	t:eq(seen_messages[2].content, "hello")
+	server:stop()
+end
+
+---@param t testing.T
+function test.normalizes_all_chat_completion_content_parts(t)
+	local scheduler = CosocketScheduler()
+	local seen_messages
+	local server = ProxyServer({
+		scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}},
+		models = {"model-a"},
+		create_client = function()
+			return {
+				completeStream = function(_, messages)
+					seen_messages = messages
+					return {role = "assistant", content = "ok"}
+				end,
+			}
+		end,
+		logger = function() end,
+	})
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+	local response = request(t, scheduler, assert(port), "/v1/chat/completions", {
+		model = "model-a",
+		messages = {
+			{role = "developer", content = "instructions"},
+			{role = "user", content = {
+				{type = "text", text = "inspect these"},
+				{type = "image_url", image_url = {url = "data:image/png;base64,aGVsbG8=", detail = "high"}},
+				{type = "input_audio", input_audio = {data = "aGVsbG8=", format = "wav"}},
+				{type = "file", file = {file_data = "data:text/plain;base64,aGVsbG8=", filename = "hello.txt"}},
+			}},
+			{role = "assistant", content = {{type = "refusal", refusal = "cannot"}}},
+		},
+	}, "proxy-secret")
+
+	t:eq(response.status, 200)
+	t:eq(seen_messages[1].role, "developer")
+	t:eq(seen_messages[2].content[1].type, "input_text")
+	t:eq(seen_messages[2].content[2].type, "input_image")
+	t:eq(seen_messages[2].content[2].detail, "high")
+	t:eq(seen_messages[2].content[3].type, "input_audio")
+	t:eq(seen_messages[2].content[3].input_audio.format, "wav")
+	t:eq(seen_messages[2].content[4].type, "input_file")
+	t:eq(seen_messages[2].content[4].filename, "hello.txt")
+	t:eq(seen_messages[3].content, "cannot")
+	server:stop()
+end
+
+---@param t testing.T
 function test.streams_chat_completion_chunks_and_tool_calls(t)
 	local scheduler = CosocketScheduler()
 	local server = ProxyServer({
@@ -182,7 +263,7 @@ function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 
 	response = request(t, scheduler, port, "/v1/chat/completions", {
 		model = "model-a",
-		messages = {{role = "developer", content = "unsupported"}},
+		messages = {{role = "unsupported", content = "invalid"}},
 	}, "proxy-secret")
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "invalid_messages")

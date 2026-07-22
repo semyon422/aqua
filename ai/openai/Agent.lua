@@ -2,8 +2,8 @@ local class = require("class")
 local json = require("web.json")
 
 ---@class aqua.openai.Message
----@field role "system"|"user"|"assistant"|"tool"
----@field content string?
+---@field role "developer"|"system"|"user"|"assistant"|"tool"
+---@field content string|table[]?
 ---@field tool_calls aqua.openai.ToolCall[]?
 ---@field tool_call_id string?
 ---@field response_items table[]? Provider-owned Responses API items retained across tool rounds.

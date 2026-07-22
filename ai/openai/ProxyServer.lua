@@ -162,19 +162,78 @@ local function sendChunk(res, model, completion_id, created, delta, finish_reaso
 	})
 end
 
+---@param content any
+---@param role string
+---@return string|table[]?
+local function normalizeContent(content, role)
+	if type(content) == "string" then return content end
+	if not json.isArray(content) then return end
+	local text_parts = {}
+	local input_parts = {}
+	local has_non_text = false
+	for _, part in ipairs(content) do
+		if not json.isObject(part) then return end
+		if (part.type == "text" or part.type == "input_text") and type(part.text) == "string" then
+			table.insert(text_parts, part.text)
+			table.insert(input_parts, {type = "input_text", text = part.text})
+		elseif role == "assistant" and part.type == "refusal" and type(part.refusal) == "string" then
+			table.insert(text_parts, part.refusal)
+		elseif role == "user" and part.type == "image_url" then
+			local image = part.image_url
+			if type(image) ~= "table" or type(image.url) ~= "string" or image.url == "" then return end
+			local detail = image.detail or "auto"
+			if detail ~= "auto" and detail ~= "low" and detail ~= "high" then return end
+			table.insert(input_parts, {type = "input_image", image_url = image.url, detail = detail})
+			has_non_text = true
+		elseif role == "user" and part.type == "input_audio" then
+			local audio = part.input_audio
+			if type(audio) ~= "table" or type(audio.data) ~= "string" or audio.data == ""
+				or (audio.format ~= "wav" and audio.format ~= "mp3")
+			then
+				return
+			end
+			table.insert(input_parts, {
+				type = "input_audio",
+				input_audio = {data = audio.data, format = audio.format},
+			})
+			has_non_text = true
+		elseif role == "user" and part.type == "file" then
+			local file = part.file
+			if type(file) ~= "table" then return end
+			local has_data = type(file.file_data) == "string" and file.file_data ~= ""
+			local has_id = type(file.file_id) == "string" and file.file_id ~= ""
+			if not has_data and not has_id then return end
+			if file.filename ~= nil and type(file.filename) ~= "string" then return end
+			table.insert(input_parts, {
+				type = "input_file",
+				file_data = has_data and file.file_data or nil,
+				file_id = has_id and file.file_id or nil,
+				filename = file.filename,
+			})
+			has_non_text = true
+		else
+			return
+		end
+	end
+	if role == "user" and has_non_text then return input_parts end
+	return table.concat(text_parts)
+end
+
 ---@param messages any
 ---@return boolean
-local function validateMessages(messages)
+local function normalizeMessages(messages)
 	if not json.isArray(messages) or #messages == 0 then return false end
 	for _, message in ipairs(messages) do
 		if not json.isObject(message) then return false end
 		local role = message.role
-		if role ~= "system" and role ~= "user" and role ~= "assistant" and role ~= "tool" then
+		if role ~= "developer" and role ~= "system" and role ~= "user" and role ~= "assistant" and role ~= "tool" then
 			return false
 		end
-		if role == "system" or role == "user" or role == "tool" then
-			if type(message.content) ~= "string" then return false end
-		elseif message.content ~= nil and message.content ~= json.null and type(message.content) ~= "string" then
+		if message.content ~= nil and message.content ~= json.null then
+			local content = normalizeContent(message.content, role)
+			if content == nil then return false end
+			message.content = content
+		elseif role == "developer" or role == "system" or role == "user" or role == "tool" then
 			return false
 		end
 		if role == "tool" and type(message.tool_call_id) ~= "string" then return false end
@@ -218,8 +277,8 @@ function ProxyServer:complete(res, request)
 	if type(request.model) ~= "string" or not self.models_set[request.model] then
 		sendError(res, 400, "model is not available", "invalid_request_error", "model_not_found")
 		return 400
-	elseif not validateMessages(request.messages) then
-		sendError(res, 400, "messages must be an array", "invalid_request_error", "invalid_messages")
+	elseif not normalizeMessages(request.messages) then
+		sendError(res, 400, "messages have an unsupported shape", "invalid_request_error", "invalid_messages")
 		return 400
 	elseif not validateTools(request.tools) then
 		sendError(res, 400, "tools must be an array", "invalid_request_error", "invalid_tools")

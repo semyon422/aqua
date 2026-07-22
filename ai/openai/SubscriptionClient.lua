@@ -41,7 +41,7 @@ end
 local function getInstructions(messages)
 	local instructions = {}
 	for _, message in ipairs(messages) do
-		if message.role == "system" and type(message.content) == "string" then
+		if (message.role == "developer" or message.role == "system") and type(message.content) == "string" then
 			table.insert(instructions, message.content)
 		end
 	end
@@ -54,10 +54,14 @@ local function createInput(messages)
 	local input = {}
 	for _, message in ipairs(messages) do
 		if message.role == "user" then
+			local content = message.content
+			if type(content) == "string" then
+				content = {{type = "input_text", text = content}}
+			end
 			table.insert(input, {
 				type = "message",
 				role = "user",
-				content = {{type = "input_text", text = message.content or ""}},
+				content = content or {},
 			})
 		elseif message.role == "assistant" then
 			if message.response_items then
