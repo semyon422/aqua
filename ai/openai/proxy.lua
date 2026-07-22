@@ -196,6 +196,7 @@ local server = ProxyServer({
 			reasoning_effort = reasoning_effort or config.reasoning_effort or "medium",
 			prompt_cache_key = request_options.prompt_cache_key,
 			tool_choice = request_options.tool_choice,
+			parallel_tool_calls = request_options.parallel_tool_calls,
 			text_format = request_options.text_format,
 			max_response_size = config.max_response_size,
 			timeout = upstream_timeout,

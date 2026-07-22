@@ -130,22 +130,32 @@ function test.converts_function_calls_and_tool_results(t)
 		[[data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","call_id":"call_1","name":"inspect","arguments":""}}]] .. "\n\n",
 		[[data: {"type":"response.function_call_arguments.delta","output_index":0,"delta":"{\"path\":"}]] .. "\n\n",
 		[[data: {"type":"response.function_call_arguments.done","output_index":0,"arguments":"{\"path\":\"game\"}"}]] .. "\n\n",
+		[[data: {"type":"response.output_item.added","output_index":1,"item":{"type":"function_call","call_id":"call_2","name":"inspect","arguments":""}}]] .. "\n\n",
+		[[data: {"type":"response.function_call_arguments.delta","output_index":1,"delta":"{\"path\":\"aqua\"}"}]] .. "\n\n",
 		[[data: {"type":"response.completed","response":{"output":[]}}]] .. "\n\n",
 	})
-	local client = makeClient(function() return stream end)
-	local message = assert(client:completeStream({{role = "user", content = "inspect"}}))
+	local client = makeClient(function() return stream end, nil, {parallel_tool_calls = true})
+	local tools = {{type = "function", ["function"] = {name = "inspect", parameters = {type = "object"}}}}
+	local message = assert(client:completeStream({{role = "user", content = "inspect"}}, tools))
 	t:eq(message.content, "")
 	t:eq(message.tool_calls[1].id, "call_1")
 	t:eq(message.tool_calls[1]["function"].name, "inspect")
+	t:eq(message.tool_calls[2].id, "call_2")
+	t:eq(message.tool_calls[2]["function"].arguments, [[{"path":"aqua"}]])
 
 	local body = client:createBody({
 		{role = "user", content = "inspect"},
 		message,
 		{role = "tool", tool_call_id = "call_1", content = "result"},
-	}, nil)
+		{role = "tool", tool_call_id = "call_2", content = "result 2"},
+	}, tools)
+	t:eq(body.parallel_tool_calls, true)
 	t:eq(body.input[2].type, "function_call")
-	t:eq(body.input[3].type, "function_call_output")
-	t:eq(body.input[3].output, "result")
+	t:eq(body.input[3].type, "function_call")
+	t:eq(body.input[4].type, "function_call_output")
+	t:eq(body.input[4].output, "result")
+	t:eq(body.input[5].type, "function_call_output")
+	t:eq(body.input[5].output, "result 2")
 end
 
 ---@param t testing.T

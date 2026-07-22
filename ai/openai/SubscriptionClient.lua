@@ -22,6 +22,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field reasoning_effort aqua.openai.ReasoningEffort
 ---@field prompt_cache_key string?
 ---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
+---@field parallel_tool_calls boolean?
 ---@field text_format aqua.openai.ResponsesTextFormat?
 ---@field max_response_size integer?
 ---@field timeout number?
@@ -34,6 +35,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field reasoning_effort aqua.openai.ReasoningEffort
 ---@field prompt_cache_key string?
 ---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
+---@field parallel_tool_calls boolean?
 ---@field text_format aqua.openai.ResponsesTextFormat?
 ---@field max_response_size integer
 ---@field timeout number?
@@ -54,6 +56,7 @@ function SubscriptionClient:new(options)
 	self.reasoning_effort = options.reasoning_effort
 	self.prompt_cache_key = options.prompt_cache_key
 	self.tool_choice = options.tool_choice
+	self.parallel_tool_calls = options.parallel_tool_calls
 	self.text_format = options.text_format
 	self.max_response_size = options.max_response_size or self.max_response_size
 	assert(self.max_response_size >= 1, "max_response_size must be positive")
@@ -163,7 +166,7 @@ function SubscriptionClient:createBody(messages, tools)
 	if response_tools then
 		body.tools = response_tools
 		body.tool_choice = self.tool_choice or "auto"
-		body.parallel_tool_calls = false
+		body.parallel_tool_calls = self.parallel_tool_calls
 	elseif self.tool_choice == "none" then
 		body.tool_choice = "none"
 	end

@@ -14,6 +14,7 @@ local HttpServer = require("web.http.Server")
 ---@class aqua.openai.ProxyRequestOptions
 ---@field prompt_cache_key string?
 ---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
+---@field parallel_tool_calls boolean
 ---@field text_format aqua.openai.ResponsesTextFormat?
 
 ---@class aqua.openai.ProxyServerOptions
@@ -433,6 +434,9 @@ function ProxyServer:complete(res, request)
 	elseif request.reasoning_effort ~= nil and not reasoning_efforts[request.reasoning_effort] then
 		sendError(res, 400, "reasoning_effort is invalid", "invalid_request_error", "invalid_reasoning_effort")
 		return 400
+	elseif request.parallel_tool_calls ~= nil and type(request.parallel_tool_calls) ~= "boolean" then
+		sendError(res, 400, "parallel_tool_calls must be a boolean", "invalid_request_error", "invalid_parallel_tool_calls")
+		return 400
 	end
 	if request.max_completion_tokens ~= nil and request.max_tokens ~= nil then
 		sendError(res, 400, "max_completion_tokens and max_tokens are mutually exclusive", "invalid_request_error", "invalid_max_tokens")
@@ -465,6 +469,7 @@ function ProxyServer:complete(res, request)
 	local client = self.create_client(request.model, request.reasoning_effort, {
 		prompt_cache_key = request.prompt_cache_key,
 		tool_choice = tool_choice,
+		parallel_tool_calls = request.parallel_tool_calls ~= false,
 		text_format = text_format,
 	})
 	local completion_id = "chatcmpl-" .. random.hex(16)
