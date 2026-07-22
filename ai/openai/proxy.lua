@@ -189,11 +189,14 @@ local server = ProxyServer({
 	max_clients = config.max_clients,
 	max_concurrent_requests_per_user = config.max_concurrent_requests_per_user,
 	max_requests_per_minute = config.max_requests_per_minute,
-	create_client = function(model, reasoning_effort)
+	create_client = function(model, reasoning_effort, request_options)
 		return SubscriptionClient({
 			auth = shared_auth --[[@as aqua.openai.SubscriptionAuth]],
 			model = model,
 			reasoning_effort = reasoning_effort or config.reasoning_effort or "medium",
+			prompt_cache_key = request_options.prompt_cache_key,
+			tool_choice = request_options.tool_choice,
+			text_format = request_options.text_format,
 			max_response_size = config.max_response_size,
 			timeout = upstream_timeout,
 			open_stream = openStream,

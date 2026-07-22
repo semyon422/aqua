@@ -115,15 +115,22 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 		scheduler = scheduler,
 		users = {{name = "alice", access_token = "proxy-secret"}},
 		models = {"model-a"},
-		create_client = function(model, reasoning_effort)
+		create_client = function(model, reasoning_effort, request_options)
 			t:eq(model, "model-a")
 			t:eq(reasoning_effort, "high")
+			t:eq(request_options.prompt_cache_key, "zed-thread")
+			t:eq(request_options.tool_choice.type, "function")
+			t:eq(request_options.tool_choice.name, "inspect")
+			t:eq(request_options.text_format.type, "json_schema")
+			t:eq(request_options.text_format.name, "answer")
+			t:eq(request_options.text_format.schema.type, "object")
 			return {
 				completeStream = function(_, messages, tools)
 					seen = {messages = messages, tools = tools}
 					return {
 						role = "assistant",
 						content = "hello",
+						reasoning_content = "brief thought",
 						response_items = {{type = "reasoning", encrypted_content = "private"}},
 						usage = {input_tokens = 12, output_tokens = 5, total_tokens = 17},
 					}
@@ -138,6 +145,15 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 		model = "model-a",
 		messages = {{role = "user", content = "hi"}},
 		reasoning_effort = "high",
+		max_completion_tokens = 2048,
+		prompt_cache_key = "zed-thread",
+		tools = {{type = "function", ["function"] = {
+			name = "inspect", parameters = {type = "object"},
+		}}},
+		tool_choice = {type = "function", ["function"] = {name = "inspect"}},
+		response_format = {type = "json_schema", json_schema = {
+			name = "answer", schema = {type = "object"}, strict = true,
+		}},
 	}, "proxy-secret")
 
 	t:eq(response.status, 200)
@@ -145,6 +161,7 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 	t:eq(seen.messages[1].content, "hi")
 	t:eq(decoded.object, "chat.completion")
 	t:eq(decoded.choices[1].message.content, "hello")
+	t:eq(decoded.choices[1].message.reasoning_content, "brief thought")
 	t:eq(decoded.choices[1].message.response_items, nil)
 	t:eq(decoded.usage.prompt_tokens, 12)
 	t:eq(decoded.usage.completion_tokens, 5)
@@ -297,7 +314,8 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 		models = {"model-a"},
 		create_client = function()
 			return {
-				completeStream = function(_, _, _, on_text_delta)
+				completeStream = function(_, _, _, on_text_delta, on_reasoning_delta)
+					on_reasoning_delta("Thinking")
 					on_text_delta("Hel")
 					on_text_delta("lo")
 					return {
@@ -333,6 +351,7 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 	t:eq(response.status, 200)
 	t:assert(response.body:find('"content":"Hel"', 1, true))
 	t:assert(response.body:find('"content":"lo"', 1, true))
+	t:assert(response.body:find('"reasoning_content":"Thinking"', 1, true))
 	t:assert(response.body:find('"finish_reason":"tool_calls"', 1, true))
 	t:assert(response.body:find('"delta":{}', 1, true))
 	t:assert(not response.body:find('"delta":[]', 1, true))
@@ -387,6 +406,38 @@ function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 	}, "proxy-secret")
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "invalid_stream_options")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		max_completion_tokens = 0,
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_max_tokens")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		prompt_cache_key = ("x"):rep(65),
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_prompt_cache_key")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		tool_choice = "required",
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_tool_choice")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		response_format = {type = "json_schema", json_schema = {name = "missing_schema"}},
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_response_format")
 	server:stop()
 end
 

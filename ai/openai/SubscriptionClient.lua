@@ -5,10 +5,24 @@ local SseParser = require("ai.openai.SseParser")
 
 ---@alias aqua.openai.ReasoningEffort "none"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max"
 
+---@class aqua.openai.ResponsesFunctionToolChoice
+---@field type "function"
+---@field name string
+
+---@class aqua.openai.ResponsesTextFormat
+---@field type "text"|"json_object"|"json_schema"
+---@field name string?
+---@field description string?
+---@field schema table?
+---@field strict boolean?
+
 ---@class aqua.openai.SubscriptionClientOptions
 ---@field auth aqua.openai.SubscriptionAuth
 ---@field model string
 ---@field reasoning_effort aqua.openai.ReasoningEffort
+---@field prompt_cache_key string?
+---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
+---@field text_format aqua.openai.ResponsesTextFormat?
 ---@field max_response_size integer?
 ---@field timeout number?
 ---@field open_stream aqua.openai.OpenStreamFunc
@@ -18,6 +32,9 @@ local SseParser = require("ai.openai.SseParser")
 ---@field auth aqua.openai.SubscriptionAuth
 ---@field model string
 ---@field reasoning_effort aqua.openai.ReasoningEffort
+---@field prompt_cache_key string?
+---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
+---@field text_format aqua.openai.ResponsesTextFormat?
 ---@field max_response_size integer
 ---@field timeout number?
 ---@field open_stream aqua.openai.OpenStreamFunc
@@ -35,6 +52,9 @@ function SubscriptionClient:new(options)
 	self.auth = assert(options.auth, "auth is required")
 	self.model = options.model
 	self.reasoning_effort = options.reasoning_effort
+	self.prompt_cache_key = options.prompt_cache_key
+	self.tool_choice = options.tool_choice
+	self.text_format = options.text_format
 	self.max_response_size = options.max_response_size or self.max_response_size
 	assert(self.max_response_size >= 1, "max_response_size must be positive")
 	self.timeout = options.timeout
@@ -126,6 +146,8 @@ end
 ---@param tools aqua.openai.ToolSchema[]?
 ---@return table
 function SubscriptionClient:createBody(messages, tools)
+	local text = {verbosity = "low"}
+	if self.text_format then text.format = self.text_format end
 	local body = {
 		model = self.model,
 		store = false,
@@ -133,15 +155,17 @@ function SubscriptionClient:createBody(messages, tools)
 		instructions = getInstructions(messages),
 		input = createInput(messages),
 		include = {"reasoning.encrypted_content"},
-		prompt_cache_key = self.session_id,
-		text = {verbosity = "low"},
+		prompt_cache_key = self.prompt_cache_key,
+		text = text,
 		reasoning = {effort = self.reasoning_effort, summary = "auto"},
 	}
 	local response_tools = createTools(tools)
 	if response_tools then
 		body.tools = response_tools
-		body.tool_choice = "auto"
+		body.tool_choice = self.tool_choice or "auto"
 		body.parallel_tool_calls = false
+	elseif self.tool_choice == "none" then
+		body.tool_choice = "none"
 	end
 	return body
 end
@@ -216,6 +240,7 @@ local function createMessage(items, usage)
 	---@type aqua.openai.Message
 	local message = {role = "assistant", content = "", response_items = items, usage = usage}
 	local text_parts = {}
+	local reasoning_parts = {}
 	local tool_calls = {}
 	for _, item in ipairs(items) do
 		if item.type == "message" and type(item.content) == "table" then
@@ -224,6 +249,12 @@ local function createMessage(items, usage)
 					table.insert(text_parts, content.text)
 				elseif content.type == "refusal" and type(content.refusal) == "string" then
 					table.insert(text_parts, content.refusal)
+				end
+			end
+		elseif item.type == "reasoning" and type(item.summary) == "table" then
+			for _, summary in ipairs(item.summary) do
+				if type(summary) == "table" and type(summary.text) == "string" then
+					table.insert(reasoning_parts, summary.text)
 				end
 			end
 		elseif item.type == "function_call" then
@@ -235,6 +266,7 @@ local function createMessage(items, usage)
 		end
 	end
 	message.content = table.concat(text_parts)
+	if #reasoning_parts > 0 then message.reasoning_content = table.concat(reasoning_parts) end
 	if #tool_calls > 0 then message.tool_calls = tool_calls end
 	return message
 end
@@ -242,9 +274,10 @@ end
 ---@param messages aqua.openai.Message[]
 ---@param tools aqua.openai.ToolSchema[]?
 ---@param on_text_delta fun(content: string)?
+---@param on_reasoning_delta fun(content: string)?
 ---@return aqua.openai.Message?
 ---@return string?
-function SubscriptionClient:completeStream(messages, tools, on_text_delta)
+function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_reasoning_delta)
 	local access_token, account_id, auth_err = self.auth:getAccess()
 	if not access_token then return nil, auth_err or "OpenAI login is required" end
 	if not account_id or account_id == "" then return nil, "OpenAI login has no account ID" end
@@ -346,6 +379,8 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta)
 			if on_text_delta then on_text_delta(event.delta) end
 		elseif event.type == "response.refusal.done" and type(event.refusal) == "string" then
 			getContent(event, "refusal").refusal = event.refusal
+		elseif event.type == "response.reasoning_summary_text.delta" and type(event.delta) == "string" then
+			if on_reasoning_delta then on_reasoning_delta(event.delta) end
 		elseif event.type == "response.function_call_arguments.delta" and type(event.delta) == "string" then
 			local item = getItem(event, "function_call")
 			item.arguments = (item.arguments or "") .. event.delta

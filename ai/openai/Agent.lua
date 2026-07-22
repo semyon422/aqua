@@ -7,6 +7,7 @@ local json = require("web.json")
 ---@field tool_calls aqua.openai.ToolCall[]?
 ---@field tool_call_id string?
 ---@field response_items table[]? Provider-owned Responses API items retained across tool rounds.
+---@field reasoning_content string? Provider-generated reasoning summary exposed by compatible chat clients.
 ---@field usage aqua.openai.TokenUsage?
 
 ---@class aqua.openai.InputTokenDetails

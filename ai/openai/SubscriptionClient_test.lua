@@ -27,23 +27,27 @@ end
 
 ---@param open_stream aqua.openai.OpenStreamFunc
 ---@param max_response_size integer?
+---@param request_options table?
 ---@return aqua.openai.SubscriptionClient
-local function makeClient(open_stream, max_response_size)
-	return OpenAiSubscriptionClient({
+local function makeClient(open_stream, max_response_size, request_options)
+	local options = {
 		auth = {getAccess = function() return "access", "account" end} --[[@as aqua.openai.SubscriptionAuth]],
 		model = "gpt-test",
 		reasoning_effort = "medium",
 		timeout = 45,
 		max_response_size = max_response_size,
 		open_stream = open_stream,
-	})
+	}
+	for key, value in pairs(request_options or {}) do options[key] = value end
+	return OpenAiSubscriptionClient(options)
 end
 
 ---@param t testing.T
 function test.encodes_responses_request_and_preserves_output_items(t)
 	local stream = makeStream({
 		[[data: {"type":"response.output_item.added","output_index":0,"item":{"type":"reasoning","summary":[]}}]] .. "\n\n",
-		[[data: {"type":"response.output_item.done","output_index":0,"item":{"type":"reasoning","encrypted_content":"opaque","summary":[]}}]] .. "\n\n",
+		[[data: {"type":"response.reasoning_summary_text.delta","output_index":0,"summary_index":0,"delta":"Thought"}]] .. "\n\n",
+		[[data: {"type":"response.output_item.done","output_index":0,"item":{"type":"reasoning","encrypted_content":"opaque","summary":[{"type":"summary_text","text":"Thought"}]}}]] .. "\n\n",
 		[[data: {"type":"response.output_item.added","output_index":1,"item":{"type":"message","role":"assistant","content":[]}}]] .. "\n\n",
 		[[data: {"type":"response.content_part.added","output_index":1,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}]] .. "\n\n",
 		[[data: {"type":"response.output_text.delta","output_index":1,"content_index":0,"delta":"Hi"}]] .. "\n\n",
@@ -54,15 +58,21 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 		called.url = url
 		called.options = options
 		return stream
-	end)
+	end, nil, {
+		prompt_cache_key = "thread-1",
+		tool_choice = {type = "function", name = "inspect"},
+		text_format = {type = "json_object"},
+	})
 	local deltas = {}
+	local reasoning_deltas = {}
 	local message = assert(client:completeStream({
 		{role = "system", content = "instructions"},
 		{role = "user", content = "hello"},
 	}, {{
 		type = "function",
 		["function"] = {name = "inspect", description = "Inspect", parameters = {type = "object"}, strict = true},
-	}}, function(delta) table.insert(deltas, delta) end))
+	}}, function(delta) table.insert(deltas, delta) end,
+	function(delta) table.insert(reasoning_deltas, delta) end))
 
 	local body = json.decode(stream.sent_body)
 	t:eq(called.url, OpenAiSubscriptionClient.responses_url)
@@ -73,8 +83,13 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	t:eq(body.input[1].content[1].text, "hello")
 	t:eq(body.tools[1].name, "inspect")
 	t:eq(body.reasoning.effort, "medium")
+	t:eq(body.prompt_cache_key, "thread-1")
+	t:eq(body.tool_choice.name, "inspect")
+	t:eq(body.text.format.type, "json_object")
 	t:eq(table.concat(deltas), "Hi")
+	t:eq(table.concat(reasoning_deltas), "Thought")
 	t:eq(message.content, "Hi")
+	t:eq(message.reasoning_content, "Thought")
 	t:eq(message.response_items[1].encrypted_content, "opaque")
 	t:eq(message.usage.input_tokens, 120)
 	t:eq(message.usage.output_tokens, 30)
@@ -106,6 +121,7 @@ function test.preserves_multimodal_responses_input_parts(t)
 	}, nil)
 	t:eq(body.instructions, "developer instructions\n\nsystem instructions")
 	t:eq(body.input[1].content, content)
+	t:eq(body.prompt_cache_key, nil)
 end
 
 ---@param t testing.T

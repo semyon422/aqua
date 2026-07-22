@@ -9,13 +9,18 @@ local HttpServer = require("web.http.Server")
 ---@field access_token string
 
 ---@class aqua.openai.ProxyClient
----@field completeStream fun(self: aqua.openai.ProxyClient, messages: aqua.openai.Message[], tools: aqua.openai.ToolSchema[]?, on_text_delta: (fun(content: string))?): aqua.openai.Message?, string?
+---@field completeStream fun(self: aqua.openai.ProxyClient, messages: aqua.openai.Message[], tools: aqua.openai.ToolSchema[]?, on_text_delta: (fun(content: string))?, on_reasoning_delta: (fun(content: string))?): aqua.openai.Message?, string?
+
+---@class aqua.openai.ProxyRequestOptions
+---@field prompt_cache_key string?
+---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
+---@field text_format aqua.openai.ResponsesTextFormat?
 
 ---@class aqua.openai.ProxyServerOptions
 ---@field scheduler web.CosocketScheduler
 ---@field users aqua.openai.ProxyUser[]
 ---@field models string[]
----@field create_client fun(model: string, reasoning_effort: aqua.openai.ReasoningEffort?): aqua.openai.ProxyClient
+---@field create_client fun(model: string, reasoning_effort: aqua.openai.ReasoningEffort?, request_options: aqua.openai.ProxyRequestOptions): aqua.openai.ProxyClient
 ---@field logger (fun(line: string))?
 ---@field max_body_size integer?
 ---@field client_timeout number?
@@ -29,7 +34,7 @@ local HttpServer = require("web.http.Server")
 ---@field users_by_token {[string]: string}
 ---@field models string[]
 ---@field models_set {[string]: boolean}
----@field create_client fun(model: string, reasoning_effort: aqua.openai.ReasoningEffort?): aqua.openai.ProxyClient
+---@field create_client fun(model: string, reasoning_effort: aqua.openai.ReasoningEffort?, request_options: aqua.openai.ProxyRequestOptions): aqua.openai.ProxyClient
 ---@field logger fun(line: string)
 ---@field max_body_size integer
 ---@field max_concurrent_requests_per_user integer
@@ -164,6 +169,7 @@ local function createCompletion(model, message, completion_id, created)
 		role = "assistant",
 		content = message.content or "",
 	}
+	if message.reasoning_content then output_message.reasoning_content = message.reasoning_content end
 	if message.tool_calls then output_message.tool_calls = message.tool_calls end
 	local completion = {
 		id = completion_id,
@@ -341,6 +347,68 @@ local function validateTools(tools)
 	return true
 end
 
+---@param value any
+---@return boolean
+local function isPositiveInteger(value)
+	return type(value) == "number" and value >= 1 and value % 1 == 0
+end
+
+---@param tool_choice any
+---@param tools any
+---@return "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
+---@return string?
+local function normalizeToolChoice(tool_choice, tools)
+	if tool_choice == nil then return end
+	if tool_choice == "none" then return "none" end
+	if tool_choice == "auto" or tool_choice == "required" then
+		if not tools or #tools == 0 then return nil, "tool_choice requires tools" end
+		return tool_choice
+	end
+	if not json.isObject(tool_choice) or tool_choice.type ~= "function"
+		or not json.isObject(tool_choice["function"])
+		or type(tool_choice["function"].name) ~= "string" or tool_choice["function"].name == ""
+	then
+		return nil, "tool_choice has an unsupported shape"
+	end
+	if not tools or #tools == 0 then return nil, "tool_choice requires tools" end
+	local name = tool_choice["function"].name
+	for _, tool in ipairs(tools) do
+		if tool["function"].name == name then return {type = "function", name = name} end
+	end
+	return nil, "tool_choice names an unavailable function"
+end
+
+---@param response_format any
+---@return aqua.openai.ResponsesTextFormat?
+---@return string?
+local function normalizeResponseFormat(response_format)
+	if response_format == nil then return end
+	if not json.isObject(response_format) then return nil, "response_format must be an object" end
+	if response_format.type == "text" or response_format.type == "json_object" then
+		return {type = response_format.type}
+	end
+	if response_format.type ~= "json_schema" or not json.isObject(response_format.json_schema) then
+		return nil, "response_format has an unsupported shape"
+	end
+	local schema = response_format.json_schema
+	if type(schema.name) ~= "string" or schema.name == "" or not json.isObject(schema.schema) then
+		return nil, "response_format json_schema is invalid"
+	end
+	if schema.description ~= nil and type(schema.description) ~= "string" then
+		return nil, "response_format json_schema description is invalid"
+	end
+	if schema.strict ~= nil and type(schema.strict) ~= "boolean" then
+		return nil, "response_format json_schema strict is invalid"
+	end
+	return {
+		type = "json_schema",
+		name = schema.name,
+		description = schema.description,
+		schema = schema.schema,
+		strict = schema.strict,
+	}
+end
+
 ---@param res web.Response
 ---@param request table
 ---@return integer status
@@ -366,8 +434,39 @@ function ProxyServer:complete(res, request)
 		sendError(res, 400, "reasoning_effort is invalid", "invalid_request_error", "invalid_reasoning_effort")
 		return 400
 	end
+	if request.max_completion_tokens ~= nil and request.max_tokens ~= nil then
+		sendError(res, 400, "max_completion_tokens and max_tokens are mutually exclusive", "invalid_request_error", "invalid_max_tokens")
+		return 400
+	end
+	local max_output_tokens = request.max_completion_tokens or request.max_tokens
+	if max_output_tokens ~= nil and not isPositiveInteger(max_output_tokens) then
+		sendError(res, 400, "completion token limit must be a positive integer", "invalid_request_error", "invalid_max_tokens")
+		return 400
+	end
+	-- The ChatGPT Codex backend rejects Responses max_output_tokens. Accept the
+	-- Chat Completions limit for client compatibility and retain the model cap.
+	if request.prompt_cache_key ~= nil and (type(request.prompt_cache_key) ~= "string"
+		or request.prompt_cache_key == "" or #request.prompt_cache_key > 64)
+	then
+		sendError(res, 400, "prompt_cache_key must contain 1 to 64 bytes", "invalid_request_error", "invalid_prompt_cache_key")
+		return 400
+	end
+	local tool_choice, tool_choice_err = normalizeToolChoice(request.tool_choice, request.tools)
+	if tool_choice_err then
+		sendError(res, 400, tool_choice_err, "invalid_request_error", "invalid_tool_choice")
+		return 400
+	end
+	local text_format, response_format_err = normalizeResponseFormat(request.response_format)
+	if response_format_err then
+		sendError(res, 400, response_format_err, "invalid_request_error", "invalid_response_format")
+		return 400
+	end
 
-	local client = self.create_client(request.model, request.reasoning_effort)
+	local client = self.create_client(request.model, request.reasoning_effort, {
+		prompt_cache_key = request.prompt_cache_key,
+		tool_choice = tool_choice,
+		text_format = text_format,
+	})
 	local completion_id = "chatcmpl-" .. random.hex(16)
 	local created = os.time()
 	local include_usage = request.stream_options and request.stream_options.include_usage == true or false
@@ -391,6 +490,9 @@ function ProxyServer:complete(res, request)
 	local message = client:completeStream(request.messages, request.tools, function(content)
 		ensureStarted()
 		sendChunk(res, request.model, completion_id, created, {content = content}, nil, include_usage)
+	end, function(content)
+		ensureStarted()
+		sendChunk(res, request.model, completion_id, created, {reasoning_content = content}, nil, include_usage)
 	end)
 	if not message then
 		if not started then
