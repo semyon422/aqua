@@ -415,7 +415,7 @@ function ProxyServer:complete(res, request)
 		end
 		sendChunk(res, request.model, completion_id, created, {tool_calls = tool_calls}, nil, include_usage)
 	end
-	sendChunk(res, request.model, completion_id, created, {}, message.tool_calls and "tool_calls" or "stop", include_usage)
+	sendChunk(res, request.model, completion_id, created, json.object(), message.tool_calls and "tool_calls" or "stop", include_usage)
 	if include_usage and message.usage then
 		sendUsageChunk(res, request.model, completion_id, created, message.usage)
 	end
