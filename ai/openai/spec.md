@@ -36,6 +36,7 @@ Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription cli
 - Responses text, refusal, and function-call arguments are assembled from typed incremental events. A terminal response with an empty output array must not discard already assembled output items.
 - `[DONE]` terminates a successful stream. A closed stream without `[DONE]` is an error unless it was explicitly canceled.
 - Proxy model names are allowlisted. Proxy logs contain only the configured user name, remote address, method, path, status, and duration; prompts, responses, client tokens, and subscription credentials are never logged.
+- A Chat Completions request may set `reasoning_effort` to override the proxy config for that request. Omitting it uses the configured default; invalid values fail before an upstream request is made.
 - The proxy accepts `developer`, `system`, `user`, `assistant`, and `tool` messages plus function tools. Chat Completions user parts map to subscription Responses parts: `text` to `input_text`, `image_url` to `input_image`, `input_audio` remains `input_audio`, and `file` maps to `input_file`. Assistant `text` and `refusal` history is normalized to text. Unsupported or malformed content fails instead of being silently discarded.
 - The public Responses request schema currently documents text, image, and file message content but not `input_audio`. Audio is forwarded as a compatibility extension and can still be rejected by the ChatGPT subscription backend or selected model.
 

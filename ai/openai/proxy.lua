@@ -98,11 +98,11 @@ local server = ProxyServer({
 	models = assert(config.models, "proxy models are required"),
 	max_body_size = config.max_body_size,
 	client_timeout = config.client_timeout,
-	create_client = function(model)
+	create_client = function(model, reasoning_effort)
 		return SubscriptionClient({
 			auth = shared_auth --[[@as aqua.openai.SubscriptionAuth]],
 			model = model,
-			reasoning_effort = config.reasoning_effort or "medium",
+			reasoning_effort = reasoning_effort or config.reasoning_effort or "medium",
 			timeout = upstream_timeout,
 			open_stream = openStream,
 		})

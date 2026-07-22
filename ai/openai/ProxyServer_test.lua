@@ -87,8 +87,9 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 		scheduler = scheduler,
 		users = {{name = "alice", access_token = "proxy-secret"}},
 		models = {"model-a"},
-		create_client = function(model)
+		create_client = function(model, reasoning_effort)
 			t:eq(model, "model-a")
+			t:eq(reasoning_effort, "high")
 			return {
 				completeStream = function(_, messages, tools)
 					seen = {messages = messages, tools = tools}
@@ -107,6 +108,7 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 	local response = request(t, scheduler, assert(port), "/v1/chat/completions", {
 		model = "model-a",
 		messages = {{role = "user", content = "hi"}},
+		reasoning_effort = "high",
 	}, "proxy-secret")
 
 	t:eq(response.status, 200)
@@ -267,6 +269,14 @@ function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 	}, "proxy-secret")
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "invalid_messages")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		reasoning_effort = "extreme",
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_reasoning_effort")
 	server:stop()
 end
 

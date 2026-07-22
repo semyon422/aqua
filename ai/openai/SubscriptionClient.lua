@@ -3,10 +3,12 @@ local json = require("web.json")
 local random = require("web.random")
 local SseParser = require("ai.openai.SseParser")
 
+---@alias aqua.openai.ReasoningEffort "none"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max"
+
 ---@class aqua.openai.SubscriptionClientOptions
 ---@field auth aqua.openai.SubscriptionAuth
 ---@field model string
----@field reasoning_effort "none"|"low"|"medium"|"high"|"xhigh"|"max"
+---@field reasoning_effort aqua.openai.ReasoningEffort
 ---@field timeout number?
 ---@field open_stream aqua.openai.OpenStreamFunc
 
@@ -14,7 +16,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@operator call: aqua.openai.SubscriptionClient
 ---@field auth aqua.openai.SubscriptionAuth
 ---@field model string
----@field reasoning_effort "none"|"low"|"medium"|"high"|"xhigh"|"max"
+---@field reasoning_effort aqua.openai.ReasoningEffort
 ---@field timeout number?
 ---@field open_stream aqua.openai.OpenStreamFunc
 ---@field active_stream web.HttpStream?

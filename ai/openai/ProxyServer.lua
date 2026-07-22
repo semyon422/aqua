@@ -15,7 +15,7 @@ local HttpServer = require("web.http.Server")
 ---@field scheduler web.CosocketScheduler
 ---@field users aqua.openai.ProxyUser[]
 ---@field models string[]
----@field create_client fun(model: string): aqua.openai.ProxyClient
+---@field create_client fun(model: string, reasoning_effort: aqua.openai.ReasoningEffort?): aqua.openai.ProxyClient
 ---@field logger (fun(line: string))?
 ---@field max_body_size integer?
 ---@field client_timeout number?
@@ -25,13 +25,23 @@ local HttpServer = require("web.http.Server")
 ---@field users_by_token {[string]: string}
 ---@field models string[]
 ---@field models_set {[string]: boolean}
----@field create_client fun(model: string): aqua.openai.ProxyClient
+---@field create_client fun(model: string, reasoning_effort: aqua.openai.ReasoningEffort?): aqua.openai.ProxyClient
 ---@field logger fun(line: string)
 ---@field max_body_size integer
 ---@field http_server web.HttpServer
 local ProxyServer = class()
 
 ProxyServer.max_body_size = 1024 * 1024
+
+local reasoning_efforts = {
+	none = true,
+	minimal = true,
+	low = true,
+	medium = true,
+	high = true,
+	xhigh = true,
+	max = true,
+}
 
 ---@param options aqua.openai.ProxyServerOptions
 function ProxyServer:new(options)
@@ -286,9 +296,12 @@ function ProxyServer:complete(res, request)
 	elseif request.stream ~= nil and type(request.stream) ~= "boolean" then
 		sendError(res, 400, "stream must be a boolean", "invalid_request_error", "invalid_stream")
 		return 400
+	elseif request.reasoning_effort ~= nil and not reasoning_efforts[request.reasoning_effort] then
+		sendError(res, 400, "reasoning_effort is invalid", "invalid_request_error", "invalid_reasoning_effort")
+		return 400
 	end
 
-	local client = self.create_client(request.model)
+	local client = self.create_client(request.model, request.reasoning_effort)
 	local completion_id = "chatcmpl-" .. random.hex(16)
 	local created = os.time()
 	if not request.stream then
