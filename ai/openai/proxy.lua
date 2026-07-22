@@ -1,3 +1,4 @@
+local coext = require("coext")
 local HttpStream = require("web.http.HttpStream")
 local http_util = require("web.http.util")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
@@ -7,23 +8,51 @@ local SubscriptionClient = require("ai.openai.SubscriptionClient")
 local ProxyNetwork = require("ai.openai.ProxyNetwork")
 local ProxyServer = require("ai.openai.ProxyServer")
 
+local command = "serve"
 local config_path = arg[1] or "userdata/ai_proxy.lua"
+if arg[1] == "login" or arg[1] == "--login" then
+	command = "login"
+	config_path = arg[2] or "userdata/ai_proxy.lua"
+elseif arg[1] == "login-browser" or arg[1] == "--login-browser" then
+	command = "login-browser"
+	config_path = arg[2] or "userdata/ai_proxy.lua"
+elseif arg[1] == "help" or arg[1] == "--help" or arg[1] == "-h" then
+	print("Usage:")
+	print("  ./luajit aqua/ai/openai/proxy.lua [config_path]")
+	print("  ./luajit aqua/ai/openai/proxy.lua login [config_path]")
+	print("  ./luajit aqua/ai/openai/proxy.lua login-browser [config_path]")
+	return
+end
+
 local config_loader, config_err = loadfile(config_path)
 assert(config_loader, ("failed to load proxy config %s: %s"):format(config_path, tostring(config_err)))
 local config = config_loader()
 assert(type(config) == "table", "proxy config must return a table")
-for _, user in ipairs(assert(config.users, "proxy users are required")) do
-	assert(type(user.access_token) == "string" and #user.access_token >= 32,
-		"proxy user access tokens must contain at least 32 characters")
-	assert(user.access_token ~= "replace-with-a-long-random-token",
-		"replace the default proxy user access token before starting the server")
-end
 
 local auth_path = config.auth_path or "userdata/ai_auth.lua"
-local auth_loader, auth_err = loadfile(auth_path)
-assert(auth_loader, ("failed to load subscription auth %s: %s"):format(auth_path, tostring(auth_err)))
-local credentials = auth_loader()
-assert(type(credentials) == "table", "subscription auth must return a table")
+
+---@return aqua.openai.SubscriptionCredentials
+local function loadCredentials()
+	local credentials = {}
+	local file = io.open(auth_path, "rb")
+	if file then
+		file:close()
+		local auth_loader, auth_err = loadfile(auth_path)
+		assert(auth_loader, ("failed to load subscription auth %s: %s"):format(auth_path, tostring(auth_err)))
+		credentials = auth_loader()
+		assert(type(credentials) == "table", "subscription auth must return a table")
+	end
+	local defaults = {access_token = "", refresh_token = "", expires_at = 0, account_id = ""}
+	for key, default in pairs(defaults) do
+		if credentials[key] == nil then credentials[key] = default end
+		assert(type(credentials[key]) == type(default), "subscription auth " .. key .. " has an invalid type")
+	end
+	assert(credentials.expires_at >= 0 and credentials.expires_at % 1 == 0,
+		"subscription auth expires_at must be a non-negative integer")
+	return credentials --[[@as aqua.openai.SubscriptionCredentials]]
+end
+
+local credentials = loadCredentials()
 
 local scheduler = CosocketScheduler()
 local upstream_timeout = config.upstream_timeout or 300
@@ -83,9 +112,62 @@ local auth = SubscriptionAuth({
 	scheduler = scheduler,
 	credentials = credentials,
 	save_credentials = saveCredentials,
-	open_url = function() return false end,
+	open_url = function(url)
+		print("Open this URL in a browser to sign in with ChatGPT:")
+		print(url)
+		print("Waiting for the callback on http://localhost:1455/auth/callback")
+		return true
+	end,
 	request = request,
 })
+
+---@param thread thread
+local function runThread(thread)
+	thread = coext.detach(thread)
+	assert(coroutine.resume(thread))
+	while coroutine.status(thread) ~= "dead" do
+		local update_ok, update_err = scheduler:update(1)
+		assert(update_ok ~= nil, update_err)
+	end
+end
+
+if command == "login" then
+	local login_ok
+	local login_err
+	runThread(coroutine.create(function()
+		login_ok, login_err = auth:loginWithDeviceCode(function(device_code)
+			print("Open this URL in a browser and sign in with ChatGPT:")
+			print(device_code.verification_url)
+			print("Enter this one-time code (expires in 15 minutes):")
+			print(device_code.user_code)
+			print("Continue only if you started this login from this proxy.")
+		end)
+	end))
+	assert(login_ok, "OpenAI device login failed: " .. tostring(login_err))
+	print("OpenAI subscription login complete; credentials saved to " .. auth_path)
+	return
+elseif command == "login-browser" then
+	local login_ok, login_err = auth:startLogin()
+	assert(login_ok, login_err)
+	while auth.status == "logging_in" do
+		local update_ok, update_err = scheduler:update(1)
+		assert(update_ok ~= nil, update_err)
+	end
+	auth:unload()
+	assert(auth.status == "authenticated", "OpenAI browser login failed: " .. tostring(auth.error))
+	print("OpenAI subscription login complete; credentials saved to " .. auth_path)
+	return
+end
+
+assert(auth:isAuthenticated(),
+	"OpenAI subscription login is required; run ./luajit aqua/ai/openai/proxy.lua login " .. config_path)
+
+for _, user in ipairs(assert(config.users, "proxy users are required")) do
+	assert(type(user.access_token) == "string" and #user.access_token >= 32,
+		"proxy user access tokens must contain at least 32 characters")
+	assert(user.access_token ~= "replace-with-a-long-random-token",
+		"replace the default proxy user access token before starting the server")
+end
 
 local auth_busy = false
 local shared_auth = {

@@ -5,11 +5,14 @@ local OpenAiSubscriptionAuth = require("ai.openai.SubscriptionAuth")
 local test = {}
 
 ---@param account_id string
+---@param expires_at integer?
 ---@return string
-local function makeToken(account_id)
-	local payload = mime.b64(json.encode({
+local function makeToken(account_id, expires_at)
+	local claims = {
 		["https://api.openai.com/auth"] = {chatgpt_account_id = account_id},
-	})):gsub("=+$", ""):gsub("+", "-"):gsub("/", "_")
+		exp = expires_at,
+	}
+	local payload = mime.b64(json.encode(claims)):gsub("=+$", ""):gsub("+", "-"):gsub("/", "_")
 	return "header." .. payload .. ".signature"
 end
 
@@ -137,6 +140,62 @@ function test.callback_validates_state_and_decodes_authorization_code(t)
 	t:assert(response.body:find("login complete", 1, true))
 	t:eq(stopped, 1)
 	t:eq(auth.server, nil)
+end
+
+---@param t testing.T
+function test.logs_in_with_device_code_and_jwt_expiration(t)
+	local credentials = makeCredentials()
+	local now = 1000
+	local requests = {}
+	local polls = 0
+	local shown_code
+	local auth = OpenAiSubscriptionAuth({
+		scheduler = {},
+		credentials = credentials,
+		save_credentials = function() end,
+		open_url = function() return true end,
+		get_time = function() return now end,
+		sleep = function(seconds) now = now + seconds end,
+		request = function(url, body)
+			table.insert(requests, {url = url, body = body})
+			if url == OpenAiSubscriptionAuth.device_code_url then
+				return {
+					status = 200,
+					body = json.encode({device_auth_id = "device-1", user_code = "CODE-123", interval = "1"}),
+				}
+			elseif url == OpenAiSubscriptionAuth.device_token_url then
+				polls = polls + 1
+				if polls == 1 then return {status = 404, body = ""} end
+				return {
+					status = 200,
+					body = json.encode({
+						authorization_code = "authorization-1",
+						code_challenge = "challenge-1",
+						code_verifier = "verifier-1",
+					}),
+				}
+			elseif url == OpenAiSubscriptionAuth.token_url then
+				return {
+					status = 200,
+					body = json.encode({
+						access_token = makeToken("account-device", 5000),
+						refresh_token = "refresh-device",
+					}),
+				}
+			end
+			error("unexpected URL: " .. url)
+		end,
+	})
+
+	t:assert(auth:loginWithDeviceCode(function(device_code) shown_code = device_code end))
+	t:eq(shown_code.verification_url, "https://auth.openai.com/codex/device")
+	t:eq(shown_code.user_code, "CODE-123")
+	t:eq(polls, 2)
+	t:eq(credentials.account_id, "account-device")
+	t:eq(credentials.expires_at, 5000)
+	t:eq(auth.status, "authenticated")
+	t:assert(requests[4].body:find("code_verifier=verifier%2d1", 1, true))
+	t:assert(requests[4].body:find("redirect_uri=https%3a%2f%2fauth%2eopenai%2ecom%2fdeviceauth%2fcallback", 1, true))
 end
 
 return test

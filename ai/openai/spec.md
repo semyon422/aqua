@@ -44,13 +44,25 @@ Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription cli
 
 ## Standalone Proxy
 
-Copy `aqua/ai/openai/proxy_config.example.lua` to the ignored `userdata/ai_proxy.lua`, replace the client access token, and start the service from the repository root:
+Copy `aqua/ai/openai/proxy_config.example.lua` to the ignored `userdata/ai_proxy.lua` and replace the client access token. The proxy can create `userdata/ai_auth.lua`; sign in from the repository root before starting the service:
+
+```bash
+./luajit aqua/ai/openai/proxy.lua login
+```
+
+Device authorization is the default login for both local and headless servers. The command prints a verification URL and one-time code, polls for approval for at most 15 minutes, and atomically saves the resulting access and refresh credentials. The code must only be entered when the operator initiated the login from this proxy. If device authorization is unavailable, use the loopback PKCE flow:
+
+```bash
+./luajit aqua/ai/openai/proxy.lua login-browser
+```
+
+Browser login listens only on `127.0.0.1:1455`. When running the proxy through SSH, forward that port before starting `login-browser`, for example with `ssh -L 1455:127.0.0.1:1455 <server>`. Then start the service:
 
 ```bash
 ./luajit aqua/ai/openai/proxy.lua
 ```
 
-An alternate config path can be passed as the first argument. The default listener is loopback-only at `http://127.0.0.1:28081/v1`. The entrypoint refuses placeholder or shorter-than-32-character client tokens. The service loads subscription OAuth credentials from ignored `userdata/ai_auth.lua`, loads SOCKS5 routing from ignored `userdata/network.lua`, verifies upstream TLS against the repository CA bundle, and atomically persists refreshed credentials.
+An alternate config path can be passed as the first argument when serving or after the login command, for example `proxy.lua login userdata/other_proxy.lua`. The default listener is loopback-only at `http://127.0.0.1:28081/v1`. The entrypoint refuses placeholder or shorter-than-32-character client tokens. The service loads subscription OAuth credentials from ignored `userdata/ai_auth.lua`, loads SOCKS5 routing from ignored `userdata/network.lua`, verifies upstream TLS against the repository CA bundle, and atomically persists login and refreshed credentials. Serving without an access or refresh credential fails with a command showing how to log in.
 
 For public access, keep the Lua server bound to `127.0.0.1` and terminate HTTPS at Nginx using `nginx_proxy.example.conf` as a starting point. The example preserves Authorization, disables response buffering for SSE, buffers and bounds request bodies, and applies public-IP connection and request-rate limits. Replace its hostname and certificate paths before enabling it; do not expose port `28081` through a firewall or container port mapping.
 

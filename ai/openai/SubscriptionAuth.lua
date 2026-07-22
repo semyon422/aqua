@@ -27,6 +27,13 @@ local json = require("web.json")
 ---@field request aqua.openai.RequestFunc
 ---@field server_factory (fun(handler: fun(req: web.Request, res: web.Response)): web.HttpServer)?
 ---@field get_time (fun(): integer)?
+---@field sleep (fun(seconds: number))?
+
+---@class aqua.openai.DeviceCode
+---@field verification_url string
+---@field user_code string
+---@field device_auth_id string
+---@field interval number
 
 ---@class aqua.openai.SubscriptionAuth
 ---@operator call: aqua.openai.SubscriptionAuth
@@ -36,6 +43,7 @@ local json = require("web.json")
 ---@field open_url fun(url: string): boolean
 ---@field server_factory fun(handler: fun(req: web.Request, res: web.Response)): web.HttpServer
 ---@field get_time fun(): integer
+---@field sleep fun(seconds: number)
 ---@field observable util.Observable
 ---@field status aqua.openai.SubscriptionAuthStatus
 ---@field auth_url string?
@@ -48,9 +56,14 @@ local SubscriptionAuth = class()
 SubscriptionAuth.client_id = "app_EMoamEEZ73f0CkXaXp7hrann"
 SubscriptionAuth.authorize_url = "https://auth.openai.com/oauth/authorize"
 SubscriptionAuth.token_url = "https://auth.openai.com/oauth/token"
+SubscriptionAuth.device_code_url = "https://auth.openai.com/api/accounts/deviceauth/usercode"
+SubscriptionAuth.device_token_url = "https://auth.openai.com/api/accounts/deviceauth/token"
+SubscriptionAuth.device_verification_url = "https://auth.openai.com/codex/device"
+SubscriptionAuth.device_redirect_uri = "https://auth.openai.com/deviceauth/callback"
 SubscriptionAuth.redirect_uri = "http://localhost:1455/auth/callback"
 SubscriptionAuth.scope = "openid profile email offline_access"
 SubscriptionAuth.callback_port = 1455
+SubscriptionAuth.device_login_timeout = 15 * 60
 
 ---@param value string
 ---@return string
@@ -84,17 +97,32 @@ local function htmlEscape(value)
 end
 
 ---@param token string
----@return string?
-local function getAccountId(token)
+---@return table?
+local function getTokenClaims(token)
 	local payload = token:match("^[^.]+%.([^.]+)%.")
 	if not payload then return end
 	payload = payload:gsub("-", "+"):gsub("_", "/")
 	payload = payload .. string.rep("=", (4 - #payload % 4) % 4)
 	local decoded = mime.unb64(payload)
 	local claims = decoded and json.decode_safe(decoded) or nil
+	if type(claims) == "table" then return claims end
+end
+
+---@param token string
+---@return string?
+local function getAccountId(token)
+	local claims = getTokenClaims(token)
 	local auth = type(claims) == "table" and claims["https://api.openai.com/auth"] or nil
 	local account_id = type(auth) == "table" and auth.chatgpt_account_id or nil
 	if type(account_id) == "string" and account_id ~= "" then return account_id end
+end
+
+---@param token string
+---@return integer?
+local function getTokenExpiration(token)
+	local claims = getTokenClaims(token)
+	local expires_at = type(claims) == "table" and claims.exp or nil
+	if type(expires_at) == "number" and expires_at >= 0 and expires_at % 1 == 0 then return expires_at end
 end
 
 ---@param options aqua.openai.SubscriptionAuthOptions
@@ -107,6 +135,7 @@ function SubscriptionAuth:new(options)
 		return HttpServer(options.scheduler, handler, {client_timeout = 30})
 	end
 	self.get_time = options.get_time or os.time
+	self.sleep = options.sleep or function(seconds) options.scheduler:sleep(seconds) end
 	self.observable = Observable()
 	self.status = self:isAuthenticated() and "authenticated" or "unauthenticated"
 end
@@ -208,8 +237,8 @@ end
 ---@return boolean
 ---@return string?
 function SubscriptionAuth:storeTokens(tokens)
-	if type(tokens.access_token) ~= "string" or type(tokens.expires_in) ~= "number" then
-		return false, "OpenAI token response is missing access_token or expires_in"
+	if type(tokens.access_token) ~= "string" then
+		return false, "OpenAI token response is missing access_token"
 	end
 	local refresh_token = tokens.refresh_token or self.credentials.refresh_token
 	if type(refresh_token) ~= "string" or refresh_token == "" then
@@ -217,9 +246,16 @@ function SubscriptionAuth:storeTokens(tokens)
 	end
 	local account_id = getAccountId(tokens.access_token)
 	if not account_id then return false, "OpenAI access token has no ChatGPT account ID" end
+	local expires_at
+	if type(tokens.expires_in) == "number" and tokens.expires_in >= 0 then
+		expires_at = self.get_time() + math.floor(tokens.expires_in)
+	else
+		expires_at = getTokenExpiration(tokens.access_token)
+	end
+	if not expires_at then return false, "OpenAI token response has no expiration" end
 	self.credentials.access_token = tokens.access_token
 	self.credentials.refresh_token = refresh_token
-	self.credentials.expires_at = self.get_time() + math.floor(tokens.expires_in)
+	self.credentials.expires_at = expires_at
 	self.credentials.account_id = account_id
 	self.save_credentials()
 	self:setStatus("authenticated")
@@ -227,18 +263,107 @@ function SubscriptionAuth:storeTokens(tokens)
 end
 
 ---@param code string
+---@param verifier string?
+---@param redirect_uri string?
 ---@return boolean
 ---@return string?
-function SubscriptionAuth:exchangeAuthorizationCode(code)
+function SubscriptionAuth:exchangeAuthorizationCode(code, verifier, redirect_uri)
 	local tokens, err = self:requestToken({
 		grant_type = "authorization_code",
 		client_id = self.client_id,
 		code = code,
-		code_verifier = assert(self.verifier),
-		redirect_uri = self.redirect_uri,
+		code_verifier = verifier or assert(self.verifier),
+		redirect_uri = redirect_uri or self.redirect_uri,
 	})
 	if not tokens then return false, err end
 	return self:storeTokens(tokens)
+end
+
+---@return aqua.openai.DeviceCode?
+---@return string?
+function SubscriptionAuth:requestDeviceCode()
+	local res, err = self.request(self.device_code_url, json.encode({client_id = self.client_id}), {
+		method = "POST",
+		headers = {["Content-Type"] = "application/json"},
+	})
+	if not res then return nil, err or "device code request failed" end
+	if res.status == 404 then return nil, "OpenAI device login is unavailable; use browser login" end
+	if res.status < 200 or res.status >= 300 then
+		return nil, ("OpenAI device code request returned HTTP %d"):format(res.status)
+	end
+	local decoded, decode_err = json.decode_safe(res.body)
+	if type(decoded) ~= "table" then return nil, "invalid OpenAI device code response: " .. tostring(decode_err) end
+	local interval = tonumber(decoded.interval)
+	local user_code = decoded.user_code or decoded.usercode
+	if type(decoded.device_auth_id) ~= "string" or decoded.device_auth_id == ""
+		or type(user_code) ~= "string" or user_code == ""
+		or not interval or interval < 0 or interval % 1 ~= 0
+	then
+		return nil, "OpenAI device code response is missing required fields"
+	end
+	return {
+		verification_url = self.device_verification_url,
+		user_code = user_code,
+		device_auth_id = decoded.device_auth_id,
+		interval = math.max(1, interval),
+	}
+end
+
+---@param device_code aqua.openai.DeviceCode
+---@return boolean
+---@return string?
+function SubscriptionAuth:completeDeviceLogin(device_code)
+	local deadline = self.get_time() + self.device_login_timeout
+	while self.get_time() < deadline do
+		local res, err = self.request(self.device_token_url, json.encode({
+			device_auth_id = device_code.device_auth_id,
+			user_code = device_code.user_code,
+		}), {
+			method = "POST",
+			headers = {["Content-Type"] = "application/json"},
+		})
+		if not res then return false, err or "OpenAI device login polling failed" end
+		if res.status >= 200 and res.status < 300 then
+			local decoded, decode_err = json.decode_safe(res.body)
+			if type(decoded) ~= "table" then
+				return false, "invalid OpenAI device login response: " .. tostring(decode_err)
+			end
+			if type(decoded.authorization_code) ~= "string" or decoded.authorization_code == ""
+				or type(decoded.code_verifier) ~= "string" or decoded.code_verifier == ""
+			then
+				return false, "OpenAI device login response is missing authorization data"
+			end
+			return self:exchangeAuthorizationCode(
+				decoded.authorization_code,
+				decoded.code_verifier,
+				self.device_redirect_uri
+			)
+		elseif res.status ~= 403 and res.status ~= 404 then
+			return false, ("OpenAI device login returned HTTP %d"):format(res.status)
+		end
+		self.sleep(math.min(device_code.interval, math.max(0, deadline - self.get_time())))
+	end
+	return false, "OpenAI device login timed out after 15 minutes"
+end
+
+---@param on_code fun(device_code: aqua.openai.DeviceCode)
+---@return boolean
+---@return string?
+function SubscriptionAuth:loginWithDeviceCode(on_code)
+	self:setStatus("logging_in")
+	local device_code, err = self:requestDeviceCode()
+	if not device_code then
+		self:setStatus("error", err)
+		return false, err
+	end
+	on_code(device_code)
+	local ok
+	ok, err = self:completeDeviceLogin(device_code)
+	if not ok then
+		self:setStatus("error", err)
+		return false, err
+	end
+	return true
 end
 
 ---@return boolean
