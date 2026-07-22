@@ -7,6 +7,24 @@ local json = require("web.json")
 ---@field tool_calls aqua.openai.ToolCall[]?
 ---@field tool_call_id string?
 ---@field response_items table[]? Provider-owned Responses API items retained across tool rounds.
+---@field usage aqua.openai.TokenUsage?
+
+---@class aqua.openai.InputTokenDetails
+---@field cached_tokens integer?
+---@field audio_tokens integer?
+
+---@class aqua.openai.OutputTokenDetails
+---@field reasoning_tokens integer?
+---@field audio_tokens integer?
+---@field accepted_prediction_tokens integer?
+---@field rejected_prediction_tokens integer?
+
+---@class aqua.openai.TokenUsage
+---@field input_tokens integer
+---@field output_tokens integer
+---@field total_tokens integer
+---@field input_tokens_details aqua.openai.InputTokenDetails?
+---@field output_tokens_details aqua.openai.OutputTokenDetails?
 
 ---@class aqua.openai.ToolCallFunction
 ---@field name string

@@ -47,7 +47,7 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 		[[data: {"type":"response.output_item.added","output_index":1,"item":{"type":"message","role":"assistant","content":[]}}]] .. "\n\n",
 		[[data: {"type":"response.content_part.added","output_index":1,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}]] .. "\n\n",
 		[[data: {"type":"response.output_text.delta","output_index":1,"content_index":0,"delta":"Hi"}]] .. "\n\n",
-		[[data: {"type":"response.completed","response":{"output":[]}}]] .. "\n\n",
+		[[data: {"type":"response.completed","response":{"output":[],"usage":{"input_tokens":120,"output_tokens":30,"total_tokens":150,"input_tokens_details":{"cached_tokens":80},"output_tokens_details":{"reasoning_tokens":20}}}}]] .. "\n\n",
 	})
 	local called = {}
 	local client = makeClient(function(url, options)
@@ -76,6 +76,11 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	t:eq(table.concat(deltas), "Hi")
 	t:eq(message.content, "Hi")
 	t:eq(message.response_items[1].encrypted_content, "opaque")
+	t:eq(message.usage.input_tokens, 120)
+	t:eq(message.usage.output_tokens, 30)
+	t:eq(message.usage.total_tokens, 150)
+	t:eq(message.usage.input_tokens_details.cached_tokens, 80)
+	t:eq(message.usage.output_tokens_details.reasoning_tokens, 20)
 
 	local next_body = client:createBody({
 		{role = "system", content = "instructions"},

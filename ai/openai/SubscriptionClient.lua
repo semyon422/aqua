@@ -163,11 +163,58 @@ function SubscriptionClient:createHeaders(access_token, account_id)
 	}
 end
 
+---@param value any
+---@return integer?
+local function tokenCount(value)
+	if type(value) ~= "number" or value < 0 or value % 1 ~= 0 then return end
+	return value
+end
+
+---@param usage any
+---@return aqua.openai.TokenUsage?
+local function normalizeUsage(usage)
+	if type(usage) ~= "table" then return end
+	local input_tokens = tokenCount(usage.input_tokens)
+	local output_tokens = tokenCount(usage.output_tokens)
+	local total_tokens = tokenCount(usage.total_tokens)
+	if not input_tokens or not output_tokens or not total_tokens then return end
+	---@type aqua.openai.TokenUsage
+	local normalized = {
+		input_tokens = input_tokens,
+		output_tokens = output_tokens,
+		total_tokens = total_tokens,
+	}
+	if type(usage.input_tokens_details) == "table" then
+		local cached_tokens = tokenCount(usage.input_tokens_details.cached_tokens)
+		local audio_tokens = tokenCount(usage.input_tokens_details.audio_tokens)
+		if cached_tokens or audio_tokens then
+			normalized.input_tokens_details = {cached_tokens = cached_tokens, audio_tokens = audio_tokens}
+		end
+	end
+	if type(usage.output_tokens_details) == "table" then
+		local details = usage.output_tokens_details
+		local reasoning_tokens = tokenCount(details.reasoning_tokens)
+		local audio_tokens = tokenCount(details.audio_tokens)
+		local accepted_prediction_tokens = tokenCount(details.accepted_prediction_tokens)
+		local rejected_prediction_tokens = tokenCount(details.rejected_prediction_tokens)
+		if reasoning_tokens or audio_tokens or accepted_prediction_tokens or rejected_prediction_tokens then
+			normalized.output_tokens_details = {
+				reasoning_tokens = reasoning_tokens,
+				audio_tokens = audio_tokens,
+				accepted_prediction_tokens = accepted_prediction_tokens,
+				rejected_prediction_tokens = rejected_prediction_tokens,
+			}
+		end
+	end
+	return normalized
+end
+
 ---@param items table[]
+---@param usage aqua.openai.TokenUsage?
 ---@return aqua.openai.Message
-local function createMessage(items)
+local function createMessage(items, usage)
 	---@type aqua.openai.Message
-	local message = {role = "assistant", content = "", response_items = items}
+	local message = {role = "assistant", content = "", response_items = items, usage = usage}
 	local text_parts = {}
 	local tool_calls = {}
 	for _, item in ipairs(items) do
@@ -242,6 +289,7 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta)
 	local parse_err
 	local received_size = 0
 	local items = {}
+	local usage
 	---@param event table
 	---@param item_type string
 	---@return table
@@ -306,8 +354,11 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta)
 		elseif event.type == "response.output_item.done" and type(event.item) == "table" then
 			items[(tonumber(event.output_index) or #items) + 1] = event.item
 		elseif event.type == "response.completed" then
-			if type(event.response) == "table" and type(event.response.output) == "table" and #event.response.output > 0 then
-				items = event.response.output
+			if type(event.response) == "table" then
+				if type(event.response.output) == "table" and #event.response.output > 0 then
+					items = event.response.output
+				end
+				usage = normalizeUsage(event.response.usage)
 			end
 			done = true
 		elseif event.type == "response.failed" or event.type == "response.incomplete" then
@@ -334,7 +385,7 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta)
 	self.active_stream = nil
 	if parse_err then return nil, parse_err end
 	if not done then return nil, err or "Responses stream closed before completion" end
-	local message = createMessage(items)
+	local message = createMessage(items, usage)
 	if message.content == "" and not message.tool_calls then
 		return nil, "OpenAI response has neither text nor tool calls"
 	end

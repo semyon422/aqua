@@ -142,6 +142,18 @@ local function sanitizeLogValue(value)
 	return tostring(value):gsub("[%c\127]", "?")
 end
 
+---@param usage aqua.openai.TokenUsage
+---@return table
+local function createCompletionUsage(usage)
+	return {
+		prompt_tokens = usage.input_tokens,
+		completion_tokens = usage.output_tokens,
+		total_tokens = usage.total_tokens,
+		prompt_tokens_details = usage.input_tokens_details,
+		completion_tokens_details = usage.output_tokens_details,
+	}
+end
+
 ---@param model string
 ---@param message aqua.openai.Message
 ---@param completion_id string
@@ -153,7 +165,7 @@ local function createCompletion(model, message, completion_id, created)
 		content = message.content or "",
 	}
 	if message.tool_calls then output_message.tool_calls = message.tool_calls end
-	return {
+	local completion = {
 		id = completion_id,
 		object = "chat.completion",
 		created = created,
@@ -164,6 +176,8 @@ local function createCompletion(model, message, completion_id, created)
 			finish_reason = message.tool_calls and "tool_calls" or "stop",
 		}},
 	}
+	if message.usage then completion.usage = createCompletionUsage(message.usage) end
+	return completion
 end
 
 ---@param res web.Response
@@ -191,13 +205,31 @@ end
 ---@param created integer
 ---@param delta table
 ---@param finish_reason string?
-local function sendChunk(res, model, completion_id, created, delta, finish_reason)
+---@param include_usage boolean
+local function sendChunk(res, model, completion_id, created, delta, finish_reason, include_usage)
 	sendEvent(res, {
 		id = completion_id,
 		object = "chat.completion.chunk",
 		created = created,
 		model = model,
 		choices = {{index = 0, delta = delta, finish_reason = finish_reason}},
+		usage = include_usage and json.null or nil,
+	})
+end
+
+---@param res web.Response
+---@param model string
+---@param completion_id string
+---@param created integer
+---@param usage aqua.openai.TokenUsage
+local function sendUsageChunk(res, model, completion_id, created, usage)
+	sendEvent(res, {
+		id = completion_id,
+		object = "chat.completion.chunk",
+		created = created,
+		model = model,
+		choices = {},
+		usage = createCompletionUsage(usage),
 	})
 end
 
@@ -325,6 +357,11 @@ function ProxyServer:complete(res, request)
 	elseif request.stream ~= nil and type(request.stream) ~= "boolean" then
 		sendError(res, 400, "stream must be a boolean", "invalid_request_error", "invalid_stream")
 		return 400
+	elseif request.stream_options ~= nil and (not request.stream or not json.isObject(request.stream_options)
+		or (request.stream_options.include_usage ~= nil and type(request.stream_options.include_usage) ~= "boolean"))
+	then
+		sendError(res, 400, "stream_options requires stream=true and a boolean include_usage", "invalid_request_error", "invalid_stream_options")
+		return 400
 	elseif request.reasoning_effort ~= nil and not reasoning_efforts[request.reasoning_effort] then
 		sendError(res, 400, "reasoning_effort is invalid", "invalid_request_error", "invalid_reasoning_effort")
 		return 400
@@ -333,6 +370,7 @@ function ProxyServer:complete(res, request)
 	local client = self.create_client(request.model, request.reasoning_effort)
 	local completion_id = "chatcmpl-" .. random.hex(16)
 	local created = os.time()
+	local include_usage = request.stream_options and request.stream_options.include_usage == true or false
 	if not request.stream then
 		local message = client:completeStream(request.messages, request.tools)
 		if not message then
@@ -348,11 +386,11 @@ function ProxyServer:complete(res, request)
 		if started then return end
 		started = true
 		startEventStream(res)
-		sendChunk(res, request.model, completion_id, created, {role = "assistant"})
+		sendChunk(res, request.model, completion_id, created, {role = "assistant"}, nil, include_usage)
 	end
 	local message = client:completeStream(request.messages, request.tools, function(content)
 		ensureStarted()
-		sendChunk(res, request.model, completion_id, created, {content = content})
+		sendChunk(res, request.model, completion_id, created, {content = content}, nil, include_usage)
 	end)
 	if not message then
 		if not started then
@@ -375,9 +413,12 @@ function ProxyServer:complete(res, request)
 				["function"] = tool_call["function"],
 			}
 		end
-		sendChunk(res, request.model, completion_id, created, {tool_calls = tool_calls})
+		sendChunk(res, request.model, completion_id, created, {tool_calls = tool_calls}, nil, include_usage)
 	end
-	sendChunk(res, request.model, completion_id, created, {}, message.tool_calls and "tool_calls" or "stop")
+	sendChunk(res, request.model, completion_id, created, {}, message.tool_calls and "tool_calls" or "stop", include_usage)
+	if include_usage and message.usage then
+		sendUsageChunk(res, request.model, completion_id, created, message.usage)
+	end
 	sendEvent(res, "[DONE]")
 	res:send("")
 	return 200

@@ -125,6 +125,7 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 						role = "assistant",
 						content = "hello",
 						response_items = {{type = "reasoning", encrypted_content = "private"}},
+						usage = {input_tokens = 12, output_tokens = 5, total_tokens = 17},
 					}
 				end,
 			}
@@ -145,6 +146,9 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 	t:eq(decoded.object, "chat.completion")
 	t:eq(decoded.choices[1].message.content, "hello")
 	t:eq(decoded.choices[1].message.response_items, nil)
+	t:eq(decoded.usage.prompt_tokens, 12)
+	t:eq(decoded.usage.completion_tokens, 5)
+	t:eq(decoded.usage.total_tokens, 17)
 	server:stop()
 end
 
@@ -299,6 +303,13 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 					return {
 						role = "assistant",
 						content = "Hello",
+						usage = {
+							input_tokens = 120,
+							output_tokens = 30,
+							total_tokens = 150,
+							input_tokens_details = {cached_tokens = 80},
+							output_tokens_details = {reasoning_tokens = 20},
+						},
 						tool_calls = {{
 							id = "call_1",
 							type = "function",
@@ -316,6 +327,7 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 		model = "model-a",
 		messages = {{role = "user", content = "hi"}},
 		stream = true,
+		stream_options = {include_usage = true},
 	}, "proxy-secret")
 
 	t:eq(response.status, 200)
@@ -323,6 +335,11 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 	t:assert(response.body:find('"content":"lo"', 1, true))
 	t:assert(response.body:find('"finish_reason":"tool_calls"', 1, true))
 	t:assert(response.body:find('"id":"call_1"', 1, true))
+	t:assert(response.body:find('"choices":[],"created":', 1, true))
+	t:assert(response.body:find('"completion_tokens":30', 1, true))
+	t:assert(response.body:find('"prompt_tokens":120', 1, true))
+	t:assert(response.body:find('"cached_tokens":80', 1, true))
+	t:assert(response.body:find('"reasoning_tokens":20', 1, true))
 	t:assert(response.body:find("data: [DONE]", 1, true))
 	server:stop()
 end
@@ -360,6 +377,14 @@ function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 	}, "proxy-secret")
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "invalid_reasoning_effort")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		stream_options = {include_usage = true},
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_stream_options")
 	server:stop()
 end
 
