@@ -12,6 +12,12 @@ local config_loader, config_err = loadfile(config_path)
 assert(config_loader, ("failed to load proxy config %s: %s"):format(config_path, tostring(config_err)))
 local config = config_loader()
 assert(type(config) == "table", "proxy config must return a table")
+for _, user in ipairs(assert(config.users, "proxy users are required")) do
+	assert(type(user.access_token) == "string" and #user.access_token >= 32,
+		"proxy user access tokens must contain at least 32 characters")
+	assert(user.access_token ~= "replace-with-a-long-random-token",
+		"replace the default proxy user access token before starting the server")
+end
 
 local auth_path = config.auth_path or "userdata/ai_auth.lua"
 local auth_loader, auth_err = loadfile(auth_path)
@@ -98,11 +104,15 @@ local server = ProxyServer({
 	models = assert(config.models, "proxy models are required"),
 	max_body_size = config.max_body_size,
 	client_timeout = config.client_timeout,
+	max_clients = config.max_clients,
+	max_concurrent_requests_per_user = config.max_concurrent_requests_per_user,
+	max_requests_per_minute = config.max_requests_per_minute,
 	create_client = function(model, reasoning_effort)
 		return SubscriptionClient({
 			auth = shared_auth --[[@as aqua.openai.SubscriptionAuth]],
 			model = model,
 			reasoning_effort = reasoning_effort or config.reasoning_effort or "medium",
+			max_response_size = config.max_response_size,
 			timeout = upstream_timeout,
 			open_stream = openStream,
 		})

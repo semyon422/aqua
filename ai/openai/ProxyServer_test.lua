@@ -52,6 +52,34 @@ local function request(t, scheduler, port, path, body, token)
 end
 
 ---@param t testing.T
+---@param scheduler web.CosocketScheduler
+---@param port integer
+---@param body table
+---@param token string
+---@return {status: integer, body: string}
+local function chunkedRequest(t, scheduler, port, body, token)
+	local response
+	local request_err
+	local thread = coext.detach(coroutine.create(function()
+		response, request_err = http_util.request(
+			("http://127.0.0.1:%d/v1/chat/completions"):format(port),
+			nil,
+			{
+				method = "POST",
+				headers = {Authorization = "Bearer " .. token, ["Content-Type"] = "application/json"},
+				request_chunks = {json.encode(body)},
+				scheduler = scheduler,
+				timeout = 1,
+			}
+		)
+	end))
+	t:assert(coroutine.resume(thread))
+	pump(t, scheduler, thread)
+	t:eq(request_err, nil)
+	return assert(response)
+end
+
+---@param t testing.T
 function test.authenticates_and_lists_configured_models(t)
 	local scheduler = CosocketScheduler()
 	local logs = {}
@@ -117,6 +145,61 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 	t:eq(decoded.object, "chat.completion")
 	t:eq(decoded.choices[1].message.content, "hello")
 	t:eq(decoded.choices[1].message.response_items, nil)
+	server:stop()
+end
+
+---@param t testing.T
+function test.enforces_public_proxy_resource_limits(t)
+	local now = 10
+	local scheduler = CosocketScheduler()
+	local server = ProxyServer({
+		scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}},
+		models = {"model-a"},
+		create_client = function() error("not used") end,
+		max_clients = 8,
+		max_concurrent_requests_per_user = 1,
+		max_requests_per_minute = 1,
+		get_time = function() return now end,
+		logger = function() end,
+	})
+	t:eq(server.http_server.tcp_server.options.max_clients, 8)
+	t:assert(server:acquireRequest("proxy-secret"))
+	t:eq(server:acquireRequest("proxy-secret"), false)
+	server:releaseRequest("proxy-secret")
+	t:assert(server:acquireRequest("proxy-secret"))
+	server:releaseRequest("proxy-secret")
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+	local response = request(t, scheduler, assert(port), "/v1/models", nil, "proxy-secret")
+	t:eq(response.status, 200)
+	response = request(t, scheduler, port, "/v1/models", nil, "proxy-secret")
+	t:eq(response.status, 429)
+	t:eq(json.decode(response.body).error.code, "rate_limit_exceeded")
+	now = now + 60
+	response = request(t, scheduler, port, "/v1/models", nil, "proxy-secret")
+	t:eq(response.status, 200)
+	server:stop()
+end
+
+---@param t testing.T
+function test.rejects_chunked_request_bodies(t)
+	local scheduler = CosocketScheduler()
+	local server = ProxyServer({
+		scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}},
+		models = {"model-a"},
+		create_client = function() error("not used") end,
+		logger = function() end,
+	})
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+	local response = chunkedRequest(t, scheduler, assert(port), {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "unsupported_transfer_encoding")
 	server:stop()
 end
 

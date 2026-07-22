@@ -36,6 +36,7 @@ Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription cli
 - Responses text, refusal, and function-call arguments are assembled from typed incremental events. A terminal response with an empty output array must not discard already assembled output items.
 - `[DONE]` terminates a successful stream. A closed stream without `[DONE]` is an error unless it was explicitly canceled.
 - Proxy model names are allowlisted. Proxy logs contain only the configured user name, remote address, method, path, status, and duration; prompts, responses, client tokens, and subscription credentials are never logged.
+- Proxy request bodies require exactly one `Content-Length`; transfer encoding and duplicate lengths are rejected before the body is buffered. Header, request-body, upstream-response, global connection, per-user concurrency, and per-user request-rate limits are enforced independently.
 - A Chat Completions request may set `reasoning_effort` to override the proxy config for that request. Omitting it uses the configured default; invalid values fail before an upstream request is made.
 - The proxy accepts `developer`, `system`, `user`, `assistant`, and `tool` messages plus function tools. Chat Completions user parts map to subscription Responses parts: `text` to `input_text`, `image_url` to `input_image`, `input_audio` remains `input_audio`, and `file` maps to `input_file`. Assistant `text` and `refusal` history is normalized to text. Unsupported or malformed content fails instead of being silently discarded.
 - The public Responses request schema currently documents text, image, and file message content but not `input_audio`. Audio is forwarded as a compatibility extension and can still be rejected by the ChatGPT subscription backend or selected model.
@@ -48,7 +49,9 @@ Copy `aqua/ai/openai/proxy_config.example.lua` to the ignored `userdata/ai_proxy
 ./luajit aqua/ai/openai/proxy.lua
 ```
 
-An alternate config path can be passed as the first argument. The default listener is loopback-only at `http://127.0.0.1:28081/v1`; binding a non-loopback address should be paired with a TLS-terminating reverse proxy. The service loads subscription OAuth credentials from ignored `userdata/ai_auth.lua`, loads SOCKS5 routing from ignored `userdata/network.lua`, verifies upstream TLS against the repository CA bundle, and atomically persists refreshed credentials.
+An alternate config path can be passed as the first argument. The default listener is loopback-only at `http://127.0.0.1:28081/v1`. The entrypoint refuses placeholder or shorter-than-32-character client tokens. The service loads subscription OAuth credentials from ignored `userdata/ai_auth.lua`, loads SOCKS5 routing from ignored `userdata/network.lua`, verifies upstream TLS against the repository CA bundle, and atomically persists refreshed credentials.
+
+For public access, keep the Lua server bound to `127.0.0.1` and terminate HTTPS at Nginx using `nginx_proxy.example.conf` as a starting point. The example preserves Authorization, disables response buffering for SSE, buffers and bounds request bodies, and applies public-IP connection and request-rate limits. Replace its hostname and certificate paths before enabling it; do not expose port `28081` through a firewall or container port mapping.
 
 ## Future Work and Open Questions
 

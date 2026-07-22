@@ -9,6 +9,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field auth aqua.openai.SubscriptionAuth
 ---@field model string
 ---@field reasoning_effort aqua.openai.ReasoningEffort
+---@field max_response_size integer?
 ---@field timeout number?
 ---@field open_stream aqua.openai.OpenStreamFunc
 
@@ -17,6 +18,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field auth aqua.openai.SubscriptionAuth
 ---@field model string
 ---@field reasoning_effort aqua.openai.ReasoningEffort
+---@field max_response_size integer
 ---@field timeout number?
 ---@field open_stream aqua.openai.OpenStreamFunc
 ---@field active_stream web.HttpStream?
@@ -25,6 +27,7 @@ local SseParser = require("ai.openai.SseParser")
 local SubscriptionClient = class()
 
 SubscriptionClient.responses_url = "https://chatgpt.com/backend-api/codex/responses"
+SubscriptionClient.max_response_size = 4 * 1024 * 1024
 
 ---@param options aqua.openai.SubscriptionClientOptions
 function SubscriptionClient:new(options)
@@ -32,6 +35,8 @@ function SubscriptionClient:new(options)
 	self.auth = assert(options.auth, "auth is required")
 	self.model = options.model
 	self.reasoning_effort = options.reasoning_effort
+	self.max_response_size = options.max_response_size or self.max_response_size
+	assert(self.max_response_size >= 1, "max_response_size must be positive")
 	self.timeout = options.timeout
 	self.open_stream = assert(options.open_stream, "open_stream is required")
 	self.cancel_requested = false
@@ -235,6 +240,7 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta)
 
 	local done = false
 	local parse_err
+	local received_size = 0
 	local items = {}
 	---@param event table
 	---@param item_type string
@@ -316,6 +322,11 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta)
 		local chunk
 		chunk, err = stream:receiveChunk()
 		if not chunk then break end
+		received_size = received_size + #chunk
+		if received_size > self.max_response_size then
+			parse_err = "OpenAI subscription response is too large"
+			break
+		end
 		parser:feed(chunk)
 	end
 	parser:finish()

@@ -19,6 +19,10 @@ local HttpServer = require("web.http.Server")
 ---@field logger (fun(line: string))?
 ---@field max_body_size integer?
 ---@field client_timeout number?
+---@field max_clients integer?
+---@field max_concurrent_requests_per_user integer?
+---@field max_requests_per_minute integer?
+---@field get_time (fun(): number)?
 
 ---@class aqua.openai.ProxyServer
 ---@operator call: aqua.openai.ProxyServer
@@ -28,10 +32,18 @@ local HttpServer = require("web.http.Server")
 ---@field create_client fun(model: string, reasoning_effort: aqua.openai.ReasoningEffort?): aqua.openai.ProxyClient
 ---@field logger fun(line: string)
 ---@field max_body_size integer
+---@field max_concurrent_requests_per_user integer
+---@field max_requests_per_minute integer
+---@field active_requests {[string]: integer}
+---@field request_windows {[string]: {started_at: number, count: integer}}
+---@field get_time fun(): number
 ---@field http_server web.HttpServer
 local ProxyServer = class()
 
 ProxyServer.max_body_size = 1024 * 1024
+ProxyServer.max_clients = 64
+ProxyServer.max_concurrent_requests_per_user = 4
+ProxyServer.max_requests_per_minute = 120
 
 local reasoning_efforts = {
 	none = true,
@@ -64,11 +76,21 @@ function ProxyServer:new(options)
 	self.create_client = assert(options.create_client, "create_client is required")
 	self.logger = options.logger or print
 	self.max_body_size = options.max_body_size or self.max_body_size
+	self.max_concurrent_requests_per_user = options.max_concurrent_requests_per_user or self.max_concurrent_requests_per_user
+	self.max_requests_per_minute = options.max_requests_per_minute or self.max_requests_per_minute
+	self.active_requests = {}
+	self.request_windows = {}
+	self.get_time = options.get_time or socket.gettime
+	local max_clients = options.max_clients or self.max_clients
 	assert(self.max_body_size >= 1, "max_body_size must be positive")
+	assert(max_clients >= 1, "max_clients must be positive")
+	assert(self.max_concurrent_requests_per_user >= 1, "max_concurrent_requests_per_user must be positive")
+	assert(self.max_requests_per_minute >= 1, "max_requests_per_minute must be positive")
 	self.http_server = HttpServer(options.scheduler, function(req, res, ip)
 		self:handle(req, res, ip)
 	end, {
 		client_timeout = options.client_timeout or 30,
+		max_clients = max_clients,
 		max_header_size = 16384,
 		max_header_count = 64,
 	})
@@ -76,11 +98,12 @@ end
 
 ---@param req web.Request
 ---@return string?
+---@return string?
 function ProxyServer:authenticate(req)
 	local authorization = req.headers:get("Authorization")
 	local token = authorization and authorization:match("^Bearer (.+)$")
 	if not token then return end
-	return self.users_by_token[token]
+	return self.users_by_token[token], token
 end
 
 ---@param res web.Response
@@ -111,6 +134,12 @@ local function sendJson(res, body)
 	res.headers:set("Content-Type", "application/json")
 	res:set_length(#encoded)
 	res:send(encoded)
+end
+
+---@param value any
+---@return string
+local function sanitizeLogValue(value)
+	return tostring(value):gsub("[%c\127]", "?")
 end
 
 ---@param model string
@@ -354,48 +383,119 @@ function ProxyServer:complete(res, request)
 	return 200
 end
 
+---@param token string
+---@return boolean
+function ProxyServer:consumeRateLimit(token)
+	local now = self.get_time()
+	local window = self.request_windows[token]
+	if not window or now - window.started_at >= 60 then
+		self.request_windows[token] = {started_at = now, count = 1}
+		return true
+	elseif window.count >= self.max_requests_per_minute then
+		return false
+	end
+	window.count = window.count + 1
+	return true
+end
+
+---@param token string
+---@return boolean
+function ProxyServer:acquireRequest(token)
+	local active = self.active_requests[token] or 0
+	if active >= self.max_concurrent_requests_per_user then return false end
+	self.active_requests[token] = active + 1
+	return true
+end
+
+---@param token string
+function ProxyServer:releaseRequest(token)
+	local active = assert(self.active_requests[token]) - 1
+	self.active_requests[token] = active > 0 and active or nil
+end
+
 ---@param req web.Request
 ---@param res web.Response
----@param ip string
-function ProxyServer:handle(req, res, ip)
-	local started_at = socket.gettime()
-	local user = self:authenticate(req)
-	local status
-	local path = req.uri:match("^[^?]+") or req.uri
-	if not user then
-		sendError(res, 401, "invalid access token", "authentication_error", "invalid_api_key")
-		status = 401
-	elseif req.method == "GET" and path == "/v1/models" then
+---@param path string
+---@return integer status
+function ProxyServer:handleAuthenticated(req, res, path)
+	if req.method == "GET" and path == "/v1/models" then
 		local models = {}
 		for _, model in ipairs(self.models) do
 			table.insert(models, {id = model, object = "model", owned_by = "openai-subscription"})
 		end
 		sendJson(res, {object = "list", data = models})
-		status = 200
+		return 200
 	elseif req.method == "POST" and path == "/v1/chat/completions" then
-		local content_length = tonumber(req.headers:get("Content-Length"))
-		if not content_length then
+		local transfer_encodings = req.headers:getTable("Transfer-Encoding")
+		local content_lengths = req.headers:getTable("Content-Length")
+		if #transfer_encodings > 0 then
+			sendError(res, 400, "Transfer-Encoding is not supported", "invalid_request_error", "unsupported_transfer_encoding")
+			return 400
+		elseif #content_lengths == 0 then
 			sendError(res, 411, "Content-Length is required", "invalid_request_error", "length_required")
-			status = 411
+			return 411
+		elseif #content_lengths ~= 1 then
+			sendError(res, 400, "multiple Content-Length headers are not allowed", "invalid_request_error", "invalid_content_length")
+			return 400
+		end
+		local content_length = tonumber(content_lengths[1])
+		if not content_length then
+			sendError(res, 400, "Content-Length is invalid", "invalid_request_error", "invalid_content_length")
+			return 400
 		elseif content_length > self.max_body_size then
 			sendError(res, 413, "request body is too large", "invalid_request_error", "request_too_large")
-			status = 413
-		else
-			local body, receive_err = req:receive("*a")
-			local request, decode_err = body and json.decode_safe(body) or nil
-			if type(request) ~= "table" then
-				sendError(res, 400, "invalid JSON body: " .. tostring(decode_err or receive_err), "invalid_request_error", "invalid_json")
-				status = 400
-			else
-				status = self:complete(res, request)
-			end
+			return 413
 		end
+		local body, receive_err = req:receive("*a")
+		local request, decode_err = body and json.decode_safe(body) or nil
+		if type(request) ~= "table" then
+			sendError(res, 400, "invalid JSON body: " .. tostring(decode_err or receive_err), "invalid_request_error", "invalid_json")
+			return 400
+		end
+		return self:complete(res, request)
+	end
+	sendError(res, 404, "route not found", "invalid_request_error", "not_found")
+	return 404
+end
+
+---@param req web.Request
+---@param res web.Response
+---@param ip string
+function ProxyServer:handle(req, res, ip)
+	local started_at = self.get_time()
+	local user, token = self:authenticate(req)
+	local status
+	local path = req.uri:match("^[^?]+") or req.uri
+	if not user then
+		sendError(res, 401, "invalid access token", "authentication_error", "invalid_api_key")
+		status = 401
+	elseif not self:consumeRateLimit(assert(token)) then
+		res.headers:set("Retry-After", 60)
+		sendError(res, 429, "rate limit exceeded", "rate_limit_error", "rate_limit_exceeded")
+		status = 429
+	elseif not self:acquireRequest(token) then
+		res.headers:set("Retry-After", 1)
+		sendError(res, 429, "too many concurrent requests", "rate_limit_error", "concurrency_limit_exceeded")
+		status = 429
 	else
-		sendError(res, 404, "route not found", "invalid_request_error", "not_found")
-		status = 404
+		local handle_err
+		local ok = xpcall(function()
+			status = self:handleAuthenticated(req, res, path)
+		end, function(err)
+			handle_err = debug.traceback(err, 2)
+		end)
+		self:releaseRequest(token)
+		if not ok then error(handle_err, 0) end
 	end
 	self.logger(("user=%s ip=%s method=%s path=%s status=%d duration=%.3fs")
-		:format(user or "-", ip, req.method, path, status, socket.gettime() - started_at))
+		:format(
+			sanitizeLogValue(user or "-"),
+			sanitizeLogValue(ip),
+			sanitizeLogValue(req.method),
+			sanitizeLogValue(path),
+			status,
+			self.get_time() - started_at
+		))
 end
 
 ---@param host string

@@ -16,6 +16,10 @@ return {
 	upstream_timeout = 300,
 	client_timeout = 300,
 	max_body_size = 1024 * 1024,
+	max_response_size = 4 * 1024 * 1024,
+	max_clients = 64,
+	max_concurrent_requests_per_user = 4,
+	max_requests_per_minute = 120,
 	users = {
 		{name = "local", access_token = "replace-with-a-long-random-token"},
 	},

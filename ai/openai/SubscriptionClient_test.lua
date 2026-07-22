@@ -26,13 +26,15 @@ local function makeStream(chunks)
 end
 
 ---@param open_stream aqua.openai.OpenStreamFunc
+---@param max_response_size integer?
 ---@return aqua.openai.SubscriptionClient
-local function makeClient(open_stream)
+local function makeClient(open_stream, max_response_size)
 	return OpenAiSubscriptionClient({
 		auth = {getAccess = function() return "access", "account" end} --[[@as aqua.openai.SubscriptionAuth]],
 		model = "gpt-test",
 		reasoning_effort = "medium",
 		timeout = 45,
+		max_response_size = max_response_size,
 		open_stream = open_stream,
 	})
 end
@@ -142,6 +144,13 @@ function test.reports_auth_and_stream_errors(t)
 	message, err = client:completeStream({})
 	t:eq(message, nil)
 	t:eq(err, "broken")
+
+	stream = makeStream({[[data: {"type":"response.output_text.delta","delta":"too large"}]] .. "\n\n"})
+	client = makeClient(function() return stream end, 8)
+	message, err = client:completeStream({})
+	t:eq(message, nil)
+	t:eq(err, "OpenAI subscription response is too large")
+	t:assert(stream.closed)
 end
 
 return test
