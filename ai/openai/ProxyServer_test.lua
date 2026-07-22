@@ -152,6 +152,14 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 		max_completion_tokens = 2048,
 		parallel_tool_calls = false,
 		verbosity = "high",
+		temperature = 1,
+		top_p = 1,
+		n = 1,
+		stop = {},
+		logprobs = false,
+		frequency_penalty = 0,
+		presence_penalty = 0,
+		logit_bias = json.object(),
 		prompt_cache_key = "zed-thread",
 		prompt_cache_options = {mode = "explicit", ttl = "30m"},
 		tools = {{type = "function", ["function"] = {
@@ -486,6 +494,33 @@ function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 	}, "proxy-secret")
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "invalid_verbosity")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		temperature = 3,
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_temperature")
+
+	for _, unsupported in ipairs({
+		{n = 2},
+		{temperature = 0.7},
+		{top_p = 0.9},
+		{stop = "END"},
+		{seed = 42},
+		{logprobs = true},
+		{top_logprobs = 5},
+		{frequency_penalty = 0.5},
+		{presence_penalty = -0.5},
+		{logit_bias = {["42"] = -1}},
+	}) do
+		unsupported.model = "model-a"
+		unsupported.messages = {{role = "user", content = "hi"}}
+		response = request(t, scheduler, port, "/v1/chat/completions", unsupported, "proxy-secret")
+		t:eq(response.status, 400)
+		t:eq(json.decode(response.body).error.code, "unsupported_parameter")
+	end
 
 	response = request(t, scheduler, port, "/v1/chat/completions", {
 		model = "model-a",

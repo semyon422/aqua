@@ -427,6 +427,21 @@ local function isPositiveInteger(value)
 	return type(value) == "number" and value >= 1 and value % 1 == 0
 end
 
+---@param value any
+---@return boolean
+local function isPresent(value)
+	return value ~= nil and value ~= json.null
+end
+
+---@param res web.Response
+---@param name string
+---@return integer status
+local function sendUnsupportedParameter(res, name)
+	sendError(res, 400, name .. " is not supported by the ChatGPT subscription backend",
+		"invalid_request_error", "unsupported_parameter")
+	return 400
+end
+
 ---@param tool_choice any
 ---@param tools any
 ---@return "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
@@ -513,6 +528,62 @@ function ProxyServer:complete(res, request)
 	elseif request.verbosity ~= nil and not verbosities[request.verbosity] then
 		sendError(res, 400, "verbosity is invalid", "invalid_request_error", "invalid_verbosity")
 		return 400
+	end
+	if isPresent(request.temperature)
+		and (type(request.temperature) ~= "number" or request.temperature < 0 or request.temperature > 2)
+	then
+		sendError(res, 400, "temperature must be between 0 and 2", "invalid_request_error", "invalid_temperature")
+		return 400
+	end
+	if isPresent(request.temperature) and request.temperature ~= 1 then
+		return sendUnsupportedParameter(res, "temperature values other than 1")
+	end
+	if isPresent(request.top_p)
+		and (type(request.top_p) ~= "number" or request.top_p < 0 or request.top_p > 1)
+	then
+		sendError(res, 400, "top_p must be between 0 and 1", "invalid_request_error", "invalid_top_p")
+		return 400
+	end
+	if isPresent(request.top_p) and request.top_p ~= 1 then
+		return sendUnsupportedParameter(res, "top_p values other than 1")
+	end
+	if isPresent(request.n) then
+		if not isPositiveInteger(request.n) then
+			sendError(res, 400, "n must be a positive integer", "invalid_request_error", "invalid_n")
+			return 400
+		elseif request.n ~= 1 then
+			return sendUnsupportedParameter(res, "n values other than 1")
+		end
+	end
+	if isPresent(request.stop) and not (json.isArray(request.stop) and #request.stop == 0) then
+		return sendUnsupportedParameter(res, "stop")
+	end
+	if isPresent(request.seed) then return sendUnsupportedParameter(res, "seed") end
+	if request.logprobs ~= nil and request.logprobs ~= json.null and request.logprobs ~= false then
+		if request.logprobs ~= true then
+			sendError(res, 400, "logprobs must be a boolean", "invalid_request_error", "invalid_logprobs")
+			return 400
+		end
+		return sendUnsupportedParameter(res, "logprobs")
+	end
+	if isPresent(request.top_logprobs) then return sendUnsupportedParameter(res, "top_logprobs") end
+	for _, name in ipairs({"frequency_penalty", "presence_penalty"}) do
+		local value = request[name]
+		if isPresent(value) then
+			if type(value) ~= "number" or value < -2 or value > 2 then
+				sendError(res, 400, name .. " must be between -2 and 2", "invalid_request_error", "invalid_" .. name)
+				return 400
+			elseif value ~= 0 then
+				return sendUnsupportedParameter(res, name)
+			end
+		end
+	end
+	if isPresent(request.logit_bias) then
+		if not json.isObject(request.logit_bias) then
+			sendError(res, 400, "logit_bias must be an object", "invalid_request_error", "invalid_logit_bias")
+			return 400
+		end
+		if next(request.logit_bias) then return sendUnsupportedParameter(res, "logit_bias") end
 	end
 	if request.max_completion_tokens ~= nil and request.max_tokens ~= nil then
 		sendError(res, 400, "max_completion_tokens and max_tokens are mutually exclusive", "invalid_request_error", "invalid_max_tokens")
