@@ -16,6 +16,12 @@ local SseParser = require("ai.openai.SseParser")
 ---@field schema table?
 ---@field strict boolean?
 
+---@class aqua.openai.ToolCallDelta
+---@field index integer
+---@field id string?
+---@field name string?
+---@field arguments string?
+
 ---@class aqua.openai.SubscriptionClientOptions
 ---@field auth aqua.openai.SubscriptionAuth
 ---@field model string
@@ -23,6 +29,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field prompt_cache_key string?
 ---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
 ---@field parallel_tool_calls boolean?
+---@field verbosity "low"|"medium"|"high"?
 ---@field text_format aqua.openai.ResponsesTextFormat?
 ---@field max_response_size integer?
 ---@field timeout number?
@@ -36,6 +43,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field prompt_cache_key string?
 ---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
 ---@field parallel_tool_calls boolean?
+---@field verbosity "low"|"medium"|"high"?
 ---@field text_format aqua.openai.ResponsesTextFormat?
 ---@field max_response_size integer
 ---@field timeout number?
@@ -57,6 +65,7 @@ function SubscriptionClient:new(options)
 	self.prompt_cache_key = options.prompt_cache_key
 	self.tool_choice = options.tool_choice
 	self.parallel_tool_calls = options.parallel_tool_calls
+	self.verbosity = options.verbosity
 	self.text_format = options.text_format
 	self.max_response_size = options.max_response_size or self.max_response_size
 	assert(self.max_response_size >= 1, "max_response_size must be positive")
@@ -149,7 +158,7 @@ end
 ---@param tools aqua.openai.ToolSchema[]?
 ---@return table
 function SubscriptionClient:createBody(messages, tools)
-	local text = {verbosity = "low"}
+	local text = {verbosity = self.verbosity or "low"}
 	if self.text_format then text.format = self.text_format end
 	local body = {
 		model = self.model,
@@ -278,9 +287,10 @@ end
 ---@param tools aqua.openai.ToolSchema[]?
 ---@param on_text_delta fun(content: string)?
 ---@param on_reasoning_delta fun(content: string)?
+---@param on_tool_call_delta fun(delta: aqua.openai.ToolCallDelta)?
 ---@return aqua.openai.Message?
 ---@return string?
-function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_reasoning_delta)
+function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_reasoning_delta, on_tool_call_delta)
 	local access_token, account_id, auth_err = self.auth:getAccess()
 	if not access_token then return nil, auth_err or "OpenAI login is required" end
 	if not account_id or account_id == "" then return nil, "OpenAI login has no account ID" end
@@ -325,6 +335,9 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 	local parse_err
 	local received_size = 0
 	local items = {}
+	---@type {[integer]: integer}
+	local tool_call_indexes = {}
+	local next_tool_call_index = 0
 	local usage
 	---@param event table
 	---@param item_type string
@@ -353,6 +366,18 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		end
 		return content
 	end
+	---@param event table
+	---@return integer
+	local function getToolCallIndex(event)
+		local output_index = tonumber(event.output_index) or #items
+		local index = tool_call_indexes[output_index]
+		if index == nil then
+			index = next_tool_call_index
+			next_tool_call_index = next_tool_call_index + 1
+			tool_call_indexes[output_index] = index
+		end
+		return index
+	end
 	local parser = SseParser(function(data)
 		if data == "[DONE]" then
 			done = true
@@ -365,6 +390,14 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		end
 		if event.type == "response.output_item.added" and type(event.item) == "table" then
 			items[(tonumber(event.output_index) or #items) + 1] = event.item
+			if event.item.type == "function_call" and on_tool_call_delta then
+				on_tool_call_delta({
+					index = getToolCallIndex(event),
+					id = event.item.call_id,
+					name = event.item.name,
+					arguments = type(event.item.arguments) == "string" and event.item.arguments or "",
+				})
+			end
 		elseif event.type == "response.content_part.added" and type(event.part) == "table" then
 			local item = getItem(event, "message")
 			item.role = item.role or "assistant"
@@ -387,6 +420,9 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		elseif event.type == "response.function_call_arguments.delta" and type(event.delta) == "string" then
 			local item = getItem(event, "function_call")
 			item.arguments = (item.arguments or "") .. event.delta
+			if on_tool_call_delta then
+				on_tool_call_delta({index = getToolCallIndex(event), arguments = event.delta})
+			end
 		elseif event.type == "response.function_call_arguments.done" and type(event.arguments) == "string" then
 			getItem(event, "function_call").arguments = event.arguments
 		elseif event.type == "response.output_item.done" and type(event.item) == "table" then

@@ -45,6 +45,26 @@ Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription cli
 - The proxy accepts `developer`, `system`, `user`, `assistant`, and `tool` messages plus function tools. Chat Completions user parts map to subscription Responses parts: `text` to `input_text`, `image_url` to `input_image`, `input_audio` remains `input_audio`, and `file` maps to `input_file`. Assistant `text` and `refusal` history is normalized to text. Unsupported or malformed content fails instead of being silently discarded.
 - The public Responses request schema currently documents text, image, and file message content but not `input_audio`. Audio is forwarded as a compatibility extension and can still be rejected by the ChatGPT subscription backend or selected model.
 
+## Compatibility Progress
+
+The proxy targets agent clients that speak OpenAI Chat Completions while using the ChatGPT Codex Responses backend upstream.
+
+| Feature | Status | Notes |
+| --- | --- | --- |
+| Chat Completions text and SSE | Implemented | Includes strict terminal chunks and optional streaming usage. |
+| Function tools and tool choice | Implemented | Includes forced functions and parallel calls. |
+| Incremental tool-call streaming | Implemented | Call identity and argument fragments are relayed as soon as upstream emits them. |
+| Reasoning effort and summaries | Implemented | Effort is request-controlled; summaries use `reasoning_content`. |
+| Response verbosity | Implemented | `low`, `medium`, and `high` map to Responses `text.verbosity`. |
+| Structured output | Implemented | Supports text, JSON object, and JSON Schema formats. |
+| Multimodal input | Implemented | Text, images, files, and compatibility audio input are translated. |
+| Prompt caching | Partial | Cache keys and automatic caching work; explicit cache options and breakpoints remain. |
+| Direct `/v1/responses` | Planned | Avoids lossy translation for Responses-native clients. |
+| Upstream error fidelity | Planned | Return sanitized provider status, code, message, and request ID. |
+| Optional generation parameters | Planned | Verify, forward, or explicitly reject sampling, stop, logprob, seed, and multi-choice fields. |
+| Completion state mapping | Planned | Preserve incomplete, refusal, cancellation, and output-limit finish reasons. |
+| Legacy function aliases | Planned | Translate deprecated `functions` and `function_call` requests. |
+
 ## Standalone Proxy
 
 Copy `aqua/ai/openai/proxy_config.example.lua` to the ignored `userdata/ai_proxy.lua` and replace the client access token. The proxy can create `userdata/ai_auth.lua`; sign in from the repository root before starting the service:

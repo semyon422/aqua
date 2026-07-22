@@ -9,12 +9,13 @@ local HttpServer = require("web.http.Server")
 ---@field access_token string
 
 ---@class aqua.openai.ProxyClient
----@field completeStream fun(self: aqua.openai.ProxyClient, messages: aqua.openai.Message[], tools: aqua.openai.ToolSchema[]?, on_text_delta: (fun(content: string))?, on_reasoning_delta: (fun(content: string))?): aqua.openai.Message?, string?
+---@field completeStream fun(self: aqua.openai.ProxyClient, messages: aqua.openai.Message[], tools: aqua.openai.ToolSchema[]?, on_text_delta: (fun(content: string))?, on_reasoning_delta: (fun(content: string))?, on_tool_call_delta: (fun(delta: aqua.openai.ToolCallDelta))?): aqua.openai.Message?, string?
 
 ---@class aqua.openai.ProxyRequestOptions
 ---@field prompt_cache_key string?
 ---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
 ---@field parallel_tool_calls boolean
+---@field verbosity "low"|"medium"|"high"?
 ---@field text_format aqua.openai.ResponsesTextFormat?
 
 ---@class aqua.openai.ProxyServerOptions
@@ -59,6 +60,12 @@ local reasoning_efforts = {
 	high = true,
 	xhigh = true,
 	max = true,
+}
+
+local verbosities = {
+	low = true,
+	medium = true,
+	high = true,
 }
 
 ---@param options aqua.openai.ProxyServerOptions
@@ -437,6 +444,9 @@ function ProxyServer:complete(res, request)
 	elseif request.parallel_tool_calls ~= nil and type(request.parallel_tool_calls) ~= "boolean" then
 		sendError(res, 400, "parallel_tool_calls must be a boolean", "invalid_request_error", "invalid_parallel_tool_calls")
 		return 400
+	elseif request.verbosity ~= nil and not verbosities[request.verbosity] then
+		sendError(res, 400, "verbosity is invalid", "invalid_request_error", "invalid_verbosity")
+		return 400
 	end
 	if request.max_completion_tokens ~= nil and request.max_tokens ~= nil then
 		sendError(res, 400, "max_completion_tokens and max_tokens are mutually exclusive", "invalid_request_error", "invalid_max_tokens")
@@ -470,6 +480,7 @@ function ProxyServer:complete(res, request)
 		prompt_cache_key = request.prompt_cache_key,
 		tool_choice = tool_choice,
 		parallel_tool_calls = request.parallel_tool_calls ~= false,
+		verbosity = request.verbosity,
 		text_format = text_format,
 	})
 	local completion_id = "chatcmpl-" .. random.hex(16)
@@ -486,6 +497,7 @@ function ProxyServer:complete(res, request)
 	end
 
 	local started = false
+	local streamed_tool_calls = false
 	local function ensureStarted()
 		if started then return end
 		started = true
@@ -498,6 +510,18 @@ function ProxyServer:complete(res, request)
 	end, function(content)
 		ensureStarted()
 		sendChunk(res, request.model, completion_id, created, {reasoning_content = content}, nil, include_usage)
+	end, function(delta)
+		ensureStarted()
+		streamed_tool_calls = true
+		local tool_call = {index = delta.index}
+		if delta.id then
+			tool_call.id = delta.id
+			tool_call.type = "function"
+		end
+		if delta.name or delta.arguments then
+			tool_call["function"] = {name = delta.name, arguments = delta.arguments}
+		end
+		sendChunk(res, request.model, completion_id, created, {tool_calls = {tool_call}}, nil, include_usage)
 	end)
 	if not message then
 		if not started then
@@ -510,7 +534,7 @@ function ProxyServer:complete(res, request)
 		return 502
 	end
 	ensureStarted()
-	if message.tool_calls then
+	if message.tool_calls and not streamed_tool_calls then
 		local tool_calls = {}
 		for index, tool_call in ipairs(message.tool_calls) do
 			tool_calls[index] = {

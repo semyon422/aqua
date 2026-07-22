@@ -119,6 +119,7 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 			t:eq(model, "model-a")
 			t:eq(reasoning_effort, "high")
 			t:eq(request_options.parallel_tool_calls, false)
+			t:eq(request_options.verbosity, "high")
 			t:eq(request_options.prompt_cache_key, "zed-thread")
 			t:eq(request_options.tool_choice.type, "function")
 			t:eq(request_options.tool_choice.name, "inspect")
@@ -148,6 +149,7 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 		reasoning_effort = "high",
 		max_completion_tokens = 2048,
 		parallel_tool_calls = false,
+		verbosity = "high",
 		prompt_cache_key = "zed-thread",
 		tools = {{type = "function", ["function"] = {
 			name = "inspect", parameters = {type = "object"},
@@ -317,10 +319,14 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 		models = {"model-a"},
 		create_client = function()
 			return {
-				completeStream = function(_, _, _, on_text_delta, on_reasoning_delta)
+				completeStream = function(_, _, _, on_text_delta, on_reasoning_delta, on_tool_call_delta)
 					on_reasoning_delta("Thinking")
 					on_text_delta("Hel")
 					on_text_delta("lo")
+					on_tool_call_delta({index = 0, id = "call_1", name = "inspect", arguments = ""})
+					on_tool_call_delta({index = 0, arguments = [[{"path":"game"}]]})
+					on_tool_call_delta({index = 1, id = "call_2", name = "inspect", arguments = ""})
+					on_tool_call_delta({index = 1, arguments = [[{"path":"aqua"}]]})
 					return {
 						role = "assistant",
 						content = "Hello",
@@ -365,6 +371,7 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 	t:assert(response.body:find('"id":"call_1"', 1, true))
 	t:assert(response.body:find('"id":"call_2"', 1, true))
 	t:assert(response.body:find('"index":1', 1, true))
+	t:assert(response.body:find('"arguments":"{\\\"path\\\":\\\"game\\\"}"', 1, true))
 	t:assert(response.body:find('"choices":[],"created":', 1, true))
 	t:assert(response.body:find('"completion_tokens":30', 1, true))
 	t:assert(response.body:find('"prompt_tokens":120', 1, true))
@@ -415,6 +422,14 @@ function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 	}, "proxy-secret")
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "invalid_parallel_tool_calls")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		verbosity = "verbose",
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_verbosity")
 
 	response = request(t, scheduler, port, "/v1/chat/completions", {
 		model = "model-a",

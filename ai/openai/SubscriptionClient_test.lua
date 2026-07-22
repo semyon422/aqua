@@ -61,6 +61,7 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	end, nil, {
 		prompt_cache_key = "thread-1",
 		tool_choice = {type = "function", name = "inspect"},
+		verbosity = "high",
 		text_format = {type = "json_object"},
 	})
 	local deltas = {}
@@ -85,6 +86,7 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	t:eq(body.reasoning.effort, "medium")
 	t:eq(body.prompt_cache_key, "thread-1")
 	t:eq(body.tool_choice.name, "inspect")
+	t:eq(body.text.verbosity, "high")
 	t:eq(body.text.format.type, "json_object")
 	t:eq(table.concat(deltas), "Hi")
 	t:eq(table.concat(reasoning_deltas), "Thought")
@@ -136,12 +138,20 @@ function test.converts_function_calls_and_tool_results(t)
 	})
 	local client = makeClient(function() return stream end, nil, {parallel_tool_calls = true})
 	local tools = {{type = "function", ["function"] = {name = "inspect", parameters = {type = "object"}}}}
-	local message = assert(client:completeStream({{role = "user", content = "inspect"}}, tools))
+	local tool_call_deltas = {}
+	local message = assert(client:completeStream({{role = "user", content = "inspect"}}, tools, nil, nil,
+		function(delta) table.insert(tool_call_deltas, delta) end))
 	t:eq(message.content, "")
 	t:eq(message.tool_calls[1].id, "call_1")
 	t:eq(message.tool_calls[1]["function"].name, "inspect")
 	t:eq(message.tool_calls[2].id, "call_2")
 	t:eq(message.tool_calls[2]["function"].arguments, [[{"path":"aqua"}]])
+	t:eq(tool_call_deltas[1].index, 0)
+	t:eq(tool_call_deltas[1].id, "call_1")
+	t:eq(tool_call_deltas[2].arguments, [[{"path":]])
+	t:eq(tool_call_deltas[3].index, 1)
+	t:eq(tool_call_deltas[3].id, "call_2")
+	t:eq(tool_call_deltas[4].arguments, [[{"path":"aqua"}]])
 
 	local body = client:createBody({
 		{role = "user", content = "inspect"},

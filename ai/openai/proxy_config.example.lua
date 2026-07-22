@@ -13,6 +13,7 @@ return {
 		"gpt-5.3-codex-spark",
 	},
 	reasoning_effort = "medium",
+	verbosity = "low",
 	upstream_timeout = 300,
 	client_timeout = 300,
 	max_body_size = 1024 * 1024,
