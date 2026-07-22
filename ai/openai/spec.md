@@ -36,6 +36,7 @@ Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription cli
 - Responses text, refusal, and function-call arguments are assembled from typed incremental events. A terminal response with an empty output array must not discard already assembled output items.
 - `[DONE]` terminates a successful stream. A closed stream without `[DONE]` is an error unless it was explicitly canceled.
 - Proxy model names are allowlisted. Proxy logs contain only the configured user name, remote address, method, path, status, and duration; prompts, responses, client tokens, and subscription credentials are never logged.
+- Every upstream request has a unique `x-client-request-id`. Provider failures return the bounded `x-request-id` when available, or that client request ID as a troubleshooting fallback.
 - Proxy request bodies require exactly one `Content-Length`; transfer encoding and duplicate lengths are rejected before the body is buffered. Header, request-body, upstream-response, global connection, per-user concurrency, and per-user request-rate limits are enforced independently.
 - When a streaming request sets `stream_options.include_usage`, the proxy maps Responses token counts to Chat Completions usage fields and emits the final usage-only chunk with an empty `choices` array before `[DONE]`. Non-streaming completions include the same usage object when upstream reports it.
 - A Chat Completions request may set `reasoning_effort` to override the proxy config for that request. Omitting it uses the configured default; invalid values fail before an upstream request is made.
@@ -60,7 +61,7 @@ The proxy targets agent clients that speak OpenAI Chat Completions while using t
 | Multimodal input | Implemented | Text, images, files, and compatibility audio input are translated. |
 | Prompt caching | Partial | Cache keys and automatic caching work; explicit cache options and breakpoints remain. |
 | Direct `/v1/responses` | Planned | Avoids lossy translation for Responses-native clients. |
-| Upstream error fidelity | Planned | Return sanitized provider status, code, message, and request ID. |
+| Upstream error fidelity | Implemented | Returns bounded provider status, code, message, and request ID without logging prompts or credentials. |
 | Optional generation parameters | Planned | Verify, forward, or explicitly reject sampling, stop, logprob, seed, and multi-choice fields. |
 | Completion state mapping | Planned | Preserve incomplete, refusal, cancellation, and output-limit finish reasons. |
 | Legacy function aliases | Planned | Translate deprecated `functions` and `function_call` requests. |

@@ -22,6 +22,13 @@ local SseParser = require("ai.openai.SseParser")
 ---@field name string?
 ---@field arguments string?
 
+---@class aqua.openai.ProviderError
+---@field status integer
+---@field message string
+---@field type string
+---@field code string
+---@field request_id string
+
 ---@class aqua.openai.SubscriptionClientOptions
 ---@field auth aqua.openai.SubscriptionAuth
 ---@field model string
@@ -200,6 +207,36 @@ function SubscriptionClient:createHeaders(access_token, account_id)
 end
 
 ---@param value any
+---@param fallback string
+---@param max_length integer
+---@return string
+local function sanitizeErrorValue(value, fallback, max_length)
+	if type(value) ~= "string" or value == "" then return fallback end
+	value = value:gsub("[%c\127]", " "):gsub("%s+", " ")
+	if #value > max_length then value = value:sub(1, max_length) end
+	return value
+end
+
+---@param status integer
+---@param body string?
+---@param headers web.Headers?
+---@param client_request_id string
+---@return aqua.openai.ProviderError
+local function createProviderError(status, body, headers, client_request_id)
+	local decoded = body and json.decode_safe(body) or nil
+	local provider = type(decoded) == "table" and decoded.error or nil
+	if type(provider) ~= "table" then provider = {} end
+	local request_id = headers and headers:get("x-request-id") or nil
+	return {
+		status = status,
+		message = sanitizeErrorValue(provider.message, "upstream request failed", 512),
+		type = sanitizeErrorValue(provider.type, "upstream_error", 128),
+		code = sanitizeErrorValue(provider.code, "upstream_error", 128),
+		request_id = sanitizeErrorValue(request_id, client_request_id, 512),
+	}
+end
+
+---@param value any
 ---@return integer?
 local function tokenCount(value)
 	if type(value) ~= "number" or value < 0 or value % 1 ~= 0 then return end
@@ -290,11 +327,13 @@ end
 ---@param on_tool_call_delta fun(delta: aqua.openai.ToolCallDelta)?
 ---@return aqua.openai.Message?
 ---@return string?
+---@return aqua.openai.ProviderError?
 function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_reasoning_delta, on_tool_call_delta)
 	local access_token, account_id, auth_err = self.auth:getAccess()
 	if not access_token then return nil, auth_err or "OpenAI login is required" end
 	if not account_id or account_id == "" then return nil, "OpenAI login has no account ID" end
 
+	self.session_id = random.hex(16)
 	self.cancel_requested = false
 	local stream, err = self.open_stream(self.responses_url, {
 		method = "POST",
@@ -328,11 +367,13 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		local error_body = stream:receiveBody()
 		stream:close()
 		self.active_stream = nil
-		return nil, ("OpenAI subscription returned HTTP %d: %s"):format(res.status, error_body or "")
+		local provider_error = createProviderError(res.status, error_body, res.headers, self.session_id)
+		return nil, ("OpenAI subscription returned HTTP %d: %s"):format(res.status, provider_error.message), provider_error
 	end
 
 	local done = false
 	local parse_err
+	local provider_error
 	local received_size = 0
 	local items = {}
 	---@type {[integer]: integer}
@@ -438,8 +479,13 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		elseif event.type == "response.failed" or event.type == "response.incomplete" then
 			local response_error = type(event.response) == "table" and event.response.error or nil
 			parse_err = type(response_error) == "table" and tostring(response_error.message) or "OpenAI response failed"
+			if type(response_error) == "table" then
+				provider_error = createProviderError(502, json.encode({error = response_error}), res.headers, self.session_id)
+			end
 		elseif event.type == "error" then
 			parse_err = tostring(event.message or (type(event.error) == "table" and event.error.message) or "OpenAI streaming error")
+			local event_error = type(event.error) == "table" and event.error or event
+			provider_error = createProviderError(502, json.encode({error = event_error}), res.headers, self.session_id)
 		end
 	end)
 
@@ -457,7 +503,7 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 	parser:finish()
 	stream:close()
 	self.active_stream = nil
-	if parse_err then return nil, parse_err end
+	if parse_err then return nil, parse_err, provider_error end
 	if not done then return nil, err or "Responses stream closed before completion" end
 	local message = createMessage(items, usage)
 	if message.content == "" and not message.tool_calls then

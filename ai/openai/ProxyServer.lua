@@ -9,7 +9,7 @@ local HttpServer = require("web.http.Server")
 ---@field access_token string
 
 ---@class aqua.openai.ProxyClient
----@field completeStream fun(self: aqua.openai.ProxyClient, messages: aqua.openai.Message[], tools: aqua.openai.ToolSchema[]?, on_text_delta: (fun(content: string))?, on_reasoning_delta: (fun(content: string))?, on_tool_call_delta: (fun(delta: aqua.openai.ToolCallDelta))?): aqua.openai.Message?, string?
+---@field completeStream fun(self: aqua.openai.ProxyClient, messages: aqua.openai.Message[], tools: aqua.openai.ToolSchema[]?, on_text_delta: (fun(content: string))?, on_reasoning_delta: (fun(content: string))?, on_tool_call_delta: (fun(delta: aqua.openai.ToolCallDelta))?): aqua.openai.Message?, string?, aqua.openai.ProviderError?
 
 ---@class aqua.openai.ProxyRequestOptions
 ---@field prompt_cache_key string?
@@ -124,19 +124,33 @@ end
 ---@param message string
 ---@param error_type string
 ---@param code string
-local function sendError(res, status, message, error_type, code)
+---@param request_id string?
+local function sendError(res, status, message, error_type, code, request_id)
+	local error_body = {
+		message = message,
+		type = error_type,
+		code = code,
+		request_id = request_id,
+	}
 	local body = json.encode({
-		error = {
-			message = message,
-			type = error_type,
-			code = code,
-		},
+		error = error_body,
 	})
 	res.status = status
 	res.headers:set("Content-Type", "application/json")
+	if request_id then res.headers:set("x-request-id", request_id) end
 	if status == 401 then res.headers:set("WWW-Authenticate", "Bearer") end
 	res:set_length(#body)
 	res:send(body)
+end
+
+---@param res web.Response
+---@param provider_error aqua.openai.ProviderError
+---@return integer status
+local function sendProviderError(res, provider_error)
+	local status = provider_error.status
+	if status < 400 or status > 599 then status = 502 end
+	sendError(res, status, provider_error.message, provider_error.type, provider_error.code, provider_error.request_id)
+	return status
 end
 
 ---@param res web.Response
@@ -487,8 +501,11 @@ function ProxyServer:complete(res, request)
 	local created = os.time()
 	local include_usage = request.stream_options and request.stream_options.include_usage == true or false
 	if not request.stream then
-		local message = client:completeStream(request.messages, request.tools)
+		local message, _, provider_error = client:completeStream(request.messages, request.tools)
 		if not message then
+			if provider_error then
+				return sendProviderError(res, provider_error)
+			end
 			sendError(res, 502, "upstream request failed", "upstream_error", "upstream_error")
 			return 502
 		end
@@ -504,7 +521,7 @@ function ProxyServer:complete(res, request)
 		startEventStream(res)
 		sendChunk(res, request.model, completion_id, created, {role = "assistant"}, nil, include_usage)
 	end
-	local message = client:completeStream(request.messages, request.tools, function(content)
+	local message, _, provider_error = client:completeStream(request.messages, request.tools, function(content)
 		ensureStarted()
 		sendChunk(res, request.model, completion_id, created, {content = content}, nil, include_usage)
 	end, function(content)
@@ -525,10 +542,23 @@ function ProxyServer:complete(res, request)
 	end)
 	if not message then
 		if not started then
+			if provider_error then
+				return sendProviderError(res, provider_error)
+			end
 			sendError(res, 502, "upstream request failed", "upstream_error", "upstream_error")
 			return 502
 		end
-		sendEvent(res, {error = {message = "upstream request failed", type = "upstream_error", code = "upstream_error"}})
+		local error_body = provider_error or {
+			message = "upstream request failed",
+			type = "upstream_error",
+			code = "upstream_error",
+		}
+		sendEvent(res, {error = {
+			message = error_body.message,
+			type = error_body.type,
+			code = error_body.code,
+			request_id = error_body.request_id,
+		}})
 		sendEvent(res, "[DONE]")
 		res:send("")
 		return 502

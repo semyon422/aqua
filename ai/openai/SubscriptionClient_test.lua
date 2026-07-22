@@ -1,5 +1,6 @@
 local json = require("web.json")
 local OpenAiSubscriptionClient = require("ai.openai.SubscriptionClient")
+local Headers = require("web.http.Headers")
 
 local test = {}
 
@@ -66,6 +67,7 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	})
 	local deltas = {}
 	local reasoning_deltas = {}
+	local initial_request_id = client.session_id
 	local message = assert(client:completeStream({
 		{role = "system", content = "instructions"},
 		{role = "user", content = "hello"},
@@ -79,6 +81,8 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	t:eq(called.url, OpenAiSubscriptionClient.responses_url)
 	t:eq(called.options.headers.Authorization, "Bearer access")
 	t:eq(called.options.headers["ChatGPT-Account-Id"], "account")
+	t:ne(called.options.headers["x-client-request-id"], initial_request_id)
+	t:eq(called.options.headers.session_id, called.options.headers["x-client-request-id"])
 	t:eq(called.options.timeout, 45)
 	t:eq(body.instructions, "instructions")
 	t:eq(body.input[1].content[1].text, "hello")
@@ -185,6 +189,23 @@ function test.reports_auth_and_stream_errors(t)
 	message, err = client:completeStream({})
 	t:eq(message, nil)
 	t:eq(err, "broken")
+
+	stream = makeStream({})
+	stream.res.status = 429
+	stream.res.headers = Headers():set("x-request-id", "req_123")
+	stream.receiveBody = function()
+		return [[{"error":{"message":"rate\nlimited","type":"rate_limit_error","code":"rate_limit_exceeded"}}]]
+	end
+	client = makeClient(function() return stream end)
+	local provider_error
+	message, err, provider_error = client:completeStream({})
+	t:eq(message, nil)
+	t:eq(err, "OpenAI subscription returned HTTP 429: rate limited")
+	t:eq(provider_error.status, 429)
+	t:eq(provider_error.message, "rate limited")
+	t:eq(provider_error.type, "rate_limit_error")
+	t:eq(provider_error.code, "rate_limit_exceeded")
+	t:eq(provider_error.request_id, "req_123")
 
 	stream = makeStream({[[data: {"type":"response.output_text.delta","delta":"too large"}]] .. "\n\n"})
 	client = makeClient(function() return stream end, 8)

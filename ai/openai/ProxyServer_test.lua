@@ -382,6 +382,56 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 end
 
 ---@param t testing.T
+function test.preserves_sanitized_upstream_errors(t)
+	local scheduler = CosocketScheduler()
+	local server = ProxyServer({
+		scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}},
+		models = {"model-a"},
+		create_client = function()
+			return {
+				completeStream = function(_, _, _, on_text_delta)
+					if on_text_delta then on_text_delta("partial") end
+					return nil, "internal detail", {
+						status = 429,
+						message = "rate limited",
+						type = "rate_limit_error",
+						code = "rate_limit_exceeded",
+						request_id = "req_123",
+					}
+				end,
+			}
+		end,
+		logger = function() end,
+	})
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+	local response = request(t, scheduler, assert(port), "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+	}, "proxy-secret")
+	t:eq(response.status, 429)
+	t:eq(response.headers:get("x-request-id"), "req_123")
+	local decoded = json.decode(response.body)
+	t:eq(decoded.error.message, "rate limited")
+	t:eq(decoded.error.type, "rate_limit_error")
+	t:eq(decoded.error.code, "rate_limit_exceeded")
+	t:eq(decoded.error.request_id, "req_123")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		stream = true,
+	}, "proxy-secret")
+	t:eq(response.status, 200)
+	t:assert(response.body:find('"content":"partial"', 1, true))
+	t:assert(response.body:find('"code":"rate_limit_exceeded"', 1, true))
+	t:assert(response.body:find('"request_id":"req_123"', 1, true))
+	t:assert(response.body:find("data: [DONE]", 1, true))
+	server:stop()
+end
+
+---@param t testing.T
 function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 	local scheduler = CosocketScheduler()
 	local server = ProxyServer({
