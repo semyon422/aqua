@@ -13,6 +13,7 @@ local HttpServer = require("web.http.Server")
 
 ---@class aqua.openai.ProxyRequestOptions
 ---@field prompt_cache_key string?
+---@field prompt_cache_options aqua.openai.PromptCacheOptions?
 ---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
 ---@field parallel_tool_calls boolean
 ---@field verbosity "low"|"medium"|"high"?
@@ -270,21 +271,46 @@ local function normalizeContent(content, role)
 	local text_parts = {}
 	local input_parts = {}
 	local has_non_text = false
+	local has_breakpoint = false
 	for _, part in ipairs(content) do
 		if not json.isObject(part) then return end
+		local breakpoint
+		if part.prompt_cache_breakpoint ~= nil then
+			if not json.isObject(part.prompt_cache_breakpoint)
+				or part.prompt_cache_breakpoint.mode ~= "explicit"
+			then
+				return
+			end
+			for key in pairs(part.prompt_cache_breakpoint) do
+				if key ~= "mode" then return end
+			end
+			breakpoint = {mode = "explicit"}
+			has_breakpoint = true
+		end
 		if (part.type == "text" or part.type == "input_text") and type(part.text) == "string" then
 			table.insert(text_parts, part.text)
-			table.insert(input_parts, {type = "input_text", text = part.text})
+			table.insert(input_parts, {
+				type = "input_text",
+				text = part.text,
+				prompt_cache_breakpoint = breakpoint,
+			})
 		elseif role == "assistant" and part.type == "refusal" and type(part.refusal) == "string" then
+			if breakpoint then return end
 			table.insert(text_parts, part.refusal)
 		elseif role == "user" and part.type == "image_url" then
 			local image = part.image_url
 			if type(image) ~= "table" or type(image.url) ~= "string" or image.url == "" then return end
 			local detail = image.detail or "auto"
 			if detail ~= "auto" and detail ~= "low" and detail ~= "high" then return end
-			table.insert(input_parts, {type = "input_image", image_url = image.url, detail = detail})
+			table.insert(input_parts, {
+				type = "input_image",
+				image_url = image.url,
+				detail = detail,
+				prompt_cache_breakpoint = breakpoint,
+			})
 			has_non_text = true
 		elseif role == "user" and part.type == "input_audio" then
+			if breakpoint then return end
 			local audio = part.input_audio
 			if type(audio) ~= "table" or type(audio.data) ~= "string" or audio.data == ""
 				or (audio.format ~= "wav" and audio.format ~= "mp3")
@@ -308,14 +334,40 @@ local function normalizeContent(content, role)
 				file_data = has_data and file.file_data or nil,
 				file_id = has_id and file.file_id or nil,
 				filename = file.filename,
+				prompt_cache_breakpoint = breakpoint,
 			})
 			has_non_text = true
 		else
 			return
 		end
 	end
-	if role == "user" and has_non_text then return input_parts end
+	if (role == "user" or role == "developer" or role == "system") and (has_non_text or has_breakpoint) then
+		return input_parts
+	end
 	return table.concat(text_parts)
+end
+
+---@param options any
+---@return aqua.openai.PromptCacheOptions?
+---@return string?
+local function normalizePromptCacheOptions(options)
+	if options == nil then return end
+	if not json.isObject(options) then return nil, "prompt_cache_options must be an object" end
+	if options.mode ~= nil and options.mode ~= "implicit" and options.mode ~= "explicit" then
+		return nil, "prompt_cache_options mode is invalid"
+	end
+	if options.ttl ~= nil and options.ttl ~= "30m" then
+		return nil, "prompt_cache_options ttl is invalid"
+	end
+	for key in pairs(options) do
+		if key ~= "mode" and key ~= "ttl" then
+			return nil, "prompt_cache_options contains an unsupported field"
+		end
+	end
+	local normalized = json.object()
+	normalized.mode = options.mode
+	normalized.ttl = options.ttl
+	return normalized
 end
 
 ---@param messages any
@@ -479,6 +531,11 @@ function ProxyServer:complete(res, request)
 		sendError(res, 400, "prompt_cache_key must contain 1 to 64 bytes", "invalid_request_error", "invalid_prompt_cache_key")
 		return 400
 	end
+	local prompt_cache_options, prompt_cache_options_err = normalizePromptCacheOptions(request.prompt_cache_options)
+	if prompt_cache_options_err then
+		sendError(res, 400, prompt_cache_options_err, "invalid_request_error", "invalid_prompt_cache_options")
+		return 400
+	end
 	local tool_choice, tool_choice_err = normalizeToolChoice(request.tool_choice, request.tools)
 	if tool_choice_err then
 		sendError(res, 400, tool_choice_err, "invalid_request_error", "invalid_tool_choice")
@@ -492,6 +549,7 @@ function ProxyServer:complete(res, request)
 
 	local client = self.create_client(request.model, request.reasoning_effort, {
 		prompt_cache_key = request.prompt_cache_key,
+		prompt_cache_options = prompt_cache_options,
 		tool_choice = tool_choice,
 		parallel_tool_calls = request.parallel_tool_calls ~= false,
 		verbosity = request.verbosity,

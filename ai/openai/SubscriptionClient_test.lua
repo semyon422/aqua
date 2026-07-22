@@ -61,6 +61,7 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 		return stream
 	end, nil, {
 		prompt_cache_key = "thread-1",
+		prompt_cache_options = {mode = "explicit", ttl = "30m"},
 		tool_choice = {type = "function", name = "inspect"},
 		verbosity = "high",
 		text_format = {type = "json_object"},
@@ -89,6 +90,8 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	t:eq(body.tools[1].name, "inspect")
 	t:eq(body.reasoning.effort, "medium")
 	t:eq(body.prompt_cache_key, "thread-1")
+	t:eq(body.prompt_cache_options.mode, "explicit")
+	t:eq(body.prompt_cache_options.ttl, "30m")
 	t:eq(body.tool_choice.name, "inspect")
 	t:eq(body.text.verbosity, "high")
 	t:eq(body.text.format.type, "json_object")
@@ -113,21 +116,28 @@ end
 
 ---@param t testing.T
 function test.preserves_multimodal_responses_input_parts(t)
-	local client = makeClient(function() error("not used") end)
+	local client = makeClient(function() error("not used") end, nil, {
+		prompt_cache_options = {mode = "implicit", ttl = "30m"},
+	})
 	local content = {
 		{type = "input_text", text = "inspect"},
-		{type = "input_image", image_url = "data:image/png;base64,aGVsbG8=", detail = "high"},
+		{type = "input_image", image_url = "data:image/png;base64,aGVsbG8=", detail = "high",
+			prompt_cache_breakpoint = {mode = "explicit"}},
 		{type = "input_audio", input_audio = {data = "aGVsbG8=", format = "wav"}},
 		{type = "input_file", file_data = "data:text/plain;base64,aGVsbG8=", filename = "hello.txt"},
 	}
 	local body = client:createBody({
 		{role = "developer", content = "developer instructions"},
-		{role = "system", content = "system instructions"},
+		{role = "system", content = {{type = "input_text", text = "system instructions",
+			prompt_cache_breakpoint = {mode = "explicit"}}}},
 		{role = "user", content = content},
 	}, nil)
-	t:eq(body.instructions, "developer instructions\n\nsystem instructions")
-	t:eq(body.input[1].content, content)
+	t:eq(body.instructions, "developer instructions")
+	t:eq(body.input[1].role, "system")
+	t:eq(body.input[1].content[1].prompt_cache_breakpoint.mode, "explicit")
+	t:eq(body.input[2].content, content)
 	t:eq(body.prompt_cache_key, nil)
+	t:eq(body.prompt_cache_options.mode, "implicit")
 end
 
 ---@param t testing.T

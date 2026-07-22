@@ -121,6 +121,8 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 			t:eq(request_options.parallel_tool_calls, false)
 			t:eq(request_options.verbosity, "high")
 			t:eq(request_options.prompt_cache_key, "zed-thread")
+			t:eq(request_options.prompt_cache_options.mode, "explicit")
+			t:eq(request_options.prompt_cache_options.ttl, "30m")
 			t:eq(request_options.tool_choice.type, "function")
 			t:eq(request_options.tool_choice.name, "inspect")
 			t:eq(request_options.text_format.type, "json_schema")
@@ -151,6 +153,7 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 		parallel_tool_calls = false,
 		verbosity = "high",
 		prompt_cache_key = "zed-thread",
+		prompt_cache_options = {mode = "explicit", ttl = "30m"},
 		tools = {{type = "function", ["function"] = {
 			name = "inspect", parameters = {type = "object"},
 		}}},
@@ -286,9 +289,10 @@ function test.normalizes_all_chat_completion_content_parts(t)
 	local response = request(t, scheduler, assert(port), "/v1/chat/completions", {
 		model = "model-a",
 		messages = {
-			{role = "developer", content = "instructions"},
+			{role = "developer", content = {{type = "text", text = "instructions",
+				prompt_cache_breakpoint = {mode = "explicit"}}}},
 			{role = "user", content = {
-				{type = "text", text = "inspect these"},
+				{type = "text", text = "inspect these", prompt_cache_breakpoint = {mode = "explicit"}},
 				{type = "image_url", image_url = {url = "data:image/png;base64,aGVsbG8=", detail = "high"}},
 				{type = "input_audio", input_audio = {data = "aGVsbG8=", format = "wav"}},
 				{type = "file", file = {file_data = "data:text/plain;base64,aGVsbG8=", filename = "hello.txt"}},
@@ -299,7 +303,9 @@ function test.normalizes_all_chat_completion_content_parts(t)
 
 	t:eq(response.status, 200)
 	t:eq(seen_messages[1].role, "developer")
+	t:eq(seen_messages[1].content[1].prompt_cache_breakpoint.mode, "explicit")
 	t:eq(seen_messages[2].content[1].type, "input_text")
+	t:eq(seen_messages[2].content[1].prompt_cache_breakpoint.mode, "explicit")
 	t:eq(seen_messages[2].content[2].type, "input_image")
 	t:eq(seen_messages[2].content[2].detail, "high")
 	t:eq(seen_messages[2].content[3].type, "input_audio")
@@ -504,6 +510,25 @@ function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 	}, "proxy-secret")
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "invalid_prompt_cache_key")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+		prompt_cache_options = {mode = "explicit", ttl = "24h"},
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_prompt_cache_options")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = {{
+			type = "input_audio",
+			input_audio = {data = "aGVsbG8=", format = "wav"},
+			prompt_cache_breakpoint = {mode = "explicit"},
+		}}}},
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_messages")
 
 	response = request(t, scheduler, port, "/v1/chat/completions", {
 		model = "model-a",

@@ -195,6 +195,7 @@ local server = ProxyServer({
 			model = model,
 			reasoning_effort = reasoning_effort or config.reasoning_effort or "medium",
 			prompt_cache_key = request_options.prompt_cache_key,
+			prompt_cache_options = request_options.prompt_cache_options,
 			tool_choice = request_options.tool_choice,
 			parallel_tool_calls = request_options.parallel_tool_calls,
 			verbosity = request_options.verbosity or config.verbosity or "low",

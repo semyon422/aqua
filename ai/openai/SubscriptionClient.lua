@@ -29,11 +29,16 @@ local SseParser = require("ai.openai.SseParser")
 ---@field code string
 ---@field request_id string
 
+---@class aqua.openai.PromptCacheOptions
+---@field mode "implicit"|"explicit"?
+---@field ttl "30m"?
+
 ---@class aqua.openai.SubscriptionClientOptions
 ---@field auth aqua.openai.SubscriptionAuth
 ---@field model string
 ---@field reasoning_effort aqua.openai.ReasoningEffort
 ---@field prompt_cache_key string?
+---@field prompt_cache_options aqua.openai.PromptCacheOptions?
 ---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
 ---@field parallel_tool_calls boolean?
 ---@field verbosity "low"|"medium"|"high"?
@@ -48,6 +53,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field model string
 ---@field reasoning_effort aqua.openai.ReasoningEffort
 ---@field prompt_cache_key string?
+---@field prompt_cache_options aqua.openai.PromptCacheOptions?
 ---@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
 ---@field parallel_tool_calls boolean?
 ---@field verbosity "low"|"medium"|"high"?
@@ -70,6 +76,7 @@ function SubscriptionClient:new(options)
 	self.model = options.model
 	self.reasoning_effort = options.reasoning_effort
 	self.prompt_cache_key = options.prompt_cache_key
+	self.prompt_cache_options = options.prompt_cache_options
 	self.tool_choice = options.tool_choice
 	self.parallel_tool_calls = options.parallel_tool_calls
 	self.verbosity = options.verbosity
@@ -99,7 +106,13 @@ end
 local function createInput(messages)
 	local input = {}
 	for _, message in ipairs(messages) do
-		if message.role == "user" then
+		if (message.role == "developer" or message.role == "system") and type(message.content) == "table" then
+			table.insert(input, {
+				type = "message",
+				role = message.role,
+				content = message.content,
+			})
+		elseif message.role == "user" then
 			local content = message.content
 			if type(content) == "string" then
 				content = {{type = "input_text", text = content}}
@@ -175,6 +188,7 @@ function SubscriptionClient:createBody(messages, tools)
 		input = createInput(messages),
 		include = {"reasoning.encrypted_content"},
 		prompt_cache_key = self.prompt_cache_key,
+		prompt_cache_options = self.prompt_cache_options,
 		text = text,
 		reasoning = {effort = self.reasoning_effort, summary = "auto"},
 	}
