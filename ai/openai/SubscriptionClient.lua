@@ -203,6 +203,48 @@ function SubscriptionClient:createBody(messages, tools)
 	return body
 end
 
+---@param request table
+---@return table
+function SubscriptionClient:createResponsesBody(request)
+	local body = json.object()
+	for key, value in pairs(request) do body[key] = value end
+	body.model = self.model
+	body.store = false
+	body.stream = true
+	if type(request.input) == "string" then
+		body.input = json.array({json.object({
+			type = "message",
+			role = "user",
+			content = json.array({json.object({type = "input_text", text = request.input})}),
+		})})
+	end
+
+	local reasoning = json.object()
+	if type(request.reasoning) == "table" then
+		for key, value in pairs(request.reasoning) do reasoning[key] = value end
+	end
+	if reasoning.effort == nil or reasoning.effort == json.null then reasoning.effort = self.reasoning_effort end
+	if reasoning.summary == nil or reasoning.summary == json.null then reasoning.summary = "auto" end
+	body.reasoning = reasoning
+
+	local text = json.object()
+	if type(request.text) == "table" then
+		for key, value in pairs(request.text) do text[key] = value end
+	end
+	if text.verbosity == nil or text.verbosity == json.null then text.verbosity = self.verbosity or "low" end
+	body.text = text
+
+	local include = json.array()
+	local has_encrypted_reasoning = false
+	for _, value in ipairs(type(request.include) == "table" and request.include or {}) do
+		table.insert(include, value)
+		if value == "reasoning.encrypted_content" then has_encrypted_reasoning = true end
+	end
+	if not has_encrypted_reasoning then table.insert(include, "reasoning.encrypted_content") end
+	body.include = include
+	return body
+end
+
 ---@param access_token string
 ---@param account_id string
 ---@return {[string]: string}
@@ -239,7 +281,10 @@ end
 local function createProviderError(status, body, headers, client_request_id)
 	local decoded = body and json.decode_safe(body) or nil
 	local provider = type(decoded) == "table" and decoded.error or nil
-	if type(provider) ~= "table" then provider = {} end
+	if type(provider) ~= "table" then
+		provider = type(decoded) == "table" and type(decoded.detail) == "string"
+			and {message = decoded.detail} or {}
+	end
 	local request_id = headers and headers:get("x-request-id") or nil
 	return {
 		status = status,
@@ -248,6 +293,112 @@ local function createProviderError(status, body, headers, client_request_id)
 		code = sanitizeErrorValue(provider.code, "upstream_error", 128),
 		request_id = sanitizeErrorValue(request_id, client_request_id, 512),
 	}
+end
+
+---@param request table
+---@param on_event (fun(event: table): boolean?)?
+---@return table? response
+---@return string?
+---@return aqua.openai.ProviderError?
+function SubscriptionClient:createResponse(request, on_event)
+	local access_token, account_id, auth_err = self.auth:getAccess()
+	if not access_token then return nil, auth_err or "OpenAI login is required" end
+	if not account_id or account_id == "" then return nil, "OpenAI login has no account ID" end
+
+	self.session_id = random.hex(16)
+	self.cancel_requested = false
+	local stream, err = self.open_stream(self.responses_url, {
+		method = "POST",
+		headers = self:createHeaders(access_token, account_id),
+		timeout = self.timeout,
+	})
+	if not stream then return nil, err or "OpenAI subscription stream failed" end
+	self.active_stream = stream
+	if self.cancel_requested then
+		stream:cancel("canceled")
+		self.active_stream = nil
+		return nil, "canceled"
+	end
+
+	local sent
+	sent, err = stream:sendBody(json.encode(self:createResponsesBody(request)))
+	if not sent then
+		stream:close()
+		self.active_stream = nil
+		return nil, err
+	end
+	local headers_ok
+	headers_ok, err = stream:receiveHeaders()
+	if not headers_ok then
+		stream:close()
+		self.active_stream = nil
+		return nil, err
+	end
+	local res = assert(stream.res)
+	if res.status < 200 or res.status >= 300 then
+		local error_body = stream:receiveBody()
+		stream:close()
+		self.active_stream = nil
+		local provider_error = createProviderError(res.status, error_body, res.headers, self.session_id)
+		return nil, ("OpenAI subscription returned HTTP %d: %s"):format(res.status, provider_error.message), provider_error
+	end
+
+	local done = false
+	local parse_err
+	local provider_error
+	local received_size = 0
+	local response
+	local items = json.array()
+	local parser = SseParser(function(data)
+		if data == "[DONE]" then return end
+		local event, decode_err = json.decode_safe(data)
+		if type(event) ~= "table" then
+			parse_err = "invalid Responses streaming JSON: " .. tostring(decode_err)
+			return
+		end
+		if (event.type == "response.output_item.added" or event.type == "response.output_item.done")
+			and type(event.item) == "table"
+		then
+			items[(tonumber(event.output_index) or #items) + 1] = event.item
+		elseif event.type == "response.completed" or event.type == "response.incomplete"
+			or event.type == "response.failed"
+		then
+			if type(event.response) ~= "table" then
+				parse_err = "terminal Responses event has no response"
+				return
+			end
+			response = event.response
+			if type(response.output) ~= "table" or #response.output == 0 then response.output = items end
+			done = true
+		elseif event.type == "error" then
+			parse_err = tostring(event.message or (type(event.error) == "table" and event.error.message)
+				or "OpenAI streaming error")
+			local event_error = type(event.error) == "table" and event.error or event
+			provider_error = createProviderError(502, json.encode({error = event_error}), res.headers, self.session_id)
+		end
+		if on_event and on_event(event) == false and not parse_err then
+			parse_err = "downstream response stream closed"
+		end
+	end)
+
+	while not done and not parse_err do
+		local chunk
+		chunk, err = stream:receiveChunk()
+		if not chunk then break end
+		received_size = received_size + #chunk
+		if received_size > self.max_response_size then
+			parse_err = "OpenAI subscription response is too large"
+			break
+		end
+		parser:feed(chunk)
+	end
+	parser:finish()
+	if parse_err == "downstream response stream closed" then stream:cancel(parse_err) end
+	stream:close()
+	self.active_stream = nil
+	if parse_err then return nil, parse_err, provider_error end
+	if not done then return nil, err or "Responses stream closed before completion" end
+	return response
 end
 
 ---@param value any

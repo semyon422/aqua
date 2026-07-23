@@ -1,25 +1,25 @@
 ## Goal
 
-Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription clients plus an agent loop, without depending on application-specific models, tools, configuration, or UI.
+Provide reusable OpenAI-compatible Chat Completions and Responses clients backed by a ChatGPT subscription, plus an agent loop, without depending on application-specific models, tools, configuration, or UI.
 
 ## User Experience
 
 - Applications can send a conversation to an OpenAI-compatible provider and receive either an assistant response or function-tool calls.
 - Applications can register local tools and let the agent repeat the request/tool/result cycle until it produces a final answer.
 - Applications can opt into a browser-based ChatGPT subscription login with a PKCE loopback callback and use the Codex Responses compatibility backend.
-- Operators can run a small authenticated OpenAI-compatible HTTP proxy backed by one ChatGPT subscription.
+- Operators can run a small authenticated OpenAI-compatible HTTP proxy backed by one ChatGPT subscription. Chat Completions clients use the compatibility translation, while Responses-native agents can use the direct HTTP or SSE endpoint.
 - Transport, provider, JSON, and tool failures are returned as useful errors instead of escaping into the application loop.
 
 ## Architecture Decisions
 
 - `Client` owns only the `/chat/completions` protocol: request encoding, authentication headers, response decoding, and response-shape validation.
 - `SubscriptionAuth` owns the reusable PKCE authorization, callback-state validation, token refresh, and credential mutation. HTTP requests, scheduling, browser opening, credential persistence, and time are injected.
-- `SubscriptionClient` translates common agent messages and function tools to the Responses input protocol. It assembles output from typed SSE events and retains provider-owned output items, including encrypted reasoning, across stateless tool rounds.
+- `SubscriptionClient` translates common agent messages and function tools to the Responses input protocol. It also transports native Responses requests without translating their tools, input items, or typed events. It assembles output from typed SSE events and retains provider-owned output items, including encrypted reasoning, across stateless tool rounds.
 - The HTTP request function is injected. The common layer does not create a scheduler or depend on `rizu.net.NetworkService`.
 - `Agent` owns the reusable tool-calling loop. Tools provide an OpenAI function schema and a Lua handler; application-specific tool implementations remain outside `aqua`.
 - `Agent:setClient()` changes the completion backend only when coordinated by the application; the common agent does not decide how provider/model selection affects conversation history.
 - `Client:completeStream()` implements Chat Completions server-sent events without changing the existing complete-response API. It emits text deltas while assembling one protocol-valid assistant message, including fragmented tool call IDs, names, and JSON arguments.
-- `ProxyServer` exposes `GET /v1/models` and `POST /v1/chat/completions`, translates subscription results back to Chat Completions JSON or SSE, and authenticates callers against named bearer tokens from a Lua config.
+- `ProxyServer` exposes `GET /v1/models`, `POST /v1/chat/completions`, and `POST /v1/responses`. It translates subscription results back to Chat Completions JSON or SSE, forwards native Responses as JSON or typed SSE events, and authenticates callers against named bearer tokens from a Lua config.
 - Each proxy request creates its own `SubscriptionClient`, so concurrent requests do not share cancellation or response-assembly state. The subscription authentication object and refreshed credentials remain shared, with access and refresh checks serialized to avoid racing refresh-token rotation.
 - `ProxyNetwork` applies the same SOCKS5 domain whitelist and blacklist semantics as the game network service. The standalone entrypoint loads ignored `userdata/network.lua`, so subscription inference and OAuth refresh requests follow the user's existing route without copying proxy credentials.
 - The client owns at most one active stream. `cancel()` closes that stream and causes the pending completion to return a cancellation error.
@@ -34,6 +34,9 @@ Provide reusable OpenAI-compatible Chat Completions and ChatGPT subscription cli
 - Provider response tables are not exposed until the required `choices[1].message` shape has been validated.
 - Streaming input is parsed incrementally because SSE records and JSON payloads may cross arbitrary transport chunk boundaries.
 - Responses text, refusal, and function-call arguments are assembled from typed incremental events. A terminal response with an empty output array must not discard already assembled output items.
+- Native Responses requests are stateless: the proxy forces `store = false`, rejects server-managed response state and background execution, and always consumes the subscription backend as SSE. Public string input is normalized to the private backend's required input-item array.
+- Native Responses streaming preserves typed event objects and emits matching SSE `event` and `data` fields without a Chat Completions `[DONE]` sentinel. Non-streaming requests return the terminal Response object assembled from the same event stream.
+- Native Responses requests automatically include encrypted reasoning so Responses-native agents can return provider-owned reasoning items on later stateless tool rounds. Caller-supplied include values, tools, tool selection, parallel-call control, instructions, structured text options, reasoning settings, and other provider fields remain intact.
 - A Responses result ending with `incomplete_details.reason = max_output_tokens` remains a successful partial Chat Completion with `finish_reason = length`, including when the limit is reached before visible text. Unknown incomplete reasons remain upstream errors rather than being reported as successful completion.
 - A completed refusal is preserved as assistant text with `finish_reason = stop`. Local or upstream cancellation remains a transport error because Chat Completions has no cancellation finish reason.
 - Deprecated `functions` and `function_call` requests are normalized to one modern function tool and tool choice path. Legacy assistant `function_call` and role `function` history receives a private synthetic call ID so the Responses backend can correlate the call and result.
@@ -66,7 +69,7 @@ The proxy targets agent clients that speak OpenAI Chat Completions while using t
 | Structured output | Implemented | Supports text, JSON object, and JSON Schema formats. |
 | Multimodal input | Implemented | Text, images, files, and compatibility audio input are translated. |
 | Prompt caching | Partial; upstream blocked | Cache keys and automatic caching work. Explicit mode, `30m` TTL, and supported content breakpoints are validated and translated, but the current ChatGPT subscription backend rejects these newer fields. |
-| Direct `/v1/responses` | Planned | Avoids lossy translation for Responses-native clients. |
+| Direct `/v1/responses` | Implemented | Stateless HTTP and typed SSE, including native parallel tool-call round trips. Server-managed state, background mode, and WebSocket transport are not supported. |
 | Upstream error fidelity | Implemented | Returns bounded provider status, code, message, and request ID without logging prompts or credentials. |
 | Optional generation parameters | Implemented with backend limits | Harmless defaults are accepted. Non-default sampling, stop, logprob, seed, penalty, logit-bias, and multi-choice controls return explicit unsupported-parameter errors. |
 | Completion state mapping | Implemented | Preserves normal, tool-call, output-limit, and content-filter terminal reasons. Completed refusals are normal assistant output; cancellation and unknown incomplete states remain errors. |
@@ -100,3 +103,6 @@ For public access, keep the Lua server bound to `127.0.0.1` and terminate HTTPS 
 
 - Consider a shared provider capability description for optional compatibility flags.
 - Track compatibility changes to the ChatGPT Codex OAuth and Responses backend independently from the public API-key client.
+- Add Responses WebSocket transport if an agent requires it.
+- Revisit stored Responses, Conversations, `previous_response_id`, and background mode if the subscription backend exposes durable server-managed state.
+- Codex currently requests a private model-catalog shape from custom Responses providers, while the proxy's standard OpenAI-compatible `/v1/models` route returns `data`. Codex falls back to its bundled model metadata, but this warning could be removed if Codex exposes a standard catalog mode or a safe way to disable provider catalog refresh.

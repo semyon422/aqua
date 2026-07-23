@@ -108,6 +108,102 @@ function test.authenticates_and_lists_configured_models(t)
 end
 
 ---@param t testing.T
+function test.proxies_non_streaming_native_response(t)
+	local scheduler = CosocketScheduler()
+	local seen_request
+	local server = ProxyServer({
+		scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}},
+		models = {"model-a"},
+		create_client = function(model, reasoning_effort, request_options)
+			t:eq(model, "model-a")
+			t:eq(reasoning_effort, "high")
+			t:eq(request_options.parallel_tool_calls, false)
+			t:eq(request_options.verbosity, "high")
+			return {
+				createResponse = function(_, request_body, on_event)
+					seen_request = request_body
+					t:eq(on_event, nil)
+					return {
+						id = "resp_1",
+						object = "response",
+						status = "completed",
+						model = "model-a",
+						output = json.array({json.object({
+							type = "message",
+							id = "msg_1",
+							role = "assistant",
+							content = json.array({json.object({type = "output_text", text = "hello", annotations = json.array()})}),
+						})}),
+					}
+				end,
+			}
+		end,
+		logger = function() end,
+	})
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+	local response = request(t, scheduler, assert(port), "/v1/responses", {
+		model = "model-a",
+		input = "hello",
+		store = false,
+		stream = false,
+		reasoning = {effort = "high", summary = "auto"},
+		text = {verbosity = "high"},
+		parallel_tool_calls = false,
+	}, "proxy-secret")
+
+	t:eq(response.status, 200)
+	t:eq(seen_request.input, "hello")
+	t:eq(seen_request.stream, false)
+	local decoded = json.decode(response.body)
+	t:eq(decoded.id, "resp_1")
+	t:eq(decoded.object, "response")
+	t:eq(decoded.output[1].content[1].text, "hello")
+	server:stop()
+end
+
+---@param t testing.T
+function test.streams_native_response_events(t)
+	local scheduler = CosocketScheduler()
+	local server = ProxyServer({
+		scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}},
+		models = {"model-a"},
+		create_client = function()
+			return {
+				createResponse = function(_, _, on_event)
+					local response = {id = "resp_1", object = "response", status = "in_progress", output = json.array()}
+					t:assert(on_event({type = "response.created", response = response}) ~= false)
+					t:assert(on_event({type = "response.output_text.delta", item_id = "msg_1",
+						output_index = 0, content_index = 0, delta = "hello"}) ~= false)
+					response.status = "completed"
+					t:assert(on_event({type = "response.completed", response = response}) ~= false)
+					return response
+				end,
+			}
+		end,
+		logger = function() end,
+	})
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+	local response = request(t, scheduler, assert(port), "/v1/responses", {
+		model = "model-a",
+		input = json.array({json.object({role = "user", content = "hello"})}),
+		store = false,
+		stream = true,
+	}, "proxy-secret")
+
+	t:eq(response.status, 200)
+	t:assert(response.body:find("event: response.created", 1, true))
+	t:assert(response.body:find('"type":"response.output_text.delta"', 1, true))
+	t:assert(response.body:find('"delta":"hello"', 1, true))
+	t:assert(response.body:find("event: response.completed", 1, true))
+	t:assert(not response.body:find("[DONE]", 1, true))
+	server:stop()
+end
+
+---@param t testing.T
 function test.translates_non_streaming_completion_and_hides_subscription_items(t)
 	local scheduler = CosocketScheduler()
 	local seen
@@ -743,6 +839,29 @@ function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 	}, "proxy-secret")
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "invalid_parallel_tool_calls")
+
+	response = request(t, scheduler, port, "/v1/responses", {
+		model = "model-a",
+		input = "hi",
+		store = true,
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "unsupported_store")
+
+	response = request(t, scheduler, port, "/v1/responses", {
+		model = "model-a",
+		input = "hi",
+		previous_response_id = "resp_1",
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "unsupported_response_state")
+
+	response = request(t, scheduler, port, "/v1/responses", {
+		model = "model-a",
+		input = json.object(),
+	}, "proxy-secret")
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_input")
 	server:stop()
 end
 

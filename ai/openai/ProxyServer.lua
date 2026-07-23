@@ -10,6 +10,7 @@ local HttpServer = require("web.http.Server")
 
 ---@class aqua.openai.ProxyClient
 ---@field completeStream fun(self: aqua.openai.ProxyClient, messages: aqua.openai.Message[], tools: aqua.openai.ToolSchema[]?, on_text_delta: (fun(content: string))?, on_reasoning_delta: (fun(content: string))?, on_tool_call_delta: (fun(delta: aqua.openai.ToolCallDelta))?): aqua.openai.Message?, string?, aqua.openai.ProviderError?
+---@field createResponse fun(self: aqua.openai.ProxyClient, request: table, on_event: (fun(event: table): boolean?)?): table?, string?, aqua.openai.ProviderError?
 
 ---@class aqua.openai.ProxyRequestOptions
 ---@field prompt_cache_key string?
@@ -230,6 +231,16 @@ end
 local function sendEvent(res, event)
 	local data = type(event) == "string" and event or json.encode(event)
 	local sent = res:send("data: " .. data .. "\n\n")
+	return sent ~= nil
+end
+
+---@param res web.Response
+---@param event table
+---@return boolean
+local function sendResponseEvent(res, event)
+	local event_type = type(event.type) == "string" and event.type:match("^[%w._-]+$") or nil
+	local prefix = event_type and "event: " .. event_type .. "\n" or ""
+	local sent = res:send(prefix .. "data: " .. json.encode(event) .. "\n\n")
 	return sent ~= nil
 end
 
@@ -579,6 +590,113 @@ local function normalizeResponseFormat(response_format)
 	}
 end
 
+---@param request table
+---@param models_set {[string]: boolean}
+---@return string?
+---@return string?
+local function validateResponsesRequest(request, models_set)
+	if type(request.model) ~= "string" or not models_set[request.model] then
+		return "model is not available", "model_not_found"
+	end
+	if type(request.input) ~= "string" and not json.isArray(request.input) then
+		return "input must be a string or an array", "invalid_input"
+	end
+	if request.instructions ~= nil and request.instructions ~= json.null
+		and type(request.instructions) ~= "string"
+	then
+		return "instructions must be a string", "invalid_instructions"
+	end
+	if request.stream ~= nil and type(request.stream) ~= "boolean" then
+		return "stream must be a boolean", "invalid_stream"
+	end
+	if request.store ~= nil and request.store ~= json.null and request.store ~= false then
+		return "stateful Responses storage is not supported", "unsupported_store"
+	end
+	if request.background ~= nil and request.background ~= json.null and request.background ~= false then
+		return "background Responses are not supported", "unsupported_background"
+	end
+	if isPresent(request.previous_response_id) or isPresent(request.conversation) then
+		return "server-managed response state is not supported", "unsupported_response_state"
+	end
+	if request.reasoning ~= nil and request.reasoning ~= json.null then
+		if not json.isObject(request.reasoning) then
+			return "reasoning must be an object", "invalid_reasoning"
+		end
+		if request.reasoning.effort ~= nil and request.reasoning.effort ~= json.null
+			and not reasoning_efforts[request.reasoning.effort]
+		then
+			return "reasoning effort is invalid", "invalid_reasoning"
+		end
+	end
+	if request.text ~= nil and request.text ~= json.null and not json.isObject(request.text) then
+		return "text must be an object", "invalid_text"
+	end
+	if request.include ~= nil and request.include ~= json.null then
+		if not json.isArray(request.include) then return "include must be an array", "invalid_include" end
+		for _, value in ipairs(request.include) do
+			if type(value) ~= "string" then return "include values must be strings", "invalid_include" end
+		end
+	end
+	if request.tools ~= nil and request.tools ~= json.null and not json.isArray(request.tools) then
+		return "tools must be an array", "invalid_tools"
+	end
+	if request.parallel_tool_calls ~= nil and type(request.parallel_tool_calls) ~= "boolean" then
+		return "parallel_tool_calls must be a boolean", "invalid_parallel_tool_calls"
+	end
+end
+
+---@param res web.Response
+---@param request table
+---@return integer status
+function ProxyServer:responses(res, request)
+	local validation_err, validation_code = validateResponsesRequest(request, self.models_set)
+	if validation_err then
+		sendError(res, 400, validation_err, "invalid_request_error", assert(validation_code))
+		return 400
+	end
+
+	local reasoning_effort = type(request.reasoning) == "table" and request.reasoning.effort or nil
+	local verbosity = type(request.text) == "table" and request.text.verbosity or nil
+	local client = self.create_client(request.model, reasoning_effort, {
+		parallel_tool_calls = request.parallel_tool_calls,
+		verbosity = verbosity,
+	})
+	if request.stream ~= true then
+		local response, _, provider_error = client:createResponse(request)
+		if not response then
+			if provider_error then return sendProviderError(res, provider_error) end
+			sendError(res, 502, "upstream request failed", "upstream_error", "upstream_error")
+			return 502
+		end
+		sendJson(res, response)
+		return 200
+	end
+
+	local started = false
+	local response, _, provider_error = client:createResponse(request, function(event)
+		if not started then
+			started = true
+			startEventStream(res)
+		end
+		return sendResponseEvent(res, event)
+	end)
+	if not response then
+		if not started then
+			if provider_error then return sendProviderError(res, provider_error) end
+			sendError(res, 502, "upstream request failed", "upstream_error", "upstream_error")
+			return 502
+		end
+		res:send("")
+		return 502
+	end
+	if not started then
+		started = true
+		startEventStream(res)
+	end
+	res:send("")
+	return 200
+end
+
 ---@param res web.Response
 ---@param request table
 ---@return integer status
@@ -858,7 +976,7 @@ function ProxyServer:handleAuthenticated(req, res, path)
 		end
 		sendJson(res, {object = "list", data = models})
 		return 200
-	elseif req.method == "POST" and path == "/v1/chat/completions" then
+	elseif req.method == "POST" and (path == "/v1/chat/completions" or path == "/v1/responses") then
 		local transfer_encodings = req.headers:getTable("Transfer-Encoding")
 		local content_lengths = req.headers:getTable("Content-Length")
 		if #transfer_encodings > 0 then
@@ -885,6 +1003,7 @@ function ProxyServer:handleAuthenticated(req, res, path)
 			sendError(res, 400, "invalid JSON body: " .. tostring(decode_err or receive_err), "invalid_request_error", "invalid_json")
 			return 400
 		end
+		if path == "/v1/responses" then return self:responses(res, request) end
 		return self:complete(res, request)
 	end
 	sendError(res, 404, "route not found", "invalid_request_error", "not_found")

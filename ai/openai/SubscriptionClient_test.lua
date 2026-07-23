@@ -116,6 +116,69 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 end
 
 ---@param t testing.T
+function test.proxies_native_responses_events_and_terminal_response(t)
+	local stream = makeStream({
+		[[data: {"type":"response.created","response":{"id":"resp_1","status":"in_progress","output":[]}}]] .. "\n\n",
+		[[data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hi"}]] .. "\n\n",
+		[[data: {"type":"response.output_item.done","output_index":0,"item":{"type":"message","id":"msg_1","role":"assistant","content":[{"type":"output_text","text":"Hi","annotations":[]}]}}]] .. "\n\n",
+		[[data: {"type":"response.completed","response":{"id":"resp_1","object":"response","status":"completed","model":"gpt-test","output":[],"usage":{"input_tokens":10,"output_tokens":2,"total_tokens":12}}}]] .. "\n\n",
+	})
+	local client = makeClient(function() return stream end, nil, {verbosity = "low"})
+	local events = {}
+	local response = assert(client:createResponse({
+		model = "client-model",
+		input = "hello",
+		stream = false,
+		store = false,
+		include = json.array({"message.output_text.logprobs"}),
+		reasoning = json.object({effort = "high", summary = "detailed"}),
+		text = json.object({verbosity = "high", format = json.object({type = "json_object"})}),
+	}, function(event)
+		table.insert(events, event.type)
+		return true
+	end))
+
+	local body = json.decode(stream.sent_body)
+	t:eq(body.model, "gpt-test")
+	t:eq(body.input[1].role, "user")
+	t:eq(body.input[1].content[1].type, "input_text")
+	t:eq(body.input[1].content[1].text, "hello")
+	t:eq(body.stream, true)
+	t:eq(body.store, false)
+	t:eq(body.reasoning.effort, "high")
+	t:eq(body.reasoning.summary, "detailed")
+	t:eq(body.text.verbosity, "high")
+	t:eq(body.text.format.type, "json_object")
+	t:eq(body.include[1], "message.output_text.logprobs")
+	t:eq(body.include[2], "reasoning.encrypted_content")
+	t:eq(events[1], "response.created")
+	t:eq(events[2], "response.output_text.delta")
+	t:eq(events[3], "response.output_item.done")
+	t:eq(events[4], "response.completed")
+	t:eq(response.id, "resp_1")
+	t:eq(response.status, "completed")
+	t:eq(response.output[1].content[1].text, "Hi")
+
+	stream = makeStream({
+		[[data: {"type":"response.failed","response":{"id":"resp_2","object":"response","status":"failed","error":{"code":"server_error","message":"failed"},"output":[]}}]] .. "\n\n",
+	})
+	client = makeClient(function() return stream end)
+	response = assert(client:createResponse({model = "gpt-test", input = "hello"}))
+	t:eq(response.status, "failed")
+	t:eq(response.error.code, "server_error")
+
+	stream = makeStream({
+		[[data: {"type":"response.created","response":{"id":"resp_3","status":"in_progress","output":[]}}]] .. "\n\n",
+	})
+	client = makeClient(function() return stream end)
+	local err
+	response, err = client:createResponse({model = "gpt-test", input = "hello"}, function() return false end)
+	t:eq(response, nil)
+	t:eq(err, "downstream response stream closed")
+	t:eq(stream.cancel_error, "downstream response stream closed")
+end
+
+---@param t testing.T
 function test.preserves_incomplete_output_limit_responses(t)
 	local stream = makeStream({
 		[[data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"Partial"}]] .. "\n\n",
@@ -247,6 +310,17 @@ function test.reports_auth_and_stream_errors(t)
 	t:eq(provider_error.type, "rate_limit_error")
 	t:eq(provider_error.code, "rate_limit_exceeded")
 	t:eq(provider_error.request_id, "req_123")
+
+	stream = makeStream({})
+	stream.res.status = 400
+	stream.res.headers = Headers()
+	stream.receiveBody = function() return [[{"detail":"Input must be a list"}]] end
+	client = makeClient(function() return stream end)
+	message, err, provider_error = client:createResponse({model = "gpt-test", input = "hello"})
+	t:eq(message, nil)
+	t:eq(err, "OpenAI subscription returned HTTP 400: Input must be a list")
+	t:eq(provider_error.status, 400)
+	t:eq(provider_error.message, "Input must be a list")
 
 	stream = makeStream({[[data: {"type":"response.output_text.delta","delta":"too large"}]] .. "\n\n"})
 	client = makeClient(function() return stream end, 8)
