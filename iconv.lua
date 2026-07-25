@@ -1,4 +1,5 @@
 local ffi = require("ffi")
+local jit = require("jit")
 
 ffi.cdef [[
 	typedef void* libiconv_t;
@@ -12,7 +13,8 @@ ffi.cdef [[
 ---@field libiconv fun(cd: ffi.cdata*, inbuf: ffi.cdata*?, inbytesleft: ffi.cdata*?, outbuf: ffi.cdata*?, outbytesleft: ffi.cdata*?): integer
 ---@field libiconv_close fun(cd: ffi.cdata*): integer
 
-local libiconv = ffi.load("iconv")
+local library_name = jit.os == "Windows" and "libiconv-2" or "iconv"
+local libiconv = ffi.load(library_name)
 
 ---@class util.Iconv
 ---@field cd ffi.cdata*
