@@ -29,4 +29,37 @@ function ClassDecorator:next(line)
 	end
 end
 
+---@param context deco.ParseContext
+---@return deco.Insertion[]
+function ClassDecorator:process(context)
+	---@type deco.Insertion[]
+	local insertions = {}
+	for _, statement in ipairs(context.statements) do
+		if statement.tag == "Local" or statement.tag == "Localrec" then
+			local class_name
+			for _, annotation in ipairs(context:get_leading_comments(statement.line)) do
+				annotation = annotation:match("^%s*(%-%-%-@.*)$")
+				if annotation and annotation:match("^%-%-%-@class%s") then
+					local tokens = assert(lexer.lex(annotation:sub(5)))
+					local annotation_name = tokens:parse_name()
+					assert(annotation_name == "class")
+					class_name = tokens:parse_name()
+				end
+			end
+
+			local local_name = statement[1] and statement[1][1]
+			if class_name and local_name and local_name.tag == "Id" then
+				local inserted = ([[require("typecheck").register_class(%q, ?)]]):gsub(
+					"?", context:get_source(local_name)
+				):format(class_name)
+				table.insert(insertions, {
+					offset = context:get_byte_offset(statement.end_offset),
+					text = " " .. inserted,
+				})
+			end
+		end
+	end
+	return insertions
+end
+
 return ClassDecorator

@@ -28,6 +28,14 @@ The `aqua/` tree provides reusable Lua infrastructure intended to stay general e
 - Keep dependencies one-way where possible: application code may depend on `aqua`, but `aqua` should not grow dependencies on application-level behavior.
 - Avoid encoding repository-specific policy into `aqua` unless the module is already explicitly designed around that integration boundary.
 - When changing shared transport or serialization primitives used in this repository, coordinate with the owning app specs if their behavior is affected.
+- `deco.lua` parses source with the pinned Luacheck parser before applying decorators. Built-in function and class decorators use AST ranges and insert generated statements into the original source; they do not regenerate or reformat the full file.
+
+## Invariants
+
+- Decorator transformation must preserve all original source bytes and line endings except for explicit inserted text. In particular, it must not move existing code to different source lines because runtime tracebacks and profiler locations use those lines.
+- Decorator insertion points must come from parsed statement ranges, not textual guesses about `function` or `end`.
+- The parser must accept the LuaJIT syntax used by the repository, including binary, signed and unsigned 64-bit, and complex-number literals. The transformed source remains subject to `loadstring` as the final syntax check.
+- When multiple decorators insert after the same statement, their configured order is preserved.
 
 ## Verification
 

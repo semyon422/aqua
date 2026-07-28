@@ -21,6 +21,7 @@ end
 function TypeDecorator:func_end(func_name)
 	if self.nocheck then
 		self.nocheck = false
+		self:new()
 		return
 	end
 
@@ -39,6 +40,11 @@ function TypeDecorator:func_end(func_name)
 end
 
 function TypeDecorator:process_annotation(line)
+	local annotation_name = line:match("^%-%-%-@([%w_]+)")
+	if annotation_name ~= "param" and annotation_name ~= "return" and annotation_name ~= "nocheck" then
+		return
+	end
+
 	local tokens = assert(lexer.lex(line:sub(5)))
 
 	local def = self.def
