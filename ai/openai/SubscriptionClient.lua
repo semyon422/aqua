@@ -383,7 +383,7 @@ function SubscriptionClient:createResponse(request, on_event)
 
 	while not done and not parse_err do
 		local chunk
-		chunk, err = stream:receiveChunk()
+		chunk, err = stream:receiveAvailableChunk()
 		if not chunk then break end
 		received_size = received_size + #chunk
 		if received_size > self.max_response_size then
@@ -683,7 +683,7 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 
 	while not done and not parse_err do
 		local chunk
-		chunk, err = stream:receiveChunk()
+		chunk, err = stream:receiveAvailableChunk()
 		if not chunk then break end
 		received_size = received_size + #chunk
 		if received_size > self.max_response_size then

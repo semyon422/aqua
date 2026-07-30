@@ -338,6 +338,27 @@ function HttpStream:receiveChunk(size)
 	return chunk, receive_err, partial
 end
 
+---Receives currently available response bytes without waiting to fill the
+---requested maximum. Incremental protocols such as SSE should use this method.
+---@param max integer?
+---@return string?
+---@return string?
+function HttpStream:receiveAvailableChunk(max)
+	local ok, err = self:receiveHeaders()
+	if not ok then
+		return nil, err
+	end
+
+	local res = assert(self.res, "not connected")
+	local chunk
+	chunk, err = res:receiveany(max or self.options.chunk_size or 64 * 1024)
+	err = self:mapCancelError(err)
+	if chunk and #chunk > 0 then
+		self:notifyDownload(chunk)
+	end
+	return chunk, err
+end
+
 ---@return string?
 ---@return string?
 function HttpStream:receiveBody()

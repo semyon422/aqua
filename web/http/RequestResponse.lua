@@ -84,6 +84,18 @@ function RequestResponse:receive(pattern, prefix)
 	return self.soc:receive(pattern, prefix)
 end
 
+---@param max integer
+---@return string?
+---@return "closed"|"timeout"|"malformed headers"?
+function RequestResponse:receiveany(max)
+	self:assert_mode("r")
+	local ok, err = self:receive_headers()
+	if not ok then
+		return nil, err
+	end
+	return self.soc:receiveany(max)
+end
+
 ---@param data string
 ---@param i integer?
 ---@param j integer?

@@ -14,7 +14,7 @@ local function makeStream(chunks)
 			return #body
 		end,
 		receiveHeaders = function() return true end,
-		receiveChunk = function() return table.remove(chunks, 1) end,
+		receiveAvailableChunk = function() return table.remove(chunks, 1) end,
 		close = function(self)
 			self.closed = true
 			return true

@@ -235,7 +235,7 @@ function Client:completeStream(messages, tools, on_text_delta)
 
 	while not done and not parse_err do
 		local chunk
-		chunk, err = stream:receiveChunk()
+		chunk, err = stream:receiveAvailableChunk()
 		if not chunk then
 			break
 		end

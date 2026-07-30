@@ -6,6 +6,7 @@ Provide reusable OpenAI-compatible Chat Completions and Responses clients backed
 
 - Applications can send a conversation to an OpenAI-compatible provider and receive either an assistant response or function-tool calls.
 - Applications can register local tools and let the agent repeat the request/tool/result cycle until it produces a final answer.
+- Applications can observe each complete tool call before execution and its matching result afterward, including whether execution reported an error.
 - Applications can opt into a browser-based ChatGPT subscription login with a PKCE loopback callback and use the Codex Responses compatibility backend.
 - Operators can run a small authenticated OpenAI-compatible HTTP proxy backed by one ChatGPT subscription. Chat Completions clients use the compatibility translation, while Responses-native agents can use the direct HTTP or SSE endpoint.
 - Transport, provider, JSON, and tool failures are returned as useful errors instead of escaping into the application loop.
@@ -17,6 +18,7 @@ Provide reusable OpenAI-compatible Chat Completions and Responses clients backed
 - `SubscriptionClient` translates common agent messages and function tools to the Responses input protocol. It also transports native Responses requests without translating their tools, input items, or typed events. It assembles output from typed SSE events and retains provider-owned output items, including encrypted reasoning, across stateless tool rounds.
 - The HTTP request function is injected. The common layer does not create a scheduler or depend on `rizu.net.NetworkService`.
 - `Agent` owns the reusable tool-calling loop. Tools provide an OpenAI function schema and a Lua handler; application-specific tool implementations remain outside `aqua`.
+- `Agent` exposes paired `on_tool_call` and `on_tool_result` lifecycle callbacks. The result callback carries the execution-error state for presentation and tracing while the ordinary tool message retains the provider-compatible text content.
 - `Agent:setClient()` changes the completion backend only when coordinated by the application; the common agent does not decide how provider/model selection affects conversation history.
 - `Client:completeStream()` implements Chat Completions server-sent events without changing the existing complete-response API. It emits text deltas while assembling one protocol-valid assistant message, including fragmented tool call IDs, names, and JSON arguments.
 - `ProxyServer` exposes `GET /v1/models`, `POST /v1/chat/completions`, and `POST /v1/responses`. It translates subscription results back to Chat Completions JSON or SSE, forwards native Responses as JSON or typed SSE events, and authenticates callers against named bearer tokens from a Lua config.

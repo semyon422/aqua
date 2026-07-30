@@ -158,6 +158,19 @@ function test.download_without_content_length_reports_unknown_total(t)
 end
 
 ---@param t testing.T
+function test.available_chunk_returns_short_incremental_body(t)
+	local tcp_socket = new_tcp_socket("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\nhello")
+	local stream = HttpStream({
+		tcp_socket = tcp_socket --[[@as any]],
+	})
+
+	t:tdeq({stream:connect("http://example.test/events")}, {true})
+	t:tdeq({stream:sendHeaders()}, {true})
+	t:tdeq({stream:receiveAvailableChunk()}, {"hello"})
+	t:tdeq({stream:receiveAvailableChunk()}, {nil, "timeout"})
+end
+
+---@param t testing.T
 function test.cancel_closes_socket_and_stops_operations(t)
 	local tcp_socket = new_tcp_socket("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
 	local close_count = 0
@@ -177,6 +190,7 @@ function test.cancel_closes_socket_and_stops_operations(t)
 
 	t:tdeq({stream:sendHeaders()}, {nil, "manual cancel"})
 	t:tdeq({stream:receiveChunk()}, {nil, "manual cancel", ""})
+	t:tdeq({stream:receiveAvailableChunk()}, {nil, "manual cancel"})
 	t:tdeq({stream:close()}, {1})
 	t:eq(close_count, 1)
 end

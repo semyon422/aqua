@@ -69,7 +69,7 @@ local function makeStream(chunks)
 		receiveHeaders = function()
 			return true
 		end,
-		receiveChunk = function()
+		receiveAvailableChunk = function()
 			return table.remove(chunks, 1)
 		end,
 		close = function(self)
@@ -122,7 +122,7 @@ end
 function test.cancels_active_stream(t)
 	local client
 	local stream = makeStream({})
-	stream.receiveChunk = function()
+	stream.receiveAvailableChunk = function()
 		client:cancel()
 		return nil, "canceled"
 	end

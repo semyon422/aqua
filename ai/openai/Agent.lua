@@ -48,7 +48,8 @@ local json = require("web.json")
 
 ---@class aqua.openai.AgentOptions
 ---@field max_tool_rounds integer?
----@field on_tool_result fun(tool_call: aqua.openai.ToolCall, content: string)?
+---@field on_tool_call fun(tool_call: aqua.openai.ToolCall)?
+---@field on_tool_result fun(tool_call: aqua.openai.ToolCall, content: string, is_error: boolean)?
 ---@field on_tool_failure fun(name: string?, arguments: any, err: string)?
 ---@field on_text_delta fun(content: string)?
 ---@field streaming boolean?
@@ -59,7 +60,8 @@ local json = require("web.json")
 ---@field tools {[string]: aqua.openai.Tool}
 ---@field tool_schemas aqua.openai.ToolSchema[]
 ---@field max_tool_rounds integer
----@field on_tool_result fun(tool_call: aqua.openai.ToolCall, content: string)?
+---@field on_tool_call fun(tool_call: aqua.openai.ToolCall)?
+---@field on_tool_result fun(tool_call: aqua.openai.ToolCall, content: string, is_error: boolean)?
 ---@field on_tool_failure fun(name: string?, arguments: any, err: string)?
 ---@field on_text_delta fun(content: string)?
 ---@field streaming boolean
@@ -74,6 +76,7 @@ function Agent:new(client, tools, options)
 	self.tools = {}
 	self.tool_schemas = {}
 	self.max_tool_rounds = options.max_tool_rounds or 8
+	self.on_tool_call = options.on_tool_call
 	self.on_tool_result = options.on_tool_result
 	self.on_tool_failure = options.on_tool_failure
 	self.on_text_delta = options.on_text_delta
@@ -110,13 +113,15 @@ end
 ---@param arguments any
 ---@param err string
 ---@return string
+---@return true
 function Agent:toolError(name, arguments, err)
 	self:reportToolFailure(name, arguments, err)
-	return encodeError(err)
+	return encodeError(err), true
 end
 
 ---@param tool_call aqua.openai.ToolCall
 ---@return string
+---@return boolean is_error
 function Agent:executeTool(tool_call)
 	local call_function = tool_call["function"]
 	if type(tool_call.id) ~= "string" or type(call_function) ~= "table" then
@@ -144,7 +149,7 @@ function Agent:executeTool(tool_call)
 	if is_error == true then
 		self:reportToolFailure(name, args, content)
 	end
-	return content
+	return content, is_error == true
 end
 
 ---@param messages aqua.openai.Message[]
@@ -177,14 +182,17 @@ function Agent:run(messages, on_text_delta)
 			if type(tool_call.id) ~= "string" then
 				return nil, "provider returned a tool call without an id"
 			end
-			local content = self:executeTool(tool_call)
+			if self.on_tool_call then
+				self.on_tool_call(tool_call)
+			end
+			local content, is_error = self:executeTool(tool_call)
 			table.insert(messages, {
 				role = "tool",
 				tool_call_id = tool_call.id,
 				content = content,
 			})
 			if self.on_tool_result then
-				self.on_tool_result(tool_call, content)
+				self.on_tool_result(tool_call, content, is_error)
 			end
 		end
 	end

@@ -168,6 +168,37 @@ function test.streams_and_cancels(t)
 end
 
 ---@param t testing.T
+function test.reports_tool_lifecycle_and_error_state(t)
+	local call = {
+		role = "assistant",
+		tool_calls = {{
+			id = "call_1",
+			type = "function",
+			["function"] = {name = "lua_eval", arguments = "{}"},
+		}},
+	}
+	local events = {}
+	local tool = makeTool()
+	tool.execute = function()
+		return "failed", true
+	end
+	local agent = Agent(makeClient({call, {role = "assistant", content = "done"}}), {tool}, {
+		on_tool_call = function(tool_call)
+			table.insert(events, "call:" .. tool_call.id)
+		end,
+		on_tool_result = function(tool_call, content, is_error)
+			table.insert(events, ("result:%s:%s:%s"):format(tool_call.id, content, tostring(is_error)))
+		end,
+	})
+
+	t:eq(assert(agent:run({})).content, "done")
+	t:tdeq(events, {
+		"call:call_1",
+		"result:call_1:failed:true",
+	})
+end
+
+---@param t testing.T
 function test.switches_client(t)
 	local first = makeClient({{role = "assistant", content = "first"}})
 	local second = makeClient({{role = "assistant", content = "second"}})

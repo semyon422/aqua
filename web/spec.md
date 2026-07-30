@@ -41,6 +41,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - HTTP clients may connect to a resolved address, but must keep the URL host for the HTTP `Host` header and TLS SNI.
 - Main-thread HTTP requests should be called from caller-owned coroutines, keep the natural `res, err = request(...)` control flow, and report upload/download progress through chunk callbacks while the caller pumps the scheduler from its update loop.
 - Duplex HTTP workflows should use `web.http.HttpStream`, where upload chunks and response chunks can be driven by separate caller-owned coroutines over the same request/response pair.
+- Incremental protocols such as SSE should use `HttpStream:receiveAvailableChunk()`. Unlike the buffered `receiveChunk()` contract, it returns currently available response bytes up to the requested maximum and does not wait to fill that maximum.
 - `web.http.HttpStream:cancel(err)` marks the stream as canceled, closes the underlying client, and maps later stream operation errors to the cancellation reason so callers see an intentional stop rather than a generic socket close.
 - Existing blocking socket implementations must keep their current contracts.
 - `aqua/web` must not depend on `rizu`, `sea`, or other application-specific modules.
