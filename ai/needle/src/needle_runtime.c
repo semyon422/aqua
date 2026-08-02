@@ -9,6 +9,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#endif
 #if defined(__x86_64__) || defined(__i386__)
 #include <immintrin.h>
 #endif
@@ -109,7 +118,18 @@ static int g_profile_enabled = 0;
 static unsigned long long g_profile_ns[NEEDLE_PROFILE_COUNT] = {0};
 
 static unsigned long long profile_now_ns(void) {
-#if defined(CLOCK_MONOTONIC)
+#if defined(_WIN32)
+    LARGE_INTEGER counter;
+    LARGE_INTEGER frequency;
+    if (QueryPerformanceCounter(&counter) &&
+        QueryPerformanceFrequency(&frequency) &&
+        frequency.QuadPart > 0) {
+        unsigned long long ticks = (unsigned long long)counter.QuadPart;
+        unsigned long long ticks_per_second = (unsigned long long)frequency.QuadPart;
+        return (ticks / ticks_per_second) * 1000000000ULL +
+            ((ticks % ticks_per_second) * 1000000000ULL) / ticks_per_second;
+    }
+#elif defined(CLOCK_MONOTONIC)
     struct timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
         return (unsigned long long)ts.tv_sec * 1000000000ULL + (unsigned long long)ts.tv_nsec;
@@ -234,7 +254,16 @@ static float dot_f32_avx2_fma(const float *a, const float *b, int n) {
 static int cpu_has_avx2_fma(void) {
     static int cached = -1;
     if (cached < 0) {
+#if defined(__APPLE__)
+        int avx2 = 0;
+        int fma = 0;
+        size_t avx2_size = sizeof(avx2);
+        size_t fma_size = sizeof(fma);
+        cached = sysctlbyname("hw.optional.avx2_0", &avx2, &avx2_size, NULL, 0) == 0 && avx2 &&
+            sysctlbyname("hw.optional.fma", &fma, &fma_size, NULL, 0) == 0 && fma;
+#else
         cached = (__builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma")) ? 1 : 0;
+#endif
     }
     return cached;
 }

@@ -22,9 +22,10 @@ Provide Soundsphere with a dependency-free, embeddable Needle inference runtime 
 - Model and tokenizer handles are explicitly closeable and safe to close once.
 - Constrained generation permits only tool names and argument keys present in the supplied schema.
 - Tool constraints accept Needle's native flat `parameters` objects used by training and Python inference. Primitive values remain model-decoded until a JSON delimiter so multi-token values such as decimal numbers are not truncated.
-- The q8 path retains scalar fallbacks for CPUs without AVX2/FMA.
+- The q8 path retains scalar fallbacks for CPUs without AVX2/FMA. Runtime feature detection uses macOS `sysctl` on Apple x86 builds because compiler builtins can introduce unavailable compiler-runtime symbols in cross-compiled libraries.
 - Prefill cancellation is cooperative: a layer already executing finishes, then its output is discarded before the next layer starts.
 - `Context:tensor_data(index)` borrows bytes owned by the context. Consumers must copy them before closing the context and must never mutate through the returned pointer.
+- Profiling uses the native monotonic clock (`QueryPerformanceCounter` on Windows and `CLOCK_MONOTONIC` where available), with the C process clock only as a fallback.
 
 ## Development
 
