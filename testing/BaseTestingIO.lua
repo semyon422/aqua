@@ -57,7 +57,7 @@ end
 
 ---@return number
 function BaseTestingIO:getTime()
-	if love then
+	if love and love.timer then
 		return love.timer.getTime()
 	end
 	if socket then

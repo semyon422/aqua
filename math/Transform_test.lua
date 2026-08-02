@@ -43,6 +43,20 @@ function test.set_transformation_translation_scale_rotation_origin(t)
 end
 
 ---@param t testing.T
+function test.scale_and_set_matrix(t)
+	local tf = Transform()
+	t:eq(tf:scale(2, 3), tf)
+	local x, y = tf:transformPoint(4, 5)
+	t:eq(x, 8)
+	t:eq(y, 15)
+
+	t:eq(tf:setMatrix(1, 2, 0, 3, 4, 5, 0, 6), tf)
+	x, y = tf:transformPoint(7, 8)
+	t:eq(x, 26)
+	t:eq(y, 74)
+end
+
+---@param t testing.T
 function test.apply_composition(t)
 	local a = Transform()
 	a:setTransformation(10, 0)
@@ -50,7 +64,7 @@ function test.apply_composition(t)
 	local b = Transform()
 	b:setTransformation(0, 0, 0, 2, 2)
 
-	a:apply(b)
+	t:eq(a:apply(b), a)
 
 	local x, y = a:transformPoint(3, 4)
 	t:eq(x, 16)

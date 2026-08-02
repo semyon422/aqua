@@ -21,6 +21,18 @@ function delay.set_timer(f)
 	end
 end
 
+function delay.reset()
+	for coroutine_key in pairs(timers) do
+		timers[coroutine_key] = nil
+	end
+	for coroutine_key in pairs(waiters) do
+		waiters[coroutine_key] = nil
+	end
+	get_time = function()
+		return 0
+	end
+end
+
 function delay.update()
 	local time = get_time()
 	for c, endTime in pairs(timers) do

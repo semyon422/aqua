@@ -21,6 +21,38 @@ function Transform:reset()
 	self.d = 1
 	self.tx = 0
 	self.ty = 0
+	return self
+end
+
+---@param x number
+---@param y number?
+---@return math.Transform
+function Transform:scale(x, y)
+	local sy = y or x
+	self.a = self.a * x
+	self.b = self.b * x
+	self.c = self.c * sy
+	self.d = self.d * sy
+	return self
+end
+
+---@param a number
+---@param c number
+---@param _az number
+---@param tx number
+---@param b number
+---@param d number
+---@param _bz number
+---@param ty number
+---@return math.Transform
+function Transform:setMatrix(a, c, _az, tx, b, d, _bz, ty)
+	self.a = a
+	self.b = b
+	self.c = c
+	self.d = d
+	self.tx = tx
+	self.ty = ty
+	return self
 end
 
 ---@param x number
@@ -62,6 +94,7 @@ function Transform:apply(other)
 	self.d = b1 * c2 + d1 * d2
 	self.tx = a1 * tx2 + c1 * ty2 + tx1
 	self.ty = b1 * tx2 + d1 * ty2 + ty1
+	return self
 end
 
 ---@param x number
