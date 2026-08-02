@@ -3,7 +3,7 @@ local NginxReqSocket = require("web.nginx.NginxReqSocket")
 local Response = require("web.http.Response")
 
 ---@type web.NginxConfig
-local config = require("nginx_config")
+local config = require("web.nginx.config")
 
 local function run()
 	---@type boolean, any

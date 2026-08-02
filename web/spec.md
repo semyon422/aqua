@@ -13,6 +13,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 
 - Implement nonblocking client networking in `aqua/web`, not in `rizu/online`, so the transport remains reusable.
 - Keep the repository's etlua implementation in `web.etlua` instead of depending on the luarocks `etlua` module, while preserving the existing `<% %>`, `<%= %>`, `<%- %>`, and `-%>` template syntax used by web views and nginx config generation.
+- Load host-provided OpenResty settings through generic `NGINX_CONFIG_PATH` and `web.nginx.config`; output, log, PID, MIME, and temporary paths remain injectable so `aqua/web` does not encode an application's deployment layout.
 - Treat `require("coext").export()` as part of the runtime coroutine model. Cosocket operations may rely on `coext` to ensure socket waits yield to their owning coroutine rather than an unrelated caller coroutine.
 - Coroutine iterators and manually resumed child coroutines are equivalent under `coext`: scheduler waits inside them yield through the owner and resume back into the child. Independent background coroutines, such as websocket readers, must be marked with `coext.detach(co)` before they are first resumed.
 - Keep websocket framing and HTTP parsing transport-agnostic. Prefer adapting `web.ITcpSocket` / `web.IExtendedSocket` implementations over changing `Websocket`, `WebsocketClient`, `Request`, or `Response`.
@@ -45,6 +46,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - `web.http.HttpStream:cancel(err)` marks the stream as canceled, closes the underlying client, and maps later stream operation errors to the cancellation reason so callers see an intentional stop rather than a generic socket close.
 - Existing blocking socket implementations must keep their current contracts.
 - `aqua/web` must not depend on `rizu`, `sea`, or other application-specific modules.
+- OpenResty workers inherit `NGINX_CONFIG_PATH`, and compile-time and request-time configuration load the same host-provided Lua file.
 - `web.etlua` errors must map generated Lua load/runtime line numbers back to the template line when source mapping is available.
 - LuaSocket servers use `web.CosocketServer` for nonblocking accept and per-client coroutine ownership. HTTP applications adapt it through `web.HttpServer` and remain responsible for routing and response bodies.
 - `CosocketServer` can bound active client coroutines with `max_clients`; excess accepted sockets are closed immediately, and shutdown cancels a snapshot of all active clients so cleanup cannot skip entries while mutating ownership state.

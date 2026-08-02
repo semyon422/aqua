@@ -1,23 +1,25 @@
 worker_processes 1;
-error_log logs/error.log notice;
-pid logs/nginx.pid;
+error_log <%= error_log_path or "logs/error.log" %> notice;
+pid <%= pid_path or "logs/nginx.pid" %>;
 
 env LJ_ROOT;
 env OR_ROOT;
+env NGINX_CONFIG_PATH;
 
 events {
 	worker_connections 1024;
 }
 
 http {
-	include aqua/web/nginx/mime.types;
+	access_log <%= access_log_path or "logs/access.log" %>;
+	include <%= mime_types_path or "aqua/web/nginx/mime.types" %>;
 	resolver 8.8.8.8 8.8.4.4 ipv6=off;
 
-	client_body_temp_path temp/client_body;
-	proxy_temp_path temp/proxy;
-	fastcgi_temp_path temp/fastcgi;
-	uwsgi_temp_path temp/uwsgi;
-	scgi_temp_path temp/scgi;
+	client_body_temp_path <%= temp_path or "temp" %>/client_body;
+	proxy_temp_path <%= temp_path or "temp" %>/proxy;
+	fastcgi_temp_path <%= temp_path or "temp" %>/fastcgi;
+	uwsgi_temp_path <%= temp_path or "temp" %>/uwsgi;
+	scgi_temp_path <%= temp_path or "temp" %>/scgi;
 
 	client_max_body_size <%= client_max_body_size %>;
 
@@ -30,7 +32,7 @@ http {
 	init_by_lua_block {
 		require("aqua.env.openresty")
 		local pkg = require("pkg")
-		local c = require("nginx_config")
+		local c = require("web.nginx.config")
 
 		for _, path in ipairs(c.package_path) do
 			pkg.add(path)
