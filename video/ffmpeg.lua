@@ -18,10 +18,10 @@ elseif jit.os == "OSX" then
 	ffmpeg.avutil = ffi.load("libavutil.dylib")
 	ffmpeg.swscale = ffi.load("libswscale.dylib")
 else
-	ffmpeg.avcodec = ffi.load("libavcodec.so.63")
-	ffmpeg.avformat = ffi.load("libavformat.so.63")
-	ffmpeg.avutil = ffi.load("libavutil.so.61")
-	ffmpeg.swscale = ffi.load("libswscale.so.10")
+	ffmpeg.avcodec = ffi.load("libavcodec.so.62")
+	ffmpeg.avformat = ffi.load("libavformat.so.62")
+	ffmpeg.avutil = ffi.load("libavutil.so.60")
+	ffmpeg.swscale = ffi.load("libswscale.so.9")
 end
 
 return ffmpeg
