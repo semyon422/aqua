@@ -56,6 +56,14 @@ function LoveFilesystem:remove(name)
 	return love.filesystem.remove(name)
 end
 
+---@param old_path string
+---@param new_path string
+---@return boolean
+---@return string?
+function LoveFilesystem:move(old_path, new_path)
+	return false, "move is not supported"
+end
+
 ---@param newDir string
 ---@param mountPoint string
 ---@param appendToPath boolean?

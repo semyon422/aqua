@@ -91,6 +91,7 @@ function stbl.enc.table(t, tables, safe)
 	tables[t] = true
 
 	if next(t) == nil then
+		tables[t] = nil
 		return "{}"
 	end
 
@@ -139,6 +140,7 @@ function stbl.enc.table(t, tables, safe)
 		table.insert(out, ("%s%s%s"):format(stbl.skey(k), eq, stbl.encode(t[k], tables, safe)))
 	end
 
+	tables[t] = nil
 	return "{" .. table.concat(out, "," .. stbl.space) .. "}"
 end
 
@@ -186,6 +188,7 @@ local function encode_pretty(v, tables, safe, depth, indent)
 
 	tables[v] = true
 	if next(v) == nil then
+		tables[v] = nil
 		return "{}"
 	end
 
@@ -231,6 +234,7 @@ local function encode_pretty(v, tables, safe, depth, indent)
 		table.insert(lines, ("%s%s = %s,"):format(line_indent, stbl.skey(key), encoded_value))
 	end
 
+	tables[v] = nil
 	return "{\n" .. table.concat(lines, "\n") .. "\n" .. indent:rep(depth) .. "}"
 end
 

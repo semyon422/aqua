@@ -227,4 +227,31 @@ function FakeFilesystem:remove(name)
 	return true
 end
 
+---@param old_path string
+---@param new_path string
+---@return boolean
+---@return string?
+function FakeFilesystem:move(old_path, new_path)
+	local node, old_parent, old_name = self:findNode(old_path)
+	if not node or not old_parent or not old_name then
+		return false, "source not found"
+	end
+
+	local existing, new_parent, new_name = self:findNode(new_path)
+	if existing then
+		local _, existing_parent, existing_name = self:findNode(new_path)
+		---@cast existing_parent -?
+		---@cast existing_name -?
+		existing_parent.items[existing_name] = nil
+	elseif not new_parent or not new_name then
+		return false, "destination parent not found"
+	end
+
+	---@cast new_parent -?
+	---@cast new_name -?
+	new_parent.items[new_name] = node
+	old_parent.items[old_name] = nil
+	return true
+end
+
 return FakeFilesystem

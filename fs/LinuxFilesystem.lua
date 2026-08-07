@@ -33,6 +33,7 @@ ffi.cdef [[
 	int mkdir(const char *pathname, unsigned int mode);
 	int rmdir(const char *pathname);
 	int unlink(const char *pathname);
+	int rename(const char *oldpath, const char *newpath);
 
 	typedef struct DIR DIR;
 	struct dirent {
@@ -54,6 +55,7 @@ ffi.cdef [[
 ---@field mkdir fun(pathname: string, mode: integer): integer
 ---@field rmdir fun(pathname: string): integer
 ---@field unlink fun(pathname: string): integer
+---@field rename fun(oldpath: string, newpath: string): integer
 ---@field opendir fun(name: string): ffi.cdata*
 ---@field readdir fun(dirp: ffi.cdata*): ffi.cdata*
 ---@field closedir fun(dirp: ffi.cdata*): integer
@@ -215,6 +217,17 @@ function LinuxFilesystem:remove(name)
 	end
 
 	return ffi.C.rmdir(name) == 0
+end
+
+---@param old_path string
+---@param new_path string
+---@return boolean
+---@return string?
+function LinuxFilesystem:move(old_path, new_path)
+	if ffi.C.rename(old_path, new_path) ~= 0 then
+		return false, "rename failed"
+	end
+	return true
 end
 
 return LinuxFilesystem

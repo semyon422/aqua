@@ -38,6 +38,9 @@ function test.all(t)
 	t:has_error(stbl.decode, "{,}")
 	t:has_error(stbl.decode, "{")
 	t:has_error(stbl.decode, [[ "no end ]])
+
+	local shared = {value = 1}
+	t:eq(stbl.encode({shared, shared}), [[{{value=1},{value=1}}]])
 end
 
 ---@param t testing.T
