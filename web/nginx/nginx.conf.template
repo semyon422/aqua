@@ -47,6 +47,14 @@ http {
 		end
 	}
 
+	init_worker_by_lua_block {
+		local handler = require("web.nginx.config").handler
+		local module = require(handler)
+		if type(module) == "table" and module.init_worker then
+			module.init_worker()
+		end
+	}
+
 	server {
 		listen <%= listen %>;
 		lua_code_cache <%= lua_code_cache %>;

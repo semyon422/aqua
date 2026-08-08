@@ -12,8 +12,8 @@ local function run()
 		error(err)
 	end
 
-	---@cast err fun(req: web.IRequest, res: web.IResponse, ip: string, port: integer)
-	local handle = err
+	---@cast err {handle: fun(req: web.IRequest, res: web.IResponse, ip: string, port: integer)}|fun(req: web.IRequest, res: web.IResponse, ip: string, port: integer)
+	local handle = type(err) == "table" and err.handle or err
 
 	local soc = NginxReqSocket()
 	local req = NginxRequest(soc)
