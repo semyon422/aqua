@@ -49,7 +49,7 @@ local HttpServer = require("web.http.Server")
 ---@field http_server web.HttpServer
 local ProxyServer = class()
 
-ProxyServer.max_body_size = 1024 * 1024
+ProxyServer.max_body_size = 16 * 1024 * 1024
 ProxyServer.max_clients = 64
 ProxyServer.max_concurrent_requests_per_user = 4
 ProxyServer.max_requests_per_minute = 120
