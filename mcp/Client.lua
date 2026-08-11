@@ -32,6 +32,28 @@ local json = require("web.json")
 ---@field headers web.Headers
 ---@field body string
 
+---@class mcp.JsonRpcMessage
+---@field jsonrpc "2.0"
+---@field id string|number?
+---@field method string
+---@field params table?
+
+---@class mcp.JsonRpcErrorResponse
+---@field code integer?
+---@field message string
+---@field data any?
+
+---@class mcp.JsonRpcResponse
+---@field jsonrpc any?
+---@field id any?
+---@field result any?
+---@field error mcp.JsonRpcErrorResponse?
+
+---@class mcp.InitializeResult
+---@field protocolVersion string
+---@field capabilities table
+---@field serverInfo mcp.Implementation
+
 ---@class mcp.ClientOptions
 ---@field url string
 ---@field token string?
@@ -120,7 +142,7 @@ function Client:requestHttp(url, body, options)
 	return result
 end
 
----@param message table
+---@param message mcp.JsonRpcMessage
 ---@param initializing boolean?
 ---@return table?
 ---@return mcp.ClientError?
@@ -146,7 +168,10 @@ function Client:send(message, initializing)
 	end
 
 	local request_func = self.options.request
-	local response, request_err
+	---@type mcp.HttpResponse?
+	local response
+	---@type string|mcp.ClientError?
+	local request_err
 	local request_options = {
 		method = "POST",
 		headers = headers,
@@ -172,6 +197,7 @@ function Client:send(message, initializing)
 	end
 
 	local decoded, decode_err = json.decode_safe(response.body)
+	---@cast decoded mcp.JsonRpcResponse?
 	if response.status ~= 200 then
 		local rpc_err = type(decoded) == "table" and decoded.error or nil
 		return nil, client_error("http", rpc_err and rpc_err.message or ("MCP HTTP status " .. response.status), {
@@ -300,6 +326,7 @@ end
 ---@return table?
 ---@return mcp.ClientError?
 function Client:listTools(cursor)
+	---@type {cursor: string}?
 	local params
 	if cursor then
 		params = {cursor = cursor}
@@ -372,7 +399,10 @@ function Client:terminateSession()
 		timeout = self.options.timeout,
 	}
 	local request_func = self.options.request
-	local response, request_err
+	---@type mcp.HttpResponse?
+	local response
+	---@type string|mcp.ClientError?
+	local request_err
 	if request_func then
 		response, request_err = request_func(self.options.url, "", options)
 	else

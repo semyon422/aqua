@@ -110,6 +110,19 @@ ffi.cdef [[
 	DWORD BASS_StreamPutFileData(HSTREAM handle, void *buffer, DWORD length);
 ]]
 
+---@class bass.DeviceInfoNative
+---@field name ffi.cdata*?
+---@field driver ffi.cdata*?
+---@field flags integer
+
+---@class bass.Device
+---@field id integer
+---@field enabled boolean
+---@field default boolean
+---@field init boolean
+---@field name string?
+---@field driver string?
+
 ---@class ffi.namespace*
 ---@field BASS_Init fun(device: integer, freq: integer, flags: integer, win: ffi.cdata*?, dsguid: ffi.cdata*?): integer
 ---@field BASS_Free fun(): integer
@@ -214,10 +227,12 @@ end
 
 local device_info = ffi.new("BASS_DEVICEINFO[1]")
 
----@return table
+---@return bass.Device[]
 function __bass.getDevices()
+	---@type bass.Device[]
 	local devices = {}
 
+	---@type bass.DeviceInfoNative
 	local info = device_info[0]
 	local device = 0
 	while bass.BASS_GetDeviceInfo(device, device_info) ~= 0 do

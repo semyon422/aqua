@@ -60,8 +60,30 @@ local ToolResult = {}
 
 ---@class mcp.CallToolResult
 ---@field content mcp.ContentBlock[]
----@field structuredContent table?
+---@field structuredContent {[string]: any}?
 ---@field isError boolean
+
+---@class mcp.UntrustedAnnotations
+---@field audience any?
+---@field priority any?
+---@field lastModified any?
+
+---@class mcp.UntrustedContentBlock
+---@field type any?
+---@field annotations any?
+---@field _meta any?
+---@field text any?
+---@field data any?
+---@field mimeType any?
+---@field resource any?
+---@field name any?
+---@field uri any?
+---@field size any?
+
+---@class mcp.UntrustedToolResult
+---@field content any?
+---@field structured_content any?
+---@field is_error any?
 
 ---@param data string
 ---@return boolean
@@ -83,6 +105,7 @@ local function validate_annotations(annotations, path)
 	elseif type(annotations) ~= "table" then
 		return nil, path .. ".annotations must be an object"
 	end
+	---@cast annotations mcp.UntrustedAnnotations
 	if annotations.priority ~= nil and (type(annotations.priority) ~= "number" or annotations.priority < 0 or annotations.priority > 1) then
 		return nil, path .. ".annotations.priority must be between 0 and 1"
 	end
@@ -93,7 +116,9 @@ local function validate_annotations(annotations, path)
 		if type(annotations.audience) ~= "table" then
 			return nil, path .. ".annotations.audience must be an array"
 		end
-		for index, audience in ipairs(annotations.audience) do
+		---@type any[]
+		local audiences = annotations.audience
+		for index, audience in ipairs(audiences) do
 			if audience ~= "user" and audience ~= "assistant" then
 				return nil, ("%s.annotations.audience[%d] is invalid"):format(path, index)
 			end
@@ -110,6 +135,7 @@ local function validate_block(block, path)
 	if type(block) ~= "table" or type(block.type) ~= "string" then
 		return nil, path .. " must be a content block"
 	end
+	---@cast block mcp.UntrustedContentBlock
 	local ok, err = validate_annotations(block.annotations, path)
 	if not ok then
 		return nil, err
@@ -166,13 +192,16 @@ end
 function ToolResult.normalize(output, legacy_is_error, legacy_structured_content)
 	---@type mcp.ContentBlock[]
 	local content
+	---@type {[string]: any}?
 	local structured_content
+	---@type boolean
 	local is_error
 	if type(output) == "string" then
 		content = {{type = "text", text = output}}
 		structured_content = legacy_structured_content
 		is_error = legacy_is_error == true
 	elseif type(output) == "table" then
+		---@cast output mcp.UntrustedToolResult
 		if legacy_is_error ~= nil or legacy_structured_content ~= nil then
 			return nil, "tool mixed legacy and structured result forms"
 		end
@@ -182,8 +211,12 @@ function ToolResult.normalize(output, legacy_is_error, legacy_structured_content
 		if output.is_error ~= nil and type(output.is_error) ~= "boolean" then
 			return nil, "tool result is_error must be a boolean"
 		end
-		content = output.content
-		structured_content = output.structured_content
+		---@type mcp.ContentBlock[]
+		local output_content = output.content
+		content = output_content
+		---@type {[string]: any}?
+		local output_structured_content = output.structured_content
+		structured_content = output_structured_content
 		is_error = output.is_error == true
 	else
 		return nil, "tool returned an invalid result"
@@ -192,7 +225,10 @@ function ToolResult.normalize(output, legacy_is_error, legacy_structured_content
 	if structured_content ~= nil and type(structured_content) ~= "table" then
 		return nil, "tool returned non-table structured content"
 	elseif structured_content ~= nil then
+		-- LuaLS 3.19 does not propagate open table index types through pairs().
+		---@diagnostic disable-next-line: no-unknown
 		for key in pairs(structured_content) do
+			---@cast key string
 			if type(key) ~= "string" then
 				return nil, "tool structured content must be an object"
 			end

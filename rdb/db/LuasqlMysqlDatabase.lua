@@ -1,3 +1,15 @@
+---@class luasql.Cursor
+---@field fetch fun(self: luasql.Cursor, row: table, mode: "a"): rdb.Row?
+
+---@class luasql.Connection
+---@field close fun(self: luasql.Connection): true
+---@field execute fun(self: luasql.Connection, query: string): integer|luasql.Cursor, string?
+
+---@class luasql.Environment
+---@field close fun(self: luasql.Environment): true
+---@field connect fun(self: luasql.Environment, database: string, username: string?, password: string?, hostname: string?, port: integer?): luasql.Connection?, string?
+
+---@type {mysql: fun(): luasql.Environment}
 local driver = require("luasql.mysql")
 local MysqlDatabase = require("rdb.db.MysqlDatabase")
 local sql_util = require("rdb.sql_util")
@@ -6,6 +18,8 @@ local sql_util = require("rdb.sql_util")
 
 ---@class rdb.LuasqlMysqlDatabase: rdb.MysqlDatabase
 ---@operator call: rdb.LuasqlMysqlDatabase
+---@field env luasql.Environment
+---@field c luasql.Connection
 local LuasqlMysqlDatabase = MysqlDatabase + {}
 
 ---@param db string

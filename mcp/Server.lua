@@ -1,5 +1,7 @@
 local class = require("class")
+---@type {gettime: fun(): number}
 local socket = require("socket")
+---@type {parse: fun(url: string): {path: string?}?}
 local socket_url = require("socket.url")
 
 local HttpServer = require("web.http.Server")
@@ -53,6 +55,31 @@ local json = require("web.json")
 ---@class mcp.Session
 ---@field id string
 ---@field active_requests {[string|number]: mcp.RequestContext}
+
+---@class mcp.ServerJsonRpcMessage
+---@field jsonrpc any?
+---@field id any?
+---@field method any?
+---@field params any?
+
+---@class mcp.CancelParams
+---@field requestId any?
+---@field reason any?
+
+---@class mcp.InitializeParams
+---@field protocolVersion any?
+---@field capabilities any?
+---@field clientInfo any?
+
+---@class mcp.ToolsListParams
+---@field cursor any?
+
+---@class mcp.ToolCallParams
+---@field name any?
+---@field arguments any?
+
+---@class mcp.ServerJsonRpcResponse
+---@field result any?
 
 ---@class mcp.Server
 ---@operator call: mcp.Server
@@ -254,9 +281,9 @@ function Server:isOriginAllowed(req)
 	return req.headers:get("Origin") == nil
 end
 
----@param message table
+---@param message mcp.ServerJsonRpcMessage
 ---@param session mcp.Session?
----@return table?
+---@return mcp.ServerJsonRpcResponse?
 function Server:dispatch(message, session)
 	local id = message.id
 	local method = message.method
@@ -272,6 +299,7 @@ function Server:dispatch(message, session)
 	elseif method == "notifications/cancelled" then
 		local params = message.params
 		if session and type(params) == "table" then
+			---@cast params mcp.CancelParams
 			local request_id = params.requestId
 			local reason = params.reason
 			if (type(request_id) == "string" or type(request_id) == "number") and (reason == nil or type(reason) == "string") then
@@ -301,6 +329,7 @@ function Server:dispatch(message, session)
 		then
 			return rpc_error(id, -32602, "Invalid initialize parameters")
 		end
+		---@cast params mcp.InitializeParams
 		local requested = params.protocolVersion
 		local protocol_version = self.supported_versions[requested] and requested or self.protocol_version
 		return rpc_result(id, {
@@ -317,6 +346,7 @@ function Server:dispatch(message, session)
 		end
 		return rpc_result(id, json.object())
 	elseif method == "tools/list" then
+		---@type mcp.ToolsListParams?
 		local params = message.params
 		if params ~= nil and (type(params) ~= "table" or (params.cursor ~= nil and type(params.cursor) ~= "string")) then
 			return rpc_error(id, -32602, "Invalid tools/list parameters")
@@ -334,11 +364,13 @@ function Server:dispatch(message, session)
 		end
 		return rpc_result(id, {tools = tools})
 	elseif method == "tools/call" then
+		---@type mcp.ToolCallParams
 		local params = message.params
 		if type(params) ~= "table" or type(params.name) ~= "string" then
 			self:reportToolFailure(nil, params, "Invalid tools/call parameters")
 			return rpc_error(id, -32602, "Invalid tools/call parameters")
 		end
+		---@type mcp.Tool?
 		local tool = self.tools_by_name[params.name]
 		if not tool then
 			self:reportToolFailure(params.name, params.arguments, "Unknown tool: " .. params.name)
@@ -415,6 +447,7 @@ function Server:dispatchBatch(messages, session)
 	---@type table[]
 	local responses = json.array()
 	for _, message in ipairs(messages) do
+		---@type mcp.ServerJsonRpcResponse?
 		local response
 		if type(message) == "table" then
 			response = self:dispatch(message, session)
@@ -564,6 +597,7 @@ function Server:handleHttp(req, res, ip, port)
 		return
 	end
 
+	---@type mcp.Session?
 	local session
 	if self.options.session_id_generator and initializing and #req.headers:getTable("Mcp-Session-Id") > 0 then
 		send_response(res, 400, json.encode(rpc_error(nil, -32000, "Initialization must not include Mcp-Session-Id")), "application/json")
@@ -581,6 +615,7 @@ function Server:handleHttp(req, res, ip, port)
 		end
 	end
 
+	---@type mcp.ServerJsonRpcResponse|mcp.ServerJsonRpcResponse[]?
 	local response
 	if is_batch then
 		response = self:dispatchBatch(message, session)
@@ -634,9 +669,9 @@ function Server:start()
 		for _, id in ipairs(ids) do
 			if type(id) ~= "string" or id == "" then
 				return nil, "persisted MCP session IDs must be non-empty strings"
-		elseif self.sessions[id] then
+			elseif self.sessions[id] then
 				return nil, "duplicate persisted MCP session ID"
-		end
+			end
 			self.sessions[id] = {id = id, active_requests = {}}
 		end
 	end

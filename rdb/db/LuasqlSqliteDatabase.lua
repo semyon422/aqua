@@ -1,3 +1,8 @@
+---@class luasql.SqliteEnvironment
+---@field close fun(self: luasql.SqliteEnvironment): true
+---@field connect fun(self: luasql.SqliteEnvironment, database: string): luasql.Connection, string?
+
+---@type {sqlite3: fun(): luasql.SqliteEnvironment}
 local driver = require("luasql.sqlite3")
 local SqliteDatabase = require("rdb.db.SqliteDatabase")
 local sql_util = require("rdb.sql_util")
@@ -7,6 +12,8 @@ local sql_util = require("rdb.sql_util")
 
 ---@class rdb.LuasqlSqliteDatabase: rdb.SqliteDatabase
 ---@operator call: rdb.LuasqlSqliteDatabase
+---@field env luasql.SqliteEnvironment
+---@field c luasql.Connection
 local LuasqlSqliteDatabase = SqliteDatabase + {}
 
 ---@param db string

@@ -1,4 +1,5 @@
 local coext = require("coext")
+---@type {gettime: fun(): number}
 local socket = require("socket")
 
 local Client = require("mcp.Client")
@@ -9,13 +10,19 @@ local json = require("web.json")
 
 local test = {}
 
----@param handler fun(message: table, options: web.HttpRequestOptions): mcp.HttpResponse
+---@class mcp.TestRequestCall
+---@field url string
+---@field message mcp.JsonRpcMessage
+---@field options web.HttpRequestOptions
+
+---@param handler fun(message: mcp.JsonRpcMessage, options: web.HttpRequestOptions): mcp.HttpResponse
 ---@return fun(url: string, body: string, options: web.HttpRequestOptions): mcp.HttpResponse
----@return table[]
+---@return mcp.TestRequestCall[]
 local function fake_request(handler)
-	---@type table[]
+	---@type mcp.TestRequestCall[]
 	local calls = {}
 	return function(url, body, options)
+		---@type mcp.JsonRpcMessage
 		local message = json.decode(body)
 		table.insert(calls, {url = url, message = message, options = options})
 		return handler(message, options)
@@ -205,7 +212,9 @@ function test.server_round_trip(t)
 		client_info = {name = "test", version = "dev"},
 	})
 
+	---@type mcp.CallToolResult?
 	local result
+	---@type mcp.ClientError?
 	local client_error
 	local client_thread = coext.detach(coroutine.create(function()
 		local initialized
@@ -235,6 +244,7 @@ end
 function test.session_cancellation_and_termination(t)
 	local scheduler = CosocketScheduler()
 	local tool_started = false
+	---@type string?
 	local canceled_reason
 	local tool = {
 		name = "wait",
@@ -271,7 +281,9 @@ function test.session_cancellation_and_termination(t)
 	t:eq(client.session_id, "session-1")
 
 	local request_id = client:allocateRequestId()
+	---@type mcp.CallToolResult?
 	local call_result
+	---@type mcp.ClientError?
 	local call_error
 	local call_thread = coext.detach(coroutine.create(function()
 		call_result, call_error = client:callToolWithId(request_id, "wait")
@@ -286,6 +298,7 @@ function test.session_cancellation_and_termination(t)
 		t:assert(socket.gettime() < deadline)
 	end
 
+	---@type mcp.ClientError?
 	local cancel_error
 	local cancel_thread = coext.detach(coroutine.create(function()
 		local _
@@ -300,6 +313,7 @@ function test.session_cancellation_and_termination(t)
 	t:eq(call_result.isError, true)
 	t:eq(call_result.content[1].text, "not needed")
 
+	---@type mcp.ClientError?
 	local terminate_error
 	local terminate_thread = coext.detach(coroutine.create(function()
 		local _
@@ -336,6 +350,7 @@ function test.cancels_in_flight_request(t)
 		timeout = 20,
 	})
 
+	---@type mcp.ClientError?
 	local initialize_error
 	local initialize_thread = coext.detach(coroutine.create(function()
 		local initialized
@@ -345,6 +360,7 @@ function test.cancels_in_flight_request(t)
 	pump(t, scheduler, initialize_thread)
 	t:eq(initialize_error, nil)
 
+	---@type mcp.ClientError?
 	local call_error
 	local call_thread = coext.detach(coroutine.create(function()
 		local _

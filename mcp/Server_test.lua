@@ -1,4 +1,5 @@
 local coext = require("coext")
+---@type {gettime: fun(): number}
 local socket = require("socket")
 
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
@@ -9,6 +10,7 @@ local Server = require("mcp.Server")
 
 local test = {}
 
+---@return mcp.Tool
 local function make_tool()
 	return {
 		name = "lua_eval",
@@ -21,7 +23,9 @@ local function make_tool()
 		},
 		annotations = {destructiveHint = true},
 		execute = function(_, args)
-			return json.encode({ok = true, value = args.code})
+			---@type string
+			local code = args.code
+			return json.encode({ok = true, value = code})
 		end,
 	}
 end
@@ -55,7 +59,9 @@ end
 ---@return mcp.HttpResponse?
 ---@return string?
 local function run_request(t, scheduler, port, body, options)
+	---@type mcp.HttpResponse?
 	local response
+	---@type string?
 	local request_error
 	options.scheduler = scheduler
 	options.timeout = 1
@@ -182,12 +188,14 @@ function test.structured_tool_result(t)
 		additionalProperties = false,
 	}
 	tool.execute = function(_, args)
+		---@type string
+		local code = args.code
 		return {
 			content = {
-				{type = "text", text = "result: " .. args.code},
+				{type = "text", text = "result: " .. code},
 				{type = "image", data = "aGVsbG8=", mimeType = "image/png"},
 			},
-			structured_content = {value = args.code},
+			structured_content = {value = code},
 		}
 	end
 	local server = Server(CosocketScheduler(), {tool})
@@ -235,6 +243,7 @@ function test.tool_execution_error(t)
 	tool.execute = function()
 		return "invalid input", true
 	end
+	---@type {name: string?, arguments: any, err: string}?
 	local failure
 	local server = Server(CosocketScheduler(), {tool}, {
 		on_tool_failure = function(name, arguments, err)

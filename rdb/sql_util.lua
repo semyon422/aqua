@@ -130,7 +130,10 @@ local function format_cond(op, k, v, ident)
 	end
 	local cond = fmt:format(esci(k))
 	if ident then
-		cond = cond:gsub("?", "%%s"):format(esci(v))
+		---@type string
+		local escaped_value = esci(v)
+		local identifier_format = string.gsub(cond, "?", "%%s")
+		cond = string.format(identifier_format, escaped_value)
 		has_binds = false
 	end
 	if not has_binds then
@@ -158,6 +161,7 @@ function sql_util.conditions(t)
 			end
 			cd, vs = format_cond(op, field, v, ident == "_")
 		elseif type(k) == "table" then
+			---@cast k {[1]: string}
 			cd = k[1]
 			vs = type(v) == "table" and v or {v}
 			if v == true then

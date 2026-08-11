@@ -1,3 +1,12 @@
+---@class resty.mysql.Module
+---@field new fun(self: resty.mysql.Module): resty.mysql.Connection?, string?
+
+---@class resty.mysql.Connection
+---@field connect fun(self: resty.mysql.Connection, options: table): true?, string?, integer?, string?
+---@field close fun(self: resty.mysql.Connection): true?, string?
+---@field query fun(self: resty.mysql.Connection, query: string): rdb.Row[]?, string?, integer?, string?
+
+---@type resty.mysql.Module
 local mysql = require("resty.mysql")
 local MysqlDatabase = require("rdb.db.MysqlDatabase")
 local sql_util = require("rdb.sql_util")
@@ -6,6 +15,7 @@ local sql_util = require("rdb.sql_util")
 
 ---@class rdb.RestyMysqlDatabase: rdb.MysqlDatabase
 ---@operator call: rdb.RestyMysqlDatabase
+---@field db resty.mysql.Connection
 local RestyMysqlDatabase = MysqlDatabase + {}
 
 ---@param db_name string
@@ -19,7 +29,7 @@ function RestyMysqlDatabase:open(db_name, username, password, hostname, port)
 	local db = assert(mysql:new())
 	self.db = db
 
-	local ok, err, errcode, sqlstate = db:connect({
+	local ok, err = db:connect({
 		host = hostname,
 		port = port,
 		database = db_name,
@@ -47,7 +57,7 @@ function RestyMysqlDatabase:iter(query, bind_vals)
 		query = sql_util.bind(query, bind_vals, self.escape_literal)
 	end
 
-	local res, err, errcode, sqlstate = assert(self.db:query(query))
+	local res = assert(self.db:query(query))
 
 	local i = 0
 	return function()

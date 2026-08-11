@@ -2,6 +2,22 @@ local table_util = require("table_util")
 
 local JsonSchema = {}
 
+---@alias mcp.JsonSchemaType "null"|"boolean"|"object"|"array"|"number"|"integer"|"string"
+
+---@class mcp.JsonSchemaObject
+---@field type mcp.JsonSchemaType|mcp.JsonSchemaType[]?
+---@field enum any[]?
+---@field minimum number?
+---@field maximum number?
+---@field minItems integer?
+---@field maxItems integer?
+---@field items mcp.JsonSchema?
+---@field properties {[string]: mcp.JsonSchema}?
+---@field required string[]?
+---@field additionalProperties mcp.JsonSchema?
+
+---@alias mcp.JsonSchema mcp.JsonSchemaObject|boolean
+
 ---@param a any
 ---@param b any
 ---@return boolean
@@ -26,7 +42,7 @@ local function matches_type(value, expected)
 	return type(value) == expected
 end
 
----@param schema_type string|string[]
+---@param schema_type mcp.JsonSchemaType|mcp.JsonSchemaType[]
 ---@param value any
 ---@return boolean
 local function matches_schema_type(schema_type, value)
@@ -49,7 +65,7 @@ local function validation_error(path, message)
 	return nil, path .. " " .. message
 end
 
----@param schema table|boolean
+---@param schema mcp.JsonSchema
 ---@param value any
 ---@param path string?
 ---@return true?
@@ -99,6 +115,7 @@ function JsonSchema.validate(schema, value, path)
 	if type(value) ~= "table" then
 		return true
 	end
+	---@cast value {[any]: any}
 
 	if schema_type == "array" then
 		local size = #value
@@ -119,13 +136,17 @@ function JsonSchema.validate(schema, value, path)
 		return true
 	end
 
+	---@type {[string]: mcp.JsonSchema}
 	local properties = schema.properties or {}
 	for _, key in ipairs(schema.required or {}) do
 		if value[key] == nil then
 			return validation_error(path .. "." .. key, "is required")
 		end
 	end
+	-- LuaLS 3.19 does not propagate open table index types through pairs().
+	---@diagnostic disable-next-line: no-unknown
 	for key, property_value in pairs(value) do
+		---@cast key string
 		local property_schema = properties[key]
 		if property_schema then
 			local ok, err = JsonSchema.validate(property_schema, property_value, path .. "." .. key)

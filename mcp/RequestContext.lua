@@ -35,6 +35,7 @@ function RequestContext:cancel(reason)
 	end
 	self.canceled = true
 	self.cancel_reason = reason or "MCP request canceled"
+	---@type string?
 	local first_error
 	for _, handler in ipairs(self.cancel_handlers) do
 		local ok, err = xpcall(handler, debug.traceback, self.cancel_reason)

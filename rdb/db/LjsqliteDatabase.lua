@@ -1,9 +1,20 @@
+---@class ljsqlite3.Statement
+---@field bind1 fun(self: ljsqlite3.Statement, index: integer, value: any)
+---@field step fun(self: ljsqlite3.Statement, row: any[], column_names: string[]): any[]?
+---@field close fun(self: ljsqlite3.Statement)
+
+---@class ljsqlite3.Connection
+---@field close fun(self: ljsqlite3.Connection)
+---@field prepare fun(self: ljsqlite3.Connection, query: string): ljsqlite3.Statement
+
+---@type {open: fun(path: string): ljsqlite3.Connection}
 local sqlite = require("ljsqlite3")
 local SqliteDatabase = require("rdb.db.SqliteDatabase")
 local sql_util = require("rdb.sql_util")
 
 ---@class rdb.LjsqliteDatabase: rdb.SqliteDatabase
 ---@operator call: rdb.LjsqliteDatabase
+---@field c ljsqlite3.Connection
 local LjsqliteDatabase = SqliteDatabase + {}
 
 ---@param db string
