@@ -1,6 +1,7 @@
 local class = require("class")
 local json = require("web.json")
 local random = require("web.random")
+---@type {gettime: fun(): number}
 local socket = require("socket")
 local HttpServer = require("web.http.Server")
 
@@ -11,6 +12,46 @@ local HttpServer = require("web.http.Server")
 ---@class aqua.openai.ProxyClient
 ---@field completeStream fun(self: aqua.openai.ProxyClient, messages: aqua.openai.Message[], tools: aqua.openai.ToolSchema[]?, on_text_delta: (fun(content: string))?, on_reasoning_delta: (fun(content: string))?, on_tool_call_delta: (fun(delta: aqua.openai.ToolCallDelta))?): aqua.openai.Message?, string?, aqua.openai.ProviderError?
 ---@field createResponse fun(self: aqua.openai.ProxyClient, request: table, on_event: (fun(event: table): boolean?)?): table?, string?, aqua.openai.ProviderError?
+
+---@class aqua.openai.UntrustedObject
+---@field [any] any
+
+---@class aqua.openai.PromptCacheBreakpoint: aqua.openai.UntrustedObject
+---@field mode any?
+
+---@class aqua.openai.ImagePart: aqua.openai.UntrustedObject
+---@field url any?
+---@field detail any?
+
+---@class aqua.openai.AudioPart: aqua.openai.UntrustedObject
+---@field data any?
+---@field format any?
+
+---@class aqua.openai.FilePart: aqua.openai.UntrustedObject
+---@field file_data any?
+---@field file_id any?
+---@field filename any?
+
+---@class aqua.openai.ContentPart: aqua.openai.UntrustedObject
+---@field type any?
+---@field text any?
+---@field refusal any?
+---@field prompt_cache_breakpoint aqua.openai.PromptCacheBreakpoint?
+---@field image_url aqua.openai.ImagePart?
+---@field input_audio aqua.openai.AudioPart?
+---@field file aqua.openai.FilePart?
+
+---@class aqua.openai.UntrustedFunctionCall: aqua.openai.UntrustedObject
+---@field name any?
+---@field arguments any?
+
+---@class aqua.openai.UntrustedMessage: aqua.openai.UntrustedObject
+---@field role any?
+---@field content any?
+---@field function_call aqua.openai.UntrustedFunctionCall?
+---@field tool_calls any?
+---@field name any?
+---@field tool_call_id any?
 
 ---@class aqua.openai.ProxyRequestOptions
 ---@field prompt_cache_key string?
@@ -168,7 +209,8 @@ end
 ---@param value any
 ---@return string
 local function sanitizeLogValue(value)
-	return tostring(value):gsub("[%c\127]", "?")
+	local sanitized = string.gsub(tostring(value), "[%c\127]", "?")
+	return sanitized
 end
 
 ---@param usage aqua.openai.TokenUsage
@@ -294,12 +336,17 @@ end
 local function normalizeContent(content, role)
 	if type(content) == "string" then return content end
 	if not json.isArray(content) then return end
+	---@type string[]
 	local text_parts = {}
+	---@type table[]
 	local input_parts = {}
 	local has_non_text = false
 	local has_breakpoint = false
+	---@cast content aqua.openai.ContentPart[]
 	for _, part in ipairs(content) do
 		if not json.isObject(part) then return end
+		---@cast part aqua.openai.ContentPart
+		---@type {mode: "explicit"}?
 		local breakpoint
 		if part.prompt_cache_breakpoint ~= nil then
 			if not json.isObject(part.prompt_cache_breakpoint)
@@ -307,7 +354,9 @@ local function normalizeContent(content, role)
 			then
 				return
 			end
+			---@diagnostic disable-next-line: no-unknown
 			for key in pairs(part.prompt_cache_breakpoint) do
+				---@cast key string
 				if key ~= "mode" then return end
 			end
 			breakpoint = {mode = "explicit"}
@@ -385,11 +434,15 @@ local function normalizePromptCacheOptions(options)
 	if options.ttl ~= nil and options.ttl ~= "30m" then
 		return nil, "prompt_cache_options ttl is invalid"
 	end
+	-- LuaLS 3.19 does not infer keys from validated dynamic objects.
+	---@diagnostic disable-next-line: no-unknown
 	for key in pairs(options) do
+		---@cast key string
 		if key ~= "mode" and key ~= "ttl" then
 			return nil, "prompt_cache_options contains an unsupported field"
 		end
 	end
+	---@type aqua.openai.PromptCacheOptions
 	local normalized = json.object()
 	normalized.mode = options.mode
 	normalized.ttl = options.ttl
@@ -402,8 +455,10 @@ local function normalizeMessages(messages)
 	if not json.isArray(messages) or #messages == 0 then return false end
 	---@type {id: string, name: string}?
 	local pending_legacy_call
+	---@cast messages aqua.openai.UntrustedMessage[]
 	for _, message in ipairs(messages) do
 		if not json.isObject(message) then return false end
+		---@cast message aqua.openai.UntrustedMessage
 		local role = message.role
 		if pending_legacy_call and role ~= "function" then return false end
 		if role ~= "developer" and role ~= "system" and role ~= "user" and role ~= "assistant"
@@ -412,6 +467,7 @@ local function normalizeMessages(messages)
 			return false
 		end
 		if role == "assistant" and message.function_call ~= nil then
+			---@type aqua.openai.UntrustedFunctionCall
 			local function_call = message.function_call
 			if message.tool_calls ~= nil or not json.isObject(function_call)
 				or type(function_call.name) ~= "string" or function_call.name == ""
@@ -447,7 +503,9 @@ local function normalizeMessages(messages)
 		end
 		if role == "tool" and type(message.tool_call_id) ~= "string" then return false end
 		if message.tool_calls ~= nil and not json.isArray(message.tool_calls) then return false end
-		for _, tool_call in ipairs(message.tool_calls or {}) do
+		---@type aqua.openai.ToolCall[]
+		local tool_calls = message.tool_calls or {}
+		for _, tool_call in ipairs(tool_calls) do
 			local schema = type(tool_call) == "table" and tool_call["function"] or nil
 			if type(tool_call.id) ~= "string" or type(schema) ~= "table"
 				or type(schema.name) ~= "string" or type(schema.arguments) ~= "string"
@@ -467,6 +525,7 @@ end
 local function validateTools(tools)
 	if tools == nil then return true end
 	if not json.isArray(tools) then return false end
+	---@cast tools aqua.openai.ToolSchema[]
 	for _, tool in ipairs(tools) do
 		local schema = type(tool) == "table" and tool["function"] or nil
 		if tool.type ~= "function" or type(schema) ~= "table"
@@ -503,13 +562,17 @@ local function normalizeLegacyFunctions(request)
 	if isPresent(request.tool_choice) then return false, "function_call and tool_choice are mutually exclusive" end
 	if not json.isArray(request.functions) then return false, "functions must be an array" end
 
+	---@type aqua.openai.ToolSchema[]
 	local tools = json.array()
-	for _, schema in ipairs(request.functions) do
+	---@type aqua.openai.FunctionSchema[]
+	local functions = request.functions
+	for _, schema in ipairs(functions) do
 		table.insert(tools, {type = "function", ["function"] = schema})
 	end
 	if not validateTools(tools) then return false, "functions contain an invalid definition" end
 	request.tools = tools
 	if has_function_call then
+		---@type aqua.openai.UntrustedFunctionCall|string
 		local function_call = request.function_call
 		if function_call == "none" or function_call == "auto" then
 			request.tool_choice = function_call
@@ -535,7 +598,7 @@ local function sendUnsupportedParameter(res, name)
 end
 
 ---@param tool_choice any
----@param tools any
+---@param tools aqua.openai.ToolSchema[]?
 ---@return "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
 ---@return string?
 local function normalizeToolChoice(tool_choice, tools)
@@ -552,6 +615,7 @@ local function normalizeToolChoice(tool_choice, tools)
 		return nil, "tool_choice has an unsupported shape"
 	end
 	if not tools or #tools == 0 then return nil, "tool_choice requires tools" end
+	---@type string
 	local name = tool_choice["function"].name
 	for _, tool in ipairs(tools) do
 		if tool["function"].name == name then return {type = "function", name = name} end
@@ -566,11 +630,14 @@ local function normalizeResponseFormat(response_format)
 	if response_format == nil then return end
 	if not json.isObject(response_format) then return nil, "response_format must be an object" end
 	if response_format.type == "text" or response_format.type == "json_object" then
-		return {type = response_format.type}
+		---@type "text"|"json_object"
+		local format_type = response_format.type
+		return {type = format_type}
 	end
 	if response_format.type ~= "json_schema" or not json.isObject(response_format.json_schema) then
 		return nil, "response_format has an unsupported shape"
 	end
+	---@type {name: any?, description: any?, schema: any?, strict: any?}
 	local schema = response_format.json_schema
 	if type(schema.name) ~= "string" or schema.name == "" or not json.isObject(schema.schema) then
 		return nil, "response_format json_schema is invalid"
@@ -633,7 +700,9 @@ local function validateResponsesRequest(request, models_set)
 	end
 	if request.include ~= nil and request.include ~= json.null then
 		if not json.isArray(request.include) then return "include must be an array", "invalid_include" end
-		for _, value in ipairs(request.include) do
+		---@type any[]
+		local include = request.include
+		for _, value in ipairs(include) do
 			if type(value) ~= "string" then return "include values must be strings", "invalid_include" end
 		end
 	end
@@ -718,7 +787,7 @@ function ProxyServer:complete(res, request)
 		sendError(res, 400, "stream must be a boolean", "invalid_request_error", "invalid_stream")
 		return 400
 	elseif request.stream_options ~= nil and (not request.stream or not json.isObject(request.stream_options)
-		or (request.stream_options.include_usage ~= nil and type(request.stream_options.include_usage) ~= "boolean"))
+			or (request.stream_options.include_usage ~= nil and type(request.stream_options.include_usage) ~= "boolean"))
 	then
 		sendError(res, 400, "stream_options requires stream=true and a boolean include_usage", "invalid_request_error", "invalid_stream_options")
 		return 400
@@ -774,7 +843,10 @@ function ProxyServer:complete(res, request)
 		return sendUnsupportedParameter(res, "logprobs")
 	end
 	if isPresent(request.top_logprobs) then return sendUnsupportedParameter(res, "top_logprobs") end
-	for _, name in ipairs({"frequency_penalty", "presence_penalty"}) do
+	---@type string[]
+	local penalty_names = {"frequency_penalty", "presence_penalty"}
+	for _, name in ipairs(penalty_names) do
+		---@type any
 		local value = request[name]
 		if isPresent(value) then
 			if type(value) ~= "number" or value < -2 or value > 2 then
@@ -796,6 +868,7 @@ function ProxyServer:complete(res, request)
 		sendError(res, 400, "max_completion_tokens and max_tokens are mutually exclusive", "invalid_request_error", "invalid_max_tokens")
 		return 400
 	end
+	---@type integer?
 	local max_output_tokens = request.max_completion_tokens or request.max_tokens
 	if max_output_tokens ~= nil and not isPositiveInteger(max_output_tokens) then
 		sendError(res, 400, "completion token limit must be a positive integer", "invalid_request_error", "invalid_max_tokens")
@@ -804,7 +877,7 @@ function ProxyServer:complete(res, request)
 	-- The ChatGPT Codex backend rejects Responses max_output_tokens. Accept the
 	-- Chat Completions limit for client compatibility and retain the model cap.
 	if request.prompt_cache_key ~= nil and (type(request.prompt_cache_key) ~= "string"
-		or request.prompt_cache_key == "" or #request.prompt_cache_key > 64)
+			or request.prompt_cache_key == "" or #request.prompt_cache_key > 64)
 	then
 		sendError(res, 400, "prompt_cache_key must contain 1 to 64 bytes", "invalid_request_error", "invalid_prompt_cache_key")
 		return 400
@@ -912,6 +985,7 @@ function ProxyServer:complete(res, request)
 			sendChunk(res, request.model, completion_id, created,
 				{function_call = message.tool_calls[1]["function"]}, nil, include_usage)
 		else
+			---@type table[]
 			local tool_calls = {}
 			for index, tool_call in ipairs(message.tool_calls) do
 				tool_calls[index] = {
@@ -998,7 +1072,11 @@ function ProxyServer:handleAuthenticated(req, res, path)
 			return 413
 		end
 		local body, receive_err = req:receive("*a")
-		local request, decode_err = body and json.decode_safe(body) or nil
+		---@type table?, string?
+		local request, decode_err
+		if body then
+			request, decode_err = json.decode_safe(body)
+		end
 		if type(request) ~= "table" then
 			sendError(res, 400, "invalid JSON body: " .. tostring(decode_err or receive_err), "invalid_request_error", "invalid_json")
 			return 400
@@ -1016,6 +1094,7 @@ end
 function ProxyServer:handle(req, res, ip)
 	local started_at = self.get_time()
 	local user, token = self:authenticate(req)
+	---@type integer
 	local status
 	local path = req.uri:match("^[^?]+") or req.uri
 	if not user then
@@ -1030,6 +1109,7 @@ function ProxyServer:handle(req, res, ip)
 		sendError(res, 429, "too many concurrent requests", "rate_limit_error", "concurrency_limit_exceeded")
 		status = 429
 	else
+		---@type string?
 		local handle_err
 		local ok = xpcall(function()
 			status = self:handleAuthenticated(req, res, path)
