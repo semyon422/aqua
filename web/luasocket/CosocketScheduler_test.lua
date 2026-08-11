@@ -3,6 +3,19 @@ local coext = require("coext")
 
 local test = {}
 
+---@class test.SelectCall
+---@field recvt table[]
+---@field sendt table[]
+---@field timeout number?
+
+---@class test.SelectMock
+---@field ready_read table[]
+---@field ready_write table[]
+---@field err string?
+---@field calls test.SelectCall[]
+
+---@return test.SelectMock
+---@return fun(recvt: table[], sendt: table[], timeout: number?): table[], table[], string?
 local function new_select_mock()
 	local mock = {
 		ready_read = {},
@@ -54,6 +67,7 @@ function test.wait_read_wakes_on_select(t)
 	end)
 
 	local soc = {}
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {scheduler:waitRead(soc)}
@@ -82,6 +96,7 @@ function test.wait_write_wakes_on_select(t)
 	end)
 
 	local soc = {}
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {scheduler:waitWrite(soc)}
@@ -105,6 +120,7 @@ function test.timeout_uses_nearest_timer(t)
 	end)
 
 	local soc = {}
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {scheduler:waitRead(soc, 5)}
@@ -130,6 +146,8 @@ function test.sleep_wakes_from_timer(t)
 		return now
 	end)
 
+	---@type any[]?
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {scheduler:sleep(2)}
@@ -153,7 +171,9 @@ function test.close_socket_wakes_read_and_write_waiters(t)
 	end)
 
 	local soc = {}
+	---@type any[]?
 	local read_result
+	---@type any[]?
 	local write_result
 
 	local read_co = coroutine.create(function()
@@ -182,6 +202,7 @@ function test.cancel_wakes_waiter(t)
 	end)
 
 	local soc = {}
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {scheduler:waitRead(soc)}
@@ -203,6 +224,7 @@ function test.multiple_waiters_resume_one_per_ready_event(t)
 	end)
 
 	local soc = {}
+	---@type {[integer]: any[]}
 	local results = {}
 	for i = 1, 2 do
 		local co = coroutine.create(function()
@@ -229,6 +251,8 @@ function test.coroutine_can_wait_again_after_resume(t)
 
 	local read_soc = {}
 	local write_soc = {}
+	---@type any[]?
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		local read_ok = scheduler:waitRead(read_soc)
@@ -258,7 +282,9 @@ function test.coroutine_wrap_iterator_can_wait_in_scheduler(t)
 	end)
 
 	with_coext_export(function()
+		---@type string[]
 		local values = {}
+		---@type string?
 		local result
 		local co = coroutine.create(function()
 			local iter = coroutine.wrap(function()
@@ -298,7 +324,9 @@ function test.coroutine_create_iterator_can_wait_in_scheduler(t)
 	end)
 
 	with_coext_export(function()
+		---@type string[]
 		local values = {}
+		---@type string?
 		local result
 		local co = coroutine.create(function()
 			local iter_co = coroutine.create(function()
@@ -315,6 +343,8 @@ function test.coroutine_create_iterator_can_wait_in_scheduler(t)
 				return value
 			end
 
+			-- LuaLS cannot infer values yielded by the external coroutine iterator.
+			---@diagnostic disable-next-line: no-unknown
 			for value in iter do
 				table.insert(values, value)
 			end
@@ -345,7 +375,9 @@ function test.nested_coroutine_iterators_can_wait_in_scheduler(t)
 	end)
 
 	with_coext_export(function()
+		---@type string[]
 		local values = {}
+		---@type string?
 		local result
 		local co = coroutine.create(function()
 			local outer_iter = coroutine.wrap(function()
@@ -396,7 +428,9 @@ function test.detached_background_coroutine_waits_on_itself(t)
 
 	with_coext_export(function()
 		local soc = {}
+		---@type thread?
 		local child
+		---@type any[]?
 		local child_result
 		local parent = coroutine.create(function()
 			child = coext.detach(coroutine.create(function()
