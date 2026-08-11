@@ -33,6 +33,7 @@ end
 
 ---@param t testing.T
 function test.getowner_tracks_nested_resume(t)
+	---@type thread?
 	local owner_seen
 	local child = coext.create(function()
 		owner_seen = coext.getowner()

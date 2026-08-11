@@ -4,14 +4,18 @@ local table_util = require("table_util")
 local test = {}
 
 function test.new_basic()
+	---@type any[][]
 	local events = {}
 
+	---@type synctable.Data
 	local tbl = {1, {k = 1}}
 
 	local st = synctable.new(tbl, function(path, k, v, is_path)
 		table.insert(events, {path, k, v, is_path})
 	end)
 
+	-- Proxy values are intentionally dynamic and exposed through metamethods.
+	---@diagnostic disable-next-line: no-unknown
 	st[3] = 3
 	st.a = {"a"}
 	st.b = st.a
@@ -26,9 +30,13 @@ function test.new_basic()
 		{{}, "b", {"a"}, true},
 	}))
 
+	---@type string[]
 	local strings = {}
 
+	---@type synctable.Data
 	local new_tbl = {}
+	-- LuaLS cannot infer the heterogeneous packed callback arguments.
+	---@diagnostic disable-next-line: no-unknown
 	for _, event in ipairs(events) do
 		synctable.set(new_tbl, unpack(event))
 		table.insert(strings, synctable.format("prefix", unpack(event)))

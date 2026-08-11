@@ -3,6 +3,7 @@ local tablecheck = require("typecheck.tablecheck")
 local test = {}
 
 function test.all(t)
+	---@type fun(value: table)
 	local tt = tablecheck([[(
 		a: number,
 		b: string,

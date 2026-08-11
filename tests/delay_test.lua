@@ -51,7 +51,10 @@ function test.debounce()
 	local time_obj = {0}
 	delay.set_timer(time_obj)
 
+	---@type number?
 	local result
+	---@param a number
+	---@param b number
 	local function add(a, b)
 		result = a + b
 	end
@@ -88,9 +91,13 @@ function test.debounce_locked()
 	local time_obj = {0}
 	delay.set_timer(time_obj)
 
+	---@type thread?
 	local c
 
+	---@type number?
 	local result
+	---@param a number
+	---@param b number
 	local function add(a, b)
 		c = coroutine.running()
 		coroutine.yield()
@@ -125,6 +132,7 @@ function test.every()
 	delay.set_timer(time_obj)
 
 	local sum = 0
+	---@param a number
 	local function add(a)
 		sum = sum + a
 	end

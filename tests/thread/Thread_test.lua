@@ -7,8 +7,10 @@ local FakeLoveThread = require("tests.thread.FakeLoveThread")
 local test = {}
 
 function test.simple(t)
+	---@type thread.Thread
 	local thread
 
+	---@type any[][]
 	local events = {}
 	local _st = {}
 	local st = synctable.new(_st, function(...)
@@ -24,6 +26,7 @@ function test.simple(t)
 	thread:start()
 	t:assert(thread:isRunning())
 
+	---@type number?
 	local result
 
 	thread:execute({
@@ -31,6 +34,7 @@ function test.simple(t)
 		args = {1, 2, n = 3},
 		result = function(res) result = res end,
 		trace = "trace",
+		name = "test task",
 	})
 	t:assert(not thread.idle)
 

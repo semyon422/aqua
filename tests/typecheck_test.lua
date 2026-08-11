@@ -358,6 +358,7 @@ end
 
 function test.parse_types_class()
 	local MyClass = class()
+	---@type table
 	local obj = MyClass()
 
 	local ok, err = pcall(assert_parse_types, "mod.A", obj)
@@ -451,6 +452,7 @@ end
 function test.type_decorator_empty()
 	local td = TypeDecorator()
 
+	---@type boolean
 	local strict = typecheck.strict
 	typecheck.strict = false
 

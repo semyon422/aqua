@@ -74,7 +74,10 @@ function test.invalid_unbalanced()
 	assert(not tree:is_valid())
 end
 
+---@param n integer
+---@return integer[]
 local function range(n)
+	---@type integer[]
 	local t = {}
 	for i = 1, n do
 		t[i] = i
@@ -82,6 +85,9 @@ local function range(n)
 	return t
 end
 
+---@generic T
+---@param t T[]
+---@return T[]
 local function shuffle(t)
 	for i = #t, 2, -1 do
 		local j = math.random(i)
@@ -96,11 +102,14 @@ function test.valid_1000()
 	local N = 100
 	math.randomseed(N)
 
+	---@type integer[]
 	local nums = {}
 	for i = 1, N do
 		table.insert(nums, i)
 	end
 
+	-- LuaLS 3.19 loses generic array values through ipairs().
+	---@diagnostic disable-next-line: no-unknown
 	for _, v in ipairs(shuffle(range(N))) do
 		tree:insert(v)
 		assert(tree:is_valid())
@@ -123,7 +132,9 @@ function test.valid_1000()
 	end
 	assert(c == N)
 
-	for i, v in ipairs(shuffle(range(N))) do
+	-- LuaLS 3.19 loses generic array values through ipairs().
+	---@diagnostic disable-next-line: no-unknown
+	for _, v in ipairs(shuffle(range(N))) do
 		tree:remove(v)
 		assert(tree:is_valid())
 	end

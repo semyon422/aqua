@@ -36,12 +36,14 @@ function test.unload_stops_marked_managed_threads(t)
 	local old_managed_threads = ThreadPool.managedThreads
 	local old_threads = ThreadPool.threads
 	local old_queue = ThreadPool.queue
+	---@type boolean
 	local old_loaded = ThreadPool.loaded
 	ThreadPool.managedThreads = {}
 	ThreadPool.threads = {}
 	ThreadPool.queue = {}
 	ThreadPool.loaded = true
 
+	---@type boolean
 	local stopped = false
 	local managed_thread = {
 		isRunning = function()
@@ -69,16 +71,20 @@ function test.running_worker_names_include_task_name(t)
 	local old_managed_threads = ThreadPool.managedThreads
 	local old_running_threads = ThreadPool.runningThreads
 	ThreadPool.managedThreads = {}
-	ThreadPool.runningThreads = {
-		[1] = {
-			task = {
-				name = "test task",
-			},
-			isRunning = function()
-				return true
-			end,
+	---@type thread.Thread
+	local worker = {
+		task = {
+			f = "",
+			args = {},
+			result = function() end,
+			trace = "",
+			name = "test task",
 		},
-	}
+		isRunning = function()
+			return true
+		end,
+	} --[[@as any]]
+	ThreadPool.runningThreads = {[1] = worker}
 
 	t:tdeq(ThreadPool:getRunningThreadNames(), {"thread pool worker 1: test task"})
 
