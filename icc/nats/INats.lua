@@ -19,6 +19,8 @@ function INats:unsubscribe(sid) end
 
 --- Check if the connection is alive.
 ---@return boolean
-function INats:health() end
+function INats:health()
+	return false
+end
 
 return INats

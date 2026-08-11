@@ -1,11 +1,44 @@
 local class = require("class")
+
+---@class nats.Message
+---@field sid string
+---@field subject string
+---@field reply_to string?
+---@field payload string
+
+---@class nats.Socket
+---@field send fun(self: nats.Socket, data: string): integer?, string?
+---@field receiveany fun(self: nats.Socket, size: integer): string?, string?
+
+---@class nats.Client
+---@field sock nats.Socket
+---@field closing boolean
+---@field subscribers {[integer]: fun(message: nats.Message)}
+---@field subscriber_id_map {[string]: integer}
+---@field subscriber_id integer
+---@field publish fun(self: nats.Client, opts: {subject: string, reply_to?: string, payload?: string}): boolean?, string?
+---@field subscribe fun(self: nats.Client, subject: string, cb: fun(message: nats.Message)): boolean?, string?
+---@field close fun(self: nats.Client)
+
+---@type {connect: fun(options: table): nats.Client?, string?}
 local nats_client = require("resty.nats.client")
+
+---@class nats.ProtocolParser
+---@field parse fun(self: nats.ProtocolParser, line: string): string?
+
+---@class nats.ProtocolParserModule
+---@field new fun(callback: fun(message_type: string, message: nats.Message?)): nats.ProtocolParser
+---@field MESSAGE_TYPE {[string]: string}
+
+---@type nats.ProtocolParserModule
 local protocol_parser = require("resty.nats.protocols.parser")
+---@type {encode: fun(message: {sid: integer}): string}
+local unsubscribe_protocol = require("resty.nats.protocols.unsub")
 
 ---@class nats.RestyNats: nats.INats
 ---@field host string
 ---@field port integer
----@field cli any? underlying NATS client
+---@field cli nats.Client? underlying NATS client
 ---@field connected boolean connection state (true=connected, false=failed, nil=not tried)
 ---@field connect_failed boolean true if initial connect() failed (cached to avoid retry storms)
 ---@field receive_thread any? receive loop thread handle
@@ -31,7 +64,7 @@ end
 --- Handles socket timeouts gracefully by sleeping and retrying.
 --- On initial connect failure, caches the error so subsequent calls don't retry.
 --- On receive loop death, resets state so subsequent calls can reconnect.
----@return any? client
+---@return nats.Client? client
 ---@return string? err
 function RestyNats:start()
 	if self.cli then
@@ -59,15 +92,19 @@ function RestyNats:start()
 	-- On exit (error or worker shutdown), resets connection state so callers can retry.
 	self.receive_thread = ngx.thread.spawn(function()
 		local sock = cli.sock
-		local parser = protocol_parser.new(function(type, message)
-			if type == protocol_parser.MESSAGE_TYPE.PING then
+		local parser = protocol_parser.new(function(message_type, message)
+			if message_type == protocol_parser.MESSAGE_TYPE.PING then
 				sock:send("PONG\r\n")
-			elseif type == protocol_parser.MESSAGE_TYPE.MSG then
-				local subscriber = cli.subscribers[tonumber(message.sid)]
-				if subscriber then subscriber(message) end
-			elseif type == protocol_parser.MESSAGE_TYPE.HMSG then
-				local subscriber = cli.subscribers[tonumber(message.sid)]
-				if subscriber then subscriber(message) end
+			elseif message_type == protocol_parser.MESSAGE_TYPE.MSG then
+				local msg = assert(message)
+				local sid = assert(tonumber(msg.sid))
+				local subscriber = cli.subscribers[sid]
+				if subscriber then subscriber(msg) end
+			elseif message_type == protocol_parser.MESSAGE_TYPE.HMSG then
+				local msg = assert(message)
+				local sid = assert(tonumber(msg.sid))
+				local subscriber = cli.subscribers[sid]
+				if subscriber then subscriber(msg) end
 			end
 		end)
 
@@ -103,7 +140,7 @@ end
 
 --- Get the underlying NATS client (starts connection if needed).
 --- @private
----@return any? client
+---@return nats.Client? client
 ---@return string? err
 function RestyNats:client()
 	return self:start()
@@ -150,7 +187,7 @@ function RestyNats:unsubscribe(sid)
 			break
 		end
 	end
-	local bytes, send_err = client.sock:send(require("resty.nats.protocols.unsub").encode({ sid = sid }) .. "\r\n")
+	local bytes, send_err = client.sock:send(unsubscribe_protocol.encode({sid = sid}) .. "\r\n")
 	if not bytes then
 		return nil, "failed to send UNSUB message: " .. send_err
 	end

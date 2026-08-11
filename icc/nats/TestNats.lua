@@ -1,11 +1,12 @@
 local class = require("class")
 
 ---@alias nats.SubjectMatcher fun(subject: string): boolean
+---@alias nats.MessageCallback fun(message: {subject: string, reply_to?: string, payload: string})
 
 ---@class nats.TestNats: nats.INats
----@field published {[integer]: {subject: string, reply_to?: string, payload?: string}}
----@field subscribers {[integer]: {sid: integer, subject: string, callback: function, match: nats.SubjectMatcher}}
----@field pending {[integer]: {callback: function, msg: {subject: string, reply_to?: string, payload: string}}}
+---@field published {subject: string, reply_to?: string, payload?: string}[]
+---@field subscribers {sid: integer, subject: string, callback: nats.MessageCallback, match: nats.SubjectMatcher}[]
+---@field pending {callback: nats.MessageCallback, msg: {subject: string, reply_to?: string, payload: string}}[]
 ---@field sid_counter integer
 ---@operator call: nats.TestNats
 local TestNats = class()
@@ -22,12 +23,14 @@ end
 ---@param subject string
 ---@return nats.SubjectMatcher
 local function parse_subject(subject)
+	---@type string[]
 	local parts = {}
 	for token in subject:gmatch("[^%.]+") do
 		table.insert(parts, token)
 	end
 
 	return function(actual)
+		---@type string[]
 		local actual_parts = {}
 		for token in actual:gmatch("[^%.]+") do
 			table.insert(actual_parts, token)
@@ -81,7 +84,7 @@ function TestNats:publish(opts)
 	-- Deliver to matching subscribers
 	for _, sub in ipairs(self.subscribers) do
 		if sub.match(msg.subject) then
-			table.insert(self.pending, { callback = sub.callback, msg = msg })
+			table.insert(self.pending, {callback = sub.callback, msg = msg})
 		end
 	end
 	return true

@@ -57,12 +57,14 @@ function RemoteHandler:handle(ctx, path, is_method, ...)
 		end
 
 		if whitelist then
+			-- LuaLS 3.19 reports recursive union indexing as unknown.
+			---@diagnostic disable-next-line: no-unknown
 			local _wl = whitelist[k]
 			if not _wl then
 				error(("attempt to get field '%s' (not whitelisted)"):format(k))
 			end
-			---@cast _wl -true
-			whitelist = _wl ---@diagnostic disable-line: no-unknown
+			---@cast _wl icc.RemoteHandlerWhitelist
+			whitelist = _wl
 		end
 
 		_self, value, prev_key = value, value[k], k
