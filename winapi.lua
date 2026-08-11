@@ -137,6 +137,25 @@ ffi.cdef [[
 	);
 ]]
 
+---@class winapi.Native
+---@field MultiByteToWideChar fun(code_page: integer, flags: integer, source: string, source_size: integer, destination: ffi.cdata*?, destination_size: integer): integer
+---@field WideCharToMultiByte fun(code_page: integer, flags: integer, source: ffi.cdata*, source_size: integer, destination: ffi.cdata*?, destination_size: integer, default_char: ffi.cdata*?, used_default: ffi.cdata*?): integer
+---@field GetLastError fun(): integer
+---@field FormatMessageW fun(flags: integer, source: ffi.cdata*?, message_id: integer, language_id: integer, buffer: ffi.cdata*, size: integer, arguments: ffi.cdata*?): integer
+---@field LoadLibraryW fun(path: ffi.cdata*): ffi.cdata*?
+---@field _wgetenv_s fun(return_size: ffi.cdata*, buffer: ffi.cdata*?, elements: integer, name: ffi.cdata*): integer
+---@field _wputenv_s fun(name: ffi.cdata*, value: ffi.cdata*): integer
+---@field _wchdir fun(path: ffi.cdata*): integer
+---@field _wgetcwd fun(buffer: ffi.cdata*?, max_length: integer): ffi.cdata*
+---@field _wfreopen_s fun(stream: ffi.cdata*, path: ffi.cdata*, mode: ffi.cdata*, old_stream: file*): integer
+---@field CreateWaitableTimerExW fun(attributes: ffi.cdata*?, name: ffi.cdata*?, flags: integer, access: integer): ffi.cdata*?
+---@field SetWaitableTimer fun(timer: ffi.cdata*, due_time: ffi.cdata*, period: integer, callback: ffi.cdata*?, argument: ffi.cdata*?, resume: boolean): integer
+---@field WaitForSingleObject fun(handle: ffi.cdata*, milliseconds: integer): integer
+---@field RegGetValueW fun(key: ffi.cdata*, sub_key: ffi.cdata*?, value: ffi.cdata*?, flags: integer, value_type: ffi.cdata*?, data: ffi.cdata*?, size: ffi.cdata*): integer
+
+---@type winapi.Native
+local C = ffi.C
+
 local winapi = {}
 
 -- https://docs.microsoft.com/en-us/windows/win32/api/stringapiset/nf-stringapiset-multibytetowidechar
@@ -144,11 +163,11 @@ local winapi = {}
 ---@param s string
 ---@return ffi.cdata*
 function winapi.to_wchar_t(s)
-	local size = ffi.C.MultiByteToWideChar(65001, 0x8, s, #s, nil, 0)
+	local size = C.MultiByteToWideChar(65001, 0x8, s, #s, nil, 0)
 	assert(size > 0, "conversion error")
 
 	local buf = ffi.new("wchar_t[?]", size + 1)
-	assert(ffi.C.MultiByteToWideChar(65001, 0x8, s, #s, buf, size) ~= 0, "conversion error")
+	assert(C.MultiByteToWideChar(65001, 0x8, s, #s, buf, size) ~= 0, "conversion error")
 
 	return buf
 end
@@ -158,11 +177,11 @@ end
 ---@param w ffi.cdata*
 ---@return string
 function winapi.to_string(w)
-	local size = ffi.C.WideCharToMultiByte(65001, 0x80, w, -1, nil, 0, nil, nil)
+	local size = C.WideCharToMultiByte(65001, 0x80, w, -1, nil, 0, nil, nil)
 	assert(size > 0, "conversion error")
 
 	local buf = ffi.new("char[?]", size)
-	assert(ffi.C.WideCharToMultiByte(65001, 0x80, w, -1, buf, size, nil, nil) ~= 0, "conversion error")
+	assert(C.WideCharToMultiByte(65001, 0x80, w, -1, buf, size, nil, nil) ~= 0, "conversion error")
 
 	return ffi.string(buf, size - 1)
 end
@@ -171,7 +190,7 @@ end
 
 ---@return integer
 function winapi.get_last_error()
-	return ffi.C.GetLastError()
+	return C.GetLastError()
 end
 
 -- https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessagew
@@ -183,7 +202,7 @@ local error_buf = ffi.new("wchar_t[?]", error_buf_size)
 ---@return string
 function winapi.format_message_from_system(msg)
 	-- FORMAT_MESSAGE_FROM_SYSTEM
-	local wchars = ffi.C.FormatMessageW(0x00001000, nil, msg, 0, error_buf, error_buf_size, nil)
+	local wchars = C.FormatMessageW(0x00001000, nil, msg, 0, error_buf, error_buf_size, nil)
 
 	if wchars == 0 then
 		return winapi.format_message_from_system(winapi.get_last_error())
@@ -196,7 +215,7 @@ end
 
 ---@param path string
 function winapi.load_library(path)
-	local h = ffi.C.LoadLibraryW(winapi.to_wchar_t(path))
+	local h = C.LoadLibraryW(winapi.to_wchar_t(path))
 	if h == nil then
 		local err = winapi.get_last_error()
 		error(("cannot load module '%s': %s"):format(path, winapi.format_message_from_system(err)))
@@ -212,13 +231,13 @@ function winapi.getenv(name)
 
 	local size_ptr = ffi.new("size_t[1]")
 
-	assert(ffi.C._wgetenv_s(size_ptr, nil, 0, wname) == 0)
+	assert(C._wgetenv_s(size_ptr, nil, 0, wname) == 0)
 	if size_ptr[0] == 0 then
 		return
 	end
 
 	local buf = ffi.new("wchar_t[?]", size_ptr[0])
-	assert(ffi.C._wgetenv_s(size_ptr, buf, size_ptr[0], wname) == 0)
+	assert(C._wgetenv_s(size_ptr, buf, size_ptr[0], wname) == 0)
 
 	return winapi.to_string(buf)
 end
@@ -228,21 +247,21 @@ end
 ---@param name string
 ---@param value string
 function winapi.putenv(name, value)
-	assert(ffi.C._wputenv_s(winapi.to_wchar_t(name), winapi.to_wchar_t(value)) == 0)
+	assert(C._wputenv_s(winapi.to_wchar_t(name), winapi.to_wchar_t(value)) == 0)
 end
 
 -- https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/chdir-wchdir?view=msvc-170
 
 ---@param dir string
 function winapi.chdir(dir)
-	assert(ffi.C._wchdir(winapi.to_wchar_t(dir)) == 0)
+	assert(C._wchdir(winapi.to_wchar_t(dir)) == 0)
 end
 
 -- https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getcwd-wgetcwd?view=msvc-170
 
 ---@return string
 function winapi.getcwd()
-	local buf = ffi.C._wgetcwd(nil, 0)
+	local buf = C._wgetcwd(nil, 0)
 	assert(buf ~= 0)
 	return winapi.to_string(buf)
 end
@@ -257,7 +276,7 @@ end
 function winapi.open(path, mode)
 	local file = assert(io.open("nul"))
 	local stream = ffi.new("void*[1]")
-	local err = ffi.C._wfreopen_s(stream, winapi.to_wchar_t(path), winapi.to_wchar_t(mode or "r"), file)
+	local err = C._wfreopen_s(stream, winapi.to_wchar_t(path), winapi.to_wchar_t(mode or "r"), file)
 	if err ~= 0 then
 		return nil, ("%s: %s"):format(path, select(2, file:close())), err
 	end
@@ -266,7 +285,12 @@ end
 
 -- https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createwaitabletimerexw
 
+---@type ffi.cdata*?
 local sleep_timer
+---@class winapi.LargeInteger
+---@field QuadPart number
+
+---@type {[0]: winapi.LargeInteger}
 local li_p = ffi.new("LARGE_INTEGER[1]")
 
 ---@param s number
@@ -274,7 +298,7 @@ function winapi.sleep(s)
 	if not sleep_timer then
 		-- CREATE_WAITABLE_TIMER_MANUAL_RESET | CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
 		-- TIMER_ALL_ACCESS (0x1F0003)
-		sleep_timer = ffi.C.CreateWaitableTimerExW(nil, nil, 0x00000001 + 0x00000002, 0x1F0003)
+		sleep_timer = C.CreateWaitableTimerExW(nil, nil, 0x00000001 + 0x00000002, 0x1F0003)
 		if sleep_timer == nil then
 			print("error in CreateWaitableTimerW")
 		end
@@ -282,10 +306,10 @@ function winapi.sleep(s)
 	end
 
 	li_p[0].QuadPart = -s * 1e7 -- in 100ns
-	if ffi.C.SetWaitableTimer(sleep_timer, li_p, 0, nil, nil, false) == 0 then
+	if C.SetWaitableTimer(sleep_timer, li_p, 0, nil, nil, false) == 0 then
 		return
 	end
-	ffi.C.WaitForSingleObject(sleep_timer, 4294967295)
+	C.WaitForSingleObject(sleep_timer, 4294967295)
 end
 
 -- https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-reggetvaluew
@@ -335,7 +359,7 @@ function winapi.get_reg_value(hkey, sub_key, value, flags)
 	local wsub_key = sub_key and winapi.to_wchar_t(sub_key)
 	local wvalue = value and winapi.to_wchar_t(value)
 
-	local status = ffi.C.RegGetValueW(hkey_p, wsub_key, wvalue, flags, nil, nil, buf_size)
+	local status = C.RegGetValueW(hkey_p, wsub_key, wvalue, flags, nil, nil, buf_size)
 	if status == 2 then -- ERROR_FILE_NOT_FOUND
 		return nil, "not found"
 	end
@@ -343,7 +367,7 @@ function winapi.get_reg_value(hkey, sub_key, value, flags)
 
 	local buf = ffi.new("unsigned char[?]", buf_size[0])
 
-	status = ffi.C.RegGetValueW(hkey_p, wsub_key, wvalue, flags, nil, buf, buf_size)
+	status = C.RegGetValueW(hkey_p, wsub_key, wvalue, flags, nil, buf, buf_size)
 	assert(status == 0)
 
 	return buf, buf_size[0]
