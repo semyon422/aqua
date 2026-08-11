@@ -7,7 +7,7 @@ local gfx_util = {}
 ---@param baseline number
 ---@param limit number
 ---@param scale number
----@param ax string
+---@param ax love.AlignMode
 function gfx_util.printBaseline(text, x, baseline, limit, scale, ax)
 	local font = love.graphics.getFont()
 
@@ -19,12 +19,12 @@ function gfx_util.printBaseline(text, x, baseline, limit, scale, ax)
 	end
 end
 
----@param drawable any
+---@param drawable love.Drawable|love.Image|love.Canvas
 ---@param x number
 ---@param y number
 ---@param w number
 ---@param h number
----@param locate string
+---@param locate "in"|"out"
 function gfx_util.drawFrame(drawable, x, y, w, h, locate)
 	local dw = drawable:getWidth()
 	local dh = drawable:getHeight()
@@ -47,8 +47,8 @@ end
 ---@param y number
 ---@param w number
 ---@param h number
----@param ax string
----@param ay string
+---@param ax love.AlignMode
+---@param ay "top"|"center"|"bottom"
 function gfx_util.printFrame(text, x, y, w, h, ax, ay)
 	if w < 0 then
 		x, w = w, -w
@@ -72,8 +72,8 @@ end
 
 -- https://love2d.org/wiki/Gradients
 
----@param dir string
----@param ... table
+---@param dir "horizontal"|"vertical"
+---@param ... number[]
 ---@return love.Mesh
 function gfx_util.newGradient(dir, ...)
 	local isHorizontal = true
@@ -88,10 +88,13 @@ function gfx_util.newGradient(dir, ...)
 		error("color list is less than two", 2)
 	end
 
+	---@type number[][]
 	local meshData = {}
 	if isHorizontal then
 		for i = 1, colorLen do
+			---@type number[]
 			local color = select(i, ...)
+			---@type number
 			local x = (i - 1) / (colorLen - 1)
 
 			meshData[#meshData + 1] = {x, 1, x, 1, unpack(color)}
@@ -99,7 +102,9 @@ function gfx_util.newGradient(dir, ...)
 		end
 	else
 		for i = 1, colorLen do
+			---@type number[]
 			local color = select(i, ...)
+			---@type number
 			local y = (i - 1) / (colorLen - 1)
 
 			meshData[#meshData + 1] = {1, y, 1, y, unpack(color)}
@@ -121,7 +126,9 @@ function gfx_util.newPixel(r, g, b, a)
 	return love.graphics.newImage(imageData)
 end
 
+---@type love.Transform|math.Transform?
 local transform
+---@type number[]
 local args = {}
 
 ---@param ... any
@@ -129,11 +136,13 @@ local args = {}
 function gfx_util.transform(...)
 	transform = transform or math_util.newTransform()
 
+	---@type any
 	local t = ...
 	if type(t) ~= "table" then
 		return transform:setTransformation(...)
 	end
 
+	---@cast t any[]
 	for i = 1, 9 do
 		local value = t[i]
 		if type(value) == "table" then
@@ -151,6 +160,7 @@ function gfx_util.transform(...)
 	return transform:setTransformation(unpack(args))
 end
 
+---@type {[any]: love.Canvas}
 local canvases = {}
 
 ---@param w number
@@ -177,6 +187,7 @@ function gfx_util.getCanvas(key)
 	return canvases[key]
 end
 
+---@type love.Shader?
 local colorShader1
 
 function gfx_util.setInverseColorScale()
@@ -189,15 +200,20 @@ function gfx_util.setInverseColorScale()
 	love.graphics.setShader(colorShader1)
 end
 
+---@type love.Shader?
 local colorShader2
 
----@param r number|table
+---@param r number|number[]
 ---@param g number?
 ---@param b number?
 ---@param a number?
 function gfx_util.setPixelColor(r, g, b, a)
+	---@type number[]
+	local color
 	if type(r) == "number" then
-		r = {r, g, b, a}
+		color = {r, assert(g), assert(b), a or 1}
+	else
+		color = r
 	end
 	colorShader2 = colorShader2 or love.graphics.newShader([[
 		extern vec4 pixel;
@@ -206,16 +222,18 @@ function gfx_util.setPixelColor(r, g, b, a)
 		}
 	]])
 	love.graphics.setShader(colorShader2)
-	colorShader2:send("pixel", r)
+	colorShader2:send("pixel", color)
 end
 
 ---@param offset number
 ---@param size number
----@param _w table
----@return table
----@return table
+---@param _w (number|"*")[]
+---@return number[] x
+---@return number[] widths
 function gfx_util.layout(offset, size, _w)
+	---@type number[]
 	local w = {}
+	---@type number[]
 	local x = {}
 
 	local piexls = 0
@@ -258,6 +276,7 @@ end
 ---@param imageData love.ImageData
 ---@return love.ImageData
 function gfx_util.limitImageData(imageData)
+	---@type number
 	local size = love.graphics.getSystemLimits().texturesize
 	local w, h = imageData:getDimensions()
 	if w <= size and h <= size then
