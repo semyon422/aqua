@@ -44,6 +44,7 @@ function test.all(t)
 	equals(1i ^ 1i, exp(-pi / 2))
 	equals(cmath.frompolar(1, pi / 2), 1i)
 
+	---@type number, number
 	local r, t = (1 + 1i):polar()
 	equals(r, sqrt(2))
 	equals(t, pi / 4)

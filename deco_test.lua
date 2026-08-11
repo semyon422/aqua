@@ -94,6 +94,7 @@ end
 
 ---@param t testing.T
 function test.type_annotations_are_local_to_function(t)
+	---@type boolean
 	local strict = typecheck.strict
 	typecheck.strict = false
 

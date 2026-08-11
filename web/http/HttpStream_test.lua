@@ -39,7 +39,11 @@ end
 ---@return string?
 ---@return string?
 function FakeTcpSocket:receive(pattern, prefix)
-	return self.soc:receive(pattern, prefix)
+	if prefix then
+		local data, err, partial = self.soc:receive(pattern)
+		return data and prefix .. data or data, err, partial
+	end
+	return self.soc:receive(pattern)
 end
 
 ---@param max integer
@@ -143,6 +147,7 @@ end
 ---@param t testing.T
 function test.download_without_content_length_reports_unknown_total(t)
 	local tcp_socket = new_tcp_socket("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\n")
+	---@type any[]?
 	local progress
 	local stream = HttpStream({
 		tcp_socket = tcp_socket --[[@as any]],

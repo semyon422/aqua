@@ -96,6 +96,7 @@ function pprint.dump(value, indent_level, visited)
 		end
 		visited[value] = true
 
+		---@type {__name: string?}?
 		local mt = getmetatable(value)
 		local name = mt and mt.__name
 

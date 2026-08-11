@@ -13,6 +13,7 @@ stbl.allow_nan_inf = false
 
 stbl.space = ""
 
+---@type {[string]: fun(...: any): string}
 stbl.enc = {}
 
 ---@param v number
