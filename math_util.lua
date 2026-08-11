@@ -36,7 +36,11 @@ end
 ---@return boolean
 function math_util.belong(x, a, b)
 	if b < a then
-		a, b = b, a
+		local lower = b
+		b = a
+		-- LuaLS 3.19 loses the annotated numeric parameter type after branch reassignment.
+		---@diagnostic disable-next-line: no-unknown
+		a = lower
 	end
 	return a <= x and x <= b
 end
@@ -59,17 +63,18 @@ function math_util.clamp(x, a, b)
 	return math.min(math.max(x, a), b)
 end
 
----@param l table
----@param f function
+---@param l number[]
+---@param f fun(value: number): number
 function math_util.lmap(l, f)
 	for i = 1, #l do
 		l[i] = f(l[i])
 	end
 end
 
----@param list number
----@param weights table
----@return any?
+---@generic T
+---@param list T[]
+---@param weights number[]
+---@return T?
 ---@return number?
 function math_util.weighted_median(list, weights)
 	local sum = 0
@@ -96,8 +101,18 @@ end
 ---@param d number
 ---@return boolean
 function math_util.intersect1(a, b, c, d)
-	if a > b then a, b = b, a end
-	if c > d then c, d = d, c end
+	if a > b then
+		local lower = b
+		b = a
+		---@diagnostic disable-next-line: no-unknown
+		a = lower
+	end
+	if c > d then
+		local lower = d
+		d = c
+		---@diagnostic disable-next-line: no-unknown
+		c = lower
+	end
 	return math.max(a, c) <= math.min(b, d)
 end
 
@@ -130,8 +145,8 @@ function math_util.intersect(a_x, a_y, b_x, b_y, c_x, c_y, d_x, d_y)
 		and math_util.intersect1(a_y, b_y, c_y, d_y)
 end
 
----@param s table
----@param c table
+---@param s number[]
+---@param c number[]
 ---@return boolean
 function math_util.intersect2(s, c)
 	local S, C = #s / 2 - 1, #c / 2 - 1
@@ -162,12 +177,13 @@ end
 
 -- https://ru.wikibooks.org/wiki/Реализации_алгоритмов/Задача_о_принадлежности_точки_многоугольнику
 
----@param p table
+---@param p number[]
 ---@param x number
 ---@param y number
 ---@return boolean
 function math_util.isPointInsidePolygon(p, x, y)
 	local flag = false
+	---@type integer, integer, number, number, number, number
 	local i1, i2, S, S1, S2, S3
 	local N = #p / 2
 	for n = 0, N - 1 do
@@ -210,9 +226,10 @@ function math_util.isPointInsidePolygon(p, x, y)
 end
 
 ---https://www.lua.org/pil/9.3.htm
----@param a table
----@param n number
----@param t number
+---@generic T
+---@param a T[]
+---@param n integer
+---@param t integer
 local function permgen(a, n, t)
 	if n == 0 then
 		coroutine.yield(a, t)
@@ -225,8 +242,9 @@ local function permgen(a, n, t)
 	end
 end
 
----@param a table
----@return function
+---@generic T
+---@param a T[]
+---@return fun(): T[], integer
 function math_util.permutations(a)
 	return coroutine.wrap(function() permgen(a, #a, 0) end)
 end
