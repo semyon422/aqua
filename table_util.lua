@@ -303,7 +303,9 @@ end
 ---@param f fun(v: T): boolean
 ---@return T?
 function table_util.find(t, f)
-	for i, v in ipairs(t) do
+	-- LuaLS 3.19 loses generic array value types through ipairs().
+	---@diagnostic disable-next-line: no-unknown
+	for _, v in ipairs(t) do
 		if f(v) then
 			return v
 		end
@@ -429,6 +431,8 @@ function table_util.to_array(head, unlink)
 			head.prev = nil
 			head.next = nil
 		end
+		-- LuaLS 3.19 loses the linked-node type on loop reassignment.
+		---@diagnostic disable-next-line: no-unknown
 		head = _next
 	end
 	return t

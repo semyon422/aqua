@@ -42,6 +42,8 @@ function path_util.ext(name, lower)
 	---@type string?
 	local ext = name:match("^.+%.(.-)$")
 	if ext and lower then
+		-- LuaLS 3.19 loses the narrowed string type on branch reassignment.
+		---@diagnostic disable-next-line: no-unknown
 		ext = ext:lower()
 	end
 	return ext

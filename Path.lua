@@ -46,6 +46,8 @@ function Path:getName(without_extension)
 	local name = last.name
 
 	if last.isHidden and name:len() > 1 and name ~= ".." then
+		-- LuaLS 3.19 loses the string type on branch reassignment.
+		---@diagnostic disable-next-line: no-unknown
 		name = name:sub(2, #name)
 	end
 
