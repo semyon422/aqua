@@ -60,7 +60,7 @@ local function type_of_instance(T, t)
 	return type_of_class(T, _T)
 end
 
----@param p table
+---@param p table?
 ---@param t table?
 ---@return table
 local function class(p, t)

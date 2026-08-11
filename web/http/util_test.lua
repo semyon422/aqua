@@ -35,6 +35,8 @@ end
 ---@return string?
 ---@return string?
 function FakeTcpSocket:receive(pattern, prefix)
+	-- StringSocket intentionally ignores LuaSocket's optional prefix argument.
+	---@diagnostic disable-next-line: redundant-parameter
 	return self.soc:receive(pattern, prefix)
 end
 
