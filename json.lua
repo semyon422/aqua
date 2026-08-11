@@ -132,10 +132,13 @@ local function encode_value(value, stack, depth, indent)
 	end
 	stack[value] = true
 
+	---@type string[]
 	local parts = {}
 	if infer_table_type(value) == "array" then
 		local size = 0
 		local count = 0
+		-- LuaLS 3.19 does not preserve narrowed table key types through pairs().
+		---@diagnostic disable-next-line: no-unknown
 		for key in pairs(value) do
 			if type(key) ~= "number" or key % 1 ~= 0 or key < 1 then
 				error("JSON arrays must use contiguous positive integer keys")
@@ -159,6 +162,8 @@ local function encode_value(value, stack, depth, indent)
 
 	---@type string[]
 	local keys = {}
+	-- LuaLS 3.19 does not preserve narrowed table key types through pairs().
+	---@diagnostic disable-next-line: no-unknown
 	for key in pairs(value) do
 		if type(key) ~= "string" then
 			error("JSON object keys must be strings")
@@ -319,6 +324,7 @@ function Parser:parseString()
 		end
 	end
 	self:error("unterminated string")
+	error("unreachable")
 end
 
 ---@return number
@@ -386,6 +392,7 @@ end
 ---@return any
 function Parser:parseArray(depth)
 	self.index = self.index + 1
+	---@type any[]
 	local result = json.array()
 	self:skipWhitespace()
 	if self.source:sub(self.index, self.index) == "]" then
@@ -412,6 +419,7 @@ end
 ---@return table
 function Parser:parseObject(depth)
 	self.index = self.index + 1
+	---@type {[string]: any}
 	local result = json.object()
 	self:skipWhitespace()
 	if self.source:sub(self.index, self.index) == "}" then
