@@ -4,6 +4,7 @@ local FakeSharedDict = require("web.nginx.FakeSharedDict")
 
 ---@class web.SharedMemory
 ---@operator call: web.SharedMemory
+---@field dicts {[string]: web.ISharedDict}
 local SharedMemory = class()
 
 function SharedMemory:new()
@@ -17,6 +18,7 @@ function SharedMemory:get(name)
 		return self.dicts[name]
 	end
 
+	---@type web.ISharedDict
 	local dict
 	if ngx and ngx.shared then
 		local ngx_dict = ngx.shared[name]

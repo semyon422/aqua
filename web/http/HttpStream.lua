@@ -162,6 +162,7 @@ function HttpStream:sendChunks(chunks)
 
 	local index = 0
 	while true do
+		---@type string?
 		local chunk
 		if type(chunks) == "function" then
 			chunk = chunks()

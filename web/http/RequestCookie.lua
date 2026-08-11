@@ -1,5 +1,6 @@
 local class = require("class")
 local table_util = require("table_util")
+---@type {escape: fun(value: string): string, unescape: fun(value: string): string}
 local socket_url = require("socket.url")
 
 -- Cookie header
@@ -54,6 +55,7 @@ end
 ---@return string
 function RequestCookie:__tostring()
 	local cookie, keys = self.cookie, self.keys
+	---@type string[]
 	local out = {}
 	for _, key in ipairs(keys) do
 		local name, value = socket_url.escape(key), socket_url.escape(cookie[key])

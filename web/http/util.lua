@@ -1,3 +1,4 @@
+---@type {escape: fun(value: string): string, unescape: fun(value: string): string}
 local socket_url = require("socket.url")
 local path_util = require("path_util")
 local table_util = require("table_util")

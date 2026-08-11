@@ -48,6 +48,7 @@ end
 ---@return {[web.HttpMethod]: string}?
 function Router:getResource(path, host)
 	-- Build matching passes: domain-restricted first, then unrestricted
+	---@type (fun(domains: string[]?): boolean)[]
 	local passes = {}
 	if host then
 		table.insert(passes, function(domains) return domains and #domains > 0 and self:domain_match(host, domains) end)

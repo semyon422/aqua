@@ -1,5 +1,6 @@
 local class = require("class")
 local json = require("web.json")
+---@type {b64: fun(value: string): string, unb64: fun(value: string): string?}
 local mime = require("mime")
 local random = require("web.random")
 local RequestCookie = require("web.http.RequestCookie")
@@ -58,6 +59,7 @@ end
 ---@return table?
 ---@return string?
 function Sessions:decode(session_string)
+	---@type string?, string?
 	local message_b64, signature = session_string:match("^(.*)%.(.*)$")
 	if not message_b64 then
 		return nil, "invalid format"
@@ -67,12 +69,14 @@ function Sessions:decode(session_string)
 		return nil, "invalid signature"
 	end
 
+	---@type string?
 	local message = mime.unb64(message_b64)
 	if not message then
 		return nil, "invalid message"
 	end
 
 	local ok, session = pcall(json.decode, message)
+	---@cast session table
 	if not ok then
 		return nil, "invalid json"
 	end

@@ -164,6 +164,7 @@ function WebsocketConnection:releaseWriter()
 	while waiters[1] do
 		local co = table.remove(waiters, 1)
 		if coroutine.status(co) ~= "dead" then
+			---@type boolean, any
 			local ok, err
 			if self.closed then
 				ok, err = coroutine.resume(co, nil, "closed")

@@ -1,4 +1,5 @@
 local class = require("class")
+---@type {b64: fun(value: string): string}
 local mime = require("mime")
 local Subprotocol = require("web.ws.Subprotocol")
 local WebsocketFrame = require("web.ws.WebsocketFrame")

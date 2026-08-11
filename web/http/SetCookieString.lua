@@ -1,4 +1,5 @@
 local class = require("class")
+---@type {escape: fun(value: string): string}
 local socket_url = require("socket.url")
 local CookieDate = require("web.http.CookieDate")
 
