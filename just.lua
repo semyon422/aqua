@@ -6,16 +6,64 @@ local just = {}
 
 just.callbacks = {}
 
-local mouse, keyinput
-local focused_id, catched_id, over_id
-local hover_ids, next_hover_ids
-local key_stack, next_key_stack
-local containers, container_overs
-local zindexes, last_zindex
-local line_c, line_h, line_w
-local is_row, is_sameline
+---@class just.InputState
+---@field down {[any]: boolean}
+---@field pressed {[any]: boolean}
+---@field released {[any]: boolean}
+
+---@class just.MouseState: just.InputState
+---@field scroll_delta number
+---@field captured boolean
+
+---@class just.LineState
+---@field c number
+---@field h number
+---@field w number
+---@field is_row boolean
+---@field is_sameline boolean
+---@field height number
+
+---@type just.MouseState
+local mouse
+---@type {[string]: {[any]: just.InputState}}
+local keyinput
+---@type any
+local focused_id
+---@type any
+local catched_id
+---@type any
+local over_id
+---@type {[string]: any}
+local hover_ids
+---@type {[string]: any}
+local next_hover_ids
+---@type any[]
+local key_stack
+---@type any[]
+local next_key_stack
+---@type any[]
+local containers
+---@type boolean[]
+local container_overs
+---@type {[any]: integer}
+local zindexes
+---@type integer
+local last_zindex
+---@type number
+local line_c
+---@type number
+local line_h
+---@type number
+local line_w
+---@type boolean
+local is_row
+---@type boolean
+local is_sameline
+---@type just.LineState[]
 local line_stack
+---@type string
 local textinput
+---@type number[]?
 local selection
 
 local devices = {"keyboard", "gamepad", "joystick", "midi"}
@@ -84,7 +132,8 @@ end
 
 function just.pop()
 	love.graphics.pop()
-	local state = table.remove(line_stack)
+	---@type just.LineState
+	local state = assert(table.remove(line_stack))
 	line_c = state.c
 	line_h = state.h
 	line_w = state.w
@@ -148,6 +197,7 @@ function just.select(a_x, a_y, b_x, b_y)
 	math_util.lmap(s, math.floor)
 end
 
+---@type number[]
 local selectable = {}
 
 ---@param w number
@@ -242,10 +292,21 @@ function just.text(text, limit, right)
 	return limit or w, h
 end
 
-local push_stencil, pop_stencil, reset_stencil, stencilfunction
+---@type fun(sf: function, ...: any): integer
+local push_stencil
+---@type fun()
+local pop_stencil
+---@type fun()
+local reset_stencil
+---@type fun(): any
+local stencilfunction
 do
+	---@type {[1]: function, [2]: {n: integer, [integer]: any}}[]
 	local stack = {}
-	local sf, args
+	---@type function?
+	local sf
+	---@type {n: integer, [integer]: any}
+	local args
 	function reset_stencil()
 		stack = {}
 		sf, args = nil, {n = 0}
@@ -258,18 +319,21 @@ do
 		return #stack
 	end
 	function pop_stencil()
+		---@type {[1]: function, [2]: {n: integer, [integer]: any}}?
 		local s = table.remove(stack)
 		if not s then
 			sf = nil
 			return
 		end
-		sf, args = unpack(s)
+		sf = s[1]
+		args = s[2]
 	end
 	function stencilfunction()
-		return sf(unpack(args, 1, args.n))
+		return assert(sf)(unpack(args, 1, args.n))
 	end
 end
 
+---@param stencil_fn function
 ---@param action string
 ---@param value number
 local function draw_stencil(stencil_fn, action, value)
@@ -297,7 +361,7 @@ function just.clip(sf, ...)
 	love.graphics.setStencilState("keep", "greater", layer)
 end
 
----@param t table
+---@param t {[any]: any}
 local function clear_table(t)
 	for k in pairs(t) do
 		t[k] = nil
@@ -386,6 +450,7 @@ function just.callbacks.inputchanged(device, id, key, state)
 end
 
 ---@nocheck
+---@param text string
 function just.callbacks.textinput(text)
 	textinput = textinput .. text
 end
@@ -480,6 +545,7 @@ function just.button(id, over, button)
 	local active = over and same_id and down
 	local hovered = over and (same_id or not down)
 
+	---@type integer?
 	local changed
 	if same_id and not down then
 		changed = over and same_id and button
@@ -581,13 +647,13 @@ end
 ---@return string
 ---@return number
 local function text_remove(text, index, forward)
-	local _
 	local left, right = text_split(text, index)
 
 	if forward then
-		_, right = text_split(right, 2)
+		local _, new_right = text_split(right, 2)
+		right = new_right
 	else
-		left, _ = text_split(left, utf8.len(left))
+		left = text_split(left, utf8.len(left))
 		index = math.max(1, index - 1)
 	end
 
