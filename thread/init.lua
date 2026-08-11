@@ -9,14 +9,18 @@ thread.ThreadPool = ThreadPool
 
 thread.shared = ThreadPool.synctable
 
+---@type {[thread]: true}
 thread.coroutines = {}
 thread.total = 0
 thread.current = 0
 
+---@class thread.PackedValues: {n: integer}
+---@field [integer] any
+
 ---@class thread.Future
 ---@field done boolean
 ---@field waiting thread?
----@field result any[]?
+---@field result thread.PackedValues?
 
 function thread.unload()
 	return ThreadPool:unload()
@@ -78,6 +82,7 @@ end
 ---@return any?...
 local function run(f, ...)
 	local c = assert(coroutine.running(), "attempt to yield from outside a coroutine")
+	---@type thread.PackedValues
 	local args = {n = select("#", ...), ...}
 	runThread(f, args, function(...)
 		assert(coroutine.resume(c, ...))
@@ -93,9 +98,11 @@ local function start(f, ...)
 	local future = {
 		done = false,
 	}
+	---@type thread.PackedValues
 	local args = {n = select("#", ...), ...}
 	runThread(f, args, function(...)
 		future.done = true
+		---@type thread.PackedValues
 		future.result = {n = select("#", ...), ...}
 		if future.waiting then
 			assert(coroutine.resume(future.waiting))

@@ -2,17 +2,34 @@ local class = require("class")
 local synctable = require("synctable")
 local LoveThread = require("thread.LoveThread")
 
+---@class thread.IWorkerThread
+---@field getError fun(self: thread.IWorkerThread): string?
+---@field pop fun(self: thread.IWorkerThread): thread.Event?
+---@field push fun(self: thread.IWorkerThread, event: thread.Event)
+---@field isRunning fun(self: thread.IWorkerThread): boolean
+---@field start fun(self: thread.IWorkerThread)
+
+---@class thread.Event: {n: integer?}
+---@field name "result"|"synctable"|"loadstring"|"init"|"stop"
+---@field codestring function|string?
+---@field args table?
+---@field [integer] any
+
 ---@class thread.Thread
 ---@operator call: thread.Thread
+---@field id integer
+---@field synctable table
+---@field thread thread.IWorkerThread
+---@field task thread.Task
 local Thread = class()
 
 Thread.idle = true
 Thread.lockSync = false
 Thread.lastTime = 0
 
----@param id number
+---@param id integer
 ---@param synct table
----@param love_thread table?
+---@param love_thread thread.IWorkerThread?
 function Thread:new(id, synct, love_thread)
 	self.id = id
 	self.synctable = synct
@@ -59,7 +76,7 @@ function Thread:updateLastTime(time)
 	self.lastTime = time
 end
 
----@param task table
+---@param task thread.Task
 function Thread:execute(task)
 	self.idle = false
 	self.task = task

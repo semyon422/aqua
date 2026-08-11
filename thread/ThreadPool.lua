@@ -10,9 +10,13 @@ local ThreadPool = {}
 ---@field trace string
 ---@field name string
 
+---@class thread.IManagedThread
+---@field isRunning fun(self: thread.IManagedThread): boolean
+---@field stop (fun(self: thread.IManagedThread))?
+
 ---@class thread.ManagedThread
 ---@field name string
----@field thread {isRunning: fun(self: any): boolean, stop: fun(self: any)?}
+---@field thread thread.IManagedThread
 ---@field stop_with_pool boolean
 
 local function getLoveTimerNow()
@@ -53,7 +57,7 @@ ThreadPool.synctable = synctable.new(_synctable, function(...)
 	end
 end)
 
----@param task table
+---@param task thread.Task
 function ThreadPool:execute(task)
 	if not self.loaded then
 		return
@@ -84,7 +88,7 @@ end
 
 ---@param id any
 ---@param name string
----@param managed_thread thread.ManagedThread.thread
+---@param managed_thread thread.IManagedThread
 ---@param stop_with_pool boolean?
 function ThreadPool:registerManagedThread(id, name, managed_thread, stop_with_pool)
 	self.managedThreads[id] = {
@@ -195,6 +199,7 @@ end
 
 ---@return thread.Thread?
 function ThreadPool:getIdleThread()
+	---@type thread.Thread?
 	local thread
 	for i = 1, self.poolSize do
 		thread = self.threads[i]
@@ -213,6 +218,7 @@ end
 ---@param id number
 ---@return thread.Thread
 function ThreadPool:createThread(id)
+	---@type integer
 	local _id = self.lastThreadId + 1
 	self.lastThreadId = _id
 	local thread = Thread(_id, ThreadPool.synctable)

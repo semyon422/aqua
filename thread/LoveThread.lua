@@ -1,5 +1,6 @@
 local class = require("class")
 
+---@type string?
 local codestring
 
 ---@param id number
@@ -7,7 +8,7 @@ local codestring
 local function getCodeString(id)
 	if not codestring then
 		local path = "aqua/thread/threadcode.lua"
-		codestring = love.filesystem.read(path)
+		codestring = assert(love.filesystem.read(path))
 	end
 	return (codestring:gsub('"<threadId>"', id))
 end
