@@ -8,6 +8,27 @@ local SubscriptionClient = require("ai.openai.SubscriptionClient")
 local ProxyNetwork = require("ai.openai.ProxyNetwork")
 local ProxyServer = require("ai.openai.ProxyServer")
 
+---@class aqua.openai.ProxyConfig
+---@field auth_path string?
+---@field upstream_timeout number?
+---@field tls_cafile string?
+---@field network_path string?
+---@field users aqua.openai.ProxyUser[]
+---@field models string[]
+---@field max_body_size integer?
+---@field client_timeout number?
+---@field max_clients integer?
+---@field max_concurrent_requests_per_user integer?
+---@field max_requests_per_minute integer?
+---@field reasoning_effort aqua.openai.ReasoningEffort?
+---@field verbosity "low"|"medium"|"high"?
+---@field max_response_size integer?
+---@field host string?
+---@field port integer?
+
+---@class aqua.openai.NetworkConfig
+---@field socks5 aqua.openai.Socks5Config?
+
 local command = "serve"
 local config_path = arg[1] or "userdata/ai_proxy.lua"
 if arg[1] == "login" or arg[1] == "--login" then
@@ -26,6 +47,7 @@ end
 
 local config_loader, config_err = loadfile(config_path)
 assert(config_loader, ("failed to load proxy config %s: %s"):format(config_path, tostring(config_err)))
+---@type aqua.openai.ProxyConfig
 local config = config_loader()
 assert(type(config) == "table", "proxy config must return a table")
 
@@ -33,15 +55,19 @@ local auth_path = config.auth_path or "userdata/ai_auth.lua"
 
 ---@return aqua.openai.SubscriptionCredentials
 local function loadCredentials()
+	---@type {[string]: any}
 	local credentials = {}
 	local file = io.open(auth_path, "rb")
 	if file then
 		file:close()
 		local auth_loader, auth_err = loadfile(auth_path)
 		assert(auth_loader, ("failed to load subscription auth %s: %s"):format(auth_path, tostring(auth_err)))
-		credentials = auth_loader()
+		---@type {[string]: any}
+		local loaded_credentials = auth_loader()
+		credentials = loaded_credentials
 		assert(type(credentials) == "table", "subscription auth must return a table")
 	end
+	---@type {[string]: string|integer}
 	local defaults = {access_token = "", refresh_token = "", expires_at = 0, account_id = ""}
 	for key, default in pairs(defaults) do
 		if credentials[key] == nil then credentials[key] = default end
@@ -67,6 +93,7 @@ local ssl_params = {
 local network_path = config.network_path or "userdata/network.lua"
 local network_loader, network_err = loadfile(network_path)
 assert(network_loader, ("failed to load network config %s: %s"):format(network_path, tostring(network_err)))
+---@type aqua.openai.NetworkConfig
 local network_config = network_loader()
 assert(type(network_config) == "table", "network config must return a table")
 local network = ProxyNetwork({
@@ -132,7 +159,9 @@ local function runThread(thread)
 end
 
 if command == "login" then
+	---@type boolean?
 	local login_ok
+	---@type string?
 	local login_err
 	runThread(coroutine.create(function()
 		login_ok, login_err = auth:loginWithDeviceCode(function(device_code)
@@ -162,7 +191,8 @@ end
 assert(auth:isAuthenticated(),
 	"OpenAI subscription login is required; run ./luajit aqua/ai/openai/proxy.lua login " .. config_path)
 
-for _, user in ipairs(assert(config.users, "proxy users are required")) do
+local users = assert(config.users, "proxy users are required")
+for _, user in ipairs(users) do
 	assert(type(user.access_token) == "string" and #user.access_token >= 32,
 		"proxy user access tokens must contain at least 32 characters")
 	assert(user.access_token ~= "replace-with-a-long-random-token",
@@ -182,7 +212,7 @@ local shared_auth = {
 
 local server = ProxyServer({
 	scheduler = scheduler,
-	users = assert(config.users, "proxy users are required"),
+	users = users,
 	models = assert(config.models, "proxy models are required"),
 	max_body_size = config.max_body_size,
 	client_timeout = config.client_timeout,
@@ -190,16 +220,18 @@ local server = ProxyServer({
 	max_concurrent_requests_per_user = config.max_concurrent_requests_per_user,
 	max_requests_per_minute = config.max_requests_per_minute,
 	create_client = function(model, reasoning_effort, request_options)
+		---@type aqua.openai.ProxyRequestOptions
+		local client_options = request_options
 		return SubscriptionClient({
 			auth = shared_auth --[[@as aqua.openai.SubscriptionAuth]],
 			model = model,
 			reasoning_effort = reasoning_effort or config.reasoning_effort or "medium",
-			prompt_cache_key = request_options.prompt_cache_key,
-			prompt_cache_options = request_options.prompt_cache_options,
-			tool_choice = request_options.tool_choice,
-			parallel_tool_calls = request_options.parallel_tool_calls,
-			verbosity = request_options.verbosity or config.verbosity or "low",
-			text_format = request_options.text_format,
+			prompt_cache_key = client_options.prompt_cache_key,
+			prompt_cache_options = client_options.prompt_cache_options,
+			tool_choice = client_options.tool_choice,
+			parallel_tool_calls = client_options.parallel_tool_calls,
+			verbosity = client_options.verbosity or config.verbosity or "low",
+			text_format = client_options.text_format,
 			max_response_size = config.max_response_size,
 			timeout = upstream_timeout,
 			open_stream = openStream,
