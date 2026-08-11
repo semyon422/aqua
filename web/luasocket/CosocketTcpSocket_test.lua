@@ -1,13 +1,48 @@
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local CosocketTcpSocket = require("web.luasocket.CosocketTcpSocket")
 local table_util = require("table_util")
+---@type {gettime: fun(): number, tcp: fun(): test.LuaTcpSocket, tcp4: fun(): test.LuaTcpSocket}
 local socket = require("socket")
 
 local test = {}
 
+---@class tcp_test.SelectCall
+---@field recvt table[]
+---@field sendt table[]
+---@field timeout number?
+
+---@class tcp_test.SelectMock
+---@field ready_read table[]
+---@field ready_write table[]
+---@field calls tcp_test.SelectCall[]
+
+---@class test.LuaTcpSocket
+---@field setoption fun(self: test.LuaTcpSocket, option: string, value: any): integer?
+---@field bind fun(self: test.LuaTcpSocket, host: string, port: integer): integer?
+---@field listen fun(self: test.LuaTcpSocket, backlog: integer): integer?
+---@field settimeout fun(self: test.LuaTcpSocket, timeout: number): integer?
+---@field getsockname fun(self: test.LuaTcpSocket): string, integer
+---@field accept fun(self: test.LuaTcpSocket): test.LuaTcpSocket?, string?
+---@field receive fun(self: test.LuaTcpSocket, pattern: integer|string): string?, string?, string?
+---@field send fun(self: test.LuaTcpSocket, data: string): integer?, string?, integer?
+---@field close fun(self: test.LuaTcpSocket): integer?
+
+---@class test.FakeSocket
+---@field connect_returns any[][]
+---@field receive_returns any[][]
+---@field send_returns any[][]
+---@field handshake_returns any[][]
+---@field receive_calls any[][]
+---@field send_calls any[][]
+---@field handshake_calls integer
+---@field timeout number?
+---@field closed boolean
+---@field connect_host string?
+---@field connect_port integer?
 local FakeSocket = {}
 FakeSocket.__index = FakeSocket
 
+---@return test.FakeSocket
 function FakeSocket:new()
 	return setmetatable({
 		connect_returns = {},
@@ -57,6 +92,8 @@ function FakeSocket:close()
 	return 1
 end
 
+---@return tcp_test.SelectMock
+---@return fun(recvt: table[], sendt: table[], timeout: number?): table[], table[]
 local function new_select_mock()
 	local mock = {
 		ready_read = {},
@@ -76,6 +113,11 @@ local function new_select_mock()
 	return mock, select_func
 end
 
+---@return web.CosocketTcpSocket
+---@return test.FakeSocket
+---@return web.CosocketScheduler
+---@return tcp_test.SelectMock
+---@return number[]
 local function new_socket()
 	local mock, select_func = new_select_mock()
 	local time = {0}
@@ -113,6 +155,7 @@ function test.connect_waits_for_write_readiness(t)
 		{1},
 	}
 
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {tcp_socket:connect("example.test", 1234)}
@@ -137,6 +180,7 @@ function test.connect_times_out(t)
 		table_util.pack(nil, "timeout"),
 	}
 
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {tcp_socket:connect("example.test", 1234)}
@@ -160,6 +204,7 @@ function test.receive_waits_and_preserves_partial(t)
 		{"abcd"},
 	}
 
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {tcp_socket:receive(4)}
@@ -204,6 +249,7 @@ function test.receiveany_waits_when_no_data_is_available(t)
 		table_util.pack(nil, "timeout", "ab"),
 	}
 
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {tcp_socket:receiveany(4096)}
@@ -224,6 +270,7 @@ function test.send_waits_and_continues_after_partial(t)
 		{5},
 	}
 
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {tcp_socket:send("abcde")}
@@ -247,6 +294,7 @@ function test.send_waits_for_read_on_wantread(t)
 		{3},
 	}
 
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {tcp_socket:send("abc")}
@@ -268,6 +316,7 @@ function test.sslhandshake_waits_for_read_and_write(t)
 		{1},
 	}
 
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {tcp_socket:sslhandshake()}
@@ -299,6 +348,7 @@ function test.sslhandshake_times_out(t)
 		table_util.pack(nil, "wantread"),
 	}
 
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {tcp_socket:sslhandshake()}
@@ -347,6 +397,7 @@ function test.close_wakes_waiter(t)
 		table_util.pack(nil, "timeout", ""),
 	}
 
+	---@type any[]?
 	local result
 	local co = coroutine.create(function()
 		result = {tcp_socket:receive(1)}
@@ -363,32 +414,34 @@ end
 
 ---@param t testing.T
 function test.real_tcp_connect_send_receive(t)
+	---@type test.LuaTcpSocket
 	local server = assert(socket.tcp4 and socket.tcp4() or socket.tcp())
 	assert(server:setoption("reuseaddr", true))
 	assert(server:bind("127.0.0.1", 0))
 	assert(server:listen(1))
 	assert(server:settimeout(0))
 
-	local _ip, port = server:getsockname()
+	local _, port = server:getsockname()
 
 	local scheduler = CosocketScheduler()
 	local client = CosocketTcpSocket(scheduler, 4)
 
-	---@type TCPSocket?
+	---@type test.LuaTcpSocket?
 	local peer
 	local function accept_peer()
 		if peer then
 			return
 		end
-		local _peer, err = server:accept()
-		if _peer then
-			peer = _peer
+		local accepted_peer, err = server:accept()
+		if accepted_peer then
+			peer = accepted_peer
 			assert(peer:settimeout(0))
 		elseif err ~= "timeout" then
 			error(err)
 		end
 	end
 
+	---@type any[]?
 	local connect_result
 	local connect_co = coroutine.create(function()
 		connect_result = {client:connect("127.0.0.1", port)}
@@ -402,6 +455,7 @@ function test.real_tcp_connect_send_receive(t)
 	t:tdeq(connect_result, {1})
 	t:assert(peer)
 
+	---@type any[]?
 	local send_result
 	local send_co = coroutine.create(function()
 		send_result = {client:send("hello")}
@@ -414,6 +468,7 @@ function test.real_tcp_connect_send_receive(t)
 
 	t:tdeq(send_result, {5})
 
+	---@type string?
 	local server_data
 	pump_until(t, scheduler, function()
 		local data, err = peer:receive(5)
@@ -427,6 +482,7 @@ function test.real_tcp_connect_send_receive(t)
 	end)
 	t:eq(server_data, "hello")
 
+	---@type any[]?
 	local receive_result
 	local receive_co = coroutine.create(function()
 		receive_result = {client:receive(5)}
