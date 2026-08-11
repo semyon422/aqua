@@ -6,43 +6,44 @@ assert(tokenizer_path and tokenizer_path ~= "", "tokenizer path required")
 local tok = assert(needle.load_tokenizer(tokenizer_path))
 local eos_token_id = 1
 
-local tools_json = '[{"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location","unit"]}},{"name":"set_timer","parameters":{"type":"object","properties":{"minutes":{"type":"number"}},"required":["minutes"]}}]'
+local tools_json =
+'[{"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location","unit"]}},{"name":"set_timer","parameters":{"type":"object","properties":{"minutes":{"type":"number"}},"required":["minutes"]}}]'
 
 local function token_id_for_text(text)
-  for id = 0, tok:vocab_size() - 1 do
-    if tok:token_text(id) == text then
-      return id
-    end
-  end
-  return nil
+	for id = 0, tok:vocab_size() - 1 do
+		if tok:token_text(id) == text then
+			return id
+		end
+	end
+	return nil
 end
 
 local function as_set(values)
-  local out = {}
-  for _, value in ipairs(values or {}) do
-    out[value] = true
-  end
-  return out
+	local out = {}
+	for _, value in ipairs(values or {}) do
+		out[value] = true
+	end
+	return out
 end
 
 local function has_token_start(values, ch)
-  for _, id in ipairs(values or {}) do
-    if tok:token_text(id):sub(1, 1) == ch then
-      return true
-    end
-  end
-  return false
+	for _, id in ipairs(values or {}) do
+		if tok:token_text(id):sub(1, 1) == ch then
+			return true
+		end
+	end
+	return false
 end
 
 local function sync_allowed(text)
-  local constraints = assert(needle.build_tool_call_constraints(tools_json, tok, { eos_token_id = eos_token_id }))
-  constraints:sync(assert(tok:encode(text)))
-  return constraints:allowed_token_ids()
+	local constraints = assert(needle.build_tool_call_constraints(tools_json, tok, {eos_token_id = eos_token_id}))
+	constraints:sync(assert(tok:encode(text)))
+	return constraints:allowed_token_ids()
 end
 
 local function assert_only_eos(values, label)
-  assert(values ~= nil, label .. " should fail closed")
-  assert(#values == 1 and values[1] == eos_token_id, label .. " should allow only EOS")
+	assert(values ~= nil, label .. " should fail closed")
+	assert(#values == 1 and values[1] == eos_token_id, label .. " should allow only EOS")
 end
 
 assert_only_eos(sync_allowed('[{"name":"get_x'), "unknown tool-name prefix")
@@ -67,7 +68,7 @@ local missing_required_allowed = assert(sync_allowed('[{"name":"get_weather","ar
 assert(not has_token_start(missing_required_allowed, "}"), "required enum key should prevent early object close")
 
 assert(sync_allowed('[{"name":"set_timer","arguments":{"minutes":5') == nil,
-  "primitive number should remain model-decoded until its delimiter")
+	"primitive number should remain model-decoded until its delimiter")
 
 tok:close()
 print("test_constraints_malformed.lua: ok")

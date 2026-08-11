@@ -11,7 +11,7 @@ assert(ctx:last_error_info().name == "IO", "expected named IO error")
 ctx:close()
 
 local ok, closed_err = pcall(function()
-  return ctx:info()
+	return ctx:info()
 end)
 assert(not ok and tostring(closed_err):match("needle context is closed"), "closed context should fail clearly")
 

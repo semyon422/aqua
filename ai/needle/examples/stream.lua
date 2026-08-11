@@ -34,33 +34,33 @@ local tools_json = os.getenv("NEEDLE_TOOLS") or [[
 
 local ctx, err = needle.load(model_path)
 if not ctx or not ctx:is_loaded() then
-  error(("load failed [%s]: %s"):format(err and err.name or "UNKNOWN", err and err.message or ""))
+	error(("load failed [%s]: %s"):format(err and err.name or "UNKNOWN", err and err.message or ""))
 end
 
 local chunks = {}
 local token_count = 0
 local start = os.clock()
 local text, gen_err = ctx:generate_stream(query, tools_json, function(chunk)
-  chunks[#chunks + 1] = chunk
-  io.write(chunk)
-  io.flush()
-  return true
+	chunks[#chunks + 1] = chunk
+	io.write(chunk)
+	io.flush()
+	return true
 end, {
-  tokenizer_path = tokenizer_path,
-  max_new_tokens = 32,
-  constrained = true,
-  use_cache = true,
-  on_token = function()
-    token_count = token_count + 1
-    return true
-  end,
+	tokenizer_path = tokenizer_path,
+	max_new_tokens = 32,
+	constrained = true,
+	use_cache = true,
+	on_token = function()
+		token_count = token_count + 1
+		return true
+	end,
 })
 local elapsed = os.clock() - start
 io.write("\n")
 
 if not text then
-  ctx:close()
-  error(("generate failed [%s]: %s"):format(gen_err.name, gen_err.message))
+	ctx:close()
+	error(("generate failed [%s]: %s"):format(gen_err.name, gen_err.message))
 end
 
 ctx:close()

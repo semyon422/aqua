@@ -8,11 +8,11 @@ assert(q8_model and q8_model ~= "", "q8 model path required")
 assert(tokenizer_path and tokenizer_path ~= "", "tokenizer path required")
 
 local function same(a, b)
-  if #a ~= #b then return false end
-  for i = 1, #a do
-    if a[i] ~= b[i] then return false end
-  end
-  return true
+	if #a ~= #b then return false end
+	for i = 1, #a do
+		if a[i] ~= b[i] then return false end
+	end
+	return true
 end
 
 local tok = assert(needle.load_tokenizer(tokenizer_path))
@@ -34,7 +34,7 @@ local emb_s_idx = assert(q8_ctx:find_tensor("embedding/embedding.q8_scale"))
 assert(q8_ctx:tensor(emb_q_idx).dtype_name == "i8", "q8 embedding dtype mismatch")
 assert(q8_ctx:tensor(emb_s_idx).dtype_name == "f32", "q8 embedding scale dtype mismatch")
 
-local src = float_ctx:build_encoder_input(tok, "weather in Paris", "[]", { max_enc_len = 1024 })
+local src = float_ctx:build_encoder_input(tok, "weather in Paris", "[]", {max_enc_len = 1024})
 needle.reset_memory_stats()
 local float_encoder = assert(float_ctx:encode_tokens(src))
 local float_stats = needle.memory_stats()
@@ -50,28 +50,29 @@ assert(q8_stats.dense_float_projection_count == 0, "q8 encoder should not use fl
 assert(q8_stats.dense_q8_fallback_count == 0, "q8 encoder should not fall back for dense projections")
 local max_diff = 0.0
 for i = 1, #float_encoder do
-  local diff = math.abs(float_encoder[i] - q8_encoder[i])
-  if diff > max_diff then
-    max_diff = diff
-  end
+	local diff = math.abs(float_encoder[i] - q8_encoder[i])
+	if diff > max_diff then
+		max_diff = diff
+	end
 end
 assert(max_diff <= 0.3, ("q8 encoder max diff %.9g exceeds tolerance"):format(max_diff))
 
-local prompt = { 1 }
+local prompt = {1}
 needle.reset_memory_stats()
 local float_tokens = assert(float_ctx:generate_tokens(src, prompt, {
-  max_new_tokens = 4,
-  use_cache = true,
+	max_new_tokens = 4,
+	use_cache = true,
 }))
 local float_gen_stats = needle.memory_stats()
 assert(float_gen_stats.output_q8_projection_count == 0, "float model should not use q8 output projection")
 assert(float_gen_stats.output_float_projection_count > 0, "float model should use float output projection")
-assert(float_gen_stats.output_q8_fallback_count == float_gen_stats.output_float_projection_count, "float output fallback count should match float projection count")
+assert(float_gen_stats.output_q8_fallback_count == float_gen_stats.output_float_projection_count,
+	"float output fallback count should match float projection count")
 
 needle.reset_memory_stats()
 local q8_tokens = assert(q8_ctx:generate_tokens(src, prompt, {
-  max_new_tokens = 4,
-  use_cache = true,
+	max_new_tokens = 4,
+	use_cache = true,
 }))
 local q8_gen_stats = needle.memory_stats()
 assert(q8_gen_stats.output_q8_projection_count > 0, "q8 model should use q8 output projection")
