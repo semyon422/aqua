@@ -30,7 +30,21 @@ function fft.window(n)
 	return 0.5 * (1 - math.cos(2 * math.pi * n))
 end
 
-local pi, po, sign, w, o_in_0, size
+---@alias fft.ComplexBuffer {[integer]: complex}|ffi.cdata*
+---@alias fft.WindowFunction fun(position: number, size: number): number
+
+---@type {[integer]: number}|ffi.cdata*
+local pi
+---@type fft.ComplexBuffer
+local po
+---@type number
+local sign
+---@type fft.WindowFunction?
+local w
+---@type number
+local o_in_0
+---@type integer
+local size
 
 ---@param n number
 ---@param step number
@@ -48,32 +62,34 @@ local function _fft(n, step, o_in, o_out)
 	local o = sign * 2 * math.pi / n
 	for i = o_out, o_out + k - 1 do
 		local u = po[i]
+		---@type complex
 		local v = po[i + k] * cmath.frompolar(1, o * i)
 		po[i] = u + v
 		po[i + k] = u - v
 	end
 end
 
----@param _pi table|ffi.cdata*
----@param _po table|ffi.cdata*
+---@param _pi {[integer]: number}|ffi.cdata*
+---@param _po fft.ComplexBuffer
 ---@param _sign number
 ---@param n number
 ---@param step number
 ---@param o_in number
 ---@param o_out number
----@param _w function?
+---@param _w fft.WindowFunction?
 function fft.fft(_pi, _po, _sign, n, step, o_in, o_out, _w)
 	pi, po, sign = _pi, _po, _sign
 	w, o_in_0, size = _w, o_in, n
 	_fft(n, step, o_in, o_out)
 end
 
----@param p table|ffi.cdata*
+---@param p {[integer]: number}|ffi.cdata*
 ---@param n number
 ---@param inv boolean?
 ---@param windowed boolean?
----@return table
+---@return fft.ComplexBuffer
 function fft.simple(p, n, inv, windowed)
+	---@type fft.ComplexBuffer
 	local out = {}
 	fft.fft(p, out, inv and 1 or -1, n, 1, 0, 0, windowed and fft.window)
 	if inv then
