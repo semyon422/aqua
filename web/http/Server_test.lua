@@ -1,4 +1,5 @@
 local coext = require("coext")
+---@type {gettime: fun(): number}
 local socket = require("socket")
 
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
@@ -20,7 +21,9 @@ function test.request_response_round_trip(t)
 	t:assert(server:start("127.0.0.1", 0))
 	local _, port = server:getAddress()
 
+	---@type {status: integer, body: string, headers: web.Headers}?
 	local response
+	---@type string?
 	local request_error
 	local request_thread = coext.detach(coroutine.create(function()
 		response, request_error = http_util.request(("http://127.0.0.1:%d/health"):format(port), nil, {
@@ -59,7 +62,9 @@ function test.rejects_large_header_line(t)
 	t:assert(server:start("127.0.0.1", 0))
 	local _, port = server:getAddress()
 
+	---@type {status: integer, body: string, headers: web.Headers}?
 	local response
+	---@type string?
 	local request_error
 	local request_thread = coext.detach(coroutine.create(function()
 		response, request_error = http_util.request(("http://127.0.0.1:%d/health"):format(port), nil, {
