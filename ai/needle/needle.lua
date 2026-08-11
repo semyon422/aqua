@@ -370,8 +370,242 @@ int needle_kernel_attention_f32(
 );
 ]]
 
+---@alias needle.CString string|ffi.cdata*
+
+---@class needle.IntBuffer: ffi.cdata*
+---@field [integer] integer
+
+---@class needle.FloatBuffer: ffi.cdata*
+---@field [integer] number
+
+---@class needle.ByteBuffer: ffi.cdata*
+---@field [integer] integer
+
+---@class needle.CharBuffer: ffi.cdata*
+
+---@class needle.NativeLibrary
+---@field needle_abi_version fun(): integer
+---@field needle_version fun(): ffi.cdata*
+---@field needle_probe_add fun(a: integer, b: integer): integer
+---@field needle_runtime_reset_memory_stats fun()
+---@field needle_runtime_aligned_alloc_count fun(): integer
+---@field needle_runtime_aligned_alloc_total_bytes fun(): integer
+---@field needle_runtime_aligned_alloc_active_count fun(): integer
+---@field needle_runtime_aligned_alloc_current_bytes fun(): integer
+---@field needle_runtime_aligned_alloc_peak_bytes fun(): integer
+---@field needle_runtime_dense_q8_projection_count fun(): integer
+---@field needle_runtime_dense_float_projection_count fun(): integer
+---@field needle_runtime_dense_q8_fallback_count fun(): integer
+---@field needle_runtime_output_q8_projection_count fun(): integer
+---@field needle_runtime_output_float_projection_count fun(): integer
+---@field needle_runtime_output_q8_fallback_count fun(): integer
+---@field needle_runtime_set_profile_enabled fun(enabled: integer)
+---@field needle_runtime_profile_enabled fun(): integer
+---@field needle_runtime_reset_profile_stats fun()
+---@field needle_runtime_profile_counter_ns fun(counter: integer): integer
+---@field needle_load fun(model_path: needle.CString): ffi.cdata*
+---@field needle_free fun(ctx: ffi.cdata*?)
+---@field needle_last_error fun(ctx: ffi.cdata*?): ffi.cdata*
+---@field needle_last_error_code fun(ctx: ffi.cdata*?): integer
+---@field needle_clear_error fun(ctx: ffi.cdata*?)
+---@field needle_is_loaded fun(ctx: ffi.cdata*?): integer
+---@field needle_tensor_count fun(ctx: ffi.cdata*?): integer
+---@field needle_tensor_data_bytes fun(ctx: ffi.cdata*?): integer
+---@field needle_tokenizer_bytes fun(ctx: ffi.cdata*?): integer
+---@field needle_metadata_json fun(ctx: ffi.cdata*?): ffi.cdata*
+---@field needle_get_config fun(ctx: ffi.cdata*?): needle.NativeConfig?
+---@field needle_tensor_name fun(ctx: ffi.cdata*?, index: integer): ffi.cdata*
+---@field needle_tensor_dtype fun(ctx: ffi.cdata*?, index: integer): integer
+---@field needle_tensor_ndim fun(ctx: ffi.cdata*?, index: integer): integer
+---@field needle_tensor_dim fun(ctx: ffi.cdata*?, index: integer, dim: integer): integer
+---@field needle_tensor_nbytes fun(ctx: ffi.cdata*?, index: integer): integer
+---@field needle_tensor_data fun(ctx: ffi.cdata*?, index: integer): ffi.cdata*
+---@field needle_find_tensor fun(ctx: ffi.cdata*?, name: needle.CString): integer
+---@field needle_embedding_lookup fun(ctx: ffi.cdata*?, token_id: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_encoder_self_attention_f32 fun(ctx: ffi.cdata*?, layer: integer, x: ffi.cdata*?, seq_len: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_encoder_block_f32 fun(ctx: ffi.cdata*?, layer: integer, x: ffi.cdata*?, seq_len: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_output_projection_f32 fun(ctx: ffi.cdata*?, x: ffi.cdata*?, seq_len: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_encode_tokens_f32 fun(ctx: ffi.cdata*?, token_ids: ffi.cdata*?, seq_len: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_decoder_self_attention_f32 fun(ctx: ffi.cdata*?, layer: integer, x: ffi.cdata*?, seq_len: integer, causal: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_decoder_self_attention_cached_step_f32 fun(ctx: ffi.cdata*?, cache: ffi.cdata*?, layer: integer, x: ffi.cdata*?, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_decoder_cross_attention_f32 fun(ctx: ffi.cdata*?, layer: integer, x: ffi.cdata*?, seq_len: integer, encoder_out: ffi.cdata*?, enc_len: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_decoder_block_f32 fun(ctx: ffi.cdata*?, layer: integer, x: ffi.cdata*?, seq_len: integer, encoder_out: ffi.cdata*?, enc_len: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_decoder_block_cached_step_f32 fun(ctx: ffi.cdata*?, cache: ffi.cdata*?, layer: integer, x: ffi.cdata*?, encoder_out: ffi.cdata*?, enc_len: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_decode_tokens_f32 fun(ctx: ffi.cdata*?, token_ids: ffi.cdata*?, seq_len: integer, encoder_out: ffi.cdata*?, enc_len: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_decode_token_cached_step_f32 fun(ctx: ffi.cdata*?, cache: ffi.cdata*?, token_id: integer, encoder_out: ffi.cdata*?, enc_len: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_forward_logits_f32 fun(ctx: ffi.cdata*?, src_ids: ffi.cdata*?, src_len: integer, tgt_ids: ffi.cdata*?, tgt_len: integer, out: ffi.cdata*?, out_cap: integer): integer
+---@field needle_encoder_state_create fun(ctx: ffi.cdata*?, src_ids: ffi.cdata*?, src_len: integer): ffi.cdata*
+---@field needle_encoder_state_create_cancellable fun(ctx: ffi.cdata*?, src_ids: ffi.cdata*?, src_len: integer, callback: ffi.cdata*?, user_data: ffi.cdata*?): ffi.cdata*
+---@field needle_encoder_state_free fun(state: ffi.cdata*?)
+---@field needle_encoder_state_len fun(state: ffi.cdata*?): integer
+---@field needle_encoder_state_d_model fun(state: ffi.cdata*?): integer
+---@field needle_kv_cache_create fun(ctx: ffi.cdata*?, max_tokens: integer): ffi.cdata*
+---@field needle_kv_cache_free fun(cache: ffi.cdata*?)
+---@field needle_kv_cache_reset fun(cache: ffi.cdata*?): integer
+---@field needle_kv_cache_set_token_count fun(cache: ffi.cdata*?, token_count: integer): integer
+---@field needle_kv_cache_token_count fun(cache: ffi.cdata*?): integer
+---@field needle_kv_cache_max_tokens fun(cache: ffi.cdata*?): integer
+---@field needle_kv_cache_layer_count fun(cache: ffi.cdata*?): integer
+---@field needle_kv_cache_kv_heads fun(cache: ffi.cdata*?): integer
+---@field needle_kv_cache_head_dim fun(cache: ffi.cdata*?): integer
+---@field needle_kv_cache_bytes fun(cache: ffi.cdata*?): integer
+---@field needle_generate_tokens_greedy fun(ctx: ffi.cdata*?, src_ids: ffi.cdata*?, src_len: integer, prompt_ids: ffi.cdata*?, prompt_len: integer, max_new_tokens: integer, eos_token_id: integer, out_ids: ffi.cdata*?, out_cap: integer): integer
+---@field needle_generate_tokens_greedy_filtered fun(ctx: ffi.cdata*?, src_ids: ffi.cdata*?, src_len: integer, prompt_ids: ffi.cdata*?, prompt_len: integer, max_new_tokens: integer, eos_token_id: integer, filter: ffi.cdata*?, user_data: ffi.cdata*?, out_ids: ffi.cdata*?, out_cap: integer): integer
+---@field needle_generate_tokens_greedy_cached fun(ctx: ffi.cdata*?, src_ids: ffi.cdata*?, src_len: integer, prompt_ids: ffi.cdata*?, prompt_len: integer, max_new_tokens: integer, eos_token_id: integer, out_ids: ffi.cdata*?, out_cap: integer): integer
+---@field needle_generate_tokens_greedy_cached_filtered fun(ctx: ffi.cdata*?, src_ids: ffi.cdata*?, src_len: integer, prompt_ids: ffi.cdata*?, prompt_len: integer, max_new_tokens: integer, eos_token_id: integer, filter: ffi.cdata*?, user_data: ffi.cdata*?, out_ids: ffi.cdata*?, out_cap: integer): integer
+---@field needle_generate_tokens_greedy_cached_from_encoder_filtered fun(ctx: ffi.cdata*?, encoder_out: ffi.cdata*?, enc_len: integer, prompt_ids: ffi.cdata*?, prompt_len: integer, max_new_tokens: integer, eos_token_id: integer, filter: ffi.cdata*?, user_data: ffi.cdata*?, out_ids: ffi.cdata*?, out_cap: integer): integer
+---@field needle_generate_tokens_greedy_cached_from_state_filtered fun(ctx: ffi.cdata*?, state: ffi.cdata*?, prompt_ids: ffi.cdata*?, prompt_len: integer, max_new_tokens: integer, eos_token_id: integer, filter: ffi.cdata*?, user_data: ffi.cdata*?, out_ids: ffi.cdata*?, out_cap: integer): integer
+---@field needle_generate_tokens_greedy_cached_from_state_stream_filtered fun(ctx: ffi.cdata*?, state: ffi.cdata*?, prompt_ids: ffi.cdata*?, prompt_len: integer, max_new_tokens: integer, eos_token_id: integer, filter: ffi.cdata*?, filter_user_data: ffi.cdata*?, token_callback: ffi.cdata*?, token_user_data: ffi.cdata*?, out_ids: ffi.cdata*?, out_cap: integer): integer
+---@field needle_generate fun(ctx: ffi.cdata*?, query: needle.CString, tools_json: needle.CString, out: needle.CharBuffer, out_cap: integer): integer
+---@field needle_generate_stream fun(ctx: ffi.cdata*?, query: needle.CString, tools_json: needle.CString, callback: ffi.cdata*?, user_data: ffi.cdata*?): integer
+---@field needle_tokenizer_load fun(path: needle.CString): ffi.cdata*
+---@field needle_tokenizer_from_context fun(ctx: ffi.cdata*?): ffi.cdata*
+---@field needle_tokenizer_free fun(tok: ffi.cdata*?)
+---@field needle_tokenizer_last_error fun(tok: ffi.cdata*?): ffi.cdata*
+---@field needle_tokenizer_last_error_code fun(tok: ffi.cdata*?): integer
+---@field needle_tokenizer_vocab_size fun(tok: ffi.cdata*?): integer
+---@field needle_tokenizer_encode fun(tok: ffi.cdata*?, text: needle.CString, out_ids: needle.IntBuffer, out_cap: integer): integer
+---@field needle_tokenizer_decode fun(tok: ffi.cdata*?, ids: needle.IntBuffer, count: integer, out: needle.CharBuffer, out_cap: integer): integer
+---@field needle_tokenizer_token_text fun(tok: ffi.cdata*?, id: integer, out: needle.CharBuffer, out_cap: integer): integer
+---@field needle_kernel_zcrmsnorm_f32 fun(x: ffi.cdata*?, scale: ffi.cdata*?, out: ffi.cdata*?, rows: integer, cols: integer, epsilon: number): integer
+---@field needle_kernel_rope_f32 fun(x: ffi.cdata*?, out: ffi.cdata*?, num_heads: integer, seq_len: integer, head_dim: integer, theta: number, rope_keys_only: integer): integer
+---@field needle_kernel_matmul_f32 fun(a: ffi.cdata*?, b: ffi.cdata*?, bias: ffi.cdata*?, out: ffi.cdata*?, m: integer, k: integer, n: integer): integer
+---@field needle_kernel_softmax_f32 fun(x: ffi.cdata*?, mask: ffi.cdata*?, out: ffi.cdata*?, rows: integer, cols: integer): integer
+---@field needle_kernel_attention_f32 fun(q: ffi.cdata*?, k: ffi.cdata*?, v: ffi.cdata*?, mask: ffi.cdata*?, out: ffi.cdata*?, q_len: integer, kv_len: integer, head_dim: integer): integer
+
+
+---@class needle.NativeCallback: ffi.cdata*
+---@field free fun(self: needle.NativeCallback)
+
+---@class needle.NativeConfig: ffi.cdata*
+---@field vocab_size integer
+---@field d_model integer
+---@field num_heads integer
+---@field num_kv_heads integer
+---@field num_encoder_layers integer
+---@field num_decoder_layers integer
+---@field d_ff integer
+---@field max_seq_len integer
+---@field pad_token_id integer
+---@field rope_theta number
+---@field num_memory_slots integer
+---@field dropout_rate number
+---@field contrastive_dim integer
+---@field no_feedforward integer
+---@field enable_speech integer
+---@field dtype ffi.cdata*
+---@field activation ffi.cdata*
+
+---@class needle.Error
+---@field code integer
+---@field name string
+---@field message string
+
+---@class needle.Config
+---@field vocab_size integer
+---@field d_model integer
+---@field num_heads integer
+---@field num_kv_heads integer
+---@field num_encoder_layers integer
+---@field num_decoder_layers integer
+---@field d_ff integer
+---@field max_seq_len integer
+---@field pad_token_id integer
+---@field rope_theta number
+---@field num_memory_slots integer
+---@field dropout_rate number
+---@field contrastive_dim integer
+---@field no_feedforward boolean
+---@field enable_speech boolean
+---@field dtype string
+---@field activation string
+
+---@class needle.Options
+---@field lib string?
+---@field cap integer?
+---@field out_cap integer?
+---@field d_model integer?
+---@field vocab_size integer?
+---@field causal boolean?
+---@field max_new_tokens integer?
+---@field eos_token_id integer?
+---@field use_cache boolean?
+---@field max_enc_len integer?
+---@field tools_token_id integer?
+---@field compact_tools_json boolean?
+---@field constrained boolean?
+---@field tokenizer needle.Tokenizer?
+---@field tokenizer_path string?
+---@field prompt_ids integer[]?
+---@field return_tokens boolean?
+---@field strip_tool_call boolean?
+---@field token_text_cap integer?
+---@field allowed_token_ids_by_step {[integer]: integer[]}?
+---@field token_filter (fun(step: integer, tokens: integer[], logits: ffi.cdata*, vocab_size: integer): integer[]?)?
+---@field token_filter_raw (fun(step: integer, tokens: ffi.cdata*, token_count: integer, logits: ffi.cdata*, vocab_size: integer): integer[]?)?
+---@field on_progress (fun(completed: integer, total: integer): boolean?)?
+---@field on_prefill_progress (fun(completed: integer, total: integer): boolean?)?
+---@field on_token (fun(token_id: integer, step: integer, tokens: ffi.cdata*, token_count: integer): boolean?)?
+---@field on_text (fun(text: string))?
+
+---@class needle.TrieNode
+---@field children {[string]: needle.TrieNode}
+---@field terminal boolean
+
+---@class needle.PropertySchema
+---@field type string?
+---@field required boolean?
+---@field enum string[]?
+---@field enum_trie needle.TrieNode?
+
+---@alias needle.PropertySchemas {[string]: needle.PropertySchema}
+
+---@class needle.ConstraintState
+---@field state "free"|"name"|"arg_key"|"arg_value_string"|"arg_after_value"
+---@field buffer string
+---@field constrained_buf string
+---@field current_function string
+---@field current_arg_key string
+---@field value_string_key string
+---@field primitive_value_key string
+---@field seen_arg_keys {[string]: true}
+---@field started boolean
+---@field completed boolean
+---@field in_arguments boolean
+---@field arguments_depth integer
+---@field nesting_depth integer
+---@field in_string boolean
+---@field prev_char_escape boolean
+
+---@class needle.ToolCallConstraints
+---@field _state needle.ConstraintState
+---@field _seen integer
+---@field _token_strings {[integer]: string}
+---@field _token_index {[string]: integer[]}
+---@field _name_trie needle.TrieNode
+---@field _param_tries {[string]: needle.TrieNode}
+---@field _param_keys_by_tool {[string]: string[]}
+---@field _schemas_by_tool {[string]: needle.PropertySchemas}
+---@field _required_by_tool {[string]: {[string]: true}}
+---@field _eos_token_id integer
+
+---@class needle.Context
+---@field _ctx ffi.cdata*?
+
+---@class needle.EncoderState
+---@field _state ffi.cdata*?
+
+---@class needle.KVCache
+---@field _cache ffi.cdata*?
+
+---@class needle.Tokenizer
+---@field _tok ffi.cdata*?
+---@field _token_strings {[integer]: string}?
+---@field _token_index {[string]: integer[]}?
+
 local M = {}
 M.abi_version = 8
+---@type {[string]: integer}
 M.errors = {
 	OK = 0,
 	NULL_CONTEXT = -1,
@@ -402,6 +636,7 @@ local dtype_names = {
 	[M.dtypes.U8] = "u8",
 }
 
+---@type {[integer]: string}
 local error_names = {}
 for name, code in pairs(M.errors) do
 	error_names[code] = name
@@ -409,13 +644,16 @@ end
 
 local default_lib_name = "needle_runtime"
 
+---@type needle.NativeLibrary?
 local lib
 
+---@param path string?
+---@return needle.NativeLibrary
 local function load_lib(path)
 	if lib then
 		return lib
 	end
-	lib = ffi.load(path or os.getenv("NEEDLE_RUNTIME_LIB") or default_lib_name)
+	lib = ffi.load(path or os.getenv("NEEDLE_RUNTIME_LIB") or default_lib_name) --[[@as needle.NativeLibrary]]
 	local abi = tonumber(lib.needle_abi_version())
 	if abi ~= M.abi_version then
 		error(("needle runtime ABI mismatch: got %d, want %d"):format(abi, M.abi_version), 2)
@@ -468,6 +706,7 @@ end
 
 function M.profile_stats()
 	local runtime = load_lib()
+	---@type {[string]: number|boolean}
 	local stats = {enabled = runtime.needle_runtime_profile_enabled() ~= 0}
 	for index, name in ipairs(profile_counter_names) do
 		stats[name .. "_seconds"] = tonumber(runtime.needle_runtime_profile_counter_ns(index - 1)) / 1e9
@@ -475,26 +714,36 @@ function M.profile_stats()
 	return stats
 end
 
+---@class needle.Context
 local Context = {}
 Context.__index = Context
 
+---@class needle.EncoderState
 local EncoderState = {}
 EncoderState.__index = EncoderState
+---@type fun(self: needle.EncoderState)
 local ensure_encoder_state_open
 
+---@class needle.KVCache
 local KVCache = {}
 KVCache.__index = KVCache
+---@type fun(self: needle.KVCache)
 local ensure_cache_open
 
+---@class needle.Tokenizer
 local Tokenizer = {}
 Tokenizer.__index = Tokenizer
 
+---@param self needle.Context
 local function ensure_open(self)
 	if self._ctx == nil then
 		error("needle context is closed", 2)
 	end
 end
 
+---@param code integer
+---@param message string?
+---@return needle.Error
 local function error_table(code, message)
 	return {
 		code = tonumber(code),
@@ -503,6 +752,9 @@ local function error_table(code, message)
 	}
 end
 
+---@param self needle.Context
+---@param rc integer?
+---@return needle.Error
 local function context_error(self, rc)
 	local runtime = load_lib()
 	local code = rc or runtime.needle_last_error_code(self._ctx)
@@ -529,14 +781,22 @@ function Context:clear_error()
 	load_lib().needle_clear_error(self._ctx)
 end
 
+---@param query string
+---@param tools_json string
+---@param callback fun(text: string)
+---@param opts needle.Options?
 function Context:generate_stream(query, tools_json, callback, opts)
 	ensure_open(self)
 	if type(callback) ~= "function" then
 		return nil, error_table(M.errors.INVALID_ARGUMENT, "stream callback must be a function"), M.errors.INVALID_ARGUMENT
 	end
 	opts = opts or {}
+	---@type needle.Options
 	local gen_opts = {}
+	-- LuaLS 3.19 does not propagate record fields through pairs().
+	---@diagnostic disable-next-line: no-unknown
 	for k, v in pairs(opts) do
+		---@diagnostic disable-next-line: no-unknown
 		gen_opts[k] = v
 	end
 	gen_opts.on_text = callback
@@ -570,8 +830,10 @@ function Context:info()
 	}
 end
 
+---@return needle.Config?
 function Context:config()
 	ensure_open(self)
+	---@type needle.NativeConfig?
 	local cfg = load_lib().needle_get_config(self._ctx)
 	if cfg == nil then
 		return nil
@@ -597,6 +859,7 @@ function Context:config()
 	}
 end
 
+---@param index integer
 function Context:tensor(index)
 	ensure_open(self)
 	local runtime = load_lib()
@@ -606,6 +869,7 @@ function Context:tensor(index)
 		return nil
 	end
 	local ndim = tonumber(runtime.needle_tensor_ndim(self._ctx, zero_index))
+	---@type integer[]
 	local shape = {}
 	for dim = 0, ndim - 1 do
 		shape[#shape + 1] = tonumber(runtime.needle_tensor_dim(self._ctx, zero_index, dim))
@@ -631,7 +895,7 @@ function Context:find_tensor(name)
 end
 
 ---@param index integer
----@return cdata? pointer
+---@return ffi.cdata*? pointer
 ---@return integer? nbytes
 function Context:tensor_data(index)
 	ensure_open(self)
@@ -643,15 +907,19 @@ function Context:tensor_data(index)
 	return pointer, tonumber(load_lib().needle_tensor_nbytes(self._ctx, zero_index))
 end
 
+---@param token_id integer
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:embedding(token_id, opts)
 	ensure_open(self)
 	opts = opts or {}
 	local cap = opts.cap or 8192
-	local out = ffi.new("float[?]", cap)
+	local out = ffi.new("float[?]", cap) --[[@as needle.FloatBuffer]]
 	local n = load_lib().needle_embedding_lookup(self._ctx, token_id, out, cap)
 	if n < 0 then
 		return nil, context_error(self, n), n
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, n - 1 do
 		values[#values + 1] = tonumber(out[i])
@@ -659,14 +927,19 @@ function Context:embedding(token_id, opts)
 	return values
 end
 
+---@param layer integer
+---@param x number[]
+---@param seq_len integer
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:encoder_self_attention(layer, x, seq_len, opts)
 	ensure_open(self)
 	opts = opts or {}
 	local cfg = assert(self:config(), "model config is unavailable")
 	local d_model = opts.d_model or cfg.d_model
 	local n = seq_len * d_model
-	local cx = ffi.new("float[?]", n)
-	local out = ffi.new("float[?]", n)
+	local cx = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
+	local out = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
 	for i = 1, n do
 		cx[i - 1] = x[i] or 0
 	end
@@ -674,6 +947,7 @@ function Context:encoder_self_attention(layer, x, seq_len, opts)
 	if rc ~= 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, n - 1 do
 		values[#values + 1] = tonumber(out[i])
@@ -681,14 +955,19 @@ function Context:encoder_self_attention(layer, x, seq_len, opts)
 	return values
 end
 
+---@param layer integer
+---@param x number[]
+---@param seq_len integer
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:encoder_block(layer, x, seq_len, opts)
 	ensure_open(self)
 	opts = opts or {}
 	local cfg = assert(self:config(), "model config is unavailable")
 	local d_model = opts.d_model or cfg.d_model
 	local n = seq_len * d_model
-	local cx = ffi.new("float[?]", n)
-	local out = ffi.new("float[?]", n)
+	local cx = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
+	local out = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
 	for i = 1, n do
 		cx[i - 1] = x[i] or 0
 	end
@@ -696,6 +975,7 @@ function Context:encoder_block(layer, x, seq_len, opts)
 	if rc ~= 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, n - 1 do
 		values[#values + 1] = tonumber(out[i])
@@ -703,6 +983,10 @@ function Context:encoder_block(layer, x, seq_len, opts)
 	return values
 end
 
+---@param x number[]
+---@param seq_len integer
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:output_projection(x, seq_len, opts)
 	ensure_open(self)
 	opts = opts or {}
@@ -711,8 +995,8 @@ function Context:output_projection(x, seq_len, opts)
 	local vocab_size = opts.vocab_size or cfg.vocab_size
 	local in_n = seq_len * d_model
 	local out_n = seq_len * vocab_size
-	local cx = ffi.new("float[?]", in_n)
-	local out = ffi.new("float[?]", out_n)
+	local cx = ffi.new("float[?]", in_n) --[[@as needle.FloatBuffer]]
+	local out = ffi.new("float[?]", out_n) --[[@as needle.FloatBuffer]]
 	for i = 1, in_n do
 		cx[i - 1] = x[i] or 0
 	end
@@ -720,6 +1004,7 @@ function Context:output_projection(x, seq_len, opts)
 	if rc < 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, out_n - 1 do
 		values[#values + 1] = tonumber(out[i])
@@ -727,14 +1012,17 @@ function Context:output_projection(x, seq_len, opts)
 	return values
 end
 
+---@param token_ids integer[]
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:encode_tokens(token_ids, opts)
 	ensure_open(self)
 	opts = opts or {}
 	local cfg = assert(self:config(), "model config is unavailable")
 	local seq_len = #token_ids
 	local d_model = opts.d_model or cfg.d_model
-	local ids = ffi.new("int[?]", seq_len)
-	local out = ffi.new("float[?]", seq_len * d_model)
+	local ids = ffi.new("int[?]", seq_len) --[[@as needle.IntBuffer]]
+	local out = ffi.new("float[?]", seq_len * d_model) --[[@as needle.FloatBuffer]]
 	for i = 1, seq_len do
 		ids[i - 1] = token_ids[i]
 	end
@@ -742,6 +1030,7 @@ function Context:encode_tokens(token_ids, opts)
 	if rc < 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, seq_len * d_model - 1 do
 		values[#values + 1] = tonumber(out[i])
@@ -749,14 +1038,19 @@ function Context:encode_tokens(token_ids, opts)
 	return values
 end
 
+---@param layer integer
+---@param x number[]
+---@param seq_len integer
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:decoder_self_attention(layer, x, seq_len, opts)
 	ensure_open(self)
 	opts = opts or {}
 	local cfg = assert(self:config(), "model config is unavailable")
 	local d_model = opts.d_model or cfg.d_model
 	local n = seq_len * d_model
-	local cx = ffi.new("float[?]", n)
-	local out = ffi.new("float[?]", n)
+	local cx = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
+	local out = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
 	for i = 1, n do
 		cx[i - 1] = x[i] or 0
 	end
@@ -765,6 +1059,7 @@ function Context:decoder_self_attention(layer, x, seq_len, opts)
 	if rc ~= 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, n - 1 do
 		values[#values + 1] = tonumber(out[i])
@@ -772,14 +1067,19 @@ function Context:decoder_self_attention(layer, x, seq_len, opts)
 	return values
 end
 
+---@param cache needle.KVCache
+---@param layer integer
+---@param x number[]
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:decoder_self_attention_cached_step(cache, layer, x, opts)
 	ensure_open(self)
 	ensure_cache_open(cache)
 	opts = opts or {}
 	local cfg = assert(self:config(), "model config is unavailable")
 	local d_model = opts.d_model or cfg.d_model
-	local cx = ffi.new("float[?]", d_model)
-	local out = ffi.new("float[?]", d_model)
+	local cx = ffi.new("float[?]", d_model) --[[@as needle.FloatBuffer]]
+	local out = ffi.new("float[?]", d_model) --[[@as needle.FloatBuffer]]
 	for i = 1, d_model do
 		cx[i - 1] = x[i] or 0
 	end
@@ -787,6 +1087,7 @@ function Context:decoder_self_attention_cached_step(cache, layer, x, opts)
 	if rc < 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, rc - 1 do
 		values[#values + 1] = tonumber(out[i])
@@ -794,6 +1095,13 @@ function Context:decoder_self_attention_cached_step(cache, layer, x, opts)
 	return values
 end
 
+---@param layer integer
+---@param x number[]
+---@param seq_len integer
+---@param encoder_out number[]
+---@param enc_len integer
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:decoder_cross_attention(layer, x, seq_len, encoder_out, enc_len, opts)
 	ensure_open(self)
 	opts = opts or {}
@@ -801,20 +1109,28 @@ function Context:decoder_cross_attention(layer, x, seq_len, encoder_out, enc_len
 	local d_model = opts.d_model or cfg.d_model
 	local n = seq_len * d_model
 	local enc_n = enc_len * d_model
-	local cx = ffi.new("float[?]", n)
-	local cenc = ffi.new("float[?]", enc_n)
-	local out = ffi.new("float[?]", n)
+	local cx = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
+	local cenc = ffi.new("float[?]", enc_n) --[[@as needle.FloatBuffer]]
+	local out = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
 	for i = 1, n do cx[i - 1] = x[i] or 0 end
 	for i = 1, enc_n do cenc[i - 1] = encoder_out[i] or 0 end
 	local rc = load_lib().needle_decoder_cross_attention_f32(self._ctx, layer or 0, cx, seq_len, cenc, enc_len, out, n)
 	if rc ~= 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, n - 1 do values[#values + 1] = tonumber(out[i]) end
 	return values
 end
 
+---@param layer integer
+---@param x number[]
+---@param seq_len integer
+---@param encoder_out number[]
+---@param enc_len integer
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:decoder_block(layer, x, seq_len, encoder_out, enc_len, opts)
 	ensure_open(self)
 	opts = opts or {}
@@ -822,20 +1138,28 @@ function Context:decoder_block(layer, x, seq_len, encoder_out, enc_len, opts)
 	local d_model = opts.d_model or cfg.d_model
 	local n = seq_len * d_model
 	local enc_n = enc_len * d_model
-	local cx = ffi.new("float[?]", n)
-	local cenc = ffi.new("float[?]", enc_n)
-	local out = ffi.new("float[?]", n)
+	local cx = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
+	local cenc = ffi.new("float[?]", enc_n) --[[@as needle.FloatBuffer]]
+	local out = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
 	for i = 1, n do cx[i - 1] = x[i] or 0 end
 	for i = 1, enc_n do cenc[i - 1] = encoder_out[i] or 0 end
 	local rc = load_lib().needle_decoder_block_f32(self._ctx, layer or 0, cx, seq_len, cenc, enc_len, out, n)
 	if rc ~= 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, n - 1 do values[#values + 1] = tonumber(out[i]) end
 	return values
 end
 
+---@param cache needle.KVCache
+---@param layer integer
+---@param x number[]
+---@param encoder_out number[]
+---@param enc_len integer
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:decoder_block_cached_step(cache, layer, x, encoder_out, enc_len, opts)
 	ensure_open(self)
 	ensure_cache_open(cache)
@@ -843,9 +1167,9 @@ function Context:decoder_block_cached_step(cache, layer, x, encoder_out, enc_len
 	local cfg = assert(self:config(), "model config is unavailable")
 	local d_model = opts.d_model or cfg.d_model
 	local enc_n = enc_len * d_model
-	local cx = ffi.new("float[?]", d_model)
-	local cenc = ffi.new("float[?]", enc_n)
-	local out = ffi.new("float[?]", d_model)
+	local cx = ffi.new("float[?]", d_model) --[[@as needle.FloatBuffer]]
+	local cenc = ffi.new("float[?]", enc_n) --[[@as needle.FloatBuffer]]
+	local out = ffi.new("float[?]", d_model) --[[@as needle.FloatBuffer]]
 	for i = 1, d_model do cx[i - 1] = x[i] or 0 end
 	for i = 1, enc_n do cenc[i - 1] = encoder_out[i] or 0 end
 	local rc = load_lib().needle_decoder_block_cached_step_f32(
@@ -854,32 +1178,45 @@ function Context:decoder_block_cached_step(cache, layer, x, encoder_out, enc_len
 	if rc < 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, rc - 1 do values[#values + 1] = tonumber(out[i]) end
 	return values
 end
 
+---@param token_ids integer[]
+---@param encoder_out number[]
+---@param enc_len integer
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:decode_tokens(token_ids, encoder_out, enc_len, opts)
 	ensure_open(self)
 	opts = opts or {}
 	local cfg = assert(self:config(), "model config is unavailable")
 	local seq_len = #token_ids
 	local d_model = opts.d_model or cfg.d_model
-	local ids = ffi.new("int[?]", seq_len)
+	local ids = ffi.new("int[?]", seq_len) --[[@as needle.IntBuffer]]
 	local enc_n = enc_len * d_model
-	local cenc = ffi.new("float[?]", enc_n)
-	local out = ffi.new("float[?]", seq_len * d_model)
+	local cenc = ffi.new("float[?]", enc_n) --[[@as needle.FloatBuffer]]
+	local out = ffi.new("float[?]", seq_len * d_model) --[[@as needle.FloatBuffer]]
 	for i = 1, seq_len do ids[i - 1] = token_ids[i] end
 	for i = 1, enc_n do cenc[i - 1] = encoder_out[i] or 0 end
 	local rc = load_lib().needle_decode_tokens_f32(self._ctx, ids, seq_len, cenc, enc_len, out, seq_len * d_model)
 	if rc < 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, seq_len * d_model - 1 do values[#values + 1] = tonumber(out[i]) end
 	return values
 end
 
+---@param cache needle.KVCache
+---@param token_id integer
+---@param encoder_out number[]
+---@param enc_len integer
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:decode_token_cached_step(cache, token_id, encoder_out, enc_len, opts)
 	ensure_open(self)
 	ensure_cache_open(cache)
@@ -887,18 +1224,23 @@ function Context:decode_token_cached_step(cache, token_id, encoder_out, enc_len,
 	local cfg = assert(self:config(), "model config is unavailable")
 	local d_model = opts.d_model or cfg.d_model
 	local enc_n = enc_len * d_model
-	local cenc = ffi.new("float[?]", enc_n)
-	local out = ffi.new("float[?]", d_model)
+	local cenc = ffi.new("float[?]", enc_n) --[[@as needle.FloatBuffer]]
+	local out = ffi.new("float[?]", d_model) --[[@as needle.FloatBuffer]]
 	for i = 1, enc_n do cenc[i - 1] = encoder_out[i] or 0 end
 	local rc = load_lib().needle_decode_token_cached_step_f32(self._ctx, cache._cache, token_id, cenc, enc_len, out, d_model)
 	if rc < 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, rc - 1 do values[#values + 1] = tonumber(out[i]) end
 	return values
 end
 
+---@param src_ids integer[]
+---@param tgt_ids integer[]
+---@param opts needle.Options?
+---@return number[]?, needle.Error?, integer?
 function Context:forward_logits(src_ids, tgt_ids, opts)
 	ensure_open(self)
 	opts = opts or {}
@@ -906,15 +1248,16 @@ function Context:forward_logits(src_ids, tgt_ids, opts)
 	local src_len = #src_ids
 	local tgt_len = #tgt_ids
 	local vocab_size = opts.vocab_size or cfg.vocab_size
-	local csrc = ffi.new("int[?]", src_len)
-	local ctgt = ffi.new("int[?]", tgt_len)
-	local out = ffi.new("float[?]", tgt_len * vocab_size)
+	local csrc = ffi.new("int[?]", src_len) --[[@as needle.IntBuffer]]
+	local ctgt = ffi.new("int[?]", tgt_len) --[[@as needle.IntBuffer]]
+	local out = ffi.new("float[?]", tgt_len * vocab_size) --[[@as needle.FloatBuffer]]
 	for i = 1, src_len do csrc[i - 1] = src_ids[i] end
 	for i = 1, tgt_len do ctgt[i - 1] = tgt_ids[i] end
 	local rc = load_lib().needle_forward_logits_f32(self._ctx, csrc, src_len, ctgt, tgt_len, out, tgt_len * vocab_size)
 	if rc < 0 then
 		return nil, context_error(self, rc), rc
 	end
+	---@type number[]
 	local values = {}
 	for i = 0, tgt_len * vocab_size - 1 do values[#values + 1] = tonumber(out[i]) end
 	return values
@@ -926,6 +1269,9 @@ function ensure_encoder_state_open(self)
 	end
 end
 
+---@param token_ids integer[]
+---@param opts needle.Options?
+---@return needle.EncoderState?, needle.Error?, integer?
 function Context:encode_tokens_state(token_ids, opts)
 	ensure_open(self)
 	opts = opts or {}
@@ -933,9 +1279,11 @@ function Context:encode_tokens_state(token_ids, opts)
 		return nil, error_table(M.errors.INVALID_ARGUMENT, "on_progress must be a function"), M.errors.INVALID_ARGUMENT
 	end
 	local seq_len = #token_ids
-	local ids = ffi.new("int[?]", seq_len)
+	local ids = ffi.new("int[?]", seq_len) --[[@as needle.IntBuffer]]
 	for i = 1, seq_len do ids[i - 1] = token_ids[i] end
+	---@type string?
 	local callback_error
+	---@type needle.NativeCallback?
 	local callback
 	if opts.on_progress ~= nil then
 		callback = ffi.cast("needle_progress_callback", function(completed, total)
@@ -945,8 +1293,9 @@ function Context:encode_tokens_state(token_ids, opts)
 				return 0
 			end
 			return keep_going == false and 0 or 1
-		end)
+		end) --[[@as needle.NativeCallback]]
 	end
+	---@type ffi.cdata*?
 	local state
 	if callback ~= nil then
 		state = load_lib().needle_encoder_state_create_cancellable(self._ctx, ids, seq_len, callback, nil)
@@ -961,7 +1310,8 @@ function Context:encode_tokens_state(token_ids, opts)
 		local err = context_error(self)
 		return nil, err, err.code
 	end
-	return setmetatable({_state = state}, EncoderState)
+	local encoder_state = setmetatable({_state = state}, EncoderState) --[[@as needle.EncoderState]]
+	return encoder_state
 end
 
 function EncoderState:info()
@@ -994,6 +1344,8 @@ function ensure_cache_open(self)
 	end
 end
 
+---@param max_tokens integer?
+---@return needle.KVCache?, needle.Error?
 function Context:create_kv_cache(max_tokens)
 	ensure_open(self)
 	max_tokens = max_tokens or (self:config() and self:config().max_seq_len) or 0
@@ -1001,7 +1353,8 @@ function Context:create_kv_cache(max_tokens)
 	if cache == nil then
 		return nil, context_error(self)
 	end
-	return setmetatable({_cache = cache}, KVCache)
+	local kv_cache = setmetatable({_cache = cache}, KVCache) --[[@as needle.KVCache]]
+	return kv_cache
 end
 
 function KVCache:info()
@@ -1026,6 +1379,8 @@ function KVCache:reset()
 	return true
 end
 
+---@param token_count integer
+---@return boolean?, needle.Error?, integer?
 function KVCache:set_token_count(token_count)
 	ensure_cache_open(self)
 	local rc = load_lib().needle_kv_cache_set_token_count(self._cache, token_count)
@@ -1046,12 +1401,15 @@ function KVCache:__gc()
 	self:close()
 end
 
+---@param opts needle.Options
+---@return needle.NativeCallback?
 local function make_token_filter_callback(opts)
 	if opts.allowed_token_ids_by_step == nil and opts.token_filter == nil and opts.token_filter_raw == nil then
 		return nil
 	end
 	return ffi.cast("needle_token_filter_callback", function(step, tokens, token_count, logits, vocab_size, allowed_ids, allowed_cap, _)
 		local step_index = tonumber(step) + 1
+		---@type integer[]?
 		local allowed = opts.allowed_token_ids_by_step and opts.allowed_token_ids_by_step[step_index] or nil
 		if opts.token_filter_raw ~= nil then
 			local ok, filtered = pcall(opts.token_filter_raw, step_index, tokens, tonumber(token_count), logits, tonumber(vocab_size))
@@ -1063,6 +1421,7 @@ local function make_token_filter_callback(opts)
 			end
 		end
 		if opts.token_filter ~= nil then
+			---@type integer[]
 			local lua_tokens = {}
 			for i = 0, tonumber(token_count) - 1 do
 				lua_tokens[#lua_tokens + 1] = tonumber(tokens[i])
@@ -1082,19 +1441,29 @@ local function make_token_filter_callback(opts)
 		if n <= 0 or n > tonumber(allowed_cap) then
 			return -1
 		end
+		local output_ids = allowed_ids --[[@as needle.IntBuffer]]
 		for i = 1, n do
-			allowed_ids[i - 1] = allowed[i]
+			output_ids[i - 1] = allowed[i]
 		end
 		return n
-	end)
+	end) --[[@as needle.NativeCallback]]
 end
 
+---@param out needle.IntBuffer
+---@param n integer
+---@return integer[]
 local function read_int_output(out, n)
+	---@type integer[]
+	---@type number[]
 	local values = {}
 	for i = 0, n - 1 do values[#values + 1] = tonumber(out[i]) end
 	return values
 end
 
+---@param src_ids integer[]
+---@param prompt_ids integer[]
+---@param opts needle.Options?
+---@return integer[]?, needle.Error?, integer?
 function Context:generate_tokens(src_ids, prompt_ids, opts)
 	ensure_open(self)
 	opts = opts or {}
@@ -1102,14 +1471,15 @@ function Context:generate_tokens(src_ids, prompt_ids, opts)
 	local eos_token_id = opts.eos_token_id or 1
 	local src_len = #src_ids
 	local prompt_len = #prompt_ids
-	local csrc = ffi.new("int[?]", src_len)
-	local cprompt = ffi.new("int[?]", prompt_len)
+	local csrc = ffi.new("int[?]", src_len) --[[@as needle.IntBuffer]]
+	local cprompt = ffi.new("int[?]", prompt_len) --[[@as needle.IntBuffer]]
 	local out_cap = prompt_len + max_new_tokens
-	local out = ffi.new("int[?]", out_cap)
+	local out = ffi.new("int[?]", out_cap) --[[@as needle.IntBuffer]]
 	for i = 1, src_len do csrc[i - 1] = src_ids[i] end
 	for i = 1, prompt_len do cprompt[i - 1] = prompt_ids[i] end
 	local runtime = load_lib()
 	local cb = make_token_filter_callback(opts)
+	---@type integer
 	local rc
 	if cb ~= nil then
 		if opts.use_cache then
@@ -1139,6 +1509,11 @@ function Context:generate_tokens(src_ids, prompt_ids, opts)
 	return read_int_output(out, rc)
 end
 
+---@param encoder_out number[]
+---@param enc_len integer?
+---@param prompt_ids integer[]
+---@param opts needle.Options?
+---@return integer[]?, needle.Error?, integer?
 function Context:generate_tokens_from_encoder(encoder_out, enc_len, prompt_ids, opts)
 	ensure_open(self)
 	opts = opts or {}
@@ -1152,10 +1527,10 @@ function Context:generate_tokens_from_encoder(encoder_out, enc_len, prompt_ids, 
 	end
 	local prompt_len = #prompt_ids
 	local enc_n = enc_len * d_model
-	local cenc = ffi.new("float[?]", enc_n)
-	local cprompt = ffi.new("int[?]", prompt_len)
+	local cenc = ffi.new("float[?]", enc_n) --[[@as needle.FloatBuffer]]
+	local cprompt = ffi.new("int[?]", prompt_len) --[[@as needle.IntBuffer]]
 	local out_cap = prompt_len + max_new_tokens
-	local out = ffi.new("int[?]", out_cap)
+	local out = ffi.new("int[?]", out_cap) --[[@as needle.IntBuffer]]
 	for i = 1, enc_n do cenc[i - 1] = encoder_out[i] or 0 end
 	for i = 1, prompt_len do cprompt[i - 1] = prompt_ids[i] end
 	local cb = make_token_filter_callback(opts)
@@ -1169,6 +1544,10 @@ function Context:generate_tokens_from_encoder(encoder_out, enc_len, prompt_ids, 
 	return read_int_output(out, rc)
 end
 
+---@param state needle.EncoderState
+---@param prompt_ids integer[]
+---@param opts needle.Options?
+---@return integer[]?, needle.Error?, integer?
 function Context:generate_tokens_from_state(state, prompt_ids, opts)
 	ensure_open(self)
 	ensure_encoder_state_open(state)
@@ -1176,12 +1555,13 @@ function Context:generate_tokens_from_state(state, prompt_ids, opts)
 	local max_new_tokens = opts.max_new_tokens or 16
 	local eos_token_id = opts.eos_token_id or 1
 	local prompt_len = #prompt_ids
-	local cprompt = ffi.new("int[?]", prompt_len)
+	local cprompt = ffi.new("int[?]", prompt_len) --[[@as needle.IntBuffer]]
 	local out_cap = prompt_len + max_new_tokens
-	local out = ffi.new("int[?]", out_cap)
+	local out = ffi.new("int[?]", out_cap) --[[@as needle.IntBuffer]]
 	for i = 1, prompt_len do cprompt[i - 1] = prompt_ids[i] end
 	local cb = make_token_filter_callback(opts)
-	local token_cb = nil
+	---@type needle.NativeCallback?
+	local token_cb
 	if opts.on_token ~= nil then
 		if type(opts.on_token) ~= "function" then
 			if cb ~= nil then cb:free() end
@@ -1193,9 +1573,10 @@ function Context:generate_tokens_from_state(state, prompt_ids, opts)
 				return -1
 			end
 			return 0
-		end)
+		end) --[[@as needle.NativeCallback]]
 	end
 	local runtime = load_lib()
+	---@type integer
 	local rc
 	if token_cb ~= nil then
 		rc = runtime.needle_generate_tokens_greedy_cached_from_state_stream_filtered(
@@ -1214,14 +1595,20 @@ function Context:generate_tokens_from_state(state, prompt_ids, opts)
 	return read_int_output(out, rc)
 end
 
+---@generic T
+---@param dst T[]
+---@param src T[]
 local function append_all(dst, src)
 	for i = 1, #src do
 		dst[#dst + 1] = src[i]
 	end
 end
 
+---@param text string?
+---@return string
 local function compact_json(text)
 	text = text or "[]"
+	---@type string[]
 	local out = {}
 	local in_string = false
 	local escaped = false
@@ -1246,14 +1633,18 @@ local function compact_json(text)
 	return table.concat(out)
 end
 
+---@return needle.TrieNode
 local function trie_new()
 	return {children = {}, terminal = false}
 end
 
+---@param root needle.TrieNode
+---@param word string
 local function trie_insert(root, word)
 	local node = root
 	for i = 1, #word do
 		local ch = word:sub(i, i)
+		---@type needle.TrieNode?
 		local child = node.children[ch]
 		if child == nil then
 			child = trie_new()
@@ -1264,17 +1655,25 @@ local function trie_insert(root, word)
 	node.terminal = true
 end
 
+---@param root needle.TrieNode
+---@param prefix string
+---@return needle.TrieNode?
 local function trie_get(root, prefix)
 	local node = root
 	for i = 1, #prefix do
-		node = node.children[prefix:sub(i, i)]
-		if node == nil then
+		---@type needle.TrieNode?
+		local child = node.children[prefix:sub(i, i)]
+		if child == nil then
 			return nil
 		end
+		node = child
 	end
 	return node
 end
 
+---@param text string
+---@param pos integer
+---@return integer
 local function json_skip_ws(text, pos)
 	while pos <= #text do
 		local ch = text:sub(pos, pos)
@@ -1286,10 +1685,14 @@ local function json_skip_ws(text, pos)
 	return pos
 end
 
+---@param text string
+---@param pos integer
+---@return string?, integer
 local function json_read_string(text, pos)
 	if text:sub(pos, pos) ~= '"' then
 		return nil, pos
 	end
+	---@type string[]
 	local out = {}
 	local i = pos + 1
 	while i <= #text do
@@ -1329,6 +1732,10 @@ local function json_read_string(text, pos)
 	return nil, pos
 end
 
+---@param text string
+---@param key string
+---@param start_pos integer?
+---@return integer?
 local function json_find_key(text, key, start_pos)
 	local needle = '"' .. key .. '"'
 	local pos = start_pos or 1
@@ -1345,6 +1752,9 @@ local function json_find_key(text, key, start_pos)
 	end
 end
 
+---@param text string
+---@param open_pos integer
+---@return integer?
 local function json_find_matching(text, open_pos)
 	local open_ch = text:sub(open_pos, open_pos)
 	local close_ch = open_ch == "{" and "}" or "]"
@@ -1375,7 +1785,12 @@ local function json_find_matching(text, open_pos)
 	return nil
 end
 
+---@param text string
+---@param open_pos integer
+---@param close_pos integer
+---@return string[]
 local function json_object_keys(text, open_pos, close_pos)
+	---@type string[]
 	local keys = {}
 	local pos = open_pos + 1
 	while pos < close_pos do
@@ -1414,6 +1829,11 @@ local function json_object_keys(text, open_pos, close_pos)
 	return keys
 end
 
+---@param text string
+---@param open_pos integer
+---@param close_pos integer
+---@param key string
+---@return integer?, integer?
 local function json_object_value_span(text, open_pos, close_pos, key)
 	local pos = open_pos + 1
 	while pos < close_pos do
@@ -1434,6 +1854,7 @@ local function json_object_value_span(text, open_pos, close_pos, key)
 		end
 		local value_start = json_skip_ws(text, pos + 1)
 		local ch = text:sub(value_start, value_start)
+		---@type integer?
 		local value_end = value_start
 		if ch == "{" or ch == "[" then
 			value_end = json_find_matching(text, value_start)
@@ -1458,15 +1879,26 @@ local function json_object_value_span(text, open_pos, close_pos, key)
 	return nil
 end
 
+---@param text string
+---@param open_pos integer
+---@param close_pos integer
+---@param key string
+---@return string?
 local function json_string_field(text, open_pos, close_pos, key)
 	local value_start = json_object_value_span(text, open_pos, close_pos, key)
 	if value_start == nil then
 		return nil
 	end
 	value_start = json_skip_ws(text, value_start)
-	return json_read_string(text, value_start)
+	local value = json_read_string(text, value_start)
+	return value
 end
 
+---@param text string
+---@param open_pos integer
+---@param close_pos integer
+---@param key string
+---@return boolean?
 local function json_bool_field(text, open_pos, close_pos, key)
 	local value_start, value_end = json_object_value_span(text, open_pos, close_pos, key)
 	if value_start == nil then
@@ -1483,7 +1915,12 @@ local function json_bool_field(text, open_pos, close_pos, key)
 	return nil
 end
 
+---@param text string
+---@param open_pos integer
+---@param close_pos integer
+---@return string[]
 local function json_string_array(text, open_pos, close_pos)
+	---@type string[]
 	local values = {}
 	local pos = open_pos + 1
 	while pos < close_pos do
@@ -1504,12 +1941,16 @@ local function json_string_array(text, open_pos, close_pos)
 	return values
 end
 
+---@param text string
+---@param open_pos integer
+---@param close_pos integer
+---@return needle.PropertySchema
 local function parse_property_schema(text, open_pos, close_pos)
 	local schema = {}
 	schema.type = json_string_field(text, open_pos, close_pos, "type")
 	schema.required = json_bool_field(text, open_pos, close_pos, "required")
 	local enum_start, enum_end = json_object_value_span(text, open_pos, close_pos, "enum")
-	if enum_start ~= nil and text:sub(enum_start, enum_start) == "[" then
+	if enum_start ~= nil and enum_end ~= nil and text:sub(enum_start, enum_start) == "[" then
 		local values = json_string_array(text, enum_start, enum_end)
 		if #values > 0 then
 			schema.enum = values
@@ -1522,11 +1963,16 @@ local function parse_property_schema(text, open_pos, close_pos)
 	return schema
 end
 
+---@param text string
+---@param props_open integer
+---@param props_close integer
+---@return needle.PropertySchemas
 local function parse_property_schemas(text, props_open, props_close)
+	---@type needle.PropertySchemas
 	local schemas = {}
 	for _, key in ipairs(json_object_keys(text, props_open, props_close)) do
 		local value_start, value_end = json_object_value_span(text, props_open, props_close, key)
-		if value_start ~= nil and text:sub(value_start, value_start) == "{" then
+		if value_start ~= nil and value_end ~= nil and text:sub(value_start, value_start) == "{" then
 			schemas[key] = parse_property_schema(text, value_start, value_end)
 		else
 			schemas[key] = {}
@@ -1535,11 +1981,21 @@ local function parse_property_schemas(text, props_open, props_close)
 	return schemas
 end
 
+---@param tools_json string?
+---@return needle.TrieNode name_trie
+---@return {[string]: needle.TrieNode} param_tries
+---@return {[string]: string[]} param_keys_by_tool
+---@return {[string]: needle.PropertySchemas} schemas_by_tool
+---@return {[string]: {[string]: true}} required_by_tool
 local function parse_tool_constraints(tools_json)
 	local name_trie = trie_new()
+	---@type {[string]: needle.TrieNode}
 	local param_tries = {}
+	---@type {[string]: string[]}
 	local param_keys_by_tool = {}
+	---@type {[string]: needle.PropertySchemas}
 	local schemas_by_tool = {}
+	---@type {[string]: {[string]: true}}
 	local required_by_tool = {}
 	tools_json = tools_json or "[]"
 	local pos = json_skip_ws(tools_json, 1)
@@ -1562,14 +2018,16 @@ local function parse_tool_constraints(tools_json)
 		if name ~= nil and name ~= "" then
 			trie_insert(name_trie, name)
 			local param_trie = trie_new()
+			---@type needle.PropertySchemas
 			local param_schemas = {}
+			---@type {[string]: true}
 			local required_set = {}
 			local params_value, params_end = json_object_value_span(tools_json, pos, tool_end, "parameters")
 			if params_value ~= nil and params_end ~= nil then
 				params_value = json_skip_ws(tools_json, params_value)
 				if tools_json:sub(params_value, params_value) == "{" then
 					local required_start, required_end = json_object_value_span(tools_json, params_value, params_end, "required")
-					if required_start ~= nil and tools_json:sub(required_start, required_start) == "[" then
+					if required_start ~= nil and required_end ~= nil and tools_json:sub(required_start, required_start) == "[" then
 						for _, key in ipairs(json_string_array(tools_json, required_start, required_end)) do
 							required_set[key] = true
 						end
@@ -1597,6 +2055,7 @@ local function parse_tool_constraints(tools_json)
 				end
 			end
 			param_tries[name] = param_trie
+			---@type string[]
 			local param_keys = {}
 			for key, _ in pairs(param_schemas) do
 				param_keys[#param_keys + 1] = key
@@ -1610,9 +2069,13 @@ local function parse_tool_constraints(tools_json)
 	return name_trie, param_tries, param_keys_by_tool, schemas_by_tool, required_by_tool
 end
 
+---@class needle.ToolCallConstraints
 local ToolCallConstraints = {}
 ToolCallConstraints.__index = ToolCallConstraints
 
+---@param token_text string
+---@param node needle.TrieNode
+---@return boolean
 local function token_valid_for_node(token_text, node)
 	local cur = node
 	for i = 1, #token_text do
@@ -1620,14 +2083,17 @@ local function token_valid_for_node(token_text, node)
 		if ch == '"' then
 			return cur.terminal
 		end
-		cur = cur.children[ch]
-		if cur == nil then
+		---@type needle.TrieNode?
+		local child = cur.children[ch]
+		if child == nil then
 			return false
 		end
+		cur = child
 	end
 	return true
 end
 
+---@return needle.ConstraintState
 local function state_new()
 	return {
 		state = "free",
@@ -1648,6 +2114,8 @@ local function state_new()
 	}
 end
 
+---@param st needle.ConstraintState
+---@param key string?
 local function state_mark_arg_seen(st, key)
 	key = key or st.current_arg_key
 	if key ~= nil and key ~= "" and st.in_arguments then
@@ -1661,6 +2129,8 @@ local function state_mark_arg_seen(st, key)
 	end
 end
 
+---@param st needle.ConstraintState
+---@return boolean
 local function state_is_value_quote(st)
 	for i = #st.buffer - 1, 1, -1 do
 		local ch = st.buffer:sub(i, i)
@@ -1671,6 +2141,9 @@ local function state_is_value_quote(st)
 	return false
 end
 
+---@param st needle.ConstraintState
+---@param ch string
+---@return boolean
 local function state_is_primitive_value_start(st, ch)
 	if not st.in_arguments or st.current_arg_key == "" or st.state ~= "free" then
 		return false
@@ -1684,6 +2157,9 @@ local function state_is_primitive_value_start(st, ch)
 	return state_is_value_quote(st)
 end
 
+---@param st needle.ConstraintState
+---@param ch string
+---@param schemas_by_tool {[string]: needle.PropertySchemas}
 local function state_feed_char(st, ch, schemas_by_tool)
 	if st.completed then
 		st.buffer = st.buffer .. ch
@@ -1807,17 +2283,25 @@ local function state_feed_char(st, ch, schemas_by_tool)
 	end
 end
 
+---@param st needle.ConstraintState
+---@param text string
+---@param schemas_by_tool {[string]: needle.PropertySchemas}
 local function state_feed(st, text, schemas_by_tool)
 	for i = 1, #text do
 		state_feed_char(st, text:sub(i, i), schemas_by_tool)
 	end
 end
 
+---@param tokenizer needle.Tokenizer
+---@return {[integer]: string}
+---@return {[string]: integer[]}
 local function build_token_data(tokenizer)
 	if tokenizer._token_strings ~= nil then
 		return tokenizer._token_strings, tokenizer._token_index
 	end
+	---@type {[integer]: string}
 	local strings = {}
+	---@type {[string]: integer[]}
 	local index = {}
 	for id = 0, tokenizer:vocab_size() - 1 do
 		local text = assert(tokenizer:token_text(id))
@@ -1837,6 +2321,10 @@ local function build_token_data(tokenizer)
 	return strings, index
 end
 
+---@param keys string[]?
+---@param seen {[string]: true}?
+---@return needle.TrieNode
+---@return integer
 local function trie_from_keys(keys, seen)
 	local trie = trie_new()
 	local count = 0
@@ -1849,6 +2337,9 @@ local function trie_from_keys(keys, seen)
 	return trie, count
 end
 
+---@param required {[string]: true}?
+---@param seen {[string]: true}?
+---@return boolean
 local function required_satisfied(required, seen)
 	for key, needed in pairs(required or {}) do
 		if needed and not (seen and seen[key]) then
@@ -1858,6 +2349,9 @@ local function required_satisfied(required, seen)
 	return true
 end
 
+---@param keys string[]?
+---@param seen {[string]: true}?
+---@return boolean
 local function has_unseen_key(keys, seen)
 	for _, key in ipairs(keys or {}) do
 		if not (seen and seen[key]) then
@@ -1867,11 +2361,18 @@ local function has_unseen_key(keys, seen)
 	return false
 end
 
+---@param token_text string
+---@param allowed_first {[string]: true}
+---@return boolean
 local function token_starts_with_any(token_text, allowed_first)
 	local first = token_text:sub(1, 1)
 	return allowed_first[first] == true
 end
 
+---@param tools_json string
+---@param tokenizer needle.Tokenizer?
+---@param opts needle.Options?
+---@return needle.ToolCallConstraints?, needle.Error?, integer?
 function M.build_tool_call_constraints(tools_json, tokenizer, opts)
 	if tokenizer == nil then
 		return nil, error_table(M.errors.INVALID_ARGUMENT, "tool-call constraints require a tokenizer"), M.errors.INVALID_ARGUMENT
@@ -1879,7 +2380,7 @@ function M.build_tool_call_constraints(tools_json, tokenizer, opts)
 	opts = opts or {}
 	local token_strings, token_index = build_token_data(tokenizer)
 	local name_trie, param_tries, param_keys_by_tool, schemas_by_tool, required_by_tool = parse_tool_constraints(tools_json or "[]")
-	return setmetatable({
+	local constraints = setmetatable({
 		_state = state_new(),
 		_seen = 0,
 		_token_strings = token_strings,
@@ -1890,13 +2391,16 @@ function M.build_tool_call_constraints(tools_json, tokenizer, opts)
 		_schemas_by_tool = schemas_by_tool,
 		_required_by_tool = required_by_tool,
 		_eos_token_id = opts.eos_token_id or 1,
-	}, ToolCallConstraints)
+	}, ToolCallConstraints) --[[@as needle.ToolCallConstraints]]
+	return constraints
 end
 
+---@param id integer
 function ToolCallConstraints:feed_token(id)
 	state_feed(self._state, self._token_strings[id] or "", self._schemas_by_tool)
 end
 
+---@param tokens integer[]
 function ToolCallConstraints:sync(tokens)
 	for i = self._seen + 1, #tokens do
 		self:feed_token(tokens[i])
@@ -1904,18 +2408,22 @@ function ToolCallConstraints:sync(tokens)
 	self._seen = #tokens
 end
 
+---@param tokens ffi.cdata*
+---@param token_count integer
 function ToolCallConstraints:sync_c(tokens, token_count)
 	for i = self._seen, token_count - 1 do
-		self:feed_token(tonumber(tokens[i]))
+		self:feed_token(assert(tonumber(tokens[i])))
 	end
 	self._seen = token_count
 end
 
+---@return integer[]?
 function ToolCallConstraints:allowed_token_ids()
 	local st = self._state
 	if st.completed then
 		return {self._eos_token_id}
 	end
+	---@type needle.TrieNode?
 	local trie
 	if st.state == "name" then
 		trie = self._name_trie
@@ -1939,6 +2447,7 @@ function ToolCallConstraints:allowed_token_ids()
 	elseif st.state == "arg_after_value" then
 		local keys = self._param_keys_by_tool[st.current_function] or {}
 		local required = self._required_by_tool[st.current_function] or {}
+		---@type {[string]: true}
 		local allowed_first = {}
 		if has_unseen_key(keys, st.seen_arg_keys) then
 			allowed_first[","] = true
@@ -1946,6 +2455,7 @@ function ToolCallConstraints:allowed_token_ids()
 		if required_satisfied(required, st.seen_arg_keys) then
 			allowed_first["}"] = true
 		end
+		---@type integer[]
 		local allowed = {}
 		for first, _ in pairs(allowed_first) do
 			local bucket = self._token_index[first]
@@ -1972,6 +2482,7 @@ function ToolCallConstraints:allowed_token_ids()
 		return {self._eos_token_id}
 	end
 
+	---@type integer[]
 	local allowed = {}
 	for ch, _ in pairs(node.children) do
 		local bucket = self._token_index[ch]
@@ -1999,6 +2510,7 @@ function ToolCallConstraints:allowed_token_ids()
 	return allowed
 end
 
+---@return fun(step: integer, tokens: integer[], logits: ffi.cdata*, vocab_size: integer): integer[]?
 function ToolCallConstraints:token_filter()
 	return function(_, tokens)
 		self:sync(tokens)
@@ -2006,13 +2518,19 @@ function ToolCallConstraints:token_filter()
 	end
 end
 
+---@return fun(step: integer, tokens: ffi.cdata*, token_count: integer, logits: ffi.cdata*, vocab_size: integer): integer[]?
 function ToolCallConstraints:token_filter_raw()
 	return function(_, tokens, token_count)
-		self:sync_c(tokens, tonumber(token_count))
+		self:sync_c(tokens, assert(tonumber(token_count)))
 		return self:allowed_token_ids()
 	end
 end
 
+---@param tokenizer needle.Tokenizer
+---@param query string
+---@param tools_json string
+---@param opts needle.Options?
+---@return integer[]
 function Context:build_encoder_input(tokenizer, query, tools_json, opts)
 	ensure_open(self)
 	opts = opts or {}
@@ -2026,12 +2544,14 @@ function Context:build_encoder_input(tokenizer, query, tools_json, opts)
 
 	local max_query = max_enc_len - 2
 	if #q_ids > max_query then
+		---@type integer[]
 		local trimmed = {}
 		for i = 1, max_query do trimmed[i] = q_ids[i] end
 		q_ids = trimmed
 	end
 
 	local remaining = max_enc_len - #q_ids - 1
+	---@type integer[]
 	local input = {}
 	append_all(input, q_ids)
 	input[#input + 1] = tools_token_id
@@ -2041,6 +2561,9 @@ function Context:build_encoder_input(tokenizer, query, tools_json, opts)
 	return input
 end
 
+---@param query string
+---@param tools_json string
+---@param opts needle.Options?
 function Context:generate(query, tools_json, opts)
 	ensure_open(self)
 	opts = opts or {}
@@ -2084,8 +2607,10 @@ function Context:generate(query, tools_json, opts)
 				local b = user_filter(step, tokens, logits, vocab_size)
 				if a == nil then return b end
 				if b == nil then return a end
+				---@type {[integer]: true}
 				local seen = {}
 				for _, id in ipairs(a) do seen[id] = true end
+				---@type integer[]
 				local both = {}
 				for _, id in ipairs(b) do
 					if seen[id] then both[#both + 1] = id end
@@ -2100,8 +2625,10 @@ function Context:generate(query, tools_json, opts)
 				local b = user_filter_raw(step, tokens, token_count, logits, vocab_size)
 				if a == nil then return b end
 				if b == nil then return a end
+				---@type {[integer]: true}
 				local seen = {}
 				for _, id in ipairs(a) do seen[id] = true end
+				---@type integer[]
 				local both = {}
 				for _, id in ipairs(b) do
 					if seen[id] then both[#both + 1] = id end
@@ -2131,6 +2658,7 @@ function Context:generate(query, tools_json, opts)
 			return nil, enc_err, enc_rc
 		end
 
+		---@type integer[]
 		local result_ids = {}
 		local emitted_prefix = opts.strip_tool_call == false
 		local pending_text = ""
@@ -2249,6 +2777,7 @@ function Context:generate(query, tools_json, opts)
 		return nil, gen_err, rc
 	end
 
+	---@type integer[]
 	local result_ids = {}
 	for i = #prompt_ids + 1, #generated do
 		local id = generated[i]
@@ -2297,6 +2826,9 @@ function Context:__gc()
 	self:close()
 end
 
+---@param model_path string
+---@param opts needle.Options?
+---@return needle.Context?, needle.Error?
 function M.load(model_path, opts)
 	opts = opts or {}
 	local runtime = load_lib(opts.lib)
@@ -2313,14 +2845,20 @@ function M.load(model_path, opts)
 	return self
 end
 
+---@param opts needle.Options?
+---@return string
 function M.version(opts)
 	local runtime = load_lib(opts and opts.lib or nil)
 	return ffi.string(runtime.needle_version())
 end
 
+---@param a integer
+---@param b integer
+---@param opts needle.Options?
+---@return integer
 function M.probe_add(a, b, opts)
 	local runtime = load_lib(opts and opts.lib or nil)
-	return tonumber(runtime.needle_probe_add(a, b))
+	return assert(tonumber(runtime.needle_probe_add(a, b)))
 end
 
 local function ensure_tokenizer_open(self)
@@ -2346,15 +2884,19 @@ function Tokenizer:vocab_size()
 	return tonumber(load_lib().needle_tokenizer_vocab_size(self._tok))
 end
 
+---@param text string
+---@param opts needle.Options?
+---@return integer[]?, needle.Error?, integer?
 function Tokenizer:encode(text, opts)
 	ensure_tokenizer_open(self)
 	opts = opts or {}
 	local cap = opts.cap or 2048
-	local ids = ffi.new("int[?]", cap)
+	local ids = ffi.new("int[?]", cap) --[[@as needle.IntBuffer]]
 	local n = load_lib().needle_tokenizer_encode(self._tok, text or "", ids, cap)
 	if n < 0 then
 		return nil, tokenizer_error(self, n), n
 	end
+	---@type integer[]
 	local out = {}
 	for i = 0, n - 1 do
 		out[#out + 1] = tonumber(ids[i])
@@ -2362,15 +2904,18 @@ function Tokenizer:encode(text, opts)
 	return out
 end
 
+---@param ids integer[]
+---@param opts needle.Options?
+---@return string?, needle.Error?, integer?
 function Tokenizer:decode(ids, opts)
 	ensure_tokenizer_open(self)
 	opts = opts or {}
 	local out_cap = opts.out_cap or 4096
-	local c_ids = ffi.new("int[?]", #ids)
+	local c_ids = ffi.new("int[?]", #ids) --[[@as needle.IntBuffer]]
 	for i = 1, #ids do
 		c_ids[i - 1] = ids[i]
 	end
-	local out = ffi.new("char[?]", out_cap)
+	local out = ffi.new("char[?]", out_cap) --[[@as needle.CharBuffer]]
 	local n = load_lib().needle_tokenizer_decode(self._tok, c_ids, #ids, out, out_cap)
 	if n < 0 then
 		return nil, tokenizer_error(self, n), n
@@ -2378,11 +2923,14 @@ function Tokenizer:decode(ids, opts)
 	return ffi.string(out, n)
 end
 
+---@param id integer
+---@param opts needle.Options?
+---@return string?, needle.Error?, integer?
 function Tokenizer:token_text(id, opts)
 	ensure_tokenizer_open(self)
 	opts = opts or {}
 	local out_cap = opts.out_cap or 256
-	local out = ffi.new("char[?]", out_cap)
+	local out = ffi.new("char[?]", out_cap) --[[@as needle.CharBuffer]]
 	local n = load_lib().needle_tokenizer_token_text(self._tok, id, out, out_cap)
 	if n < 0 then
 		return nil, tokenizer_error(self, n), n
@@ -2401,6 +2949,9 @@ function Tokenizer:__gc()
 	self:close()
 end
 
+---@param path string
+---@param opts needle.Options?
+---@return needle.Tokenizer?, needle.Error?
 function M.load_tokenizer(path, opts)
 	opts = opts or {}
 	local runtime = load_lib(opts.lib)
@@ -2418,15 +2969,21 @@ end
 
 M.kernels = {}
 
+---@param values number[]
+---@param n integer
+---@return needle.FloatBuffer
 local function float_array(values, n)
-	local arr = ffi.new("float[?]", n)
+	local arr = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
 	for i = 1, n do arr[i - 1] = values[i] or 0 end
 	return arr
 end
 
+---@param mask (boolean|integer)[]?
+---@param n integer
+---@return needle.ByteBuffer?
 local function mask_array(mask, n)
 	if not mask then return nil end
-	local arr = ffi.new("unsigned char[?]", n)
+	local arr = ffi.new("unsigned char[?]", n) --[[@as needle.ByteBuffer]]
 	for i = 1, n do
 		local v = mask[i]
 		arr[i - 1] = (v == true or v == 1) and 1 or 0
@@ -2434,18 +2991,28 @@ local function mask_array(mask, n)
 	return arr
 end
 
+---@param arr needle.FloatBuffer
+---@param n integer
+---@return number[]
 local function table_from_float_array(arr, n)
+	---@type number[]
 	local result = {}
 	for i = 0, n - 1 do result[#result + 1] = tonumber(arr[i]) end
 	return result
 end
 
+---@param x number[]
+---@param scale number[]
+---@param rows integer
+---@param cols integer
+---@param epsilon number?
+---@return number[]?, needle.Error?, integer?
 function M.kernels.zcrmsnorm(x, scale, rows, cols, epsilon)
 	local runtime = load_lib()
 	local n = rows * cols
 	local cx = float_array(x, n)
 	local cscale = float_array(scale, cols)
-	local out = ffi.new("float[?]", n)
+	local out = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
 	local rc = runtime.needle_kernel_zcrmsnorm_f32(cx, cscale, out, rows, cols, epsilon or 1e-6)
 	if rc ~= 0 then
 		return nil, error_table(rc, "zcrmsnorm failed"), rc
@@ -2453,11 +3020,17 @@ function M.kernels.zcrmsnorm(x, scale, rows, cols, epsilon)
 	return table_from_float_array(out, n)
 end
 
+---@param x number[]
+---@param num_heads integer
+---@param seq_len integer
+---@param head_dim integer
+---@param theta number?
+---@return number[]?, needle.Error?, integer?
 function M.kernels.rope(x, num_heads, seq_len, head_dim, theta)
 	local runtime = load_lib()
 	local n = num_heads * seq_len * head_dim
 	local cx = float_array(x, n)
-	local out = ffi.new("float[?]", n)
+	local out = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
 	local rc = runtime.needle_kernel_rope_f32(cx, out, num_heads, seq_len, head_dim, theta or 10000.0, 0)
 	if rc ~= 0 then
 		return nil, error_table(rc, "rope failed"), rc
@@ -2465,12 +3038,19 @@ function M.kernels.rope(x, num_heads, seq_len, head_dim, theta)
 	return table_from_float_array(out, n)
 end
 
+---@param a number[]
+---@param b number[]
+---@param m integer
+---@param k integer
+---@param n integer
+---@param bias number[]?
+---@return number[]?, needle.Error?, integer?
 function M.kernels.matmul(a, b, m, k, n, bias)
 	local runtime = load_lib()
 	local ca = float_array(a, m * k)
 	local cb = float_array(b, k * n)
 	local cbias = bias and float_array(bias, n) or nil
-	local out = ffi.new("float[?]", m * n)
+	local out = ffi.new("float[?]", m * n) --[[@as needle.FloatBuffer]]
 	local rc = runtime.needle_kernel_matmul_f32(ca, cb, cbias, out, m, k, n)
 	if rc ~= 0 then
 		return nil, error_table(rc, "matmul failed"), rc
@@ -2478,12 +3058,17 @@ function M.kernels.matmul(a, b, m, k, n, bias)
 	return table_from_float_array(out, m * n)
 end
 
+---@param x number[]
+---@param rows integer
+---@param cols integer
+---@param mask (boolean|integer)[]?
+---@return number[]?, needle.Error?, integer?
 function M.kernels.softmax(x, rows, cols, mask)
 	local runtime = load_lib()
 	local n = rows * cols
 	local cx = float_array(x, n)
 	local cmask = mask_array(mask, n)
-	local out = ffi.new("float[?]", n)
+	local out = ffi.new("float[?]", n) --[[@as needle.FloatBuffer]]
 	local rc = runtime.needle_kernel_softmax_f32(cx, cmask, out, rows, cols)
 	if rc ~= 0 then
 		return nil, error_table(rc, "softmax failed"), rc
@@ -2491,6 +3076,14 @@ function M.kernels.softmax(x, rows, cols, mask)
 	return table_from_float_array(out, n)
 end
 
+---@param q number[]
+---@param k_values number[]
+---@param v number[]
+---@param q_len integer
+---@param kv_len integer
+---@param head_dim integer
+---@param mask (boolean|integer)[]?
+---@return number[]?, needle.Error?, integer?
 function M.kernels.attention(q, k_values, v, q_len, kv_len, head_dim, mask)
 	local runtime = load_lib()
 	local qn = q_len * head_dim
@@ -2499,7 +3092,7 @@ function M.kernels.attention(q, k_values, v, q_len, kv_len, head_dim, mask)
 	local ck = float_array(k_values, kvn)
 	local cv = float_array(v, kvn)
 	local cmask = mask_array(mask, q_len * kv_len)
-	local out = ffi.new("float[?]", qn)
+	local out = ffi.new("float[?]", qn) --[[@as needle.FloatBuffer]]
 	local rc = runtime.needle_kernel_attention_f32(cq, ck, cv, cmask, out, q_len, kv_len, head_dim)
 	if rc ~= 0 then
 		return nil, error_table(rc, "attention failed"), rc
