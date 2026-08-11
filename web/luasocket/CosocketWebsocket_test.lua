@@ -5,9 +5,19 @@ local WebsocketClient = require("web.ws.WebsocketClient")
 local ws_util = require("web.ws.util")
 local Request = require("web.http.Request")
 local Response = require("web.http.Response")
+---@type {gettime: fun(): number, tcp: fun(): websocket_test.LuaTcpSocket, tcp4: fun(): websocket_test.LuaTcpSocket}
 local socket = require("socket")
 
 local test = {}
+
+---@class websocket_test.LuaTcpSocket
+---@field setoption fun(self: websocket_test.LuaTcpSocket, option: string, value: any): integer?
+---@field bind fun(self: websocket_test.LuaTcpSocket, host: string, port: integer): integer?
+---@field listen fun(self: websocket_test.LuaTcpSocket, backlog: integer): integer?
+---@field settimeout fun(self: websocket_test.LuaTcpSocket, timeout: number): integer?
+---@field getsockname fun(self: websocket_test.LuaTcpSocket): string, integer
+---@field accept fun(self: websocket_test.LuaTcpSocket): websocket_test.LuaTcpSocket?, string?
+---@field close fun(self: websocket_test.LuaTcpSocket): integer?
 
 local tls_cert_path = "tmp/cosocket-tls/rizu.su.fullchain.pem"
 local tls_key_path = "tmp/cosocket-tls/rizu.su.privkey.pem"
@@ -43,20 +53,23 @@ end
 
 ---@param t testing.T
 function test.websocket_smoke(t)
+	---@type websocket_test.LuaTcpSocket
 	local server = assert(socket.tcp4 and socket.tcp4() or socket.tcp())
 	assert(server:setoption("reuseaddr", true))
 	assert(server:bind("127.0.0.1", 0))
 	assert(server:listen(1))
 	assert(server:settimeout(0))
 
-	local _ip, port = server:getsockname()
+	local _, port = server:getsockname()
 	local scheduler = CosocketScheduler()
 
-	---@type TCPSocket?
+	---@type websocket_test.LuaTcpSocket?
 	local peer
 	---@type thread?
 	local server_co
+	---@type string?
 	local server_payload
+	---@type string?
 	local client_payload
 
 	local function start_server()
@@ -64,15 +77,15 @@ function test.websocket_smoke(t)
 			return
 		end
 
-		local _peer, err = server:accept()
-		if not _peer then
+		local accepted_peer, err = server:accept()
+		if not accepted_peer then
 			if err ~= "timeout" then
 				error(err)
 			end
 			return
 		end
 
-		peer = _peer
+		peer = accepted_peer
 		assert(peer:settimeout(0))
 
 		server_co = coroutine.create(function()
@@ -135,18 +148,21 @@ function test.wss_smoke(t)
 		return
 	end
 
+	---@type websocket_test.LuaTcpSocket
 	local server = assert(socket.tcp4 and socket.tcp4() or socket.tcp())
 	assert(server:setoption("reuseaddr", true))
 	assert(server:bind("127.0.0.1", 0))
 	assert(server:listen(1))
 	assert(server:settimeout(0))
 
-	local _ip, port = server:getsockname()
+	local _, port = server:getsockname()
 	local scheduler = CosocketScheduler()
 
-	---@type TCPSocket?
+	---@type websocket_test.LuaTcpSocket?
 	local peer
+	---@type string?
 	local server_payload
+	---@type string?
 	local client_payload
 
 	local function start_server()
@@ -154,15 +170,15 @@ function test.wss_smoke(t)
 			return
 		end
 
-		local _peer, err = server:accept()
-		if not _peer then
+		local accepted_peer, err = server:accept()
+		if not accepted_peer then
 			if err ~= "timeout" then
 				error(err)
 			end
 			return
 		end
 
-		peer = _peer
+		peer = accepted_peer
 		assert(peer:settimeout(0))
 
 		local server_co = coroutine.create(function()
