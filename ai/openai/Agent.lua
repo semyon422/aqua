@@ -37,9 +37,15 @@ local json = require("web.json")
 ---@field type "function"
 ---@field ["function"] aqua.openai.ToolCallFunction
 
+---@class aqua.openai.FunctionSchema
+---@field name string
+---@field description string?
+---@field parameters table
+---@field strict boolean?
+
 ---@class aqua.openai.ToolSchema
 ---@field type "function"
----@field ["function"] table
+---@field ["function"] aqua.openai.FunctionSchema
 
 ---@class aqua.openai.Tool
 ---@field name string

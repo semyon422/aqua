@@ -29,6 +29,66 @@ local SseParser = require("ai.openai.SseParser")
 ---@field code string
 ---@field request_id string
 
+---@class aqua.openai.UntrustedProviderError
+---@field message any?
+---@field type any?
+---@field code any?
+
+---@class aqua.openai.UntrustedProviderResponse
+---@field error aqua.openai.UntrustedProviderError?
+---@field detail any?
+
+---@class aqua.openai.ResponseUsageDetails
+---@field cached_tokens any?
+---@field audio_tokens any?
+---@field reasoning_tokens any?
+---@field accepted_prediction_tokens any?
+---@field rejected_prediction_tokens any?
+
+---@class aqua.openai.ResponseUsage
+---@field input_tokens any?
+---@field output_tokens any?
+---@field total_tokens any?
+---@field input_tokens_details aqua.openai.ResponseUsageDetails?
+---@field output_tokens_details aqua.openai.ResponseUsageDetails?
+
+---@class aqua.openai.ResponseContent
+---@field type any?
+---@field text any?
+---@field refusal any?
+
+---@class aqua.openai.ResponseSummary
+---@field text any?
+
+---@class aqua.openai.ResponseItem
+---@field type any?
+---@field role any?
+---@field content aqua.openai.ResponseContent[]?
+---@field summary aqua.openai.ResponseSummary[]?
+---@field call_id any?
+---@field name any?
+---@field arguments any?
+
+---@class aqua.openai.ResponseEvent
+---@field type any?
+---@field output_index any?
+---@field content_index any?
+---@field item aqua.openai.ResponseItem?
+---@field part table?
+---@field delta any?
+---@field text any?
+---@field refusal any?
+---@field arguments any?
+---@field response aqua.openai.ResponseObject?
+---@field message any?
+---@field error aqua.openai.UntrustedProviderError?
+
+---@class aqua.openai.ResponseObject
+---@field output aqua.openai.ResponseItem[]?
+---@field usage aqua.openai.ResponseUsage?
+---@field incomplete_details {reason: any?}?
+---@field error aqua.openai.UntrustedProviderError?
+
 ---@class aqua.openai.PromptCacheOptions
 ---@field mode "implicit"|"explicit"?
 ---@field ttl "30m"?
@@ -160,6 +220,7 @@ end
 ---@return table[]?
 local function createTools(tools)
 	if not tools or #tools == 0 then return end
+	---@type table[]
 	local output = {}
 	for _, tool in ipairs(tools) do
 		local schema = tool["function"]
@@ -203,10 +264,13 @@ function SubscriptionClient:createBody(messages, tools)
 	return body
 end
 
----@param request table
+---@param request {[string]: any}
 ---@return table
 function SubscriptionClient:createResponsesBody(request)
+	---@type {[string]: any}
 	local body = json.object()
+	-- LuaLS 3.19 does not propagate open table index types through pairs().
+	---@diagnostic disable-next-line: no-unknown
 	for key, value in pairs(request) do body[key] = value end
 	body.model = self.model
 	body.store = false
@@ -219,24 +283,35 @@ function SubscriptionClient:createResponsesBody(request)
 		})})
 	end
 
+	---@type {[string]: any}
 	local reasoning = json.object()
 	if type(request.reasoning) == "table" then
-		for key, value in pairs(request.reasoning) do reasoning[key] = value end
+		---@type {[string]: any}
+		local request_reasoning = request.reasoning
+		---@diagnostic disable-next-line: no-unknown
+		for key, value in pairs(request_reasoning) do reasoning[key] = value end
 	end
 	if reasoning.effort == nil or reasoning.effort == json.null then reasoning.effort = self.reasoning_effort end
 	if reasoning.summary == nil or reasoning.summary == json.null then reasoning.summary = "auto" end
 	body.reasoning = reasoning
 
+	---@type {[string]: any}
 	local text = json.object()
 	if type(request.text) == "table" then
-		for key, value in pairs(request.text) do text[key] = value end
+		---@type {[string]: any}
+		local request_text = request.text
+		---@diagnostic disable-next-line: no-unknown
+		for key, value in pairs(request_text) do text[key] = value end
 	end
 	if text.verbosity == nil or text.verbosity == json.null then text.verbosity = self.verbosity or "low" end
 	body.text = text
 
+	---@type any[]
 	local include = json.array()
 	local has_encrypted_reasoning = false
-	for _, value in ipairs(type(request.include) == "table" and request.include or {}) do
+	---@type any[]
+	local request_include = type(request.include) == "table" and request.include or {}
+	for _, value in ipairs(request_include) do
 		table.insert(include, value)
 		if value == "reasoning.encrypted_content" then has_encrypted_reasoning = true end
 	end
@@ -268,8 +343,9 @@ end
 ---@return string
 local function sanitizeErrorValue(value, fallback, max_length)
 	if type(value) ~= "string" or value == "" then return fallback end
-	value = value:gsub("[%c\127]", " "):gsub("%s+", " ")
-	if #value > max_length then value = value:sub(1, max_length) end
+	value = string.gsub(value, "[%c\127]", " ")
+	value = string.gsub(value, "%s+", " ")
+	if #value > max_length then value = string.sub(value, 1, max_length) end
 	return value
 end
 
@@ -279,6 +355,7 @@ end
 ---@param client_request_id string
 ---@return aqua.openai.ProviderError
 local function createProviderError(status, body, headers, client_request_id)
+	---@type aqua.openai.UntrustedProviderResponse?
 	local decoded = body and json.decode_safe(body) or nil
 	local provider = type(decoded) == "table" and decoded.error or nil
 	if type(provider) ~= "table" then
@@ -344,14 +421,19 @@ function SubscriptionClient:createResponse(request, on_event)
 	end
 
 	local done = false
+	---@type string?
 	local parse_err
+	---@type aqua.openai.ProviderError?
 	local provider_error
 	local received_size = 0
+	---@type table?
 	local response
+	---@type aqua.openai.ResponseItem[]
 	local items = json.array()
 	local parser = SseParser(function(data)
 		if data == "[DONE]" then return end
 		local event, decode_err = json.decode_safe(data)
+		---@cast event aqua.openai.ResponseEvent?
 		if type(event) ~= "table" then
 			parse_err = "invalid Responses streaming JSON: " .. tostring(decode_err)
 			return
@@ -412,6 +494,7 @@ end
 ---@return aqua.openai.TokenUsage?
 local function normalizeUsage(usage)
 	if type(usage) ~= "table" then return end
+	---@cast usage aqua.openai.ResponseUsage
 	local input_tokens = tokenCount(usage.input_tokens)
 	local output_tokens = tokenCount(usage.output_tokens)
 	local total_tokens = tokenCount(usage.total_tokens)
@@ -452,14 +535,20 @@ end
 ---@param finish_reason "length"|"content_filter"?
 ---@return aqua.openai.Message
 local function createMessage(items, usage, finish_reason)
+	---@cast items aqua.openai.ResponseItem[]
 	---@type aqua.openai.Message
 	local message = {role = "assistant", content = "", response_items = items, usage = usage}
+	---@type string[]
 	local text_parts = {}
+	---@type string[]
 	local reasoning_parts = {}
+	---@type aqua.openai.ToolCall[]
 	local tool_calls = {}
 	for _, item in ipairs(items) do
 		if item.type == "message" and type(item.content) == "table" then
-			for _, content in ipairs(item.content) do
+			---@type aqua.openai.ResponseContent[]
+			local contents = item.content
+			for _, content in ipairs(contents) do
 				if content.type == "output_text" and type(content.text) == "string" then
 					table.insert(text_parts, content.text)
 				elseif content.type == "refusal" and type(content.refusal) == "string" then
@@ -467,7 +556,9 @@ local function createMessage(items, usage, finish_reason)
 				end
 			end
 		elseif item.type == "reasoning" and type(item.summary) == "table" then
-			for _, summary in ipairs(item.summary) do
+			---@type aqua.openai.ResponseSummary[]
+			local summaries = item.summary
+			for _, summary in ipairs(summaries) do
 				if type(summary) == "table" and type(summary.text) == "string" then
 					table.insert(reasoning_parts, summary.text)
 				end
@@ -539,19 +630,23 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 	end
 
 	local done = false
+	---@type string?
 	local parse_err
+	---@type aqua.openai.ProviderError?
 	local provider_error
 	local received_size = 0
+	---@type aqua.openai.ResponseItem[]
 	local items = {}
 	---@type "length"|"content_filter"?
 	local finish_reason
 	---@type {[integer]: integer}
 	local tool_call_indexes = {}
 	local next_tool_call_index = 0
+	---@type aqua.openai.TokenUsage?
 	local usage
-	---@param event table
+	---@param event aqua.openai.ResponseEvent
 	---@param item_type string
-	---@return table
+	---@return aqua.openai.ResponseItem
 	local function getItem(event, item_type)
 		local position = (tonumber(event.output_index) or #items) + 1
 		local item = items[position]
@@ -561,14 +656,15 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		end
 		return item
 	end
-	---@param event table
+	---@param event aqua.openai.ResponseEvent
 	---@param content_type string
-	---@return table
+	---@return aqua.openai.ResponseContent
 	local function getContent(event, content_type)
 		local item = getItem(event, "message")
 		item.role = item.role or "assistant"
 		item.content = item.content or {}
 		local position = (tonumber(event.content_index) or #item.content) + 1
+		---@type aqua.openai.ResponseContent?
 		local content = item.content[position]
 		if not content then
 			content = {type = content_type}
@@ -576,7 +672,7 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		end
 		return content
 	end
-	---@param event table
+	---@param event aqua.openai.ResponseEvent
 	---@return integer
 	local function getToolCallIndex(event)
 		local output_index = tonumber(event.output_index) or #items
@@ -594,6 +690,7 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 			return
 		end
 		local event, decode_err = json.decode_safe(data)
+		---@cast event aqua.openai.ResponseEvent?
 		if type(event) ~= "table" then
 			parse_err = "invalid Responses streaming JSON: " .. tostring(decode_err)
 			return
