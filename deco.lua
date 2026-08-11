@@ -4,6 +4,17 @@ local lua_parser = require("luacheck.parser")
 
 local deco = {}
 
+---@class deco.DecodedSource
+---@field get_substring fun(self: deco.DecodedSource, start_offset: integer, end_offset: integer): string
+
+---@class deco.AstNode
+---@field tag string?
+---@field offset integer
+---@field end_offset integer
+---@field line integer
+---@field msg string?
+---@field [integer] deco.AstNode|deco.AstNode[]
+
 ---@class deco.Insertion
 ---@field offset integer Byte offset after which text is inserted.
 ---@field text string
@@ -11,12 +22,12 @@ local deco = {}
 ---@class deco.ParseContext
 ---@operator call: deco.ParseContext
 ---@field source string
----@field decoded table
----@field ast table
----@field comments table[]
+---@field decoded deco.DecodedSource
+---@field ast deco.AstNode
+---@field comments deco.AstNode[]
 ---@field code_lines {[integer]: boolean}
----@field statements table[]
----@field line_comments {[integer]: table}
+---@field statements deco.AstNode[]
+---@field line_comments {[integer]: deco.AstNode}
 local ParseContext = class()
 deco.ParseContext = ParseContext
 
@@ -39,8 +50,8 @@ local statement_tags = {
 	Invoke = true,
 }
 
----@param value any
----@param statements table[]
+---@param value deco.AstNode|deco.AstNode[]
+---@param statements deco.AstNode[]
 local function collect_statements(value, statements)
 	if type(value) ~= "table" then
 		return
@@ -50,6 +61,8 @@ local function collect_statements(value, statements)
 		table.insert(statements, value)
 	end
 
+	-- Luacheck AST nodes are recursive, mixed-key external tables.
+	---@diagnostic disable-next-line: no-unknown
 	for key, child in pairs(value) do
 		if key ~= "end_range" and type(child) == "table" then
 			collect_statements(child, statements)
@@ -58,9 +71,9 @@ local function collect_statements(value, statements)
 end
 
 ---@param source string
----@param decoded table
----@param ast table
----@param comments table[]
+---@param decoded deco.DecodedSource
+---@param ast deco.AstNode
+---@param comments deco.AstNode[]
 ---@param code_lines {[integer]: boolean}
 function ParseContext:new(source, decoded, ast, comments, code_lines)
 	self.source = source
@@ -85,7 +98,7 @@ function ParseContext:new(source, decoded, ast, comments, code_lines)
 	end
 end
 
----@param range table
+---@param range deco.AstNode
 ---@return string
 function ParseContext:get_source(range)
 	return self.decoded:get_substring(range.offset, range.end_offset)
@@ -117,8 +130,9 @@ function ParseContext:get_leading_comments(line)
 end
 
 ---@param tag string
----@return table[]
+---@return deco.AstNode[]
 function ParseContext:get_statements(tag)
+	---@type deco.AstNode[]
 	local statements = {}
 	for _, statement in ipairs(self.statements) do
 		if statement.tag == tag then
@@ -190,7 +204,7 @@ function FunctionDecorator:next(line)
 	end
 end
 
----@param node table
+---@param node deco.AstNode
 ---@param context deco.ParseContext
 ---@return boolean
 local function is_named_target(node, context)
@@ -204,7 +218,11 @@ local function is_named_target(node, context)
 	return not source:find("[", 1, true) and is_named_target(node[1], context)
 end
 
+---@param func_name string
 function FunctionDecorator:func_begin(func_name) end
+
+---@param func_name string
+---@return string?
 function FunctionDecorator:func_end(func_name) end
 
 ---@param context deco.ParseContext
@@ -264,7 +282,9 @@ function deco.process(s)
 		return s
 	end
 
+	---@type deco.DecodedSource
 	local decoded = decoder.decode(s)
+	---@type boolean, deco.AstNode, deco.AstNode[], {[integer]: boolean}
 	local ok, ast, comments, code_lines = pcall(lua_parser.parse, decoded)
 	if not ok then
 		if type(ast) == "table" and ast.msg and ast.line then
@@ -287,6 +307,7 @@ function deco.process(s)
 		end
 	end
 
+	---@type integer[]
 	local offsets = {}
 	for offset in pairs(insertions) do
 		table.insert(offsets, offset)
@@ -295,8 +316,12 @@ function deco.process(s)
 		return a > b
 	end)
 
-	for _, offset in ipairs(offsets) do
-		s = s:sub(1, offset) .. table.concat(insertions[offset]) .. s:sub(offset + 1)
+	for index = 1, #offsets do
+		local offset = offsets[index]
+		local inserted = assert(insertions[offset])
+		-- LuaLS 3.19 loses the string type on loop reassignment.
+		---@diagnostic disable-next-line: no-unknown
+		s = s:sub(1, offset) .. table.concat(inserted) .. s:sub(offset + 1)
 	end
 	return s
 end
