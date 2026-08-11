@@ -1,31 +1,49 @@
 local synctable = {}
 
----@param src table
----@param dst table
+---@alias synctable.Key string|number
+---@alias synctable.Value string|number|boolean|synctable.Data|nil
+---@alias synctable.Data {[synctable.Key]: synctable.Value}
+---@alias synctable.Callback fun(path: synctable.Key[], key: synctable.Key, value: synctable.Value|synctable.Key[], is_path: boolean)
+
+---@class synctable.Proxy
+---@field __t synctable.Data
+---@field __name synctable.Key?
+---@field __parent synctable.Proxy?
+---@field __cb synctable.Callback
+
+---@param src synctable.Data
+---@param dst synctable.Data
 local function copy(src, dst)
+	-- LuaLS 3.19 does not propagate dictionary key/value types through pairs().
+	---@diagnostic disable-next-line: no-unknown
 	for k, v in pairs(src) do
 		dst[k] = v
 	end
 end
 
----@param t table
----@param path table
----@return table
+---@param t synctable.Data
+---@param path synctable.Key[]
+---@return synctable.Data
 local function deep_index(t, path)
 	for _, k in ipairs(path) do
-		t = t[k]
+		-- LuaLS 3.19 loses recursive union types on loop reassignment.
+		---@diagnostic disable-next-line: no-unknown
+		t = assert(t[k])
+		---@cast t synctable.Data
 	end
 	return t
 end
 
----@param v string|number|table|boolean|nil
+---@param v synctable.Value
 local function assert_value_type(v)
 	local t = type(v)
 	assert(t == "string" or t == "number" or t == "table" or t == "boolean" or t == "nil")
 end
 
----@param t table
+---@param t synctable.Data
 local function validate(t)
+	-- LuaLS 3.19 does not propagate dictionary key/value types through pairs().
+	---@diagnostic disable-next-line: no-unknown
 	for k, v in pairs(t) do
 		local tk = type(k)
 		assert(tk == "string" or tk == "number")
@@ -36,9 +54,10 @@ local function validate(t)
 	end
 end
 
----@param t table
----@return table
+---@param t synctable.Proxy
+---@return synctable.Key[]
 local function get_path(t)
+	---@type synctable.Key[]
 	local path = {}
 	while t.__parent do
 		table.insert(path, 1, t.__name)
@@ -49,9 +68,9 @@ end
 
 local mt = {}
 
----@param s table
----@param k string|number
----@param v string|number|table|boolean|nil
+---@param s synctable.Proxy
+---@param k synctable.Key
+---@param v synctable.Value
 function mt.__newindex(s, k, v)
 	local _t = s.__t
 	local path = get_path(s)
@@ -79,9 +98,9 @@ function mt.__newindex(s, k, v)
 	copy(v, s[k])
 end
 
----@param s table
----@param k string|number
----@return string|number|table|boolean|nil
+---@param s synctable.Proxy
+---@param k synctable.Key
+---@return synctable.Value
 function mt.__index(s, k)
 	local _t = s.__t
 	local v = _t[k]
@@ -104,9 +123,9 @@ function mt.__index(s, k)
 	return _v
 end
 
----@param t table
----@param callback function
----@return table
+---@param t synctable.Data
+---@param callback synctable.Callback
+---@return synctable.Proxy
 function synctable.new(t, callback)
 	validate(t)
 	local res = setmetatable({ -- set mt before copy
@@ -118,14 +137,15 @@ function synctable.new(t, callback)
 end
 
 ---@param object table
----@param path table
----@param k any
----@param v any
+---@param path synctable.Key[]
+---@param k synctable.Key
+---@param v synctable.Value|synctable.Key[]
 ---@param is_path boolean
 function synctable.set(object, path, k, v, is_path)
 	local t = deep_index(object, path)
 
 	if is_path then
+		---@cast v synctable.Key[]
 		v = deep_index(object, v)
 	end
 
@@ -139,9 +159,10 @@ local function formatKey(key)
 	return f:format(key)
 end
 
----@param path table
+---@param path synctable.Key[]
 ---@return string
 local function formatPath(path)
+	---@type string[]
 	local p = {}
 	for _, key in ipairs(path) do
 		table.insert(p, formatKey(key))
@@ -166,9 +187,9 @@ local function formatValue(prefix, value, is_path)
 end
 
 ---@param prefix string
----@param path table
----@param k any
----@param v any
+---@param path synctable.Key[]
+---@param k synctable.Key
+---@param v synctable.Value|synctable.Key[]
 ---@param is_path boolean
 ---@return string
 function synctable.format(prefix, path, k, v, is_path)
