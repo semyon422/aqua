@@ -12,6 +12,12 @@ local function getPosition(w, h)
 	return math.min(math.max(value, 0), 1)
 end
 
+---@param id any
+---@param value number
+---@param w number
+---@param h number
+---@param displayValue string|number?
+---@return number|boolean?
 return function(id, value, w, h, displayValue)
 	local over = just.is_over(w, h)
 	local pos = getPosition(w, h)

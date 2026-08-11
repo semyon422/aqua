@@ -32,6 +32,12 @@ local function button(id, text, w, h, selected)
 	return changed
 end
 
+---@param id any
+---@param item string
+---@param items string[]
+---@param w number
+---@param h number
+---@return string
 return function(id, item, items, w, h)
 	id = tostring(id)
 
@@ -45,6 +51,7 @@ return function(id, item, items, w, h)
 
 	local newItem = item
 	for _, _item in ipairs(items) do
+		---@type number
 		local _width = font:getWidth(_item) + (w - width) / #items
 		if button(id .. " tab " .. _item, _item, _width, h, _item == item) then
 			newItem = _item

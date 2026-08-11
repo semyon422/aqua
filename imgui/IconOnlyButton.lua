@@ -1,6 +1,11 @@
 local just = require("just")
 local theme = require("imgui.theme")
 
+---@param id any
+---@param image love.Image
+---@param size number
+---@param scale number
+---@return number?
 return function(id, image, size, scale)
 	local width = image:getWidth()
 

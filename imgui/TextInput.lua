@@ -2,10 +2,21 @@ local utf8 = require("utf8")
 local just = require("just")
 local theme = require("imgui.theme")
 
+---@alias imgui.TextInputValue string|number|{[1]: string|number, [2]: string}
+
+---@param id any
+---@param text imgui.TextInputValue?
+---@param index number?
+---@param w number
+---@param h number?
+---@return string|boolean changed
+---@return string text
+---@return number index
 return function(id, text, index, w, h)
 	local placeholder = ""
 	if type(text) == "table" then
-		text, placeholder = unpack(text)
+		placeholder = text[2]
+		text = text[1]
 	end
 	if text == nil then
 		text = ""
@@ -34,6 +45,7 @@ return function(id, text, index, w, h)
 	local clipw = w - h * theme.padding * 2
 	just.clip(love.graphics.rectangle, "fill", 0, 0, clipw + 2, lh)
 
+	---@type string|boolean, string?, string?
 	local changed, left, right
 	if just.focused_id == id then
 		if just.keypressed("escape") then

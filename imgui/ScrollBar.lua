@@ -1,6 +1,7 @@
 local just = require("just")
 local theme = require("imgui.theme")
 
+---@type number?
 local dragPosition
 
 ---@param h number
@@ -17,6 +18,13 @@ local function getPosition(h, _h)
 end
 
 local size = 0.5
+
+---@param id any
+---@param value number
+---@param w number
+---@param h number
+---@param overlap number
+---@return number|boolean?
 return function(id, value, w, h, overlap)
 	if overlap <= 0 then
 		return

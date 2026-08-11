@@ -32,6 +32,13 @@ local function button(id, text, w, h, selected)
 	return changed
 end
 
+---@param id any
+---@param item string
+---@param items string[]
+---@param h number
+---@param _h number
+---@return string
+---@return number
 return function(id, item, items, h, _h)
 	id = tostring(id)
 

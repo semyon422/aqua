@@ -6,10 +6,17 @@ local height = 0
 local height_start = 0
 local base_height = 0
 local width = 0
+---@type any
 local open_frame_id
 
+---@param id any?
+---@param w number?
+---@param h number?
+---@param preview any
+---@return boolean?
 return function(id, w, h, preview)
 	if id then
+		assert(w and h)
 		base_height = h
 		width = w
 

@@ -6,9 +6,29 @@ local gfx_util = require("gfx_util")
 local decibel = require("decibel")
 
 ---@class imgui.Imgui
-local imgui = autoload("imgui")
+---@field Label fun(id: any, text: string, h: number)
+---@field TextButton fun(id: any, text: string|number, w: number, h: number, inactive: boolean?): number?
+---@field Slider fun(id: any, value: number, w: number, h: number, display_value: string|number?): number|boolean?
+---@field Checkbox fun(id: any, value: boolean, size: number, inactive: boolean?): boolean?
+---@field TextCheckbox fun(id: any, value: boolean, text: string, w: number, h: number): boolean?
+---@field SpoilerList fun(id: any, w: number, h: number, values: any[], preview: any, to_string: function?): integer?
+---@field List fun(id: any?, w: number?, h: number?, scrollbar_w: number?, line_h: number?, scroll_y: number?): number?
+---@field TextOnlyButton fun(id: any, text: string|number, w: number, h: number, align: love.AlignMode?): number?
+---@field Hotkey fun(id: any, text: string?, w: number, h: number): boolean, any?, string?, any?
+---@field TextInput fun(id: any, text: imgui.TextInputValue?, index: number?, w: number, h: number?): string|boolean, string, number
+---@field TabBar fun(id: any, item: string, items: string[], w: number, h: number): string
+---@field TabColumn fun(id: any, item: string, items: string[], h: number, line_h: number): string, number
+---@field Knob fun(id: any, value: number, h: number, drag_w: number): number|boolean?
+local imgui = autoload("imgui") --[[@as imgui.Imgui]]
 
-local w, h, _w, _h
+---@type number
+local w
+---@type number
+local h
+---@type number
+local _w
+---@type number
+local _h
 
 ---@param ... number
 function imgui.setSize(...)
@@ -59,6 +79,7 @@ end
 function imgui.url(id, text, url, isLabel)
 	local font = love.graphics.getFont()
 	local width = font:getWidth(text)
+	---@type number
 	local height = _h
 	if not isLabel then
 		height = font:getHeight() * font:getLineHeight()
@@ -84,6 +105,7 @@ end
 
 ---@param id any
 ---@param text string
+---@param inactive boolean?
 ---@return number?
 function imgui.button(id, text, inactive)
 	local width = love.graphics.getFont():getWidth(text)
@@ -202,11 +224,12 @@ function imgui.textcheckbox(id, v, text)
 end
 
 ---@param id any
----@param v any
----@param values table
----@param to_string function?
+---@generic T
+---@param v T
+---@param values T[]
+---@param to_string (fun(value: T): string)?
 ---@param label string?
----@return any
+---@return T
 function imgui.combo(id, v, values, to_string, label)
 	local fv = to_string and to_string(v) or v
 	local i = imgui.SpoilerList(id, _w, _h, values, fv, to_string)
@@ -223,15 +246,19 @@ local scrolls = {}
 ---@param v T
 ---@param values T[]
 ---@param height number
----@param format function?
+---@param format (fun(value: T): string|number)?
 ---@param label string?
 ---@return T
 function imgui.list(id, v, values, height, format, label)
 	scrolls[id] = scrolls[id] or 0
 	imgui.List(id, _w, height, _h / 3, _h, scrolls[id])
+	-- LuaLS 3.19 loses the generic array value type through ipairs().
+	---@diagnostic disable-next-line: no-unknown
 	for i, _v in ipairs(values) do
 		local dv = format and format(_v) or _v
 		if imgui.TextOnlyButton(id .. i, dv, _w - _h * (1 - theme.size), _h * theme.size) then
+			-- Same LuaLS generic iterator limitation as above.
+			---@diagnostic disable-next-line: no-unknown
 			v = _v
 		end
 	end
@@ -249,6 +276,7 @@ end
 function imgui.intButtons(id, v, s, label)
 	just.row(true)
 	local bw = _w / (s + 2)
+	---@type number?
 	local button = v and imgui.TextButton(nil, v, bw, _h)
 	v = v or 0
 	for i = 0, s do
@@ -269,6 +297,7 @@ end
 ---@return string
 function imgui.hotkey(id, key, label)
 	local _, _key = imgui.Hotkey(id, key, _w, _h)
+	---@cast _key string?
 	just.sameline()
 	imgui.label(id .. "label", label)
 	return _key or key
@@ -281,6 +310,7 @@ end
 function imgui.input(id, text, label)
 	local _
 	_, text = imgui.TextInput(id, text, nil, _w, _h)
+	---@cast text string
 	just.sameline()
 	imgui.label(id .. "label", label)
 	return text
@@ -288,7 +318,7 @@ end
 
 ---@param id any
 ---@param item string
----@param items table
+---@param items string[]
 ---@return string
 function imgui.tabs(id, item, items)
 	return imgui.TabBar(id, item, items, w, _h)
@@ -296,7 +326,7 @@ end
 
 ---@param id any
 ---@param item string
----@param items table
+---@param items string[]
 ---@return string
 ---@return number
 function imgui.vtabs(id, item, items)

@@ -591,7 +591,10 @@ function just.container(id, over)
 	table.insert(container_overs, over)
 end
 
----@param state string
+---@param state "pressed"|"released"|"down"
+---@return any? key
+---@return string? device
+---@return any? device_id
 function just.next_input(state)
 	for device, d in pairs(keyinput) do
 		for id, input in pairs(d) do

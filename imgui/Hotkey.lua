@@ -2,8 +2,17 @@ local just = require("just")
 local gfx_util = require("gfx_util")
 local theme = require("imgui.theme")
 
+---@param id any
+---@param text string?
+---@param w number
+---@param h number
+---@return boolean changed
+---@return any? key
+---@return string? device
+---@return any? device_id
 return function(id, text, w, h)
 	local changed = false
+	---@type any?, string?, any?
 	local key, device, device_id
 
 	if just.focused_id == id then

@@ -2,9 +2,16 @@ local just = require("just")
 local theme = require("imgui.theme")
 local math_util = require("math_util")
 
+---@type number?
 local dragPosition
+---@type number?
 local baseValue
 
+---@param id any
+---@param value number
+---@param h number
+---@param drag_w number
+---@return number|boolean?
 return function(id, value, h, drag_w)
 	local over = just.is_over(h, h)
 
@@ -12,7 +19,7 @@ return function(id, value, h, drag_w)
 
 	local pos = value
 	if dragPosition then
-		pos = baseValue + (mx - dragPosition) / drag_w
+		pos = assert(baseValue) + (mx - dragPosition) / drag_w
 	end
 
 	local new_value, active, hovered = just.slider(id, over, pos, value)
