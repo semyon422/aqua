@@ -10,12 +10,67 @@ local swscale = ffmpeg.swscale
 
 local video = {}
 
+---@class video.Rational
+---@field num integer
+---@field den integer
+
+---@class video.Stream
+---@field start_time number
+---@field duration number
+---@field time_base video.Rational
+---@field codecpar ffi.cdata*
+
+---@class video.CodecContext
+---@field width integer
+---@field height integer
+---@field pix_fmt integer
+
+---@class video.Frame
+---@field data ffi.cdata*
+---@field linesize ffi.cdata*
+---@field best_effort_timestamp number
+
+---@class video.Packet
+---@field stream_index integer
+
+---@class video.FormatContext
+---@field pb ffi.cdata*
+---@field flags integer
+---@field streams {[integer]: video.Stream}
+
+---@class video.AvioContext
+---@field buffer ffi.cdata*
+
+---@class video.Avbuf
+---@field offset integer
+---@field ptr ffi.cdata*
+---@field size integer
+
+---@class video.Decoder
+---@field buffer ffi.cdata*
+---@field buf {[0]: video.Avbuf}
+---@field ioContext {[0]: video.AvioContext}
+---@field formatContext {[0]: video.FormatContext}
+---@field codec ffi.cdata*
+---@field streamIndex integer
+---@field stream video.Stream
+---@field codecContext {[0]: video.CodecContext}
+---@field frame video.Frame
+---@field frameRGB video.Frame
+---@field imageSize integer
+---@field image ffi.cdata*
+---@field swsContext ffi.cdata*
+
 local Video = {}
 local mt = {__index = Video}
 
 local buffer_size = 8192
 
-video.open = function(ptr, size)
+---@param ptr ffi.cdata*
+---@param size integer
+---@return video.Decoder
+function video.open(ptr, size)
+	---@type video.Decoder
 	local self = setmetatable({}, mt)
 
 	self.buffer = avutil.av_malloc(buffer_size) -- don't gc because of IOContext will do it
@@ -116,12 +171,16 @@ end
 
 function Video:close() end
 
+---@return integer, integer
 function Video:getDimensions()
+	---@type video.CodecContext
 	local cctx = self.codecContext[0]
 	return tonumber(cctx.width), tonumber(cctx.height)
 end
 
 -- https://ffmpeg.org/doxygen/trunk/structAVStream.html#a7c67ae70632c91df8b0f721658ec5377
+---@param stream video.Stream
+---@return number
 local function stream_start_time(stream)
 	local start_time = stream.start_time
 	if start_time == ffmpeg.AV_NOPTS_VALUE then
@@ -130,13 +189,18 @@ local function stream_start_time(stream)
 	return start_time
 end
 
+---@return number
 function Video:getDuration()
+	---@type video.Rational
 	local base = self.stream.time_base
 	return tonumber(self.stream.duration) * base.num / base.den
 end
 
+---@return number
 function Video:tell()
+	---@type number
 	local effort = self.frame.best_effort_timestamp
+	---@type video.Rational
 	local base = self.stream.time_base
 
 	if effort < 0 then
@@ -146,7 +210,11 @@ function Video:tell()
 	return tonumber(effort - stream_start_time(self.stream)) * base.num / base.den
 end
 
+---@type {[0]: video.Packet}
 local packet = ffi.new("AVPacket[1]")
+
+---@param dst ffi.cdata*
+---@return number?
 function Video:read(dst)
 	while avformat.av_read_frame(self.formatContext[0], packet) == 0 do
 		if packet[0].stream_index == self.streamIndex then
@@ -173,11 +241,14 @@ function Video:read(dst)
 	end
 end
 
+---@param time number
 function Video:seek(time)
+	---@type video.Rational
 	local base = self.stream.time_base
 
 	local start_time = stream_start_time(self.stream)
 	local ts = time * base.den / base.num - start_time
+	---@type number
 	local cts = self.frame.best_effort_timestamp - start_time
 
 	local flags = 4 -- AVSEEK_FLAG_ANY
