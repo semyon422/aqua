@@ -4,6 +4,7 @@ local Transform = require("math.Transform")
 local FakeLove = {}
 
 local color = {1, 1, 1, 1}
+---@type love.Canvas?
 local current_canvas
 local line_width = 1
 

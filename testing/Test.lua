@@ -202,6 +202,7 @@ end
 local function build_method(f, num_args)
 	num_args = num_args or 2
 	return function(self, got, expected, ...)
+		---@type any
 		local msg
 		if select("#", ...) > num_args - 2 then
 			msg = select(num_args - 2 + 1, ...)

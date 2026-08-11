@@ -66,10 +66,11 @@ end
 ---@param line string
 ---@return testing.TestError
 function Testing:_parse_error(line)
+	---@type string?, string?, string?
 	local file, lnum, msg = line:match("^(.+):(%d+):(.*)$")
-	if file and lnum then
+	if file and lnum and msg then
 		local method = msg:match("^%s*%(([%w_]+)%)")
-		return {file = file, line = tonumber(lnum), method = method, detail = line}
+		return {file = file, line = assert(tonumber(lnum)), method = method, detail = line}
 	end
 	return {file = "?", line = 0, method = nil, detail = line}
 end
