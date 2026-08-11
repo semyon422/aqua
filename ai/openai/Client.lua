@@ -5,6 +5,39 @@ local SseParser = require("ai.openai.SseParser")
 ---@alias aqua.openai.RequestFunc fun(url: string, body: table|string?, options: web.HttpRequestOptions?): {status: integer, headers: web.Headers?, body: string}?, string?
 ---@alias aqua.openai.OpenStreamFunc fun(url: string, options: web.HttpStreamOptions?): web.HttpStream?, string?
 
+---@class aqua.openai.ChatBody
+---@field model string
+---@field messages aqua.openai.Message[]
+---@field stream boolean
+---@field tools aqua.openai.ToolSchema[]?
+---@field tool_choice "auto"?
+---@field parallel_tool_calls boolean?
+---@field max_tokens integer?
+
+---@class aqua.openai.ChatProviderError
+---@field message any?
+
+---@class aqua.openai.ChatProviderChoice
+---@field message any?
+---@field delta any?
+
+---@class aqua.openai.ProviderResponse
+---@field error aqua.openai.ChatProviderError?
+---@field choices aqua.openai.ChatProviderChoice[]?
+
+---@class aqua.openai.ChatToolCallDeltaFunction
+---@field name any?
+---@field arguments any?
+
+---@class aqua.openai.ChatToolCallDelta
+---@field index any?
+---@field id any?
+---@field ["function"] aqua.openai.ChatToolCallDeltaFunction?
+
+---@class aqua.openai.MessageDelta
+---@field content any?
+---@field tool_calls aqua.openai.ChatToolCallDelta[]?
+
 ---@class aqua.openai.ClientOptions
 ---@field base_url string
 ---@field api_key string?
@@ -44,8 +77,9 @@ end
 ---@param messages aqua.openai.Message[]
 ---@param tools aqua.openai.ToolSchema[]?
 ---@param stream boolean
----@return table
+---@return aqua.openai.ChatBody
 function Client:createBody(messages, tools, stream)
+	---@type aqua.openai.ChatBody
 	local body = {
 		model = self.model,
 		messages = messages,
@@ -101,6 +135,7 @@ function Client:complete(messages, tools)
 	end
 
 	local decoded, decode_err = json.decode_safe(res.body)
+	---@cast decoded aqua.openai.ProviderResponse?
 	if not decoded then
 		return nil, "invalid provider JSON: " .. tostring(decode_err)
 	end
@@ -123,7 +158,7 @@ function Client:complete(messages, tools)
 end
 
 ---@param message aqua.openai.Message
----@param delta table
+---@param delta aqua.openai.MessageDelta
 ---@param on_text_delta fun(content: string)?
 function Client:applyDelta(message, delta, on_text_delta)
 	if type(delta.content) == "string" and delta.content ~= "" then
@@ -212,6 +247,7 @@ function Client:completeStream(messages, tools, on_text_delta)
 	---@type aqua.openai.Message
 	local message = {role = "assistant", content = ""}
 	local done = false
+	---@type string?
 	local parse_err
 	local parser = SseParser(function(data)
 		if data == "[DONE]" then
@@ -219,6 +255,7 @@ function Client:completeStream(messages, tools, on_text_delta)
 			return
 		end
 		local event, decode_err = json.decode_safe(data)
+		---@cast event aqua.openai.ProviderResponse?
 		if not event then
 			parse_err = "invalid streaming JSON: " .. tostring(decode_err)
 			return

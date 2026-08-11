@@ -1,4 +1,5 @@
 local class = require("class")
+---@type {parse: fun(url: string): web.ParsedUrl?}
 local socket_url = require("socket.url")
 local table_util = require("table_util")
 local CosocketTcpSocket = require("web.luasocket.CosocketTcpSocket")
@@ -53,7 +54,7 @@ local function matchesDomain(host, domain)
 	elseif domain:sub(1, 1) == "." then
 		domain = domain:sub(2)
 	end
-	return host == domain or host:sub(-#domain - 1) == "." .. domain
+	return host == domain or host:sub(- #domain - 1) == "." .. domain
 end
 
 ---@param host string
@@ -79,6 +80,7 @@ function ProxyNetwork:getOptions(url, options)
 	client_options.scheduler = self.scheduler
 	client_options.ssl_params = self.ssl_params
 	client_options.timeout = client_options.timeout or self.timeout
+	---@type web.ParsedUrl
 	local parsed_url = assert(socket_url.parse(url))
 	local host = assert(parsed_url.host, "HTTP URL has no host")
 	local socks5 = self.socks5

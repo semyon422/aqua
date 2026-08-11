@@ -158,6 +158,7 @@ end
 ---@return string?
 function Agent:run(messages, on_text_delta)
 	for _ = 1, self.max_tool_rounds + 1 do
+		---@type aqua.openai.Message?, string?
 		local message, err
 		if self.streaming then
 			message, err = self.client:completeStream(messages, self.tool_schemas, on_text_delta or self.on_text_delta)

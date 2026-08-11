@@ -1,9 +1,11 @@
 local class = require("class")
 local digest = require("digest")
+---@type {b64: fun(value: string): string, unb64: fun(value: string): string?}
 local mime = require("mime")
 local Observable = require("Observable")
 local random = require("web.random")
 local HttpServer = require("web.http.Server")
+---@type {escape: fun(value: string): string, unescape: fun(value: string): string}
 local socket_url = require("socket.url")
 local json = require("web.json")
 
@@ -28,6 +30,25 @@ local json = require("web.json")
 ---@field server_factory (fun(handler: fun(req: web.Request, res: web.Response)): web.HttpServer)?
 ---@field get_time (fun(): integer)?
 ---@field sleep (fun(seconds: number))?
+
+---@class aqua.openai.TokenClaims
+---@field exp any?
+---@field ["https://api.openai.com/auth"] any?
+
+---@class aqua.openai.TokenResponse
+---@field access_token any?
+---@field refresh_token any?
+---@field expires_in any?
+---@field error_description any?
+---@field error any?
+
+---@class aqua.openai.DeviceCodeResponse
+---@field interval any?
+---@field user_code any?
+---@field usercode any?
+---@field device_auth_id any?
+---@field authorization_code any?
+---@field code_verifier any?
 
 ---@class aqua.openai.DeviceCode
 ---@field verification_url string
@@ -80,9 +101,11 @@ end
 ---@param params {[string]: string}
 ---@return string
 local function encodeForm(params)
+	---@type string[]
 	local keys = {}
 	for key in pairs(params) do table.insert(keys, key) end
 	table.sort(keys)
+	---@type string[]
 	local output = {}
 	for _, key in ipairs(keys) do
 		table.insert(output, formEscape(key) .. "=" .. formEscape(params[key]))
@@ -101,9 +124,12 @@ end
 local function getTokenClaims(token)
 	local payload = token:match("^[^.]+%.([^.]+)%.")
 	if not payload then return end
-	payload = payload:gsub("-", "+"):gsub("_", "/")
+	payload = string.gsub(payload, "-", "+")
+	payload = string.gsub(payload, "_", "/")
 	payload = payload .. string.rep("=", (4 - #payload % 4) % 4)
+	---@type string?
 	local decoded = mime.unb64(payload)
+	---@type aqua.openai.TokenClaims?
 	local claims = decoded and json.decode_safe(decoded) or nil
 	if type(claims) == "table" then return claims end
 end
@@ -191,8 +217,12 @@ end
 ---@return {[string]: string}
 local function parseQuery(uri)
 	local query = uri:match("%?(.*)$") or ""
+	---@type {[string]: string}
 	local params = {}
+	-- LuaLS 3.19 does not infer gmatch captures in generic-for loops.
+	---@diagnostic disable-next-line: no-unknown
 	for pair in query:gmatch("[^&]+") do
+		---@type string?, string?
 		local key, value = pair:match("^([^=]+)=?(.*)$")
 		if key then
 			params[socket_url.unescape((key:gsub("%+", " ")))] = socket_url.unescape((value:gsub("%+", " ")))
@@ -224,6 +254,7 @@ function SubscriptionAuth:requestToken(params)
 	})
 	if not res then return nil, err or "token request failed" end
 	local decoded, decode_err = json.decode_safe(res.body)
+	---@cast decoded aqua.openai.TokenResponse?
 	if res.status < 200 or res.status >= 300 then
 		local oauth_error = type(decoded) == "table" and (decoded.error_description or decoded.error) or nil
 		return nil, ("OpenAI login returned HTTP %d: %s"):format(res.status, tostring(oauth_error or res.body))
@@ -233,7 +264,7 @@ function SubscriptionAuth:requestToken(params)
 	return decoded
 end
 
----@param tokens table
+---@param tokens aqua.openai.TokenResponse
 ---@return boolean
 ---@return string?
 function SubscriptionAuth:storeTokens(tokens)
@@ -246,6 +277,7 @@ function SubscriptionAuth:storeTokens(tokens)
 	end
 	local account_id = getAccountId(tokens.access_token)
 	if not account_id then return false, "OpenAI access token has no ChatGPT account ID" end
+	---@type integer?
 	local expires_at
 	if type(tokens.expires_in) == "number" and tokens.expires_in >= 0 then
 		expires_at = self.get_time() + math.floor(tokens.expires_in)
@@ -292,6 +324,7 @@ function SubscriptionAuth:requestDeviceCode()
 		return nil, ("OpenAI device code request returned HTTP %d"):format(res.status)
 	end
 	local decoded, decode_err = json.decode_safe(res.body)
+	---@cast decoded aqua.openai.DeviceCodeResponse?
 	if type(decoded) ~= "table" then return nil, "invalid OpenAI device code response: " .. tostring(decode_err) end
 	local interval = tonumber(decoded.interval)
 	local user_code = decoded.user_code or decoded.usercode
@@ -325,6 +358,7 @@ function SubscriptionAuth:completeDeviceLogin(device_code)
 		if not res then return false, err or "OpenAI device login polling failed" end
 		if res.status >= 200 and res.status < 300 then
 			local decoded, decode_err = json.decode_safe(res.body)
+			---@cast decoded aqua.openai.DeviceCodeResponse?
 			if type(decoded) ~= "table" then
 				return false, "invalid OpenAI device login response: " .. tostring(decode_err)
 			end
