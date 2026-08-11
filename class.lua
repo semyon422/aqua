@@ -83,7 +83,9 @@ local function class(p, t)
 	---@type {[table]: true?}
 	local parents = {[T] = true}
 	if p then
-		for parent in pairs(getmetatable(p).__parents) do
+		---@type {[table]: true}
+		local parent_classes = getmetatable(p).__parents
+		for parent in pairs(parent_classes) do
 			parents[parent] = true
 		end
 	end
@@ -94,7 +96,9 @@ local function class(p, t)
 		return setmetatable(T, mt)
 	end
 
-	for parent in pairs(getmetatable(t).__parents) do
+	---@type {[table]: true}
+	local parent_classes = getmetatable(t).__parents
+	for parent in pairs(parent_classes) do
 		parents[parent] = true
 	end
 	mt.__parents = parents

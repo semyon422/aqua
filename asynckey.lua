@@ -7,12 +7,20 @@ end
 
 local ThreadPool = require("thread.ThreadPool")
 
+---@class asynckey.Event
+---@field key integer|string
+---@field state boolean
+---@field time number
+
+---@type {[integer]: string}
 local keymap
 
----@param event table
----@return table
+---@param event asynckey.Event
+---@return asynckey.Event
 local function transform(event)
-	local key = keymap[event.key]
+	local event_key = event.key
+	---@cast event_key integer
+	local key = keymap[event_key]
 	if key then
 		event.key = key
 	end

@@ -235,7 +235,10 @@ function Node:next()
 
 	local x, p = self, self.parent
 	while p and x == p.right do
-		x, p = p, p.parent
+		x = p
+		-- LuaLS 3.19 loses the optional node type on loop reassignment.
+		---@diagnostic disable-next-line: no-unknown
+		p = p.parent
 	end
 
 	return p
@@ -249,7 +252,10 @@ function Node:prev()
 
 	local x, p = self, self.parent
 	while p and x == p.left do
-		x, p = p, p.parent
+		x = p
+		-- LuaLS 3.19 loses the optional node type on loop reassignment.
+		---@diagnostic disable-next-line: no-unknown
+		p = p.parent
 	end
 
 	return p
@@ -290,6 +296,8 @@ function Tree:findex(key, f)
 	while x and key ~= f(x.key) do
 		y = x
 		if key < f(x.key) then
+			-- LuaLS 3.19 loses the optional node type on loop reassignment.
+			---@diagnostic disable-next-line: no-unknown
 			x = x.left
 		else
 			x = x.right
@@ -449,6 +457,8 @@ end
 ---@return rbtree.Key?
 local function next_tree_node(tree, node)
 	if node then
+		-- LuaLS 3.19 loses the optional node type on branch reassignment.
+		---@diagnostic disable-next-line: no-unknown
 		node = node:next()
 	else
 		node = tree:min()

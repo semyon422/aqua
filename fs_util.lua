@@ -3,6 +3,11 @@ thread.shared.download = {}
 
 local fs_util = {}
 
+---@class fs_util.DownloadProgress
+---@field size number
+---@field total number
+---@field speed number
+
 ---@param archive string|love.FileData
 ---@param path string
 ---@return true?
@@ -43,12 +48,14 @@ function fs_util.downloadAsync(url)
 	local http_util = require("web.http.util")
 	local thread = require("thread")
 
-	thread.shared.download[url] = {
+	---@type {[string]: fs_util.DownloadProgress}
+	local downloads = thread.shared.download
+	downloads[url] = {
 		size = 0,
 		total = 0,
 		speed = 0,
 	}
-	local shared = thread.shared.download[url]
+	local shared = downloads[url]
 
 	local client = http_util.client()
 	local ok, req, res = pcall(client.connect, client, url)
@@ -70,6 +77,7 @@ function fs_util.downloadAsync(url)
 	end
 
 	local code = res.status
+	---@type {[string]: string|string[]}
 	local headers = {}
 	for _, key in ipairs(res.headers:getKeys()) do
 		local name = res.headers.header_names[key] or key
@@ -83,7 +91,9 @@ function fs_util.downloadAsync(url)
 	end
 
 	local total = 0
-	local t = {}
+	---@type string[]
+	local chunks = {}
+	---@type number?
 	local time
 	local function sink(chunk)
 		if chunk == nil or chunk == "" then
@@ -95,7 +105,7 @@ function fs_util.downloadAsync(url)
 		shared.total = total
 		shared.speed = total / (love.timer.getTime() - time)
 
-		table.insert(t, chunk)
+		table.insert(chunks, chunk)
 
 		return true
 	end
@@ -116,7 +126,7 @@ function fs_util.downloadAsync(url)
 	end
 
 	client:close()
-	return table.concat(t), code, headers, "HTTP " .. code
+	return table.concat(chunks), code, headers, "HTTP " .. code
 end
 fs_util.downloadAsync = thread.async(fs_util.downloadAsync)
 
