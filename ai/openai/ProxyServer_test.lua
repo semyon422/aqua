@@ -1,4 +1,5 @@
 local coext = require("coext")
+---@type {gettime: fun(): number}
 local socket = require("socket")
 
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
@@ -28,7 +29,9 @@ end
 ---@param token string?
 ---@return {status: integer, body: string}
 local function request(t, scheduler, port, path, body, token)
+	---@type {status: integer, body: string}?
 	local response
+	---@type string?
 	local request_err
 	local headers = {}
 	if token then headers.Authorization = "Bearer " .. token end
@@ -58,7 +61,9 @@ end
 ---@param token string
 ---@return {status: integer, body: string}
 local function chunkedRequest(t, scheduler, port, body, token)
+	---@type {status: integer, body: string}?
 	local response
+	---@type string?
 	local request_err
 	local thread = coext.detach(coroutine.create(function()
 		response, request_err = http_util.request(
@@ -82,6 +87,7 @@ end
 ---@param t testing.T
 function test.authenticates_and_lists_configured_models(t)
 	local scheduler = CosocketScheduler()
+	---@type string[]
 	local logs = {}
 	local server = ProxyServer({
 		scheduler = scheduler,
@@ -110,6 +116,7 @@ end
 ---@param t testing.T
 function test.proxies_non_streaming_native_response(t)
 	local scheduler = CosocketScheduler()
+	---@type table?
 	local seen_request
 	local server = ProxyServer({
 		scheduler = scheduler,
@@ -133,7 +140,7 @@ function test.proxies_non_streaming_native_response(t)
 							type = "message",
 							id = "msg_1",
 							role = "assistant",
-							content = json.array({json.object({type = "output_text", text = "hello", annotations = json.array()})}),
+							content = {{type = "output_text", text = "hello", annotations = {}}},
 						})}),
 					}
 				end,
@@ -173,7 +180,8 @@ function test.streams_native_response_events(t)
 		create_client = function()
 			return {
 				createResponse = function(_, _, on_event)
-					local response = {id = "resp_1", object = "response", status = "in_progress", output = json.array()}
+					---@type table
+					local response = {id = "resp_1", object = "response", status = "in_progress", output = {}}
 					t:assert(on_event({type = "response.created", response = response}) ~= false)
 					t:assert(on_event({type = "response.output_text.delta", item_id = "msg_1",
 						output_index = 0, content_index = 0, delta = "hello"}) ~= false)
@@ -206,6 +214,7 @@ end
 ---@param t testing.T
 function test.translates_non_streaming_completion_and_hides_subscription_items(t)
 	local scheduler = CosocketScheduler()
+	---@type table?
 	local seen
 	local server = ProxyServer({
 		scheduler = scheduler,
@@ -256,7 +265,7 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 		logprobs = false,
 		frequency_penalty = 0,
 		presence_penalty = 0,
-		logit_bias = json.object(),
+		logit_bias = json.object() --[[@as table]],
 		prompt_cache_key = "zed-thread",
 		prompt_cache_options = {mode = "explicit", ttl = "30m"},
 		tools = {{type = "function", ["function"] = {
@@ -285,6 +294,7 @@ end
 ---@param t testing.T
 function test.translates_legacy_function_requests_and_history(t)
 	local scheduler = CosocketScheduler()
+	---@type table?
 	local seen
 	local server = ProxyServer({
 		scheduler = scheduler,
@@ -431,6 +441,7 @@ end
 ---@param t testing.T
 function test.normalizes_openai_text_content_parts(t)
 	local scheduler = CosocketScheduler()
+	---@type aqua.openai.Message[]?
 	local seen_messages
 	local server = ProxyServer({
 		scheduler = scheduler,
@@ -466,6 +477,7 @@ end
 ---@param t testing.T
 function test.normalizes_all_chat_completion_content_parts(t)
 	local scheduler = CosocketScheduler()
+	---@type aqua.openai.Message[]?
 	local seen_messages
 	local server = ProxyServer({
 		scheduler = scheduler,
@@ -858,7 +870,7 @@ function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 
 	response = request(t, scheduler, port, "/v1/responses", {
 		model = "model-a",
-		input = json.object(),
+		input = json.object() --[[@as table]],
 	}, "proxy-secret")
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "invalid_input")

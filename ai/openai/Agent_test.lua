@@ -23,7 +23,9 @@ local function makeTool()
 			["function"] = {name = "lua_eval", parameters = {type = "object"}},
 		},
 		execute = function(_, args)
-			return json.encode({ok = true, result = args.code})
+			---@type string
+			local code = args.code
+			return json.encode({ok = true, result = code})
 		end,
 	}
 end
@@ -92,6 +94,7 @@ function test.reports_explicit_tool_errors(t)
 	tool.execute = function()
 		return "source file not found", true
 	end
+	---@type {name: string?, arguments: any, err: string}?
 	local failure
 	local agent = Agent(makeClient({}), {tool}, {
 		on_tool_failure = function(name, arguments, err)

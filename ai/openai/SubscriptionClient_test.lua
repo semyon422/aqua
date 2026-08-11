@@ -31,15 +31,23 @@ end
 ---@param request_options table?
 ---@return aqua.openai.SubscriptionClient
 local function makeClient(open_stream, max_response_size, request_options)
+	---@type aqua.openai.SubscriptionClientOptions
 	local options = {
-		auth = {getAccess = function() return "access", "account" end} --[[@as aqua.openai.SubscriptionAuth]],
+		auth = {getAccess = function() return "access", "account" end},
 		model = "gpt-test",
 		reasoning_effort = "medium",
 		timeout = 45,
 		max_response_size = max_response_size,
 		open_stream = open_stream,
 	}
-	for key, value in pairs(request_options or {}) do options[key] = value end
+	if request_options then
+		-- LuaLS 3.19 does not propagate dynamic fixture keys through pairs().
+		---@diagnostic disable-next-line: no-unknown
+		for key, value in pairs(request_options) do
+			---@cast key string
+			options[key] = value
+		end
+	end
 	return OpenAiSubscriptionClient(options)
 end
 
@@ -69,14 +77,18 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	local deltas = {}
 	local reasoning_deltas = {}
 	local initial_request_id = client.session_id
-	local message = assert(client:completeStream({
-		{role = "system", content = "instructions"},
-		{role = "user", content = "hello"},
-	}, {{
-		type = "function",
-		["function"] = {name = "inspect", description = "Inspect", parameters = {type = "object"}, strict = true},
-	}}, function(delta) table.insert(deltas, delta) end,
-	function(delta) table.insert(reasoning_deltas, delta) end))
+	local message = assert(client:completeStream(
+		{
+			{role = "system", content = "instructions"},
+			{role = "user", content = "hello"},
+		},
+		{{
+			type = "function",
+			["function"] = {name = "inspect", description = "Inspect", parameters = {type = "object"}, strict = true},
+		}},
+		function(delta) table.insert(deltas, delta) end,
+		function(delta) table.insert(reasoning_deltas, delta) end
+	))
 
 	local body = json.decode(stream.sent_body)
 	t:eq(called.url, OpenAiSubscriptionClient.responses_url)
@@ -279,7 +291,7 @@ end
 ---@param t testing.T
 function test.reports_auth_and_stream_errors(t)
 	local client = OpenAiSubscriptionClient({
-		auth = {getAccess = function() return nil, nil, "login required" end} --[[@as aqua.openai.SubscriptionAuth]],
+		auth = {getAccess = function() return nil, nil, "login required" end},
 		model = "gpt-test",
 		reasoning_effort = "medium",
 		open_stream = function() error("not used") end,

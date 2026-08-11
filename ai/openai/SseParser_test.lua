@@ -4,6 +4,7 @@ local test = {}
 
 ---@param t testing.T
 function test.parses_fragmented_and_multiline_events(t)
+	---@type string[]
 	local events = {}
 	local parser = SseParser(function(data)
 		table.insert(events, data)
@@ -18,6 +19,7 @@ end
 
 ---@param t testing.T
 function test.finish_flushes_final_event(t)
+	---@type string?
 	local event
 	local parser = SseParser(function(data) event = data end)
 	parser:feed("data: final")

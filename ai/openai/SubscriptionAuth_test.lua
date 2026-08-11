@@ -1,3 +1,4 @@
+---@type {b64: fun(value: string): string}
 local mime = require("mime")
 local json = require("web.json")
 local OpenAiSubscriptionAuth = require("ai.openai.SubscriptionAuth")
@@ -12,17 +13,22 @@ local function makeToken(account_id, expires_at)
 		["https://api.openai.com/auth"] = {chatgpt_account_id = account_id},
 		exp = expires_at,
 	}
-	local payload = mime.b64(json.encode(claims)):gsub("=+$", ""):gsub("+", "-"):gsub("/", "_")
+	local payload = string.gsub(mime.b64(json.encode(claims)), "=+$", "")
+	payload = string.gsub(payload, "+", "-")
+	payload = string.gsub(payload, "/", "_")
 	return "header." .. payload .. ".signature"
 end
 
+---@return aqua.openai.SubscriptionCredentials
 local function makeCredentials()
 	return {access_token = "", refresh_token = "", expires_at = 0, account_id = ""}
 end
 
 ---@param t testing.T
 function test.creates_pkce_login_and_opens_browser(t)
+	---@type string?
 	local opened_url
+	---@type {[1]: string, [2]: integer}?
 	local started
 	local server = {
 		start = function(_, host, port)
@@ -74,7 +80,7 @@ function test.exchanges_and_refreshes_tokens(t)
 		credentials = credentials,
 		save_credentials = function() saved = saved + 1 end,
 		open_url = function() return true end,
-		request = function(url, body, options) return network:request(url, body, options) end,
+		request = function(url, body) return network:request(url, body) end,
 		get_time = function() return now end,
 	})
 	auth.verifier = "verifier"
@@ -110,6 +116,7 @@ end
 
 ---@param t testing.T
 function test.callback_validates_state_and_decodes_authorization_code(t)
+	---@type string?
 	local exchanged_code
 	local stopped = 0
 	local auth = OpenAiSubscriptionAuth({
@@ -121,19 +128,20 @@ function test.callback_validates_state_and_decodes_authorization_code(t)
 	})
 	auth.state = "expected state"
 	auth.verifier = "verifier"
-	auth.server = {stop = function() stopped = stopped + 1 end} --[[@as web.HttpServer]]
+	auth.server = {stop = function() stopped = stopped + 1 end} --[[@as any]]
 	auth.exchangeAuthorizationCode = function(_, code)
 		exchanged_code = code
 		auth:setStatus("authenticated")
 		return true
 	end
+	---@type any
 	local response
 	response = {
 		headers = {set = function() end},
 		set_length = function() end,
 		send = function(_, body) response.body = body end,
 	}
-	auth:handleCallback({method = "GET", uri = "/auth/callback?state=expected+state&code=code%2Bvalue"} --[[@as web.Request]], response --[[@as web.Response]])
+	auth:handleCallback({method = "GET", uri = "/auth/callback?state=expected+state&code=code%2Bvalue"} --[[@as any]], response --[[@as any]])
 
 	t:eq(exchanged_code, "code+value")
 	t:eq(response.status, 200)
@@ -148,6 +156,7 @@ function test.logs_in_with_device_code_and_jwt_expiration(t)
 	local now = 1000
 	local requests = {}
 	local polls = 0
+	---@type aqua.openai.DeviceCode?
 	local shown_code
 	local auth = OpenAiSubscriptionAuth({
 		scheduler = {},
@@ -155,7 +164,10 @@ function test.logs_in_with_device_code_and_jwt_expiration(t)
 		save_credentials = function() end,
 		open_url = function() return true end,
 		get_time = function() return now end,
-		sleep = function(seconds) now = now + seconds end,
+		sleep = function(seconds)
+			---@cast seconds number
+			now = now + seconds
+		end,
 		request = function(url, body)
 			table.insert(requests, {url = url, body = body})
 			if url == OpenAiSubscriptionAuth.device_code_url then

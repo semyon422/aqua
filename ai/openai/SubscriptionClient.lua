@@ -93,8 +93,11 @@ local SseParser = require("ai.openai.SseParser")
 ---@field mode "implicit"|"explicit"?
 ---@field ttl "30m"?
 
+---@class aqua.openai.ISubscriptionAuth
+---@field getAccess fun(self: aqua.openai.ISubscriptionAuth): string?, string?, string?
+
 ---@class aqua.openai.SubscriptionClientOptions
----@field auth aqua.openai.SubscriptionAuth
+---@field auth aqua.openai.ISubscriptionAuth
 ---@field model string
 ---@field reasoning_effort aqua.openai.ReasoningEffort
 ---@field prompt_cache_key string?
@@ -109,7 +112,7 @@ local SseParser = require("ai.openai.SseParser")
 
 ---@class aqua.openai.SubscriptionClient
 ---@operator call: aqua.openai.SubscriptionClient
----@field auth aqua.openai.SubscriptionAuth
+---@field auth aqua.openai.ISubscriptionAuth
 ---@field model string
 ---@field reasoning_effort aqua.openai.ReasoningEffort
 ---@field prompt_cache_key string?
