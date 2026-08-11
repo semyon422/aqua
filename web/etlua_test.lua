@@ -47,7 +47,9 @@ function test.runtime_error_has_template_line(t)
 	local fn = assert(parser:compile([[one
 <% error("boom") %>
 two]]))
-	local _, err = fn({})
+	---@type {[2]: string}
+	local result = {fn({})}
+	local err = result[2]
 
 	t:ne(err:find("boom", 1, true), nil)
 	t:ne(err:find("line 2", 1, true), nil)

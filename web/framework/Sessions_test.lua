@@ -18,6 +18,7 @@ end
 ---@param t testing.T
 function test.csrf_validation(t)
 	local sessions = Sessions("cookie_name", "secret key")
+	---@type {[string]: any}
 	local session = {user_id = 123}
 
 	-- Generates token on encode

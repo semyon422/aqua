@@ -3,6 +3,7 @@ local Headers = require("web.http.Headers")
 local WebsocketConnection = require("web.ws.WebsocketConnection")
 local coext = require("coext")
 local digest = require("digest")
+---@type {b64: fun(value: string): string}
 local mime = require("mime")
 local table_util = require("table_util")
 local ws_util = require("web.ws.util")
@@ -52,6 +53,7 @@ function test.cosocket_reader(t)
 	end)
 	local connection = WebsocketConnection({scheduler = scheduler})
 
+	---@type string?
 	local client_payload
 	---@type string[]
 	local events = {}
@@ -171,6 +173,7 @@ function test.cosocket_send_serializes_writers(t)
 	local events = {}
 
 	connection.ws = {
+		state = "open",
 		send = function(_, _opcode, payload)
 			table.insert(events, "start:" .. payload)
 			if payload == "first" then
@@ -212,9 +215,11 @@ function test.close_cancels_reader_and_closes_socket(t)
 	local connection = WebsocketConnection({scheduler = scheduler})
 
 	local close_count = 0
+	---@type string?
 	local reader_err
 
 	connection.soc = {
+		ssl_params = {},
 		close = function()
 			close_count = close_count + 1
 			return 1
@@ -256,12 +261,14 @@ function test.close_wakes_waiting_writers(t)
 	local events = {}
 
 	connection.soc = {
+		ssl_params = {},
 		close = function()
 			table.insert(events, "close")
 			return 1
 		end,
 	}
 	connection.ws = {
+		state = "open",
 		send = function(_, _opcode, payload)
 			table.insert(events, "start:" .. payload)
 			if payload == "first" then
@@ -277,6 +284,7 @@ function test.close_wakes_waiting_writers(t)
 	end)
 	t:tdeq({coroutine.resume(first_co)}, {true, "paused"})
 
+	---@type any[]?
 	local second_result
 	local second_co = coroutine.create(function()
 		second_result = table_util.pack(connection:send("text", "second"))
