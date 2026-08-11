@@ -177,6 +177,7 @@ end
 ---@return integer? close_stop
 ---@return string? err
 function Parser:find_close_tag(start_pos)
+	---@type integer
 	local pos = start_pos
 	local source = self.str
 	while pos <= #source do
@@ -186,16 +187,21 @@ function Parser:find_close_tag(start_pos)
 		end
 		local char = source:sub(pos, pos)
 		if char == "'" or char == '"' then
+			---@type string
 			local quote = char
 			pos = pos + 1
 			while pos <= #source do
-				char = source:sub(pos, pos)
-				if char == "\\" then
+				local next_char = source:sub(pos, pos)
+				if next_char == "\\" then
+					-- LuaLS 3.19 loses the annotated numeric type on loop increments.
+					---@diagnostic disable-next-line: no-unknown
 					pos = pos + 2
-				elseif char == quote then
+				elseif next_char == quote then
+					---@diagnostic disable-next-line: no-unknown
 					pos = pos + 1
 					break
 				else
+					---@diagnostic disable-next-line: no-unknown
 					pos = pos + 1
 				end
 			end
@@ -357,6 +363,7 @@ end
 ---@return string[]? buffer
 ---@return string? err
 function Parser:run(fn, env, buffer, i, ...)
+	---@type {[string]: any}
 	env = env or {}
 	local combined_env = setmetatable({}, {
 		__index = function(_, name)
@@ -416,12 +423,13 @@ end
 
 ---@param source string
 ---@param chunkname string?
----@return fun(env: table?): string
+---@return fun(env: table?, ...: any): string
 function etlua.compile(source, chunkname)
 	local parser = Parser()
 	local fn = assert(parser:compile(source, chunkname))
 
 	return function(env, ...)
+		---@type string?, string?
 		local result, err = fn(env, ...)
 		if result then
 			return result

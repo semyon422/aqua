@@ -1,5 +1,6 @@
 local class = require("class")
 local coext = require("coext")
+---@type web.LuaSocketModule
 local socket = require("socket")
 
 local CosocketTcpSocket = require("web.luasocket.CosocketTcpSocket")
@@ -8,15 +9,22 @@ local CosocketTcpSocket = require("web.luasocket.CosocketTcpSocket")
 ---@field backlog integer?
 ---@field client_timeout number?
 ---@field max_clients integer?
----@field socket_factory (fun(): any)?
+---@field socket_factory (fun(): web.LuaSocketServer?, string?)?
 ---@field on_error (fun(err: string))?
+
+---@class web.LuaSocketServer: web.LuaSocketTcp
+---@field accept fun(self: web.LuaSocketServer): web.LuaSocketTcp?, string?
+---@field setoption fun(self: web.LuaSocketServer, name: string, value: any): true?, string?
+---@field bind fun(self: web.LuaSocketServer, host: string, port: integer): true?, string?
+---@field listen fun(self: web.LuaSocketServer, backlog: integer): true?, string?
+---@field getsockname fun(self: web.LuaSocketServer): string, integer
 
 ---@class web.CosocketServer
 ---@operator call: web.CosocketServer
 ---@field scheduler web.CosocketScheduler
 ---@field handler fun(client: web.CosocketTcpSocket, ip: string, port: integer)
 ---@field options web.CosocketServerOptions
----@field server any?
+---@field server web.LuaSocketServer?
 ---@field accept_thread thread?
 ---@field client_threads {[thread]: true}
 ---@field active_clients integer
@@ -47,7 +55,7 @@ function CosocketServer:reportError(err)
 	end
 end
 
----@param peer any
+---@param peer web.LuaSocketTcp
 ---@return boolean
 function CosocketServer:startClient(peer)
 	local max_clients = self.options.max_clients
@@ -117,6 +125,7 @@ function CosocketServer:start(host, port)
 		return nil, "server already started"
 	end
 
+	---@type fun(): web.LuaSocketServer?, string?
 	local socket_factory = self.options.socket_factory or socket.tcp4 or socket.tcp
 	local server, err = socket_factory()
 	if not server then

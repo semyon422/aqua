@@ -1,8 +1,26 @@
+---@class web.LuaSocketTcp
+---@field connect fun(self: web.LuaSocketTcp, host: string, port: integer): 1?, string?
+---@field sni fun(self: web.LuaSocketTcp, name: string)
+---@field dohandshake fun(self: web.LuaSocketTcp): 1?, string?
+---@field settimeout fun(self: web.LuaSocketTcp, timeout: number?)
+---@field getpeername fun(self: web.LuaSocketTcp): string, integer, "inet"|"inet6"
+---@field receive fun(self: web.LuaSocketTcp, pattern: integer|string, prefix: string?): string?, string?, string?
+---@field send fun(self: web.LuaSocketTcp, data: string, start: integer?, finish: integer?): integer?, string?, integer?
+---@field close fun(self: web.LuaSocketTcp): 1
+
+---@class web.LuaSocketModule
+---@field tcp fun(): web.LuaSocketTcp
+---@field tcp4 (fun(): web.LuaSocketTcp)?
+---@field tcp6 (fun(): web.LuaSocketTcp)?
+---@field select fun(read: web.LuaSocketTcp[]?, write: web.LuaSocketTcp[]?, timeout: number?): {[web.LuaSocketTcp]: any}, {[web.LuaSocketTcp]: any}, string?
+
+---@type web.LuaSocketModule
 local socket = require("socket")
 local ITcpSocket = require("web.socket.ITcpSocket")
 
 ---@class web.TcpSocket: web.ITcpSocket
 ---@operator call: web.TcpSocket
+---@field soc web.LuaSocketTcp
 local LsTcpSocket = ITcpSocket + {}
 
 LsTcpSocket.ssl_params = {
@@ -41,6 +59,7 @@ end
 ---@return 1?
 ---@return string?
 function LsTcpSocket:sslwrap()
+	---@type {wrap: fun(socket: web.LuaSocketTcp, parameters: table): web.LuaSocketTcp?, string?}
 	local ssl = require("ssl")
 	local soc, err = ssl.wrap(self.soc, self.ssl_params)
 	if not soc then
@@ -68,24 +87,21 @@ end
 ---@return string
 ---@return integer
 function LsTcpSocket:getpeername()
-	---@type string, integer, "inet"|"inet6"
-	local ip, port, family = self.soc:getpeername()
+	local ip, port = self.soc:getpeername()
 	return ip, port
 end
 
 ---@param timeout integer?
 ---@return boolean
 function LsTcpSocket:selectreceive(timeout)
-	local recvt, _, err = socket.select({self.soc}, nil, timeout)
-	---@cast recvt {[TCPSocket]: any}
+	local recvt = socket.select({self.soc}, nil, timeout)
 	return not not recvt[self.soc]
 end
 
 ---@param timeout integer?
 ---@return boolean
 function LsTcpSocket:selectsend(timeout)
-	local _, sendt, err = socket.select(nil, {self.soc}, timeout)
-	---@cast sendt {[TCPSocket]: any}
+	local _, sendt = socket.select(nil, {self.soc}, timeout)
 	return not not sendt[self.soc]
 end
 

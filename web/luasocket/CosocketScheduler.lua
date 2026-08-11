@@ -1,3 +1,4 @@
+---@type {select: fun(recvt: any[], sendt: any[], timeout: number?): any[]?, any[]?, string?, gettime: fun(): number}
 local socket = require("socket")
 local class = require("class")
 local table_util = require("table_util")
@@ -217,6 +218,7 @@ end
 ---@return number?
 function CosocketScheduler:getNextTimerDelay()
 	local now = self.get_time()
+	---@type number?
 	local delay
 	for _, timer in ipairs(self.timers) do
 		if timer.active then
@@ -292,7 +294,9 @@ function CosocketScheduler:update(timeout)
 		return nil, err
 	end
 
-	for _, soc in ipairs(ready_read or {}) do
+	---@type any[]
+	local readable = ready_read or {}
+	for _, soc in ipairs(readable) do
 		local co = pop_waiter(self.read_waiters, soc)
 		if co then
 			self:resume(co, true)

@@ -2,6 +2,7 @@ local ISocket = require("web.socket.ISocket")
 
 ---@class web.ITcpSocket: web.ISocket
 ---@operator call: web.ITcpSocket
+---@field ssl_params table
 local ITcpSocket = ISocket + {}
 
 ---@param host string

@@ -55,6 +55,7 @@ end
 ---@return string?
 ---@return string?
 function Socks5TcpSocket:receiveExact(size)
+	---@type string[]
 	local parts = {}
 	local received = 0
 	while received < size do
@@ -74,6 +75,7 @@ end
 ---@param host string
 ---@return string
 local function encode_address(host)
+	---@type string[]
 	local octets = {host:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$")}
 	if #octets == 4 then
 		for i, octet in ipairs(octets) do
@@ -86,7 +88,9 @@ local function encode_address(host)
 		local _, double_colon_count = host:gsub("::", "")
 		assert(double_colon_count <= 1, "invalid IPv6 address")
 		local left, right = host:match("^(.-)::(.-)$")
+		---@type integer[]
 		local groups = {}
+		---@param part string
 		local function append_groups(part)
 			if part == "" then
 				return
@@ -100,6 +104,7 @@ local function encode_address(host)
 
 		if left ~= nil then
 			append_groups(left)
+			---@type integer[]
 			local right_groups = {}
 			local original_groups = groups
 			groups = right_groups
@@ -118,6 +123,7 @@ local function encode_address(host)
 			assert(#groups == 8, "invalid IPv6 address")
 		end
 
+		---@type integer[]
 		local bytes = {4}
 		for _, group in ipairs(groups) do
 			table.insert(bytes, math.floor(group / 256))
@@ -212,12 +218,14 @@ function Socks5TcpSocket:connect(host, port)
 	end
 
 	local address_type = response:byte(4)
+	---@type integer
 	local address_size
 	if address_type == 1 then
 		address_size = 4
 	elseif address_type == 4 then
 		address_size = 16
 	elseif address_type == 3 then
+		---@type string?
 		local length
 		length, err = self:receiveExact(1)
 		if not length then

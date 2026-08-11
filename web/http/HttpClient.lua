@@ -1,4 +1,15 @@
 local class = require("class")
+
+---@class web.ParsedUrl
+---@field host string
+---@field port integer?
+---@field scheme string
+---@field path string?
+---@field params string?
+---@field query string?
+---@field fragment string?
+
+---@type {parse: fun(url: string, defaults: table): web.ParsedUrl, build: fun(parts: table): string}
 local socket_url = require("socket.url")
 
 local Headers = require("web.http.Headers")
@@ -18,6 +29,8 @@ local scheme_ports = {
 
 ---@class web.HttpClient
 ---@operator call: web.HttpClient
+---@field tcp_soc web.ITcpSocket
+---@field headers web.Headers
 local HttpClient = class()
 
 HttpClient.user_agent = "aqua.web/1.0"

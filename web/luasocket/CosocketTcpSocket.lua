@@ -1,9 +1,14 @@
+---@type web.LuaSocketModule
 local socket = require("socket")
 
 local ITcpSocket = require("web.socket.ITcpSocket")
 
 ---@class web.CosocketTcpSocket: web.ITcpSocket
 ---@operator call: web.CosocketTcpSocket
+---@field scheduler web.CosocketScheduler
+---@field timeout number?
+---@field soc web.LuaSocketTcp
+---@field server_name string?
 local CosocketTcpSocket = ITcpSocket + {}
 
 CosocketTcpSocket.ssl_params = {
@@ -15,7 +20,7 @@ CosocketTcpSocket.ssl_params = {
 
 ---@param scheduler web.CosocketScheduler
 ---@param ver 4|6?
----@param soc any?
+---@param soc web.LuaSocketTcp?
 function CosocketTcpSocket:new(scheduler, ver, soc)
 	self.scheduler = scheduler
 	self.timeout = nil
@@ -124,6 +129,7 @@ end
 ---@return 1?
 ---@return string?
 function CosocketTcpSocket:sslwrap()
+	---@type {wrap: fun(socket: web.LuaSocketTcp, parameters: table): web.LuaSocketTcp?, string?}
 	local ssl = require("ssl")
 	local soc, err = ssl.wrap(self.soc, self.ssl_params)
 	if not soc then
@@ -166,8 +172,7 @@ end
 ---@return string
 ---@return integer
 function CosocketTcpSocket:getpeername()
-	---@type string, integer, "inet"|"inet6"
-	local ip, port, family = self.soc:getpeername()
+	local ip, port = self.soc:getpeername()
 	return ip, port
 end
 

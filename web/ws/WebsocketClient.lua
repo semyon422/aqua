@@ -1,4 +1,5 @@
 local class = require("class")
+---@type {parse: fun(url: string, defaults: table): web.ParsedUrl?, string?, build: fun(parts: table): string}
 local socket_url = require("socket.url")
 
 local Headers = require("web.http.Headers")
@@ -19,6 +20,8 @@ local scheme_ports = {
 
 ---@class web.WebsocketClient
 ---@operator call: web.WebsocketClient
+---@field tcp_soc web.ITcpSocket
+---@field headers web.Headers
 local WebsocketClient = class()
 
 ---@param tcp_soc web.ITcpSocket
