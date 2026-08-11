@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local model_path = arg[1] or "build/needle.bin"
 local tokenizer_path = arg[2] or "build/tokenizer.ndltok"

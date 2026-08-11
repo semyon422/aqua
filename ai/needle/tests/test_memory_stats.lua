@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local fixture = arg[1]
 assert(fixture and fixture ~= "", "fixture path required")

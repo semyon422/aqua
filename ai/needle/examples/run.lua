@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 print("runtime:", needle.version())
 print("ffi probe:", needle.probe_add(20, 22))

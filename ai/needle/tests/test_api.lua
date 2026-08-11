@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local ctx, err = needle.load("")
 assert(ctx ~= nil, "empty path should still return a context")

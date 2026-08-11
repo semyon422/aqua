@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local tokenizer_path = arg[1]
 assert(tokenizer_path and tokenizer_path ~= "", "tokenizer path required")
@@ -9,6 +9,8 @@ local eos_token_id = 1
 local tools_json =
 '[{"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location","unit"]}},{"name":"set_timer","parameters":{"type":"object","properties":{"minutes":{"type":"number"}},"required":["minutes"]}}]'
 
+---@param text string
+---@return integer?
 local function token_id_for_text(text)
 	for id = 0, tok:vocab_size() - 1 do
 		if tok:token_text(id) == text then
@@ -18,7 +20,10 @@ local function token_id_for_text(text)
 	return nil
 end
 
+---@param values integer[]?
+---@return {[integer]: true}
 local function as_set(values)
+	---@type {[integer]: true}
 	local out = {}
 	for _, value in ipairs(values or {}) do
 		out[value] = true
@@ -26,6 +31,9 @@ local function as_set(values)
 	return out
 end
 
+---@param values integer[]?
+---@param ch string
+---@return boolean
 local function has_token_start(values, ch)
 	for _, id in ipairs(values or {}) do
 		if tok:token_text(id):sub(1, 1) == ch then
@@ -35,12 +43,16 @@ local function has_token_start(values, ch)
 	return false
 end
 
+---@param text string
+---@return integer[]?
 local function sync_allowed(text)
 	local constraints = assert(needle.build_tool_call_constraints(tools_json, tok, {eos_token_id = eos_token_id}))
 	constraints:sync(assert(tok:encode(text)))
 	return constraints:allowed_token_ids()
 end
 
+---@param values integer[]?
+---@param label string
 local function assert_only_eos(values, label)
 	assert(values ~= nil, label .. " should fail closed")
 	assert(#values == 1 and values[1] == eos_token_id, label .. " should allow only EOS")

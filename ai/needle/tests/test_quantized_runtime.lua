@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local float_model = arg[1]
 local q8_model = arg[2]

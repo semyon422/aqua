@@ -1,10 +1,12 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local model_path = arg[1]
 local golden_path = arg[2]
 assert(model_path and model_path ~= "", "model path required")
 assert(golden_path and golden_path ~= "", "golden path required")
 
+---@param path string
+---@return string
 local function read_file(path)
 	local f = assert(io.open(path, "rb"))
 	local data = assert(f:read("*a"))
@@ -12,22 +14,34 @@ local function read_file(path)
 	return data
 end
 
+---@param text string
+---@param key string
+---@return number
 local function number_field(text, key)
 	local value = text:match('"' .. key .. '"%s*:%s*([-+%d%.eE]+)')
 	assert(value, "missing numeric field: " .. key)
-	return tonumber(value)
+	return assert(tonumber(value))
 end
 
+---@param text string
+---@param key string
+---@return number[]
 local function array_field(text, key)
 	local body = text:match('"' .. key .. '"%s*:%s*%[(.-)%]')
 	assert(body, "missing array field: " .. key)
+	---@type number[]
 	local out = {}
+	-- LuaLS 3.19 cannot infer values from string.gmatch().
+	---@diagnostic disable-next-line: no-unknown
 	for number in body:gmatch("[-+]?%d+%.?%d*[eE]?[-+]?%d*") do
-		out[#out + 1] = tonumber(number)
+		out[#out + 1] = assert(tonumber(number))
 	end
 	return out
 end
 
+---@param text string
+---@param key string
+---@return string
 local function string_field(text, key)
 	local value = text:match('"' .. key .. '"%s*:%s*"(.-)"')
 	assert(value ~= nil, "missing string field: " .. key)
@@ -35,8 +49,8 @@ local function string_field(text, key)
 end
 
 local golden = read_file(golden_path)
-local seq_len = number_field(golden, "seq_len")
-local layer = number_field(golden, "layer")
+local seq_len = math.floor(number_field(golden, "seq_len"))
+local layer = math.floor(number_field(golden, "layer"))
 local input = array_field(golden, "input")
 local expected = array_field(golden, "expected")
 local expected_decoder_self = array_field(golden, "expected_decoder_self")
@@ -53,7 +67,7 @@ local logit_tolerance = number_field(golden, "logit_tolerance")
 local cross_tolerance = number_field(golden, "cross_tolerance")
 local generation_query = string_field(golden, "generation_query")
 local generation_tools = string_field(golden, "generation_tools")
-local generation_max_new = number_field(golden, "generation_max_new")
+local generation_max_new = math.floor(number_field(golden, "generation_max_new"))
 
 local ctx, err = needle.load(model_path)
 assert(ctx ~= nil, "loader returned nil")
@@ -96,8 +110,10 @@ assert(dec_max_diff <= tolerance, ("real decoder self-attention max diff %.9g at
 
 local cfg = assert(ctx:config())
 local cache = assert(ctx:create_kv_cache(seq_len))
+---@type number[]
 local cached_decoder_self = {}
 for t = 1, seq_len do
+	---@type number[]
 	local row = {}
 	for d = 1, cfg.d_model do
 		row[d] = input[(t - 1) * cfg.d_model + d]
@@ -214,8 +230,10 @@ assert(dec_block_max_diff <= cross_tolerance, ("real decoder block max diff %.9g
 ))
 
 local block_cache = assert(ctx:create_kv_cache(seq_len))
+---@type number[]
 local cached_decoder_block = {}
 for t = 1, seq_len do
+	---@type number[]
 	local row = {}
 	for d = 1, cfg.d_model do
 		row[d] = input[(t - 1) * cfg.d_model + d]
@@ -260,6 +278,7 @@ assert(decoder_max_diff <= cross_tolerance, ("real decoder max diff %.9g at %d e
 ))
 
 local decode_cache = assert(ctx:create_kv_cache(seq_len))
+---@type number[]
 local cached_decoder = {}
 for i = 1, #tokens do
 	local step = assert(ctx:decode_token_cached_step(decode_cache, tokens[i], encoder, seq_len))
@@ -368,11 +387,11 @@ if unit_value ~= nil then
 	assert(unit_value == "celsius" or unit_value == "fahrenheit", "unit should be constrained to enum")
 end
 
+---@type string[]
 local stream_chunks = {}
 local stream_token_count = 0
 local stream_text, stream_err = ctx:generate_stream("weather in Paris", pretty_tools, function(chunk)
 	stream_chunks[#stream_chunks + 1] = chunk
-	return true
 end, {
 	tokenizer_path = "build/tokenizer.ndltok",
 	max_new_tokens = 32,

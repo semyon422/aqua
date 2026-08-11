@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local model_path = arg[1] or "build/needle-q8-stripped.bin"
 local tokenizer_path = arg[2] or "build/tokenizer.ndltok"
@@ -37,6 +37,7 @@ if not ctx or not ctx:is_loaded() then
 	error(("load failed [%s]: %s"):format(err and err.name or "UNKNOWN", err and err.message or ""))
 end
 
+---@type string[]
 local chunks = {}
 local token_count = 0
 local start = os.clock()
@@ -44,7 +45,6 @@ local text, gen_err = ctx:generate_stream(query, tools_json, function(chunk)
 	chunks[#chunks + 1] = chunk
 	io.write(chunk)
 	io.flush()
-	return true
 end, {
 	tokenizer_path = tokenizer_path,
 	max_new_tokens = 32,

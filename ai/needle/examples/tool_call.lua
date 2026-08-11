@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local model_path = arg[1] or "build/needle.bin"
 local tokenizer_path = arg[2] or "build/tokenizer.ndltok"
@@ -32,7 +32,10 @@ local tools_json = [[
 ]
 ]]
 
+---@param text string
+---@return string
 local function compact_json(text)
+	---@type string[]
 	local out = {}
 	local in_string = false
 	local escaped = false
@@ -96,6 +99,7 @@ if not generated then
 	error(("generate failed [%s]: %s"):format(gen_err.name, gen_err.message))
 end
 
+---@type integer[]
 local result_ids = {}
 for i = #prompt_ids + 1, #generated do
 	local id = generated[i]

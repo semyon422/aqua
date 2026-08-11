@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local tokenizer_path = arg[1]
 assert(tokenizer_path and tokenizer_path ~= "", "tokenizer path required")
@@ -40,6 +40,8 @@ end
 assert(tok:token_text(362) == " in", "token_text must preserve leading SentencePiece space")
 assert(tok:token_text(356) == ' [{"', "token_text structural token mismatch")
 
+---@param text string
+---@return integer?
 local function token_id_for_text(text)
 	for id = 0, tok:vocab_size() - 1 do
 		if tok:token_text(id) == text then
@@ -49,7 +51,10 @@ local function token_id_for_text(text)
 	return nil
 end
 
+---@param values integer[]?
+---@return {[integer]: true}
 local function as_set(values)
+	---@type {[integer]: true}
 	local out = {}
 	for _, value in ipairs(values or {}) do
 		out[value] = true
@@ -57,6 +62,9 @@ local function as_set(values)
 	return out
 end
 
+---@param values integer[]?
+---@param ch string
+---@return boolean
 local function has_token_start(values, ch)
 	for _, id in ipairs(values or {}) do
 		local text = tok:token_text(id)

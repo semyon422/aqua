@@ -1,10 +1,12 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local model_path = arg[1]
 local golden_path = arg[2]
 assert(model_path and model_path ~= "", "model path required")
 assert(golden_path and golden_path ~= "", "golden path required")
 
+---@param path string
+---@return string
 local function read_file(path)
 	local f = assert(io.open(path, "rb"))
 	local data = assert(f:read("*a"))
@@ -12,27 +14,36 @@ local function read_file(path)
 	return data
 end
 
+---@param text string
+---@param key string
+---@return number
 local function number_field(text, key)
 	local pattern = '"' .. key .. '"%s*:%s*([-+%d%.eE]+)'
 	local value = text:match(pattern)
 	assert(value, "missing numeric field: " .. key)
-	return tonumber(value)
+	return assert(tonumber(value))
 end
 
+---@param text string
+---@param key string
+---@return number[]
 local function array_field(text, key)
 	local pattern = '"' .. key .. '"%s*:%s*%[(.-)%]'
 	local body = text:match(pattern)
 	assert(body, "missing array field: " .. key)
+	---@type number[]
 	local out = {}
+	-- LuaLS 3.19 cannot infer values from string.gmatch().
+	---@diagnostic disable-next-line: no-unknown
 	for number in body:gmatch("[-+]?%d+%.?%d*[eE]?[-+]?%d*") do
-		out[#out + 1] = tonumber(number)
+		out[#out + 1] = assert(tonumber(number))
 	end
 	return out
 end
 
 local golden = read_file(golden_path)
-local seq_len = number_field(golden, "seq_len")
-local layer = number_field(golden, "layer")
+local seq_len = math.floor(number_field(golden, "seq_len"))
+local layer = math.floor(number_field(golden, "layer"))
 local input = array_field(golden, "input")
 local expected = array_field(golden, "expected")
 local expected_decoder_self = array_field(golden, "expected_decoder_self")
@@ -91,8 +102,10 @@ for i = 1, #expected_decoder_block do
 end
 
 local block_cache = assert(ctx:create_kv_cache(seq_len))
+---@type number[]
 local cached_decoder_block = {}
 for t = 1, seq_len do
+	---@type number[]
 	local row = {}
 	for d = 1, d_model do
 		row[d] = input[(t - 1) * d_model + d]
@@ -134,6 +147,7 @@ for i = 1, #expected_decoder do
 end
 
 local decode_cache = assert(ctx:create_kv_cache(#decoder_tokens))
+---@type number[]
 local cached_decoder = {}
 for i = 1, #decoder_tokens do
 	local step = assert(ctx:decode_token_cached_step(decode_cache, decoder_tokens[i], cross_encoder, seq_len))
@@ -262,6 +276,7 @@ assert(invalid_progress_rc == needle.errors.INVALID_ARGUMENT, "invalid encoder p
 assert(invalid_progress_err.name == "INVALID_ARGUMENT", "invalid encoder progress callback error mismatch")
 
 local stream_state = assert(ctx:encode_tokens_state(generation_src))
+---@type integer[]
 local streamed = {}
 local stream_generated, stream_err = ctx:generate_tokens_from_state(stream_state, generation_prompt, {
 	max_new_tokens = 2,
@@ -284,13 +299,19 @@ assert(stream_generated ~= nil, stream_err and stream_err.message or "stream gen
 assert(streamed[1] == 1 and streamed[2] == 0, "stream token callback mismatch")
 assert(stream_generated[2] == streamed[1] and stream_generated[3] == streamed[2], "stream output mismatch")
 
+---@class needle.FakeTokenizer
 local fake_tokenizer = {}
+---@param text string
+---@return integer[]
 function fake_tokenizer:encode(text)
 	if text == "q" then return {0} end
 	if text == "tools" then return {1} end
 	return {0}
 end
+---@param ids integer[]
+---@return string
 function fake_tokenizer:decode(ids)
+	---@type string[]
 	local parts = {}
 	for i = 1, #ids do parts[#parts + 1] = tostring(ids[i]) end
 	return table.concat(parts, ",")

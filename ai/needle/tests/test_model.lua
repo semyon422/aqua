@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local fixture = arg[1]
 assert(fixture and fixture ~= "", "fixture path required")
@@ -46,15 +46,25 @@ local logits = assert(ctx:output_projection({
 assert(#logits == 4, "tiny logits length mismatch")
 assert(logits[1] == 3.0 and logits[2] == 7.0 and logits[3] == 0.0 and logits[4] == 2.0, "tiny logits mismatch")
 
+---@param a number
+---@param b number
+---@param eps number?
+---@return boolean
 local function approx(a, b, eps)
 	return math.abs(a - b) <= (eps or 1e-5)
 end
 
+---@param a number
+---@param b number
+---@return number, number
 local function norm2(a, b)
 	local inv = 1.0 / math.sqrt((a * a + b * b) / 2.0 + 1e-6)
 	return a * inv, b * inv
 end
 
+---@param a number
+---@param b number
+---@return number, number
 local function softmax2(a, b)
 	local m = math.max(a, b)
 	local ea, eb = math.exp(a - m), math.exp(b - m)
@@ -124,7 +134,7 @@ assert(cache:info().token_count == 2, "cached self-attention did not append seco
 for i = 1, 2 do
 	assert(approx(cached_step_1[i], uncached_decoder[i], 1e-5), ("cached step 1 mismatch at %d: %.9g vs %.9g"):format(i, cached_step_1[i], uncached_decoder[i]))
 	assert(approx(cached_step_2[i], uncached_decoder[2 + i], 1e-5),
-				("cached step 2 mismatch at %d: %.9g vs %.9g"):format(i, cached_step_2[i], uncached_decoder[2 + i]))
+		("cached step 2 mismatch at %d: %.9g vs %.9g"):format(i, cached_step_2[i], uncached_decoder[2 + i]))
 end
 
 cache:close()

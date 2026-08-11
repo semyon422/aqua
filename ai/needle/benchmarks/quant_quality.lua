@@ -1,9 +1,12 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local float_model_path = arg[1] or "build/needle.bin"
 local q8_model_path = arg[2] or "build/needle-q8-stripped.bin"
 local tokenizer_path = arg[3] or "build/tokenizer.ndltok"
 
+---@param name string
+---@param fallback integer
+---@return integer
 local function env_int(name, fallback)
 	local value = tonumber(os.getenv(name) or "")
 	if value == nil or value <= 0 then
@@ -12,6 +15,9 @@ local function env_int(name, fallback)
 	return math.floor(value)
 end
 
+---@param a integer[]
+---@param b integer[]
+---@return boolean
 local function same(a, b)
 	if #a ~= #b then return false end
 	for i = 1, #a do
@@ -20,6 +26,9 @@ local function same(a, b)
 	return true
 end
 
+---@param a integer[]
+---@param b integer[]
+---@return integer?
 local function token_diff_index(a, b)
 	local n = math.max(#a, #b)
 	for i = 1, n do
@@ -30,6 +39,9 @@ local function token_diff_index(a, b)
 	return nil
 end
 
+---@param a number[]
+---@param b number[]
+---@return number, integer
 local function max_abs_diff(a, b)
 	local max_diff = 0.0
 	local max_i = 1

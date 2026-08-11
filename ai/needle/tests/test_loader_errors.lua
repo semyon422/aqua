@@ -1,8 +1,10 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local fixture = arg[1]
 assert(fixture and fixture ~= "", "fixture path required")
 
+---@param path string
+---@return string
 local function read_file(path)
 	local f = assert(io.open(path, "rb"))
 	local data = assert(f:read("*a"))
@@ -10,22 +12,33 @@ local function read_file(path)
 	return data
 end
 
+---@param path string
+---@param data string
 local function write_file(path, data)
 	local f = assert(io.open(path, "wb"))
 	assert(f:write(data))
 	f:close()
 end
 
+---@param data string
+---@param pos integer
+---@return integer
 local function le16(data, pos)
 	local b1, b2 = data:byte(pos, pos + 1)
-	return b1 + b2 * 256
+	return assert(b1) + assert(b2) * 256
 end
 
+---@param data string
+---@param pos integer
+---@return integer
 local function le32(data, pos)
 	local b1, b2, b3, b4 = data:byte(pos, pos + 3)
-	return b1 + b2 * 256 + b3 * 65536 + b4 * 16777216
+	return assert(b1) + assert(b2) * 256 + assert(b3) * 65536 + assert(b4) * 16777216
 end
 
+---@param data string
+---@param pos integer
+---@return integer
 local function le64_small(data, pos)
 	local lo = le32(data, pos)
 	local hi = le32(data, pos + 4)
@@ -33,10 +46,17 @@ local function le64_small(data, pos)
 	return lo
 end
 
+---@param data string
+---@param pos integer
+---@param bytes string
+---@return string
 local function replace_bytes(data, pos, bytes)
 	return data:sub(1, pos - 1) .. bytes .. data:sub(pos + #bytes)
 end
 
+---@param path string
+---@param code integer
+---@param message_pattern string
 local function expect_load_error(path, code, message_pattern)
 	local ctx, err = needle.load(path)
 	assert(ctx ~= nil, "loader should return a context for structured errors")
@@ -48,8 +68,12 @@ end
 
 local data = read_file(fixture)
 local prefix = fixture .. ".bad"
+---@type string[]
 local temp_paths = {}
 
+---@param suffix string
+---@param bytes string
+---@return string
 local function write_bad(suffix, bytes)
 	local path = prefix .. suffix
 	temp_paths[#temp_paths + 1] = path

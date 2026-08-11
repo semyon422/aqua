@@ -1,9 +1,17 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
+---@param a number
+---@param b number
+---@param eps number?
+---@return boolean
 local function approx(a, b, eps)
 	return math.abs(a - b) <= (eps or 1e-5)
 end
 
+---@param actual number[]
+---@param expected number[]
+---@param eps number?
+---@param label string
 local function assert_vec(actual, expected, eps, label)
 	assert(#actual == #expected, label .. " length mismatch")
 	for i = 1, #expected do
@@ -113,7 +121,11 @@ local attn = assert(needle.kernels.attention(q, k, v, 2, 3, 2, {
 	1, 0, 1,
 }))
 
+---@param qrow number[]
+---@param mask boolean[]
+---@return number, number
 local function attention_expected(qrow, mask)
+	---@type number[]
 	local scores = {}
 	local max_score = -math.huge
 	for i = 0, 2 do
@@ -126,6 +138,7 @@ local function attention_expected(qrow, mask)
 		end
 	end
 	local denom = 0
+	---@type number[]
 	local weights = {}
 	for i = 1, 3 do
 		if scores[i] then

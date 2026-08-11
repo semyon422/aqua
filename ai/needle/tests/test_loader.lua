@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local fixture = arg[1]
 assert(fixture and fixture ~= "", "fixture path required")
@@ -26,9 +26,7 @@ assert(rc == needle.errors.INVALID_ARGUMENT, "unexpected generation return code"
 assert(gen_err.code == needle.errors.INVALID_ARGUMENT, "unexpected generation error code")
 assert(gen_err.name == "INVALID_ARGUMENT", "unexpected generation error name")
 
-local ok, stream_err, stream_rc = ctx:generate_stream("hello", "[]", function(_)
-	return true
-end)
+local ok, stream_err, stream_rc = ctx:generate_stream("hello", "[]", function(_) end)
 assert(ok == nil, "streaming generation without tokenizer should fail")
 assert(stream_rc == needle.errors.INVALID_ARGUMENT, "unexpected streaming return code")
 assert(stream_err.name == "INVALID_ARGUMENT", "unexpected streaming error name")

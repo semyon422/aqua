@@ -1,8 +1,11 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local model_path = arg[1] or "build/needle.bin"
 local tokenizer_path = arg[2] or "build/tokenizer.ndltok"
 
+---@param name string
+---@param fallback integer
+---@return integer
 local function env_int(name, fallback)
 	local value = tonumber(os.getenv(name) or "")
 	if value == nil or value <= 0 then
@@ -11,6 +14,9 @@ local function env_int(name, fallback)
 	return math.floor(value)
 end
 
+---@param a integer[]
+---@param b integer[]
+---@return boolean
 local function same(a, b)
 	if #a ~= #b then return false end
 	for i = 1, #a do
@@ -19,17 +25,25 @@ local function same(a, b)
 	return true
 end
 
+---@param fn fun()
+---@return number
 local function elapsed(fn)
 	collectgarbage("collect")
 	local start = os.clock()
-	local result = {fn()}
-	return os.clock() - start, unpack(result)
+	fn()
+	return os.clock() - start
 end
 
+---@param bytes number
+---@return number
 local function mib(bytes)
 	return bytes / (1024 * 1024)
 end
 
+---@param label string
+---@param iterations integer
+---@param tokens_per_iter integer
+---@param fn fun()
 local function profile(label, iterations, tokens_per_iter, fn)
 	local total = 0.0
 	needle.reset_memory_stats()
@@ -105,9 +119,10 @@ end)
 if profile_encoder_ops then
 	needle.set_profile_enabled(false)
 	local stats = needle.profile_stats()
+	---@type string[]
 	local names = {}
-	for name in pairs(stats) do
-		if name:match("_seconds$") then names[#names + 1] = name end
+	for name, value in pairs(stats) do
+		if type(value) == "number" and name:match("_seconds$") then names[#names + 1] = name end
 	end
 	table.sort(names)
 	for _, name in ipairs(names) do

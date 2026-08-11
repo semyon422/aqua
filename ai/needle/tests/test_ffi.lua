@@ -1,4 +1,4 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 assert(needle.version():match("^needle%-luajit%-runtime/"), "unexpected runtime version")
 assert(needle.probe_add(20, 22) == 42, "C probe did not return expected result")

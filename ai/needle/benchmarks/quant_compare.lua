@@ -1,9 +1,12 @@
-local needle = require("needle")
+local needle = require("ai.needle.needle")
 
 local float_model_path = arg[1] or "build/needle.bin"
 local q8_model_path = arg[2] or "build/needle-q8.bin"
 local tokenizer_path = arg[3] or "build/tokenizer.ndltok"
 
+---@param name string
+---@param fallback integer
+---@return integer
 local function env_int(name, fallback)
 	local value = tonumber(os.getenv(name) or "")
 	if value == nil or value <= 0 then
@@ -12,6 +15,9 @@ local function env_int(name, fallback)
 	return math.floor(value)
 end
 
+---@param a integer[]
+---@param b integer[]
+---@return boolean
 local function same(a, b)
 	if #a ~= #b then return false end
 	for i = 1, #a do
@@ -20,13 +26,18 @@ local function same(a, b)
 	return true
 end
 
+---@param fn fun()
+---@return number
 local function elapsed(fn)
 	collectgarbage("collect")
 	local start = os.clock()
-	local result = {fn()}
-	return os.clock() - start, unpack(result)
+	fn()
+	return os.clock() - start
 end
 
+---@param iterations integer
+---@param fn fun()
+---@return number
 local function avg_time(iterations, fn)
 	local total = 0.0
 	for _ = 1, iterations do
