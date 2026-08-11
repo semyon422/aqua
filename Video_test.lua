@@ -1,6 +1,13 @@
 local test = {}
 
+---@class video_test.Calls
+---@field read integer
+---@field readAt integer
+---@field seek integer
+
+---@return fun()
 local function installFakeLove()
+	---@type table?
 	local old_love = love
 	love = {
 		image = {
@@ -27,12 +34,20 @@ local function installFakeLove()
 	end
 end
 
+---@param frame_rate number
+---@return video.Video
+---@return video_test.Calls
+---@return fun()
 local function loadVideoWithFakeBackend(frame_rate)
+	---@type function?
 	local old_preload = package.preload.video
+	---@type any
 	local old_video = package.loaded.video
+	---@type any
 	local old_Video = package.loaded.Video
 	local restore_love = installFakeLove()
 
+	---@type video_test.Calls
 	local calls = {
 		read = 0,
 		readAt = 0,
@@ -71,7 +86,7 @@ local function loadVideoWithFakeBackend(frame_rate)
 	end
 
 	local Video = require("Video")
-	local restore = function()
+	local function restore()
 		package.preload.video = old_preload
 		package.loaded.video = old_video
 		package.loaded.Video = old_Video

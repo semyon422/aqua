@@ -1,15 +1,32 @@
+---@class video.Decoder
+---@field getDimensions fun(self: video.Decoder): integer, integer
+---@field getFrameRate (fun(self: video.Decoder): number)?
+---@field close fun(self: video.Decoder)
+---@field seek fun(self: video.Decoder, time: number)
+---@field readAt fun(self: video.Decoder, destination: ffi.cdata*, time: number): number?
+---@field read fun(self: video.Decoder, destination: ffi.cdata*): number?
+
+---@class video.Backend
+---@field open fun(pointer: ffi.cdata*, size: integer): video.Decoder?
+
+---@type boolean, video.Backend
 local ok, video = pcall(require, "video") -- c
 -- local ok, video = pcall(require, "video.video")  -- ffi
 
 if not ok then
-	video = {}
-	function video.open(p, s) end
+	video = {open = function() end}
 end
 
 local class = require("class")
 
 ---@class video.Video
 ---@operator call: video.Video
+---@field video video.Decoder
+---@field fileData love.FileData
+---@field imageData love.ImageData
+---@field image love.Image
+---@field time number?
+---@field frame_rate number?
 local Video = class()
 
 ---@param last_frame_time number?
@@ -21,7 +38,7 @@ local function shouldSeek(last_frame_time, requested_time, frame_rate)
 		return true
 	end
 
-	local frame_duration = (frame_rate and frame_rate > 0 and 1 / frame_rate) or 1 / 30
+	local frame_duration = frame_rate and frame_rate > 0 and (1 / frame_rate) or (1 / 30)
 	local delta = requested_time - last_frame_time
 	if delta < -frame_duration then
 		return true
@@ -78,6 +95,7 @@ end
 function Video:play(time)
 	time = math.max(time, 0)
 	local v = self.video
+	---@type number?
 	local frame_time
 	if shouldSeek(self.time, time, self.frame_rate) then
 		frame_time = v:readAt(self.imageData:getPointer(), time)

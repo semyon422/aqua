@@ -2,6 +2,11 @@ local class = require("class")
 
 ---@class util.Animation
 ---@operator call: util.Animation
+---@field range {[1]: number, [2]: number}
+---@field time number
+---@field rate number
+---@field cycles number
+---@field frame number?
 local Animation = class()
 
 ---@param dt number
