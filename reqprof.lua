@@ -3,7 +3,14 @@ local deco = require("deco")
 
 local reqprof = {}
 
+---@class reqprof.Stat
+---@field name string
+---@field time number
+---@field calls integer
+---@field nt_calls integer
+
 reqprof.max_level = 10
+---@type {[string]: reqprof.Stat}
 reqprof.stats = {}
 
 local enabled, target_enabled = false, false
@@ -14,10 +21,14 @@ function reqprof.disable()
 	target_enabled = false
 end
 
+---@type boolean?
 local want_print
 
+---@type fun(): number
 local getTime = love.timer.getTime
-local level
+---@type integer
+local level = 0
+---@type number?
 local prev_time
 local total_calls = 0
 function reqprof.start()
@@ -44,8 +55,8 @@ function reqprof.start()
 	total_calls = 0
 end
 
----@param a table
----@param b table
+---@param a reqprof.Stat
+---@param b reqprof.Stat
 ---@return boolean
 local function sort_stats(a, b)
 	return a.time < b.time
@@ -61,6 +72,7 @@ function reqprof._print()
 	end
 
 	local lname, lcalls, lnt_calls, ltime = #("function"), #("calls"), #("nt_calls"), #("time")
+	---@type reqprof.Stat[]
 	local stats_sorted = {}
 	for _, stat in pairs(reqprof.stats) do
 		table.insert(stats_sorted, stat)
@@ -87,10 +99,13 @@ function reqprof._print()
 	end
 end
 
----@param f function
+---@generic F: function
+---@param f F
 ---@param name string
----@return function
+---@return F
 function reqprof.decorate(f, name)
+	---@param t number
+	---@param stats {[string]: reqprof.Stat}
 	local function return_measured(t, stats, ...)
 		level = level - 1
 
