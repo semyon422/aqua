@@ -11,10 +11,14 @@ function ngx_chain_t:is_looped()
 	---@type {[ngx.chain_t]: true}
 	local seen = {}
 
+	---@type ngx.chain_t?
 	local chain = self
 	while chain do
 		seen[chain] = true
-		chain = chain.next
+		---@diagnostic disable: no-unknown -- LuaLS 3.19 loses the recursive union across this field read and reassignment.
+		local next_chain = chain.next
+		chain = next_chain
+		---@diagnostic enable: no-unknown
 		if seen[chain] then
 			return true
 		end
@@ -31,11 +35,15 @@ function ngx_chain_t:__tostring()
 	---@type {[ngx.chain_t]: true}
 	local seen = {}
 
+	---@type ngx.chain_t?
 	local chain = self
 	while chain do
 		table.insert(out, tostring(chain.buf))
 		seen[chain] = true
-		chain = chain.next
+		---@diagnostic disable: no-unknown -- LuaLS 3.19 loses the recursive union across this field read and reassignment.
+		local next_chain = chain.next
+		chain = next_chain
+		---@diagnostic enable: no-unknown
 		if seen[chain] then
 			table.insert(out, "loop")
 			break

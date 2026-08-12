@@ -2561,6 +2561,12 @@ function Context:build_encoder_input(tokenizer, query, tools_json, opts)
 	return input
 end
 
+---@param text string
+---@return string
+local function trim_leading_whitespace(text)
+	return (text:gsub("^%s+", ""))
+end
+
 ---@param query string
 ---@param tools_json string
 ---@param opts needle.Options?
@@ -2758,7 +2764,7 @@ function Context:generate(query, tools_json, opts)
 		end
 		if opts.strip_tool_call ~= false and text:sub(1, 11) == "<tool_call>" then
 			text = text:sub(12)
-			text = text:gsub("^%s+", "")
+			text = trim_leading_whitespace(text)
 		end
 		if opts.return_tokens then
 			return text, nil, nil, generated, src_ids
@@ -2793,7 +2799,7 @@ function Context:generate(query, tools_json, opts)
 	end
 	if opts.strip_tool_call ~= false and text:sub(1, 11) == "<tool_call>" then
 		text = text:sub(12)
-		text = text:gsub("^%s+", "")
+		text = trim_leading_whitespace(text)
 	end
 	if opts.return_tokens then
 		return text, nil, nil, generated, src_ids

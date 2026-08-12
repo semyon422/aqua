@@ -592,6 +592,7 @@ function ngx_http_lua.socket_read_until(cp, bytes)
 		matched = false
 
 		if cp.recovering and state >= 2 then
+			---@type ngx_http_lua.dfa_edge_t?
 			local edge = cp.recovering[state - 2]
 			while edge do
 				if edge.chr == c then
@@ -600,7 +601,10 @@ function ngx_http_lua.socket_read_until(cp, bytes)
 					matched = true
 					break
 				end
-				edge = edge.next
+				---@diagnostic disable: no-unknown -- LuaLS 3.19 loses the recursive union across this field read and reassignment.
+				local next_edge = edge.next
+				edge = next_edge
+				---@diagnostic enable: no-unknown
 			end
 		end
 

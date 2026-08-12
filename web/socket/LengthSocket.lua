@@ -55,6 +55,7 @@ end
 function LengthSocket:send(data, i, j)
 	assert(not i and not j, "not implemented")
 
+	---@type integer
 	local length = self.length
 	if length == 0 then
 		return nil, "closed", 0
