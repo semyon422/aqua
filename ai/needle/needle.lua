@@ -546,7 +546,7 @@ int needle_kernel_attention_f32(
 ---@field on_progress (fun(completed: integer, total: integer): boolean?)?
 ---@field on_prefill_progress (fun(completed: integer, total: integer): boolean?)?
 ---@field on_token (fun(token_id: integer, step: integer, tokens: ffi.cdata*, token_count: integer): boolean?)?
----@field on_text (fun(text: string))?
+---@field on_text (fun(text: string): boolean?)?
 
 ---@class needle.TrieNode
 ---@field children {[string]: needle.TrieNode}
