@@ -41,6 +41,7 @@ end
 
 ---@param s string
 ---@param c string?
+---@return string
 local function validate(s, c)
 	c = c or "?"
 	local size = #s
