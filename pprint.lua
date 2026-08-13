@@ -3,6 +3,7 @@ local stbl = require("stbl")
 ---@overload fun(v: any)
 local pprint = {}
 
+---@type boolean
 pprint.colored = true
 
 -- https://github.com/fidian/ansi
