@@ -5,6 +5,7 @@ pid <%= pid_path or "logs/nginx.pid" %>;
 env LJ_ROOT;
 env OR_ROOT;
 env NGINX_CONFIG_PATH;
+env RIZU_COMPUTE_VERSION;
 
 events {
 	worker_connections 1024;
