@@ -4,6 +4,7 @@ local random = require("web.random")
 ---@type {gettime: fun(): number}
 local socket = require("socket")
 local HttpServer = require("web.http.Server")
+local UsagePage = require("ai.openai.UsagePage")
 
 ---@class aqua.openai.ProxyUser
 ---@field name string
@@ -66,6 +67,7 @@ local HttpServer = require("web.http.Server")
 ---@field users aqua.openai.ProxyUser[]
 ---@field models string[]
 ---@field create_client fun(model: string, reasoning_effort: aqua.openai.ReasoningEffort?, request_options: aqua.openai.ProxyRequestOptions): aqua.openai.ProxyClient
+---@field fetch_usage (fun(): table?, string?, aqua.openai.ProviderError?)?
 ---@field logger (fun(line: string))?
 ---@field max_body_size integer?
 ---@field client_timeout number?
@@ -80,6 +82,7 @@ local HttpServer = require("web.http.Server")
 ---@field models string[]
 ---@field models_set {[string]: boolean}
 ---@field create_client fun(model: string, reasoning_effort: aqua.openai.ReasoningEffort?, request_options: aqua.openai.ProxyRequestOptions): aqua.openai.ProxyClient
+---@field fetch_usage fun(): table?, string?, aqua.openai.ProviderError?
 ---@field logger fun(line: string)
 ---@field max_body_size integer
 ---@field max_concurrent_requests_per_user integer
@@ -130,6 +133,7 @@ function ProxyServer:new(options)
 		self.models_set[model] = true
 	end
 	self.create_client = assert(options.create_client, "create_client is required")
+	self.fetch_usage = options.fetch_usage or function() return nil, "usage is not configured" end
 	self.logger = options.logger or print
 	self.max_body_size = options.max_body_size or self.max_body_size
 	self.max_concurrent_requests_per_user = options.max_concurrent_requests_per_user or self.max_concurrent_requests_per_user
@@ -202,8 +206,22 @@ local function sendJson(res, body)
 	local encoded = json.encode(body)
 	res.status = 200
 	res.headers:set("Content-Type", "application/json")
+	res.headers:set("Cache-Control", "no-store")
 	res:set_length(#encoded)
 	res:send(encoded)
+end
+
+---@param res web.Response
+local function sendUsagePage(res)
+	local body = UsagePage.render()
+	res.status = 200
+	res.headers:set("Content-Type", "text/html; charset=utf-8")
+	res.headers:set("Cache-Control", "no-store")
+	res.headers:set("X-Content-Type-Options", "nosniff")
+	res.headers:set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'")
+	res.headers:set("Referrer-Policy", "no-referrer")
+	res:set_length(#body)
+	res:send(body)
 end
 
 ---@param value any
@@ -1038,12 +1056,27 @@ function ProxyServer:releaseRequest(token)
 	self.active_requests[token] = active > 0 and active or nil
 end
 
+---@param res web.Response
+---@return integer status
+function ProxyServer:usage(res)
+	local usage, _, provider_error = self.fetch_usage()
+	if not usage then
+		if provider_error then return sendProviderError(res, provider_error) end
+		sendError(res, 502, "upstream usage request failed", "upstream_error", "upstream_error")
+		return 502
+	end
+	sendJson(res, usage)
+	return 200
+end
+
 ---@param req web.Request
 ---@param res web.Response
 ---@param path string
 ---@return integer status
 function ProxyServer:handleAuthenticated(req, res, path)
-	if req.method == "GET" and path == "/v1/models" then
+	if req.method == "GET" and path == "/v1/usage" then
+		return self:usage(res)
+	elseif req.method == "GET" and path == "/v1/models" then
 		local models = {}
 		for _, model in ipairs(self.models) do
 			table.insert(models, {id = model, object = "model", owned_by = "openai-subscription"})
@@ -1097,7 +1130,10 @@ function ProxyServer:handle(req, res, ip)
 	---@type integer
 	local status
 	local path = req.uri:match("^[^?]+") or req.uri
-	if not user then
+	if req.method == "GET" and path == "/usage" then
+		sendUsagePage(res)
+		status = 200
+	elseif not user then
 		sendError(res, 401, "invalid access token", "authentication_error", "invalid_api_key")
 		status = 401
 	elseif not self:consumeRateLimit(assert(token)) then

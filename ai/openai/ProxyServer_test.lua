@@ -114,6 +114,52 @@ function test.authenticates_and_lists_configured_models(t)
 end
 
 ---@param t testing.T
+function test.proxies_usage_and_serves_dashboard(t)
+	local scheduler = CosocketScheduler()
+	local fetch_count = 0
+	local server = ProxyServer({
+		scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}},
+		models = {"model-a"},
+		create_client = function() error("not used") end,
+		fetch_usage = function()
+			fetch_count = fetch_count + 1
+			return {
+				plan_type = "plus",
+				rate_limit = {
+					allowed = true,
+					limit_reached = false,
+					primary_window = {used_percent = 42, reset_at = 1780000000},
+					secondary_window = {used_percent = 5, reset_at = 1780100000},
+				},
+			}
+		end,
+		logger = function() end,
+	})
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+
+	local page = request(t, scheduler, assert(port), "/usage", nil, nil)
+	t:eq(page.status, 200)
+	t:eq(page.headers:get("Content-Type"), "text/html; charset=utf-8")
+	t:assert(page.body:find("OpenAI usage", 1, true))
+	t:assert(page.body:find('fetch("/v1/usage"', 1, true))
+	t:assert(page.body:find("Authorization", 1, true))
+	t:eq(fetch_count, 0)
+
+	local unauthorized = request(t, scheduler, port, "/v1/usage", nil, nil)
+	t:eq(unauthorized.status, 401)
+	local response = request(t, scheduler, port, "/v1/usage", nil, "proxy-secret")
+	t:eq(response.status, 200)
+	t:eq(response.headers:get("Cache-Control"), "no-store")
+	local usage = json.decode(response.body)
+	t:eq(usage.plan_type, "plus")
+	t:eq(usage.rate_limit.primary_window.used_percent, 42)
+	t:eq(fetch_count, 1)
+	server:stop()
+end
+
+---@param t testing.T
 function test.proxies_non_streaming_native_response(t)
 	local scheduler = CosocketScheduler()
 	---@type table?

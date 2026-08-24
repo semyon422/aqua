@@ -333,8 +333,8 @@ function SubscriptionClient:createHeaders(access_token, account_id)
 		["Content-Type"] = "application/json",
 		Accept = "text/event-stream",
 		["OpenAI-Beta"] = "responses=experimental",
-		Originator = "soundsphere",
-		["User-Agent"] = "soundsphere",
+		Originator = "openai-proxy",
+		["User-Agent"] = "openai-proxy",
 		session_id = self.session_id,
 		["x-client-request-id"] = self.session_id,
 	}

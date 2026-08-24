@@ -3,6 +3,8 @@ local HttpStream = require("web.http.HttpStream")
 local http_util = require("web.http.util")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local stbl = require("stbl")
+local json = require("web.json")
+local random = require("web.random")
 local SubscriptionAuth = require("ai.openai.SubscriptionAuth")
 local SubscriptionClient = require("ai.openai.SubscriptionClient")
 local ProxyNetwork = require("ai.openai.ProxyNetwork")
@@ -210,6 +212,43 @@ local shared_auth = {
 	end,
 }
 
+local usage_url = "https://chatgpt.com/backend-api/codex/usage"
+
+---@return table?
+---@return string?
+---@return aqua.openai.ProviderError?
+local function fetchUsage()
+	local access_token, account_id, access_err = shared_auth.getAccess()
+	if not access_token then return nil, access_err or "OpenAI login is required" end
+	if not account_id or account_id == "" then return nil, "OpenAI login has no account ID" end
+	local client_request_id = random.hex(16)
+	local response, request_err = request(usage_url, nil, {
+		method = "GET",
+		headers = {
+			Authorization = "Bearer " .. access_token,
+			["ChatGPT-Account-Id"] = account_id,
+			Accept = "application/json",
+			Originator = "openai-proxy",
+			["User-Agent"] = "openai-proxy",
+			["x-client-request-id"] = client_request_id,
+		},
+	})
+	if not response then return nil, request_err or "OpenAI usage request failed" end
+	if response.status < 200 or response.status >= 300 then
+		local request_id = response.headers and response.headers:get("x-request-id") or client_request_id
+		return nil, "OpenAI usage request failed", {
+			status = response.status,
+			message = "OpenAI usage request failed",
+			type = "upstream_error",
+			code = "upstream_error",
+			request_id = request_id,
+		}
+	end
+	local usage, decode_err = json.decode_safe(response.body)
+	if type(usage) ~= "table" then return nil, "invalid OpenAI usage response: " .. tostring(decode_err) end
+	return usage
+end
+
 local server = ProxyServer({
 	scheduler = scheduler,
 	users = users,
@@ -219,6 +258,7 @@ local server = ProxyServer({
 	max_clients = config.max_clients,
 	max_concurrent_requests_per_user = config.max_concurrent_requests_per_user,
 	max_requests_per_minute = config.max_requests_per_minute,
+	fetch_usage = fetchUsage,
 	create_client = function(model, reasoning_effort, request_options)
 		---@type aqua.openai.ProxyRequestOptions
 		local client_options = request_options
@@ -245,6 +285,7 @@ local ok, start_err = server:start(host, port)
 assert(ok, "failed to start OpenAI subscription proxy: " .. tostring(start_err))
 local bound_host, bound_port = server:getAddress()
 print(("OpenAI subscription proxy listening on http://%s:%d/v1"):format(assert(bound_host), assert(bound_port)))
+print(("OpenAI usage dashboard available at http://%s:%d/usage"):format(bound_host, bound_port))
 if network.socks5 then
 	print(("SOCKS5 upstream routing enabled via %s:%d"):format(network.socks5.host, network.socks5.port))
 end

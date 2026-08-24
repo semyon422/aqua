@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>OpenAI usage</title>
+	<style>
+		:root {
+			color-scheme: dark;
+			--background: #101214;
+			--panel: #191d21;
+			--muted: #9ca7b2;
+			--text: #edf2f7;
+			--line: #303841;
+			--accent: #79d8a5;
+			--warning: #f0bd66;
+			--danger: #ef767a;
+		}
+
+		* { box-sizing: border-box; }
+
+		body {
+			margin: 0;
+			background: var(--background);
+			color: var(--text);
+			font: 15px/1.45 system-ui, sans-serif;
+		}
+
+		main {
+			width: min(960px, calc(100% - 32px));
+			margin: 40px auto;
+		}
+
+		header {
+			display: flex;
+			align-items: end;
+			justify-content: space-between;
+			gap: 20px;
+			margin-bottom: 24px;
+		}
+
+		h1 {
+			margin: 0;
+			font-size: 28px;
+		}
+
+		.muted { color: var(--muted); }
+
+		.status {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.dot {
+			width: 9px;
+			height: 9px;
+			border-radius: 50%;
+			background: var(--muted);
+		}
+
+		.dot.ok { background: var(--accent); }
+		.dot.bad { background: var(--danger); }
+
+		form {
+			display: flex;
+			gap: 8px;
+		}
+
+		input,
+		button {
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			padding: 9px 12px;
+			background: var(--panel);
+			color: var(--text);
+		}
+
+		input { width: min(330px, 55vw); }
+		button { cursor: pointer; }
+		button:hover { border-color: var(--accent); }
+
+		.grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+			gap: 16px;
+		}
+
+		.card,
+		pre {
+			border: 1px solid var(--line);
+			border-radius: 12px;
+			background: var(--panel);
+		}
+
+		.card { padding: 18px; }
+
+		.card h2 {
+			margin: 0 0 12px;
+			color: var(--muted);
+			font-size: 14px;
+		}
+
+		.value {
+			font-size: 30px;
+			font-weight: 700;
+		}
+
+		.bar {
+			height: 9px;
+			margin: 12px 0;
+			overflow: hidden;
+			border-radius: 99px;
+			background: #282e34;
+		}
+
+		.fill {
+			height: 100%;
+			border-radius: inherit;
+			background: var(--accent);
+		}
+
+		.fill.warn { background: var(--warning); }
+		.fill.bad { background: var(--danger); }
+
+		.row {
+			display: flex;
+			justify-content: space-between;
+			gap: 12px;
+			margin-top: 7px;
+		}
+
+		.error {
+			display: none;
+			margin-bottom: 16px;
+			border: 1px solid #683039;
+			border-radius: 9px;
+			padding: 12px;
+			background: #351c20;
+			color: #ffd4d5;
+		}
+
+		.empty {
+			border: 1px dashed var(--line);
+			border-radius: 12px;
+			padding: 32px;
+			text-align: center;
+		}
+
+		details { margin-top: 18px; }
+
+		pre {
+			padding: 16px;
+			white-space: pre-wrap;
+			overflow-wrap: anywhere;
+		}
+
+		@media (max-width: 650px) {
+			header {
+				align-items: stretch;
+				flex-direction: column;
+			}
+
+			form,
+			input { width: 100%; }
+		}
+	</style>
+</head>
+<body>
+	<main>
+		<header>
+			<div>
+				<h1>OpenAI usage</h1>
+				<div class="status muted">
+					<span id="dot" class="dot"></span>
+					<span id="status">Enter the proxy token</span>
+				</div>
+			</div>
+			<form id="auth">
+				<input
+					id="token"
+					type="password"
+					autocomplete="current-password"
+					placeholder="Proxy bearer token"
+					aria-label="Proxy bearer token"
+				>
+				<button>Refresh</button>
+			</form>
+		</header>
+
+		<div id="error" class="error"></div>
+		<section id="cards" class="empty muted">Usage has not been loaded yet.</section>
+		<details id="raw-wrap" hidden>
+			<summary class="muted">Raw response</summary>
+			<pre id="raw"></pre>
+		</details>
+	</main>
+
+	<script>
+		const byId = (id) => document.getElementById(id);
+		const cards = byId("cards");
+		const error = byId("error");
+		const token = byId("token");
+
+		token.value = sessionStorage.getItem("openaiProxyToken") || "";
+
+		function setText(element, value) {
+			element.textContent = value == null ? "—" : String(value);
+		}
+
+		function createRow(label, value) {
+			const element = document.createElement("div");
+			const labelElement = document.createElement("span");
+			const valueElement = document.createElement("span");
+
+			element.className = "row";
+			labelElement.className = "muted";
+			setText(labelElement, label);
+			setText(valueElement, value);
+			element.append(labelElement, valueElement);
+			return element;
+		}
+
+		function formatDuration(seconds) {
+			seconds = Math.max(0, Math.round(seconds));
+			const days = Math.floor(seconds / 86400);
+			const hours = Math.floor(seconds % 86400 / 3600);
+			const minutes = Math.floor(seconds % 3600 / 60);
+
+			return [
+				days && `${days}d`,
+				hours && `${hours}h`,
+				minutes && `${minutes}m`,
+			].filter(Boolean).join(" ") || "< 1m";
+		}
+
+		function formatReset(windowData) {
+			if (!windowData) return "—";
+			if (typeof windowData.reset_at === "number") {
+				return new Date(windowData.reset_at * 1000).toLocaleString();
+			}
+			if (typeof windowData.reset_after_seconds === "number") {
+				return `in ${formatDuration(windowData.reset_after_seconds)}`;
+			}
+			return "—";
+		}
+
+		function createWindowCard(title, windowData) {
+			const element = document.createElement("article");
+			const heading = document.createElement("h2");
+			element.className = "card";
+			setText(heading, title);
+			element.append(heading);
+
+			if (!windowData) {
+				element.append(createRow("Status", "Not reported"));
+				return element;
+			}
+
+			const used = Number(windowData.used_percent) || 0;
+			const value = document.createElement("div");
+			const bar = document.createElement("div");
+			const fill = document.createElement("div");
+
+			value.className = "value";
+			bar.className = "bar";
+			fill.className = `fill ${used >= 90 ? "bad" : used >= 70 ? "warn" : ""}`;
+			fill.style.width = `${Math.max(0, Math.min(100, used))}%`;
+			setText(value, `${Math.round(used)}% used`);
+			bar.append(fill);
+			element.append(
+				value,
+				bar,
+				createRow("Remaining", `${Math.max(0, 100 - used).toFixed(0)}%`),
+				createRow("Resets", formatReset(windowData))
+			);
+
+			if (typeof windowData.limit_window_seconds === "number") {
+				element.append(createRow("Window", formatDuration(windowData.limit_window_seconds)));
+			}
+			return element;
+		}
+
+		function render(data) {
+			const rateLimit = data.rate_limit || {};
+			cards.className = "grid";
+			cards.replaceChildren(
+				createWindowCard("Primary window", rateLimit.primary_window),
+				createWindowCard("Secondary window", rateLimit.secondary_window)
+			);
+
+			const account = document.createElement("article");
+			const heading = document.createElement("h2");
+			account.className = "card";
+			setText(heading, "Account");
+			account.append(
+				heading,
+				createRow("Plan", data.plan_type || "—"),
+				createRow("Allowed", rateLimit.allowed === false ? "No" : "Yes"),
+				createRow("Limit reached", rateLimit.limit_reached ? "Yes" : "No")
+			);
+
+			if (data.rate_limit_reset_credits?.available_count != null) {
+				account.append(createRow("Reset credits", data.rate_limit_reset_credits.available_count));
+			}
+			if (data.credits?.balance != null) {
+				account.append(createRow("Credit balance", data.credits.balance));
+			}
+			cards.append(account);
+
+			for (const item of data.additional_rate_limits || []) {
+				const title = item.limit_name || item.name || item.model || "Additional limit";
+				const windowData = (item.rate_limit || item).primary_window || item.primary_window;
+				cards.append(createWindowCard(title, windowData));
+			}
+
+			byId("raw").textContent = JSON.stringify(data, null, 2);
+			byId("raw-wrap").hidden = false;
+		}
+
+		function showError(message) {
+			setText(error, message);
+			error.style.display = "block";
+		}
+
+		async function load() {
+			const value = token.value.trim();
+			if (!value) {
+				showError("Enter the proxy bearer token.");
+				return;
+			}
+
+			sessionStorage.setItem("openaiProxyToken", value);
+			error.style.display = "none";
+			setText(byId("status"), "Loading…");
+			byId("dot").className = "dot";
+
+			try {
+				const response = await fetch("/v1/usage", {
+					headers: {Authorization: `Bearer ${value}`},
+					cache: "no-store",
+				});
+				const data = await response.json();
+				if (!response.ok) {
+					throw new Error(data.error?.message || `HTTP ${response.status}`);
+				}
+
+				render(data);
+				setText(byId("status"), `Updated ${new Date().toLocaleTimeString()}`);
+				byId("dot").className = `dot ${data.rate_limit?.limit_reached ? "bad" : "ok"}`;
+			} catch (requestError) {
+				showError(requestError.message || String(requestError));
+				setText(byId("status"), "Update failed");
+				byId("dot").className = "dot bad";
+			}
+		}
+
+		byId("auth").addEventListener("submit", (event) => {
+			event.preventDefault();
+			load();
+		});
+
+		if (token.value) load();
+		setInterval(() => {
+			if (token.value) load();
+		}, 60000);
+	</script>
+</body>
+</html>

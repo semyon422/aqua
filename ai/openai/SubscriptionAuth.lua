@@ -208,7 +208,7 @@ function SubscriptionAuth:createAuthorizationUrl()
 		state = self.state,
 		id_token_add_organizations = "true",
 		codex_cli_simplified_flow = "true",
-		originator = "soundsphere",
+		originator = "openai-proxy",
 	})
 	return self.authorize_url .. "?" .. query
 end
