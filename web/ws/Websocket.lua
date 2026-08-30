@@ -127,16 +127,32 @@ function Websocket:req_send()
 	}
 end
 
+---@param res web.IResponse
+---@return string
+local function format_bad_status(res)
+	local details = {("HTTP %d"):format(res.status)}
+	for _, name in ipairs({"Server", "Content-Type", "Retry-After", "X-Request-ID", "CF-Ray"}) do
+		local value = res.headers:get(name)
+		if value then
+			details[#details + 1] = name:lower() .. "=" .. value
+		end
+	end
+	return "bad websocket status: " .. table.concat(details, ", ")
+end
+
 ---@param key string
 ---@return true?
 ---@return string?
 function Websocket:res_receive(key)
 	local res = self.res
 
-	res:receive_headers()
+	local ok, err = res:receive_headers()
+	if not ok then
+		return nil, "websocket response headers: " .. tostring(err)
+	end
 
 	if res.status ~= 101 then
-		return nil, "bad status"
+		return nil, format_bad_status(res)
 	end
 
 	local upgrade = res.headers:get("Upgrade")

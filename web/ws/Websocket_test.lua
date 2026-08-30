@@ -28,6 +28,32 @@ function test.handshake(t)
 end
 
 ---@param t testing.T
+function test.client_handshake_reports_http_status(t)
+	local str_soc = StringSocket("HTTP/1.1 503 Service Unavailable\r\nServer: edge.test\r\nContent-Type: text/html\r\nRetry-After: 5\r\nX-Request-ID: request-123\r\n\r\n")
+	local soc = ExtendedSocket(str_soc)
+	local req, res = req_res(soc)
+	local ws = Websocket(soc, req, res, "client")
+
+	local ok, err = ws:handshake()
+
+	t:eq(ok, nil)
+	t:eq(err, "bad websocket status: HTTP 503, server=edge.test, content-type=text/html, retry-after=5, x-request-id=request-123")
+end
+
+---@param t testing.T
+function test.client_handshake_reports_response_header_error(t)
+	local str_soc = StringSocket("invalid response\r\n")
+	local soc = ExtendedSocket(str_soc)
+	local req, res = req_res(soc)
+	local ws = Websocket(soc, req, res, "client")
+
+	local ok, err = ws:handshake()
+
+	t:eq(ok, nil)
+	t:eq(err, "websocket response headers: malformed headers")
+end
+
+---@param t testing.T
 function test.client_to_server(t)
 	local str_soc_cs = StringSocket()
 	local str_soc_sc = str_soc_cs:split()
