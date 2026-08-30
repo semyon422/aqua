@@ -26,12 +26,12 @@ local function makeStream(chunks)
 	}
 end
 
----@param open_stream aqua.openai.OpenStreamFunc
+---@param open_stream openai.OpenStreamFunc
 ---@param max_response_size integer?
 ---@param request_options table?
----@return aqua.openai.SubscriptionClient
+---@return openai.SubscriptionClient
 local function makeClient(open_stream, max_response_size, request_options)
-	---@type aqua.openai.SubscriptionClientOptions
+	---@type openai.SubscriptionClientOptions
 	local options = {
 		auth = {getAccess = function() return "access", "account" end},
 		model = "gpt-test",

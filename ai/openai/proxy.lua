@@ -10,26 +10,26 @@ local SubscriptionClient = require("ai.openai.SubscriptionClient")
 local ProxyNetwork = require("ai.openai.ProxyNetwork")
 local ProxyServer = require("ai.openai.ProxyServer")
 
----@class aqua.openai.ProxyConfig
+---@class openai.ProxyConfig
 ---@field auth_path string?
 ---@field upstream_timeout number?
 ---@field tls_cafile string?
 ---@field network_path string?
----@field users aqua.openai.ProxyUser[]
+---@field users openai.ProxyUser[]
 ---@field models string[]
 ---@field max_body_size integer?
 ---@field client_timeout number?
 ---@field max_clients integer?
 ---@field max_concurrent_requests_per_user integer?
 ---@field max_requests_per_minute integer?
----@field reasoning_effort aqua.openai.ReasoningEffort?
+---@field reasoning_effort openai.ReasoningEffort?
 ---@field verbosity "low"|"medium"|"high"?
 ---@field max_response_size integer?
 ---@field host string?
 ---@field port integer?
 
----@class aqua.openai.NetworkConfig
----@field socks5 aqua.openai.Socks5Config?
+---@class openai.NetworkConfig
+---@field socks5 openai.Socks5Config?
 
 local command = "serve"
 local config_path = arg[1] or "userdata/ai_proxy.lua"
@@ -49,13 +49,13 @@ end
 
 local config_loader, config_err = loadfile(config_path)
 assert(config_loader, ("failed to load proxy config %s: %s"):format(config_path, tostring(config_err)))
----@type aqua.openai.ProxyConfig
+---@type openai.ProxyConfig
 local config = config_loader()
 assert(type(config) == "table", "proxy config must return a table")
 
 local auth_path = config.auth_path or "userdata/ai_auth.lua"
 
----@return aqua.openai.SubscriptionCredentials
+---@return openai.SubscriptionCredentials
 local function loadCredentials()
 	---@type {[string]: any}
 	local credentials = {}
@@ -77,7 +77,7 @@ local function loadCredentials()
 	end
 	assert(credentials.expires_at >= 0 and credentials.expires_at % 1 == 0,
 		"subscription auth expires_at must be a non-negative integer")
-	return credentials --[[@as aqua.openai.SubscriptionCredentials]]
+	return credentials --[[@as openai.SubscriptionCredentials]]
 end
 
 local credentials = loadCredentials()
@@ -95,7 +95,7 @@ local ssl_params = {
 local network_path = config.network_path or "userdata/network.lua"
 local network_loader, network_err = loadfile(network_path)
 assert(network_loader, ("failed to load network config %s: %s"):format(network_path, tostring(network_err)))
----@type aqua.openai.NetworkConfig
+---@type openai.NetworkConfig
 local network_config = network_loader()
 assert(type(network_config) == "table", "network config must return a table")
 local network = ProxyNetwork({
@@ -216,7 +216,7 @@ local usage_url = "https://chatgpt.com/backend-api/codex/usage"
 
 ---@return table?
 ---@return string?
----@return aqua.openai.ProviderError?
+---@return openai.ProviderError?
 local function fetchUsage()
 	local access_token, account_id, access_err = shared_auth.getAccess()
 	if not access_token then return nil, access_err or "OpenAI login is required" end
@@ -260,10 +260,10 @@ local server = ProxyServer({
 	max_requests_per_minute = config.max_requests_per_minute,
 	fetch_usage = fetchUsage,
 	create_client = function(model, reasoning_effort, request_options)
-		---@type aqua.openai.ProxyRequestOptions
+		---@type openai.ProxyRequestOptions
 		local client_options = request_options
 		return SubscriptionClient({
-			auth = shared_auth --[[@as aqua.openai.SubscriptionAuth]],
+			auth = shared_auth --[[@as openai.SubscriptionAuth]],
 			model = model,
 			reasoning_effort = reasoning_effort or config.reasoning_effort or "medium",
 			prompt_cache_key = client_options.prompt_cache_key,

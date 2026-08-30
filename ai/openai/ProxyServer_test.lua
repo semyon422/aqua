@@ -487,7 +487,7 @@ end
 ---@param t testing.T
 function test.normalizes_openai_text_content_parts(t)
 	local scheduler = CosocketScheduler()
-	---@type aqua.openai.Message[]?
+	---@type openai.Message[]?
 	local seen_messages
 	local server = ProxyServer({
 		scheduler = scheduler,
@@ -523,7 +523,7 @@ end
 ---@param t testing.T
 function test.normalizes_all_chat_completion_content_parts(t)
 	local scheduler = CosocketScheduler()
-	---@type aqua.openai.Message[]?
+	---@type openai.Message[]?
 	local seen_messages
 	local server = ProxyServer({
 		scheduler = scheduler,

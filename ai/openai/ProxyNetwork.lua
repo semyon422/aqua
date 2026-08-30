@@ -5,26 +5,26 @@ local table_util = require("table_util")
 local CosocketTcpSocket = require("web.luasocket.CosocketTcpSocket")
 local Socks5TcpSocket = require("web.socket.Socks5TcpSocket")
 
----@class aqua.openai.Socks5Config: web.Socks5ProxyOptions
+---@class openai.Socks5Config: web.Socks5ProxyOptions
 ---@field enabled boolean?
 ---@field whitelist string[]?
 ---@field blacklist string[]?
 
----@class aqua.openai.ProxyNetworkOptions
+---@class openai.ProxyNetworkOptions
 ---@field scheduler web.CosocketScheduler
 ---@field timeout number
 ---@field ssl_params web.SslParams
----@field socks5 aqua.openai.Socks5Config?
+---@field socks5 openai.Socks5Config?
 
----@class aqua.openai.ProxyNetwork
----@operator call: aqua.openai.ProxyNetwork
+---@class openai.ProxyNetwork
+---@operator call: openai.ProxyNetwork
 ---@field scheduler web.CosocketScheduler
 ---@field timeout number
 ---@field ssl_params web.SslParams
----@field socks5 aqua.openai.Socks5Config?
+---@field socks5 openai.Socks5Config?
 local ProxyNetwork = class()
 
----@param options aqua.openai.ProxyNetworkOptions
+---@param options openai.ProxyNetworkOptions
 function ProxyNetwork:new(options)
 	self.scheduler = assert(options.scheduler, "scheduler is required")
 	self.timeout = assert(options.timeout, "timeout is required")

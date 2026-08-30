@@ -2,65 +2,65 @@ local class = require("class")
 local json = require("web.json")
 local SseParser = require("ai.openai.SseParser")
 
----@alias aqua.openai.RequestFunc fun(url: string, body: table|string?, options: web.HttpRequestOptions?): {status: integer, headers: web.Headers?, body: string}?, string?
----@alias aqua.openai.OpenStreamFunc fun(url: string, options: web.HttpStreamOptions?): web.HttpStream?, string?
+---@alias openai.RequestFunc fun(url: string, body: table|string?, options: web.HttpRequestOptions?): {status: integer, headers: web.Headers?, body: string}?, string?
+---@alias openai.OpenStreamFunc fun(url: string, options: web.HttpStreamOptions?): web.HttpStream?, string?
 
----@class aqua.openai.ChatBody
+---@class openai.ChatBody
 ---@field model string
----@field messages aqua.openai.Message[]
+---@field messages openai.Message[]
 ---@field stream boolean
----@field tools aqua.openai.ToolSchema[]?
+---@field tools openai.ToolSchema[]?
 ---@field tool_choice "auto"?
 ---@field parallel_tool_calls boolean?
 ---@field max_tokens integer?
 
----@class aqua.openai.ChatProviderError
+---@class openai.ChatProviderError
 ---@field message any?
 
----@class aqua.openai.ChatProviderChoice
+---@class openai.ChatProviderChoice
 ---@field message any?
 ---@field delta any?
 
----@class aqua.openai.ProviderResponse
----@field error aqua.openai.ChatProviderError?
----@field choices aqua.openai.ChatProviderChoice[]?
+---@class openai.ProviderResponse
+---@field error openai.ChatProviderError?
+---@field choices openai.ChatProviderChoice[]?
 
----@class aqua.openai.ChatToolCallDeltaFunction
+---@class openai.ChatToolCallDeltaFunction
 ---@field name any?
 ---@field arguments any?
 
----@class aqua.openai.ChatToolCallDelta
+---@class openai.ChatToolCallDelta
 ---@field index any?
 ---@field id any?
----@field ["function"] aqua.openai.ChatToolCallDeltaFunction?
+---@field ["function"] openai.ChatToolCallDeltaFunction?
 
----@class aqua.openai.MessageDelta
+---@class openai.MessageDelta
 ---@field content any?
----@field tool_calls aqua.openai.ChatToolCallDelta[]?
+---@field tool_calls openai.ChatToolCallDelta[]?
 
----@class aqua.openai.ClientOptions
+---@class openai.ClientOptions
 ---@field base_url string
 ---@field api_key string?
 ---@field model string
 ---@field max_tokens integer?
 ---@field timeout number?
----@field request aqua.openai.RequestFunc
----@field open_stream aqua.openai.OpenStreamFunc?
+---@field request openai.RequestFunc
+---@field open_stream openai.OpenStreamFunc?
 
----@class aqua.openai.Client
----@operator call: aqua.openai.Client
+---@class openai.Client
+---@operator call: openai.Client
 ---@field base_url string
 ---@field api_key string?
 ---@field model string
 ---@field max_tokens integer?
 ---@field timeout number?
----@field request aqua.openai.RequestFunc
----@field open_stream aqua.openai.OpenStreamFunc?
+---@field request openai.RequestFunc
+---@field open_stream openai.OpenStreamFunc?
 ---@field active_stream web.HttpStream?
 ---@field cancel_requested boolean
 local Client = class()
 
----@param options aqua.openai.ClientOptions
+---@param options openai.ClientOptions
 function Client:new(options)
 	assert(options.base_url ~= "", "base_url is required")
 	assert(options.model ~= "", "model is required")
@@ -74,12 +74,12 @@ function Client:new(options)
 	self.cancel_requested = false
 end
 
----@param messages aqua.openai.Message[]
----@param tools aqua.openai.ToolSchema[]?
+---@param messages openai.Message[]
+---@param tools openai.ToolSchema[]?
 ---@param stream boolean
----@return aqua.openai.ChatBody
+---@return openai.ChatBody
 function Client:createBody(messages, tools, stream)
-	---@type aqua.openai.ChatBody
+	---@type openai.ChatBody
 	local body = {
 		model = self.model,
 		messages = messages,
@@ -108,7 +108,7 @@ function Client:createHeaders()
 end
 
 ---@param message any
----@return aqua.openai.Message?
+---@return openai.Message?
 ---@return string?
 function Client:validateMessage(message)
 	if type(message) ~= "table" or message.role ~= "assistant" then
@@ -120,9 +120,9 @@ function Client:validateMessage(message)
 	return message
 end
 
----@param messages aqua.openai.Message[]
----@param tools aqua.openai.ToolSchema[]?
----@return aqua.openai.Message?
+---@param messages openai.Message[]
+---@param tools openai.ToolSchema[]?
+---@return openai.Message?
 ---@return string?
 function Client:complete(messages, tools)
 	local res, err = self.request(self.base_url .. "/chat/completions", json.encode(self:createBody(messages, tools, false)), {
@@ -135,7 +135,7 @@ function Client:complete(messages, tools)
 	end
 
 	local decoded, decode_err = json.decode_safe(res.body)
-	---@cast decoded aqua.openai.ProviderResponse?
+	---@cast decoded openai.ProviderResponse?
 	if not decoded then
 		return nil, "invalid provider JSON: " .. tostring(decode_err)
 	end
@@ -157,8 +157,8 @@ function Client:complete(messages, tools)
 	return self:validateMessage(message)
 end
 
----@param message aqua.openai.Message
----@param delta aqua.openai.MessageDelta
+---@param message openai.Message
+---@param delta openai.MessageDelta
 ---@param on_text_delta fun(content: string)?
 function Client:applyDelta(message, delta, on_text_delta)
 	if type(delta.content) == "string" and delta.content ~= "" then
@@ -198,10 +198,10 @@ function Client:applyDelta(message, delta, on_text_delta)
 	end
 end
 
----@param messages aqua.openai.Message[]
----@param tools aqua.openai.ToolSchema[]?
+---@param messages openai.Message[]
+---@param tools openai.ToolSchema[]?
 ---@param on_text_delta fun(content: string)?
----@return aqua.openai.Message?
+---@return openai.Message?
 ---@return string?
 function Client:completeStream(messages, tools, on_text_delta)
 	local open_stream = assert(self.open_stream, "open_stream is required for streaming")
@@ -244,7 +244,7 @@ function Client:completeStream(messages, tools, on_text_delta)
 		return nil, ("provider returned HTTP %d: %s"):format(res.status, error_body or "")
 	end
 
-	---@type aqua.openai.Message
+	---@type openai.Message
 	local message = {role = "assistant", content = ""}
 	local done = false
 	---@type string?
@@ -255,7 +255,7 @@ function Client:completeStream(messages, tools, on_text_delta)
 			return
 		end
 		local event, decode_err = json.decode_safe(data)
-		---@cast event aqua.openai.ProviderResponse?
+		---@cast event openai.ProviderResponse?
 		if not event then
 			parse_err = "invalid streaming JSON: " .. tostring(decode_err)
 			return

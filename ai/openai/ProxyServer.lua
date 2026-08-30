@@ -6,68 +6,68 @@ local socket = require("socket")
 local HttpServer = require("web.http.Server")
 local UsagePage = require("ai.openai.UsagePage")
 
----@class aqua.openai.ProxyUser
+---@class openai.ProxyUser
 ---@field name string
 ---@field access_token string
 
----@class aqua.openai.ProxyClient
----@field completeStream fun(self: aqua.openai.ProxyClient, messages: aqua.openai.Message[], tools: aqua.openai.ToolSchema[]?, on_text_delta: (fun(content: string))?, on_reasoning_delta: (fun(content: string))?, on_tool_call_delta: (fun(delta: aqua.openai.ToolCallDelta))?): aqua.openai.Message?, string?, aqua.openai.ProviderError?
----@field createResponse fun(self: aqua.openai.ProxyClient, request: table, on_event: (fun(event: table): boolean?)?): table?, string?, aqua.openai.ProviderError?
+---@class openai.ProxyClient
+---@field completeStream fun(self: openai.ProxyClient, messages: openai.Message[], tools: openai.ToolSchema[]?, on_text_delta: (fun(content: string))?, on_reasoning_delta: (fun(content: string))?, on_tool_call_delta: (fun(delta: openai.ToolCallDelta))?): openai.Message?, string?, openai.ProviderError?
+---@field createResponse fun(self: openai.ProxyClient, request: table, on_event: (fun(event: table): boolean?)?): table?, string?, openai.ProviderError?
 
----@class aqua.openai.UntrustedObject
+---@class openai.UntrustedObject
 ---@field [any] any
 
----@class aqua.openai.PromptCacheBreakpoint: aqua.openai.UntrustedObject
+---@class openai.PromptCacheBreakpoint: openai.UntrustedObject
 ---@field mode any?
 
----@class aqua.openai.ImagePart: aqua.openai.UntrustedObject
+---@class openai.ImagePart: openai.UntrustedObject
 ---@field url any?
 ---@field detail any?
 
----@class aqua.openai.AudioPart: aqua.openai.UntrustedObject
+---@class openai.AudioPart: openai.UntrustedObject
 ---@field data any?
 ---@field format any?
 
----@class aqua.openai.FilePart: aqua.openai.UntrustedObject
+---@class openai.FilePart: openai.UntrustedObject
 ---@field file_data any?
 ---@field file_id any?
 ---@field filename any?
 
----@class aqua.openai.ContentPart: aqua.openai.UntrustedObject
+---@class openai.ContentPart: openai.UntrustedObject
 ---@field type any?
 ---@field text any?
 ---@field refusal any?
----@field prompt_cache_breakpoint aqua.openai.PromptCacheBreakpoint?
----@field image_url aqua.openai.ImagePart?
----@field input_audio aqua.openai.AudioPart?
----@field file aqua.openai.FilePart?
+---@field prompt_cache_breakpoint openai.PromptCacheBreakpoint?
+---@field image_url openai.ImagePart?
+---@field input_audio openai.AudioPart?
+---@field file openai.FilePart?
 
----@class aqua.openai.UntrustedFunctionCall: aqua.openai.UntrustedObject
+---@class openai.UntrustedFunctionCall: openai.UntrustedObject
 ---@field name any?
 ---@field arguments any?
 
----@class aqua.openai.UntrustedMessage: aqua.openai.UntrustedObject
+---@class openai.UntrustedMessage: openai.UntrustedObject
 ---@field role any?
 ---@field content any?
----@field function_call aqua.openai.UntrustedFunctionCall?
+---@field function_call openai.UntrustedFunctionCall?
 ---@field tool_calls any?
 ---@field name any?
 ---@field tool_call_id any?
 
----@class aqua.openai.ProxyRequestOptions
+---@class openai.ProxyRequestOptions
 ---@field prompt_cache_key string?
----@field prompt_cache_options aqua.openai.PromptCacheOptions?
----@field tool_choice "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
+---@field prompt_cache_options openai.PromptCacheOptions?
+---@field tool_choice "none"|"auto"|"required"|openai.ResponsesFunctionToolChoice?
 ---@field parallel_tool_calls boolean
 ---@field verbosity "low"|"medium"|"high"?
----@field text_format aqua.openai.ResponsesTextFormat?
+---@field text_format openai.ResponsesTextFormat?
 
----@class aqua.openai.ProxyServerOptions
+---@class openai.ProxyServerOptions
 ---@field scheduler web.CosocketScheduler
----@field users aqua.openai.ProxyUser[]
+---@field users openai.ProxyUser[]
 ---@field models string[]
----@field create_client fun(model: string, reasoning_effort: aqua.openai.ReasoningEffort?, request_options: aqua.openai.ProxyRequestOptions): aqua.openai.ProxyClient
----@field fetch_usage (fun(): table?, string?, aqua.openai.ProviderError?)?
+---@field create_client fun(model: string, reasoning_effort: openai.ReasoningEffort?, request_options: openai.ProxyRequestOptions): openai.ProxyClient
+---@field fetch_usage (fun(): table?, string?, openai.ProviderError?)?
 ---@field logger (fun(line: string))?
 ---@field max_body_size integer?
 ---@field client_timeout number?
@@ -76,13 +76,13 @@ local UsagePage = require("ai.openai.UsagePage")
 ---@field max_requests_per_minute integer?
 ---@field get_time (fun(): number)?
 
----@class aqua.openai.ProxyServer
----@operator call: aqua.openai.ProxyServer
+---@class openai.ProxyServer
+---@operator call: openai.ProxyServer
 ---@field users_by_token {[string]: string}
 ---@field models string[]
 ---@field models_set {[string]: boolean}
----@field create_client fun(model: string, reasoning_effort: aqua.openai.ReasoningEffort?, request_options: aqua.openai.ProxyRequestOptions): aqua.openai.ProxyClient
----@field fetch_usage fun(): table?, string?, aqua.openai.ProviderError?
+---@field create_client fun(model: string, reasoning_effort: openai.ReasoningEffort?, request_options: openai.ProxyRequestOptions): openai.ProxyClient
+---@field fetch_usage fun(): table?, string?, openai.ProviderError?
 ---@field logger fun(line: string)
 ---@field max_body_size integer
 ---@field max_concurrent_requests_per_user integer
@@ -114,7 +114,7 @@ local verbosities = {
 	high = true,
 }
 
----@param options aqua.openai.ProxyServerOptions
+---@param options openai.ProxyServerOptions
 function ProxyServer:new(options)
 	assert(type(options.users) == "table" and #options.users > 0, "at least one proxy user is required")
 	assert(type(options.models) == "table" and #options.models > 0, "at least one proxy model is required")
@@ -191,7 +191,7 @@ local function sendError(res, status, message, error_type, code, request_id)
 end
 
 ---@param res web.Response
----@param provider_error aqua.openai.ProviderError
+---@param provider_error openai.ProviderError
 ---@return integer status
 local function sendProviderError(res, provider_error)
 	local status = provider_error.status
@@ -231,7 +231,7 @@ local function sanitizeLogValue(value)
 	return sanitized
 end
 
----@param usage aqua.openai.TokenUsage
+---@param usage openai.TokenUsage
 ---@return table
 local function createCompletionUsage(usage)
 	return {
@@ -243,7 +243,7 @@ local function createCompletionUsage(usage)
 	}
 end
 
----@param message aqua.openai.Message
+---@param message openai.Message
 ---@param legacy_functions boolean
 ---@return "stop"|"length"|"tool_calls"|"content_filter"|"function_call"
 local function getFinishReason(message, legacy_functions)
@@ -253,7 +253,7 @@ local function getFinishReason(message, legacy_functions)
 end
 
 ---@param model string
----@param message aqua.openai.Message
+---@param message openai.Message
 ---@param completion_id string
 ---@param created integer
 ---@param legacy_functions boolean
@@ -336,7 +336,7 @@ end
 ---@param model string
 ---@param completion_id string
 ---@param created integer
----@param usage aqua.openai.TokenUsage
+---@param usage openai.TokenUsage
 local function sendUsageChunk(res, model, completion_id, created, usage)
 	sendEvent(res, {
 		id = completion_id,
@@ -360,10 +360,10 @@ local function normalizeContent(content, role)
 	local input_parts = {}
 	local has_non_text = false
 	local has_breakpoint = false
-	---@cast content aqua.openai.ContentPart[]
+	---@cast content openai.ContentPart[]
 	for _, part in ipairs(content) do
 		if not json.isObject(part) then return end
-		---@cast part aqua.openai.ContentPart
+		---@cast part openai.ContentPart
 		---@type {mode: "explicit"}?
 		local breakpoint
 		if part.prompt_cache_breakpoint ~= nil then
@@ -441,7 +441,7 @@ local function normalizeContent(content, role)
 end
 
 ---@param options any
----@return aqua.openai.PromptCacheOptions?
+---@return openai.PromptCacheOptions?
 ---@return string?
 local function normalizePromptCacheOptions(options)
 	if options == nil then return end
@@ -460,7 +460,7 @@ local function normalizePromptCacheOptions(options)
 			return nil, "prompt_cache_options contains an unsupported field"
 		end
 	end
-	---@type aqua.openai.PromptCacheOptions
+	---@type openai.PromptCacheOptions
 	local normalized = json.object()
 	normalized.mode = options.mode
 	normalized.ttl = options.ttl
@@ -473,10 +473,10 @@ local function normalizeMessages(messages)
 	if not json.isArray(messages) or #messages == 0 then return false end
 	---@type {id: string, name: string}?
 	local pending_legacy_call
-	---@cast messages aqua.openai.UntrustedMessage[]
+	---@cast messages openai.UntrustedMessage[]
 	for _, message in ipairs(messages) do
 		if not json.isObject(message) then return false end
-		---@cast message aqua.openai.UntrustedMessage
+		---@cast message openai.UntrustedMessage
 		local role = message.role
 		if pending_legacy_call and role ~= "function" then return false end
 		if role ~= "developer" and role ~= "system" and role ~= "user" and role ~= "assistant"
@@ -485,7 +485,7 @@ local function normalizeMessages(messages)
 			return false
 		end
 		if role == "assistant" and message.function_call ~= nil then
-			---@type aqua.openai.UntrustedFunctionCall
+			---@type openai.UntrustedFunctionCall
 			local function_call = message.function_call
 			if message.tool_calls ~= nil or not json.isObject(function_call)
 				or type(function_call.name) ~= "string" or function_call.name == ""
@@ -521,7 +521,7 @@ local function normalizeMessages(messages)
 		end
 		if role == "tool" and type(message.tool_call_id) ~= "string" then return false end
 		if message.tool_calls ~= nil and not json.isArray(message.tool_calls) then return false end
-		---@type aqua.openai.ToolCall[]
+		---@type openai.ToolCall[]
 		local tool_calls = message.tool_calls or {}
 		for _, tool_call in ipairs(tool_calls) do
 			local schema = type(tool_call) == "table" and tool_call["function"] or nil
@@ -543,7 +543,7 @@ end
 local function validateTools(tools)
 	if tools == nil then return true end
 	if not json.isArray(tools) then return false end
-	---@cast tools aqua.openai.ToolSchema[]
+	---@cast tools openai.ToolSchema[]
 	for _, tool in ipairs(tools) do
 		local schema = type(tool) == "table" and tool["function"] or nil
 		if tool.type ~= "function" or type(schema) ~= "table"
@@ -580,9 +580,9 @@ local function normalizeLegacyFunctions(request)
 	if isPresent(request.tool_choice) then return false, "function_call and tool_choice are mutually exclusive" end
 	if not json.isArray(request.functions) then return false, "functions must be an array" end
 
-	---@type aqua.openai.ToolSchema[]
+	---@type openai.ToolSchema[]
 	local tools = json.array()
-	---@type aqua.openai.FunctionSchema[]
+	---@type openai.FunctionSchema[]
 	local functions = request.functions
 	for _, schema in ipairs(functions) do
 		table.insert(tools, {type = "function", ["function"] = schema})
@@ -590,7 +590,7 @@ local function normalizeLegacyFunctions(request)
 	if not validateTools(tools) then return false, "functions contain an invalid definition" end
 	request.tools = tools
 	if has_function_call then
-		---@type aqua.openai.UntrustedFunctionCall|string
+		---@type openai.UntrustedFunctionCall|string
 		local function_call = request.function_call
 		if function_call == "none" or function_call == "auto" then
 			request.tool_choice = function_call
@@ -616,8 +616,8 @@ local function sendUnsupportedParameter(res, name)
 end
 
 ---@param tool_choice any
----@param tools aqua.openai.ToolSchema[]?
----@return "none"|"auto"|"required"|aqua.openai.ResponsesFunctionToolChoice?
+---@param tools openai.ToolSchema[]?
+---@return "none"|"auto"|"required"|openai.ResponsesFunctionToolChoice?
 ---@return string?
 local function normalizeToolChoice(tool_choice, tools)
 	if tool_choice == nil then return end
@@ -642,7 +642,7 @@ local function normalizeToolChoice(tool_choice, tools)
 end
 
 ---@param response_format any
----@return aqua.openai.ResponsesTextFormat?
+---@return openai.ResponsesTextFormat?
 ---@return string?
 local function normalizeResponseFormat(response_format)
 	if response_format == nil then return end

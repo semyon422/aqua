@@ -1,7 +1,7 @@
 local class = require("class")
 
----@class aqua.openai.SseParser
----@operator call: aqua.openai.SseParser
+---@class openai.SseParser
+---@operator call: openai.SseParser
 ---@field buffer string
 ---@field data_lines string[]
 ---@field on_data fun(data: string)

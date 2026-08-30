@@ -3,8 +3,8 @@ local Agent = require("ai.openai.Agent")
 
 local test = {}
 
----@param replies aqua.openai.Message[]
----@return aqua.openai.Client
+---@param replies openai.Message[]
+---@return openai.Client
 local function makeClient(replies)
 	return {
 		complete = function(_, messages, schemas)
@@ -14,7 +14,7 @@ local function makeClient(replies)
 	}
 end
 
----@return aqua.openai.Tool
+---@return openai.Tool
 local function makeTool()
 	return {
 		name = "lua_eval",

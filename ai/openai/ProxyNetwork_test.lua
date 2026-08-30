@@ -4,7 +4,7 @@ local ProxyNetwork = require("ai.openai.ProxyNetwork")
 local test = {}
 
 ---@param socks5 table?
----@return aqua.openai.ProxyNetwork
+---@return openai.ProxyNetwork
 local function makeNetwork(socks5)
 	return ProxyNetwork({
 		scheduler = CosocketScheduler(),

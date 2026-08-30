@@ -19,7 +19,7 @@ local function makeToken(account_id, expires_at)
 	return "header." .. payload .. ".signature"
 end
 
----@return aqua.openai.SubscriptionCredentials
+---@return openai.SubscriptionCredentials
 local function makeCredentials()
 	return {access_token = "", refresh_token = "", expires_at = 0, account_id = ""}
 end
@@ -156,7 +156,7 @@ function test.logs_in_with_device_code_and_jwt_expiration(t)
 	local now = 1000
 	local requests = {}
 	local polls = 0
-	---@type aqua.openai.DeviceCode?
+	---@type openai.DeviceCode?
 	local shown_code
 	local auth = OpenAiSubscriptionAuth({
 		scheduler = {},

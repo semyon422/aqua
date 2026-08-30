@@ -1,81 +1,81 @@
 local class = require("class")
 local json = require("web.json")
 
----@class aqua.openai.Message
+---@class openai.Message
 ---@field role "developer"|"system"|"user"|"assistant"|"tool"
 ---@field content string|table[]?
 ---@field finish_reason "stop"|"length"|"tool_calls"|"content_filter"?
----@field tool_calls aqua.openai.ToolCall[]?
+---@field tool_calls openai.ToolCall[]?
 ---@field tool_call_id string?
 ---@field response_items table[]? Provider-owned Responses API items retained across tool rounds.
 ---@field reasoning_content string? Provider-generated reasoning summary exposed by compatible chat clients.
----@field usage aqua.openai.TokenUsage?
+---@field usage openai.TokenUsage?
 
----@class aqua.openai.InputTokenDetails
+---@class openai.InputTokenDetails
 ---@field cached_tokens integer?
 ---@field audio_tokens integer?
 
----@class aqua.openai.OutputTokenDetails
+---@class openai.OutputTokenDetails
 ---@field reasoning_tokens integer?
 ---@field audio_tokens integer?
 ---@field accepted_prediction_tokens integer?
 ---@field rejected_prediction_tokens integer?
 
----@class aqua.openai.TokenUsage
+---@class openai.TokenUsage
 ---@field input_tokens integer
 ---@field output_tokens integer
 ---@field total_tokens integer
----@field input_tokens_details aqua.openai.InputTokenDetails?
----@field output_tokens_details aqua.openai.OutputTokenDetails?
+---@field input_tokens_details openai.InputTokenDetails?
+---@field output_tokens_details openai.OutputTokenDetails?
 
----@class aqua.openai.ToolCallFunction
+---@class openai.ToolCallFunction
 ---@field name string
 ---@field arguments string
 
----@class aqua.openai.ToolCall
+---@class openai.ToolCall
 ---@field id string
 ---@field type "function"
----@field ["function"] aqua.openai.ToolCallFunction
+---@field ["function"] openai.ToolCallFunction
 
----@class aqua.openai.FunctionSchema
+---@class openai.FunctionSchema
 ---@field name string
 ---@field description string?
 ---@field parameters table
 ---@field strict boolean?
 
----@class aqua.openai.ToolSchema
+---@class openai.ToolSchema
 ---@field type "function"
----@field ["function"] aqua.openai.FunctionSchema
+---@field ["function"] openai.FunctionSchema
 
----@class aqua.openai.Tool
+---@class openai.Tool
 ---@field name string
----@field schema aqua.openai.ToolSchema
----@field execute fun(self: aqua.openai.Tool, args: {[string]: any}): string, boolean?
+---@field schema openai.ToolSchema
+---@field execute fun(self: openai.Tool, args: {[string]: any}): string, boolean?
 
----@class aqua.openai.AgentOptions
+---@class openai.AgentOptions
 ---@field max_tool_rounds integer?
----@field on_tool_call fun(tool_call: aqua.openai.ToolCall)?
----@field on_tool_result fun(tool_call: aqua.openai.ToolCall, content: string, is_error: boolean)?
+---@field on_tool_call fun(tool_call: openai.ToolCall)?
+---@field on_tool_result fun(tool_call: openai.ToolCall, content: string, is_error: boolean)?
 ---@field on_tool_failure fun(name: string?, arguments: any, err: string)?
 ---@field on_text_delta fun(content: string)?
 ---@field streaming boolean?
 
----@class aqua.openai.Agent
----@operator call: aqua.openai.Agent
----@field client aqua.openai.Client|aqua.openai.SubscriptionClient
----@field tools {[string]: aqua.openai.Tool}
----@field tool_schemas aqua.openai.ToolSchema[]
+---@class openai.Agent
+---@operator call: openai.Agent
+---@field client openai.Client|openai.SubscriptionClient
+---@field tools {[string]: openai.Tool}
+---@field tool_schemas openai.ToolSchema[]
 ---@field max_tool_rounds integer
----@field on_tool_call fun(tool_call: aqua.openai.ToolCall)?
----@field on_tool_result fun(tool_call: aqua.openai.ToolCall, content: string, is_error: boolean)?
+---@field on_tool_call fun(tool_call: openai.ToolCall)?
+---@field on_tool_result fun(tool_call: openai.ToolCall, content: string, is_error: boolean)?
 ---@field on_tool_failure fun(name: string?, arguments: any, err: string)?
 ---@field on_text_delta fun(content: string)?
 ---@field streaming boolean
 local Agent = class()
 
----@param client aqua.openai.Client|aqua.openai.SubscriptionClient
----@param tools aqua.openai.Tool[]
----@param options aqua.openai.AgentOptions?
+---@param client openai.Client|openai.SubscriptionClient
+---@param tools openai.Tool[]
+---@param options openai.AgentOptions?
 function Agent:new(client, tools, options)
 	options = options or {}
 	self.client = client
@@ -94,7 +94,7 @@ function Agent:new(client, tools, options)
 	end
 end
 
----@param client aqua.openai.Client|aqua.openai.SubscriptionClient
+---@param client openai.Client|openai.SubscriptionClient
 function Agent:setClient(client)
 	self.client = client
 end
@@ -125,7 +125,7 @@ function Agent:toolError(name, arguments, err)
 	return encodeError(err), true
 end
 
----@param tool_call aqua.openai.ToolCall
+---@param tool_call openai.ToolCall
 ---@return string
 ---@return boolean is_error
 function Agent:executeTool(tool_call)
@@ -158,13 +158,13 @@ function Agent:executeTool(tool_call)
 	return content, is_error == true
 end
 
----@param messages aqua.openai.Message[]
+---@param messages openai.Message[]
 ---@param on_text_delta fun(content: string)?
----@return aqua.openai.Message?
+---@return openai.Message?
 ---@return string?
 function Agent:run(messages, on_text_delta)
 	for _ = 1, self.max_tool_rounds + 1 do
-		---@type aqua.openai.Message?, string?
+		---@type openai.Message?, string?
 		local message, err
 		if self.streaming then
 			message, err = self.client:completeStream(messages, self.tool_schemas, on_text_delta or self.on_text_delta)
