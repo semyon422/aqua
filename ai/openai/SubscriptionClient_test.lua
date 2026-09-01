@@ -144,6 +144,7 @@ function test.proxies_native_responses_events_and_terminal_response(t)
 		store = false,
 		include = json.array({"message.output_text.logprobs"}),
 		reasoning = json.object({effort = "high", summary = "detailed"}),
+		max_output_tokens = 4096,
 		text = json.object({verbosity = "high", format = json.object({type = "json_object"})}),
 	}, function(event)
 		table.insert(events, event.type)
@@ -159,6 +160,7 @@ function test.proxies_native_responses_events_and_terminal_response(t)
 	t:eq(body.store, false)
 	t:eq(body.reasoning.effort, "high")
 	t:eq(body.reasoning.summary, "detailed")
+	t:eq(body.max_output_tokens, nil)
 	t:eq(body.text.verbosity, "high")
 	t:eq(body.text.format.type, "json_object")
 	t:eq(body.include[1], "message.output_text.logprobs")

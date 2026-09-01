@@ -278,6 +278,10 @@ function SubscriptionClient:createResponsesBody(request)
 	body.model = self.model
 	body.store = false
 	body.stream = true
+	-- The ChatGPT Codex subscription endpoint rejects the public Responses
+	-- max_output_tokens field. The upstream model limit still applies, so omit
+	-- it while preserving the rest of the caller's stateless Responses request.
+	body.max_output_tokens = nil
 	if type(request.input) == "string" then
 		body.input = json.array({json.object({
 			type = "message",
