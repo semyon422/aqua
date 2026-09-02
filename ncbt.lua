@@ -59,6 +59,21 @@ local adjust = 0.029
 ---@field t number
 ---@field v number
 
+---@class ncbt.IntervalPeak
+---@field interval number
+---@field weight number
+---@field count integer
+
+---@class ncbt.TempoHypothesis
+---@field bpm number
+---@field interval number
+---@field weight number
+---@field phase number
+
+---@class ncbt.RhythmHypotheses
+---@field interval_peaks ncbt.IntervalPeak[]
+---@field tempo_hypotheses ncbt.TempoHypothesis[]
+
 ---@class ncbt.TempoOffset
 ---@field onsetsDeltaDist ncbt.DistributionPoint[]
 ---@field tempo number
@@ -281,6 +296,103 @@ end
 
 local ncbt = {}
 
+---@param value number
+---@param center number
+---@return number
+local function foldTempo(value, center)
+	while value > center * math.sqrt(2) do value = value / 2 end
+	while value < center / math.sqrt(2) do value = value * 2 end
+	return value
+end
+
+---Builds local interval and tempo candidates without declaring a metrical interpretation.
+---@param onsets ncbt.Onset[]
+---@param options? {min_time: number?, max_time: number?, max_neighbor: integer?, precision: number?, center_bpm: number?, limit: integer?}
+---@return ncbt.RhythmHypotheses
+function ncbt.rhythm_hypotheses(onsets, options)
+	options = options or {}
+	local min_time = options.min_time or -math.huge
+	local max_time = options.max_time or math.huge
+	local max_neighbor = options.max_neighbor or 4
+	local precision = options.precision or 0.005
+	local center_bpm = options.center_bpm or 120
+	local limit = options.limit or 8
+
+	---@type ncbt.Onset[]
+	local peaks = {}
+	for _, onset in ipairs(onsets) do
+		local time = onset.peak_time or onset.time
+		if time >= min_time and time < max_time and (onset.peak_size or onset.value or 0) > 0 then
+			table.insert(peaks, onset)
+		end
+	end
+	table.sort(peaks, function(a, b)
+		return (a.peak_time or a.time) < (b.peak_time or b.time)
+	end)
+
+	---@type {[integer]: {interval: number, weight: number, count: integer}}
+	local buckets = {}
+	for neighbor = 1, max_neighbor do
+		for index = neighbor + 1, #peaks do
+			local current = peaks[index]
+			local previous = peaks[index - neighbor]
+			local interval = (current.peak_time or current.time) - (previous.peak_time or previous.time)
+			if interval > 0 then
+				local bucket = math.floor(interval / precision + 0.5)
+				local weight = math.sqrt(math.max(current.peak_size or current.value or 0, 0) * math.max(previous.peak_size or previous.value or 0, 0))
+				local item = buckets[bucket]
+				if not item then
+					item = {interval = bucket * precision, weight = 0, count = 0}
+					buckets[bucket] = item
+				end
+				item.weight = item.weight + weight
+				item.count = item.count + 1
+			end
+		end
+	end
+
+	---@type ncbt.IntervalPeak[]
+	local interval_peaks = {}
+	for _, item in pairs(buckets) do table.insert(interval_peaks, item) end
+	table.sort(interval_peaks, function(a, b) return a.weight > b.weight end)
+	while #interval_peaks > limit do table.remove(interval_peaks) end
+	local max_weight = interval_peaks[1] and interval_peaks[1].weight or 0
+	if max_weight > 0 then
+		for _, item in ipairs(interval_peaks) do item.weight = item.weight / max_weight end
+	end
+
+	---@type ncbt.TempoHypothesis[]
+	local tempo_hypotheses = {}
+	local seen = {}
+	for _, item in ipairs(interval_peaks) do
+		local bpm = foldTempo(60 / item.interval, center_bpm)
+		local key = math.floor(bpm * 10 + 0.5)
+		if not seen[key] and peaks[1] then
+			seen[key] = true
+			local interval = 60 / bpm
+			local phase_weight, phase_x, phase_y = 0, 0, 0
+			for _, onset in ipairs(peaks) do
+				local time = onset.peak_time or onset.time
+				local weight = math.max(onset.peak_size or onset.value or 0, 0)
+				local angle = time % interval / interval * math.pi * 2
+				phase_x = phase_x + math.cos(angle) * weight
+				phase_y = phase_y + math.sin(angle) * weight
+				phase_weight = phase_weight + weight
+			end
+			local angle = math.atan2(phase_y, phase_x)
+			if angle < 0 then angle = angle + math.pi * 2 end
+			table.insert(tempo_hypotheses, {
+				bpm = bpm,
+				interval = interval,
+				weight = item.weight * (phase_weight > 0 and math.sqrt(phase_x ^ 2 + phase_y ^ 2) / phase_weight or 0),
+				phase = angle / (math.pi * 2) * interval,
+			})
+		end
+	end
+	table.sort(tempo_hypotheses, function(a, b) return a.weight > b.weight end)
+	return {interval_peaks = interval_peaks, tempo_hypotheses = tempo_hypotheses}
+end
+
 ---@param sd ncbt.SoundData
 ---@return ncbt.Onset[]
 function ncbt.onsets(sd)
@@ -398,7 +510,6 @@ function ncbt.tempo_offset(onsets)
 		local peak, size = get_delta_peak(onsetDist, i, w)
 		if peak and size > 0.5 then
 			table.insert(peaks, peak)
-			print("peak", peak, size)
 			if size > max_peak_size then
 				max_peak_size = size
 				max_peak = peak
@@ -406,7 +517,9 @@ function ncbt.tempo_offset(onsets)
 		end
 	end
 
-	print("max peak", max_peak)
+	if not max_peak then
+		return out
+	end
 
 	------------------------------------
 
@@ -441,7 +554,7 @@ function ncbt.tempo_offset(onsets)
 		end
 	end
 
-	local tempo = get_tempo(assert(max_peak), 100 * math.sqrt(2))
+	local tempo = get_tempo(max_peak, 100 * math.sqrt(2))
 
 	find_best(tempo, 1, 0.005)
 
@@ -450,9 +563,6 @@ function ncbt.tempo_offset(onsets)
 		bin_avg = bin_avg + max_bin_bins[i]
 	end
 	bin_avg = bin_avg / bins_count
-
-	print("max / avg", max_bin / bin_avg)
-	print("tempo", max_bin_tempo)
 
 	out.tempo = max_bin_tempo
 
@@ -466,8 +576,6 @@ function ncbt.tempo_offset(onsets)
 	------------------------------------
 
 	local offset = max_bin_index / bins_count * 60 / tempo
-	print("offset", offset)
-
 	out.offset = offset
 
 	return out
