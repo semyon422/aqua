@@ -16,6 +16,7 @@ gcc -I%TREE%/include/luajit-2.1 -Iffmpeg/include -fPIC -shared -o video.dll vide
 #include <lua.h>
 #include <lauxlib.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <math.h>
 #include <stdio.h>
@@ -131,6 +132,8 @@ static const char *physfs_last_error(void) {
 
 #define MT_NAME "video"
 #define FILE_BUFFER_SIZE 8192
+#define MAX_RGBA_DIMENSION 16384
+#define MAX_RGBA_BYTES (512LL * 1024 * 1024)
 
 typedef struct {
 	AVFormatContext *formatContext;
@@ -352,6 +355,14 @@ static bool scale_frame(
 	) > 0;
 }
 
+static bool valid_rgba_dimensions(int width, int height) {
+	if (width <= 0 || height <= 0 || width > MAX_RGBA_DIMENSION || height > MAX_RGBA_DIMENSION)
+		return false;
+
+	int64_t rgba_bytes = (int64_t)width * height * 4;
+	return rgba_bytes <= INT_MAX && rgba_bytes <= MAX_RGBA_BYTES;
+}
+
 static int tight_rgba_size(int width, int height) {
 	return width * height * 4;
 }
@@ -461,6 +472,8 @@ static int open_video_input(
 		return open_error(L, "Can't allocate frames");
 
 	AVCodecContext *cctx = video->codecContext;
+	if (!valid_rgba_dimensions(cctx->width, cctx->height))
+		return open_error(L, "Invalid video dimensions");
 
 	video->imageSize = tight_rgba_size(cctx->width, cctx->height);
 
@@ -521,6 +534,9 @@ static int Video_getDimensions(lua_State *L) {
 	Video *video = checkVideo(L, 1, true);
 
 	AVCodecContext *cctx = video->codecContext;
+	if (!valid_rgba_dimensions(cctx->width, cctx->height))
+		return luaL_error(L, "invalid video dimensions");
+
 	lua_pushnumber(L, (lua_Number)cctx->width);
 	lua_pushnumber(L, (lua_Number)cctx->height);
 
@@ -541,7 +557,12 @@ static int Video_getFrameRate(lua_State *L) {
 		return 0;
 	}
 
-	lua_pushnumber(L, (lua_Number)frame_rate.num / frame_rate.den);
+	lua_Number rate = (lua_Number)frame_rate.num / frame_rate.den;
+	if (!isfinite(rate) || rate <= 0 || rate > 1000) {
+		return 0;
+	}
+
+	lua_pushnumber(L, rate);
 	return 1;
 }
 
@@ -568,8 +589,15 @@ static int Video_getDuration(lua_State *L) {
 	Video *video = checkVideo(L, 1, true);
 
 	AVRational base = video->stream->time_base;
+	int64_t stream_duration = video->stream->duration;
+	if (stream_duration == AV_NOPTS_VALUE || base.num <= 0 || base.den <= 0) {
+		return 0;
+	}
 
-	lua_Number duration = (lua_Number)(video->stream->duration) * base.num / base.den;
+	lua_Number duration = (lua_Number)stream_duration * base.num / base.den;
+	if (!isfinite(duration) || duration <= 0) {
+		return 0;
+	}
 	lua_pushnumber(L, duration);
 
 	return 1;
@@ -962,6 +990,10 @@ static int Video_decodeImage(lua_State *L) {
 	}
 	if (avcodec_open2(codecContext, codec, NULL) != 0) {
 		result = image_decode_error(L, "Can't open image codec");
+		goto cleanup;
+	}
+	if (!valid_rgba_dimensions(codecContext->width, codecContext->height)) {
+		result = image_decode_error(L, "Invalid image dimensions");
 		goto cleanup;
 	}
 
