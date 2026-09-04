@@ -4,6 +4,7 @@ return {
 	auth_path = "userdata/ai_auth.lua",
 	network_path = "userdata/network.lua",
 	models = {
+		"gpt-6-astra",
 		"gpt-5.6-sol",
 		"gpt-5.6-terra",
 		"gpt-5.6-luna",
