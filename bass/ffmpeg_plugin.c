@@ -7,6 +7,8 @@
 #include <libswresample/swresample.h>
 
 #include <errno.h>
+#include <limits.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -206,29 +208,41 @@ static QWORD stream_length(FFmpegBassStream *stream) {
 	} else if (stream->format->duration != AV_NOPTS_VALUE) {
 		seconds = (double)stream->format->duration / AV_TIME_BASE;
 	}
-	if (seconds <= 0) {
+	if (!isfinite(seconds) || seconds <= 0) {
 		return 0;
 	}
-	return (QWORD)(seconds * stream->sample_rate * stream->channels * bytes_per_sample(stream));
+	long double bytes = (long double)seconds * stream->sample_rate * stream->channels * bytes_per_sample(stream);
+	if (bytes <= 0 || bytes > UINT64_MAX) {
+		return 0;
+	}
+	return (QWORD)bytes;
 }
 
-static BOOL ensure_buffer(FFmpegBassStream *stream, int samples) {
-	int bytes = samples * stream->channels * (int)bytes_per_sample(stream);
-	if (bytes <= stream->buffer_size) {
+static BOOL ensure_buffer(FFmpegBassStream *stream, int samples, int *out_bytes) {
+	if (samples < 0 || stream->channels <= 0) {
+		return FALSE;
+	}
+	size_t bytes = (size_t)samples * (size_t)stream->channels * bytes_per_sample(stream);
+	if (bytes > INT_MAX) {
+		return FALSE;
+	}
+	*out_bytes = (int)bytes;
+	if (*out_bytes <= stream->buffer_size) {
 		return TRUE;
 	}
-	uint8_t *buffer = (uint8_t *)realloc(stream->buffer, (size_t)bytes);
+	uint8_t *buffer = (uint8_t *)realloc(stream->buffer, bytes);
 	if (!buffer) {
 		return FALSE;
 	}
 	stream->buffer = buffer;
-	stream->buffer_size = bytes;
+	stream->buffer_size = *out_bytes;
 	return TRUE;
 }
 
 static BOOL push_frame(FFmpegBassStream *stream) {
+	int out_bytes;
 	int out_samples = swr_get_out_samples(stream->swr, stream->frame->nb_samples);
-	if (out_samples < 0 || !ensure_buffer(stream, out_samples)) {
+	if (!ensure_buffer(stream, out_samples, &out_bytes)) {
 		return FALSE;
 	}
 	uint8_t *out[] = {stream->buffer};
@@ -239,26 +253,35 @@ static BOOL push_frame(FFmpegBassStream *stream) {
 		(const uint8_t *const *)stream->frame->extended_data,
 		stream->frame->nb_samples
 	);
-	if (samples < 0) {
+	if (samples < 0 || samples > out_samples) {
 		return FALSE;
 	}
 	stream->buffer_pos = 0;
-	stream->buffer_len = samples * stream->channels * (int)bytes_per_sample(stream);
+	stream->buffer_len = samples == out_samples
+		? out_bytes
+		: samples * stream->channels * (int)bytes_per_sample(stream);
 	return TRUE;
 }
 
 static BOOL flush_swr(FFmpegBassStream *stream) {
-	int delay = (int)swr_get_delay(stream->swr, stream->codec->sample_rate);
-	if (delay <= 0 || !ensure_buffer(stream, delay)) {
+	int out_bytes;
+	int64_t raw_delay = swr_get_delay(stream->swr, stream->codec->sample_rate);
+	if (raw_delay <= 0 || raw_delay > INT_MAX) {
+		return FALSE;
+	}
+	int delay = (int)raw_delay;
+	if (!ensure_buffer(stream, delay, &out_bytes)) {
 		return FALSE;
 	}
 	uint8_t *out[] = {stream->buffer};
 	int samples = swr_convert(stream->swr, out, delay, NULL, 0);
-	if (samples <= 0) {
+	if (samples <= 0 || samples > delay) {
 		return FALSE;
 	}
 	stream->buffer_pos = 0;
-	stream->buffer_len = samples * stream->channels * (int)bytes_per_sample(stream);
+	stream->buffer_len = samples == delay
+		? out_bytes
+		: samples * stream->channels * (int)bytes_per_sample(stream);
 	return TRUE;
 }
 
@@ -410,7 +433,7 @@ static BOOL open_stream(BASSFILE file, DWORD flags, FFmpegBassStream **out_strea
 	}
 	stream->sample_rate = stream->codec->sample_rate;
 	stream->channels = stream->codec->ch_layout.nb_channels;
-	if (stream->sample_rate <= 0 || stream->channels <= 0) {
+	if (stream->sample_rate <= 0 || stream->sample_rate > 768000 || stream->channels <= 0 || stream->channels > 64) {
 		free_stream(stream);
 		return FALSE;
 	}

@@ -31,6 +31,8 @@ Unsupported files still fail when FFmpeg cannot open the input or find an audio 
 
 `init.lua` loads the native FFmpeg plugin during BASS initialization. Unsupported files still fail when FFmpeg cannot open the input or find an audio stream.
 
+BASS current-device state is thread-local. Background workers that create streams initialize BASS on device `0` (the no-sound device) and load plugins in that thread before probing or decoding. They must not assume that initialization on the main audio thread applies to worker threads.
+
 ### Exact Seeking
 
 The plugin intentionally uses exact decoded-byte seeking for every format. `addon_set_position()` seeks FFmpeg back to stream start, resets decoder/resampler state, and calls `discard_to_position()` to decode and discard PCM until the requested byte position.
@@ -40,6 +42,10 @@ This is slower than timestamp seeking, but it is required by consumers that do s
 ### Length Reporting
 
 Stream length is derived from FFmpeg stream/container duration when available. The plugin does not currently keep format-specific length hacks. If a future format needs special length handling, add a documented test case that compares downstream decoded PCM and mixer behavior before introducing a codec-specific branch.
+
+### Native Input Validation
+
+FFmpeg metadata and decoded-frame sizes are untrusted. The adapter rejects implausible sample rates/channel counts, non-finite or overflowing durations, and conversion-buffer sizes that overflow `int` before allocating or writing PCM. These checks must remain ahead of all size multiplications and `swr_convert()` calls.
 
 ### Output Format
 

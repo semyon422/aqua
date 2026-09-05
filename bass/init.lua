@@ -179,6 +179,18 @@ local Plugins = {
 	OSX = {"libbass_ffmpeg.dylib"},
 }
 
+local function load_plugins()
+	local plugins = Plugins[jit.os]
+	if not plugins then
+		return
+	end
+
+	for _, file in ipairs(plugins) do
+		bass.BASS_PluginLoad(file, 0)
+		-- assert(bass.BASS_PluginLoad(file, 0) ~= 0, ("BASS_PluginLoad(%q) failed"):format(file))
+	end
+end
+
 ---@param device number?
 function __bass.init(device)
 	local bass_error_code = require("bass.error_code")
@@ -195,15 +207,19 @@ function __bass.init(device)
 		bass_assert(bass.BASS_PluginFree(0) ~= 0)
 	end
 
-	local plugins = Plugins[jit.os]
-	if not plugins then
-		return
-	end
+	load_plugins()
+end
 
-	for _, file in ipairs(plugins) do
-		bass.BASS_PluginLoad(file, 0)
-		-- assert(bass.BASS_PluginLoad(file, 0) ~= 0, ("BASS_PluginLoad(%q) failed"):format(file))
+---@return boolean
+function __bass.initNoSound()
+	if bass.BASS_GetDevice() == 0 then
+		return true
 	end
+	if bass.BASS_Init(0, 44100, 0, nil, nil) == 0 then
+		return false
+	end
+	load_plugins()
+	return true
 end
 
 function __bass.reinit()
