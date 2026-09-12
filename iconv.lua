@@ -15,6 +15,7 @@ ffi.cdef [[
 
 local library_name = jit.os == "Windows" and "libiconv-2" or "iconv"
 local libiconv = ffi.load(library_name)
+local iconv_open_error = ffi.cast("libiconv_t", -1)
 
 ---@class util.Iconv
 ---@field cd ffi.cdata*
@@ -28,7 +29,7 @@ iconv.__index = iconv
 function iconv:open(tocode, fromcode)
 	local cd = libiconv.libiconv_open(tocode, fromcode)
 
-	if cd == -1 then
+	if cd == iconv_open_error then
 		return nil, "iconv open error"
 	end
 
@@ -46,48 +47,37 @@ function iconv:close()
 end
 
 local outbuff_size = 1024
-local outbuff = ffi.new("char[?]", outbuff_size)
-
----@type {[0]: ffi.cdata*}
-local outbuff_ptr = ffi.new("char*[1]", outbuff)
-
----@type {[0]: integer}
-local outbytesleft = ffi.new("size_t[1]", outbuff_size)
-
----@type {[0]: string}
-local inbuff_ptr = ffi.new("const char*[1]")
-
----@type {[0]: integer}
-local inbytesleft = ffi.new("size_t[1]")
 
 ---@param instr string
 ---@return string?
 ---@return string?
 function iconv:convert(instr)
+	-- These pointers are mutated by libiconv. They must start fresh for every
+	-- conversion; reusing their previous offsets eventually writes past outbuff.
+	local outbuff = ffi.new("char[?]", outbuff_size)
+	local outbuff_ptr = ffi.new("char*[1]")
+	outbuff_ptr[0] = outbuff
+	local outbytesleft = ffi.new("size_t[1]", outbuff_size)
+	local inbuff_ptr = ffi.new("const char*[1]")
+	inbuff_ptr[0] = instr
+	local inbytesleft = ffi.new("size_t[1]", #instr)
+
 	---@type string[]
 	local out = {}
-
-	inbuff_ptr[0] = instr
-	inbytesleft[0] = #instr
-
 	local cd = self.cd
 	repeat
-		local inbytesleft0 = inbytesleft[0]
-		---@type integer
-		local ok = libiconv.libiconv(cd, inbuff_ptr, inbytesleft, outbuff_ptr, outbytesleft)
-		-- if ok == -1ull then
-		-- 	print("error", ffi.errno()) -- errno doesn't work
-		-- end
-		if inbytesleft[0] - inbytesleft0 == 0 and inbytesleft[0] ~= 0 then
+		local inbytesleft_before = inbytesleft[0]
+		libiconv.libiconv(cd, inbuff_ptr, inbytesleft, outbuff_ptr, outbytesleft)
+		if inbytesleft[0] == inbytesleft_before and inbytesleft[0] ~= 0 then
+			libiconv.libiconv(cd, nil, nil, nil, nil)
 			return nil, "failed"
 		end
-		table.insert(out, ffi.string(outbuff, outbuff_size - outbytesleft[0]))
+		out[#out + 1] = ffi.string(outbuff, outbuff_size - outbytesleft[0])
 		outbuff_ptr[0] = outbuff
 		outbytesleft[0] = outbuff_size
 	until inbytesleft[0] == 0
 
 	libiconv.libiconv(cd, nil, nil, nil, nil)
-
 	return table.concat(out)
 end
 

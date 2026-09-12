@@ -179,16 +179,23 @@ local Plugins = {
 	OSX = {"libbass_ffmpeg.dylib"},
 }
 
+local plugins_loaded = false
+
 local function load_plugins()
+	if plugins_loaded then
+		return
+	end
+
 	local plugins = Plugins[jit.os]
 	if not plugins then
+		plugins_loaded = true
 		return
 	end
 
 	for _, file in ipairs(plugins) do
 		bass.BASS_PluginLoad(file, 0)
-		-- assert(bass.BASS_PluginLoad(file, 0) ~= 0, ("BASS_PluginLoad(%q) failed"):format(file))
 	end
+	plugins_loaded = true
 end
 
 ---@param device number?
@@ -213,9 +220,11 @@ end
 ---@return boolean
 function __bass.initNoSound()
 	-- BASS_GetDevice() returns -1 when uninitialized, non-negative when initialized.
-	-- If already initialized (e.g., by the main thread), don't reinitialize.
-	if bass.BASS_GetDevice() >= 0 then
-		load_plugins()
+	-- BASS state is thread-local, so every worker needs its own no-sound device.
+	local device = tonumber(bass.BASS_GetDevice())
+	if device >= 0 then
+		-- Plugins belong to the process-wide BASS instance. Loading them again
+		-- returns BASS_ERROR_ALREADY.
 		return true
 	end
 	if bass.BASS_Init(0, 44100, 0, nil, nil) == 0 then
