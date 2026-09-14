@@ -6,6 +6,7 @@ local stbl = require("stbl")
 local json = require("web.json")
 local random = require("web.random")
 local SubscriptionAuth = require("ai.openai.SubscriptionAuth")
+local SubscriptionAuthGuard = require("ai.openai.SubscriptionAuthGuard")
 local SubscriptionClient = require("ai.openai.SubscriptionClient")
 local ProxyNetwork = require("ai.openai.ProxyNetwork")
 local ProxyServer = require("ai.openai.ProxyServer")
@@ -206,16 +207,7 @@ for _, user in ipairs(users) do
 		"replace the default proxy user access token before starting the server")
 end
 
-local auth_busy = false
-local shared_auth = {
-	getAccess = function()
-		while auth_busy do scheduler:sleep(0.01) end
-		auth_busy = true
-		local access_token, account_id, access_err = auth:getAccess()
-		auth_busy = false
-		return access_token, account_id, access_err
-	end,
-}
+local shared_auth = SubscriptionAuthGuard(auth, scheduler)
 
 local usage_url = "https://chatgpt.com/backend-api/codex/usage"
 
@@ -223,7 +215,7 @@ local usage_url = "https://chatgpt.com/backend-api/codex/usage"
 ---@return string?
 ---@return openai.ProviderError?
 local function fetchUsage()
-	local access_token, account_id, access_err = shared_auth.getAccess()
+	local access_token, account_id, access_err = shared_auth:getAccess()
 	if not access_token then return nil, access_err or "OpenAI login is required" end
 	if not account_id or account_id == "" then return nil, "OpenAI login has no account ID" end
 	local client_request_id = random.hex(16)
@@ -272,7 +264,7 @@ local server = ProxyServer({
 		---@type openai.ProxyRequestOptions
 		local client_options = request_options
 		return SubscriptionClient({
-			auth = shared_auth --[[@as openai.SubscriptionAuth]],
+			auth = shared_auth,
 			model = model,
 			reasoning_effort = reasoning_effort or config.reasoning_effort or "medium",
 			prompt_cache_key = client_options.prompt_cache_key,
@@ -283,6 +275,7 @@ local server = ProxyServer({
 			text_format = client_options.text_format,
 			max_response_size = config.max_response_size,
 			timeout = upstream_timeout,
+			get_time = scheduler.get_time,
 			open_stream = openStream,
 		})
 	end,

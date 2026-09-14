@@ -11,7 +11,7 @@ local UsagePage = require("ai.openai.UsagePage")
 ---@field access_token string
 
 ---@class openai.ProxyClient
----@field completeStream fun(self: openai.ProxyClient, messages: openai.Message[], tools: openai.ToolSchema[]?, on_text_delta: (fun(content: string))?, on_reasoning_delta: (fun(content: string))?, on_tool_call_delta: (fun(delta: openai.ToolCallDelta))?): openai.Message?, string?, openai.ProviderError?
+---@field completeStream fun(self: openai.ProxyClient, messages: openai.Message[], tools: openai.ToolSchema[]?, on_text_delta: (fun(content: string): boolean?)?, on_reasoning_delta: (fun(content: string): boolean?)?, on_tool_call_delta: (fun(delta: openai.ToolCallDelta): boolean?)?): openai.Message?, string?, openai.ProviderError?
 ---@field createResponse fun(self: openai.ProxyClient, request: table, on_event: (fun(event: table): boolean?)?): table?, string?, openai.ProviderError?
 
 ---@class openai.UntrustedObject
@@ -308,13 +308,14 @@ local function sendResponseEvent(res, event)
 end
 
 ---@param res web.Response
+---@return boolean
 local function startEventStream(res)
-	if res.headers_sent then return end
+	if res.headers_sent then return true end
 	res.status = 200
 	res.headers:set("Content-Type", "text/event-stream")
 	res.headers:set("Cache-Control", "no-cache")
 	res:set_chunked_encoding()
-	res:send_headers()
+	return res:send_headers() ~= nil
 end
 
 ---@param res web.Response
@@ -324,8 +325,9 @@ end
 ---@param delta table
 ---@param finish_reason string?
 ---@param include_usage boolean
+---@return boolean
 local function sendChunk(res, model, completion_id, created, delta, finish_reason, include_usage)
-	sendEvent(res, {
+	return sendEvent(res, {
 		id = completion_id,
 		object = "chat.completion.chunk",
 		created = created,
@@ -767,7 +769,7 @@ function ProxyServer:responses(res, request)
 	local response, _, provider_error = client:createResponse(request, function(event)
 		if not started then
 			started = true
-			startEventStream(res)
+			if not startEventStream(res) then return false end
 		end
 		return sendResponseEvent(res, event)
 	end)
@@ -782,7 +784,7 @@ function ProxyServer:responses(res, request)
 	end
 	if not started then
 		started = true
-		startEventStream(res)
+		if not startEventStream(res) then return 499 end
 	end
 	res:send("")
 	return 200, response
@@ -945,29 +947,23 @@ function ProxyServer:complete(res, request)
 		return 200, message
 	end
 
-	local started = false
 	local streamed_tool_calls = false
-	local function ensureStarted()
-		if started then return end
-		started = true
-		startEventStream(res)
-		sendChunk(res, request.model, completion_id, created, {role = "assistant"}, nil, include_usage)
+	if not startEventStream(res)
+		or not sendChunk(res, request.model, completion_id, created, {role = "assistant"}, nil, include_usage)
+	then
+		return 499
 	end
-	local message, _, provider_error = client:completeStream(request.messages, request.tools, function(content)
-		ensureStarted()
-		sendChunk(res, request.model, completion_id, created, {content = content}, nil, include_usage)
+	local message, completion_err, provider_error = client:completeStream(request.messages, request.tools, function(content)
+		return sendChunk(res, request.model, completion_id, created, {content = content}, nil, include_usage)
 	end, function(content)
-		ensureStarted()
-		sendChunk(res, request.model, completion_id, created, {reasoning_content = content}, nil, include_usage)
+		return sendChunk(res, request.model, completion_id, created, {reasoning_content = content}, nil, include_usage)
 	end, function(delta)
-		ensureStarted()
 		streamed_tool_calls = true
 		if legacy_functions then
-			sendChunk(res, request.model, completion_id, created, {function_call = {
+			return sendChunk(res, request.model, completion_id, created, {function_call = {
 				name = delta.name,
 				arguments = delta.arguments,
 			}}, nil, include_usage)
-			return
 		end
 		local tool_call = {index = delta.index}
 		if delta.id then
@@ -977,15 +973,12 @@ function ProxyServer:complete(res, request)
 		if delta.name or delta.arguments then
 			tool_call["function"] = {name = delta.name, arguments = delta.arguments}
 		end
-		sendChunk(res, request.model, completion_id, created, {tool_calls = {tool_call}}, nil, include_usage)
+		return sendChunk(res, request.model, completion_id, created, {tool_calls = {tool_call}}, nil, include_usage)
 	end)
 	if not message then
-		if not started then
-			if provider_error then
-				return sendProviderError(res, provider_error)
-			end
-			sendError(res, 502, "upstream request failed", "upstream_error", "upstream_error")
-			return 502
+		if completion_err == "downstream response stream closed" then
+			res:send("")
+			return 499
 		end
 		local error_body = provider_error or {
 			message = "upstream request failed",
@@ -1002,7 +995,6 @@ function ProxyServer:complete(res, request)
 		res:send("")
 		return 502
 	end
-	ensureStarted()
 	if message.tool_calls and not streamed_tool_calls then
 		if legacy_functions then
 			sendChunk(res, request.model, completion_id, created,

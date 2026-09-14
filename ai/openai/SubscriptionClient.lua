@@ -1,6 +1,8 @@
 local class = require("class")
 local json = require("web.json")
 local random = require("web.random")
+---@type {gettime: fun(): number}
+local socket = require("socket")
 local SseParser = require("ai.openai.SseParser")
 
 ---@alias openai.ReasoningEffort "none"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max"
@@ -108,6 +110,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field text_format openai.ResponsesTextFormat?
 ---@field max_response_size integer?
 ---@field timeout number?
+---@field get_time (fun(): number)?
 ---@field open_stream openai.OpenStreamFunc
 
 ---@class openai.SubscriptionClient
@@ -123,6 +126,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field text_format openai.ResponsesTextFormat?
 ---@field max_response_size integer
 ---@field timeout number?
+---@field get_time fun(): number
 ---@field open_stream openai.OpenStreamFunc
 ---@field active_stream web.HttpStream?
 ---@field cancel_requested boolean
@@ -147,9 +151,69 @@ function SubscriptionClient:new(options)
 	self.max_response_size = options.max_response_size or self.max_response_size
 	assert(self.max_response_size >= 1, "max_response_size must be positive")
 	self.timeout = options.timeout
+	assert(not self.timeout or self.timeout > 0, "timeout must be positive")
+	self.get_time = options.get_time or socket.gettime
 	self.open_stream = assert(options.open_stream, "open_stream is required")
 	self.cancel_requested = false
 	self.session_id = random.hex(16)
+end
+
+local deadline_error = "OpenAI subscription request deadline exceeded"
+
+---@return number?
+function SubscriptionClient:createDeadline()
+	return self.timeout and self.get_time() + self.timeout or nil
+end
+
+---@param deadline number?
+---@return number?
+---@return string?
+function SubscriptionClient:getRemainingTimeout(deadline)
+	if not deadline then return end
+	local remaining = deadline - self.get_time()
+	if remaining <= 0 then return nil, deadline_error end
+	return remaining
+end
+
+---@param stream web.HttpStream
+---@param deadline number?
+---@return true?
+---@return string?
+function SubscriptionClient:applyDeadline(stream, deadline)
+	if not deadline then return true end
+	local remaining, err = self:getRemainingTimeout(deadline)
+	if not remaining then return nil, err end
+	stream:setTimeout(remaining)
+	return true
+end
+
+---@param deadline number?
+---@param err string?
+---@return string?
+function SubscriptionClient:mapDeadlineError(deadline, err)
+	if deadline and self.get_time() >= deadline then return deadline_error end
+	return err
+end
+
+---@param stream web.HttpStream
+---@param deadline number?
+---@return string?
+---@return string?
+function SubscriptionClient:receiveBody(stream, deadline)
+	---@type string[]
+	local chunks = {}
+	while true do
+		local ok, err = self:applyDeadline(stream, deadline)
+		if not ok then return nil, err end
+		local chunk
+		chunk, err = stream:receiveChunk()
+		if not chunk then
+			err = self:mapDeadlineError(deadline, err)
+			if err == "closed" or err == nil then return table.concat(chunks) end
+			return nil, err
+		end
+		table.insert(chunks, chunk)
+	end
 end
 
 ---@param messages openai.Message[]
@@ -385,16 +449,19 @@ end
 ---@return string?
 ---@return openai.ProviderError?
 function SubscriptionClient:createResponse(request, on_event)
+	local deadline = self:createDeadline()
 	local access_token, account_id, auth_err = self.auth:getAccess()
 	if not access_token then return nil, auth_err or "OpenAI login is required" end
 	if not account_id or account_id == "" then return nil, "OpenAI login has no account ID" end
+	local connect_timeout, deadline_err = self:getRemainingTimeout(deadline)
+	if deadline and not connect_timeout then return nil, deadline_err end
 
 	self.session_id = random.hex(16)
 	self.cancel_requested = false
 	local stream, err = self.open_stream(self.responses_url, {
 		method = "POST",
 		headers = self:createHeaders(access_token, account_id),
-		timeout = self.timeout,
+		timeout = connect_timeout,
 	})
 	if not stream then return nil, err or "OpenAI subscription stream failed" end
 	self.active_stream = stream
@@ -404,23 +471,39 @@ function SubscriptionClient:createResponse(request, on_event)
 		return nil, "canceled"
 	end
 
+	local deadline_ok
+	deadline_ok, err = self:applyDeadline(stream, deadline)
+	if not deadline_ok then
+		stream:cancel(err)
+		self.active_stream = nil
+		return nil, err
+	end
 	local sent
 	sent, err = stream:sendBody(json.encode(self:createResponsesBody(request)))
 	if not sent then
+		err = self:mapDeadlineError(deadline, err)
 		stream:close()
 		self.active_stream = nil
 		return nil, err
 	end
 	local headers_ok
-	headers_ok, err = stream:receiveHeaders()
+	headers_ok, err = self:applyDeadline(stream, deadline)
+	if headers_ok then headers_ok, err = stream:receiveHeaders() end
 	if not headers_ok then
+		err = self:mapDeadlineError(deadline, err)
 		stream:close()
 		self.active_stream = nil
 		return nil, err
 	end
 	local res = assert(stream.res)
 	if res.status < 200 or res.status >= 300 then
-		local error_body = stream:receiveBody()
+		local error_body
+		error_body, err = self:receiveBody(stream, deadline)
+		if not error_body then
+			stream:close()
+			self.active_stream = nil
+			return nil, err
+		end
 		stream:close()
 		self.active_stream = nil
 		local provider_error = createProviderError(res.status, error_body, res.headers, self.session_id)
@@ -471,9 +554,15 @@ function SubscriptionClient:createResponse(request, on_event)
 	end)
 
 	while not done and not parse_err do
+		local deadline_ok
+		deadline_ok, err = self:applyDeadline(stream, deadline)
+		if not deadline_ok then break end
 		local chunk
 		chunk, err = stream:receiveAvailableChunk()
-		if not chunk then break end
+		if not chunk then
+			err = self:mapDeadlineError(deadline, err)
+			break
+		end
 		received_size = received_size + #chunk
 		if received_size > self.max_response_size then
 			parse_err = "OpenAI subscription response is too large"
@@ -482,8 +571,11 @@ function SubscriptionClient:createResponse(request, on_event)
 		parser:feed(chunk)
 	end
 	parser:finish()
-	if parse_err == "downstream response stream closed" then stream:cancel(parse_err) end
-	stream:close()
+	if parse_err == "downstream response stream closed" or err == deadline_error then
+		stream:cancel(parse_err or err)
+	else
+		stream:close()
+	end
 	self.active_stream = nil
 	if parse_err then return nil, parse_err, provider_error end
 	if not done then return nil, err or "Responses stream closed before completion" end
@@ -587,23 +679,26 @@ end
 
 ---@param messages openai.Message[]
 ---@param tools openai.ToolSchema[]?
----@param on_text_delta fun(content: string)?
----@param on_reasoning_delta fun(content: string)?
----@param on_tool_call_delta fun(delta: openai.ToolCallDelta)?
+---@param on_text_delta (fun(content: string): boolean?)?
+---@param on_reasoning_delta (fun(content: string): boolean?)?
+---@param on_tool_call_delta (fun(delta: openai.ToolCallDelta): boolean?)?
 ---@return openai.Message?
 ---@return string?
 ---@return openai.ProviderError?
 function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_reasoning_delta, on_tool_call_delta)
+	local deadline = self:createDeadline()
 	local access_token, account_id, auth_err = self.auth:getAccess()
 	if not access_token then return nil, auth_err or "OpenAI login is required" end
 	if not account_id or account_id == "" then return nil, "OpenAI login has no account ID" end
+	local connect_timeout, deadline_err = self:getRemainingTimeout(deadline)
+	if deadline and not connect_timeout then return nil, deadline_err end
 
 	self.session_id = random.hex(16)
 	self.cancel_requested = false
 	local stream, err = self.open_stream(self.responses_url, {
 		method = "POST",
 		headers = self:createHeaders(access_token, account_id),
-		timeout = self.timeout,
+		timeout = connect_timeout,
 	})
 	if not stream then return nil, err or "OpenAI subscription stream failed" end
 	self.active_stream = stream
@@ -613,23 +708,39 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		return nil, "canceled"
 	end
 
+	local deadline_ok
+	deadline_ok, err = self:applyDeadline(stream, deadline)
+	if not deadline_ok then
+		stream:cancel(err)
+		self.active_stream = nil
+		return nil, err
+	end
 	local sent
 	sent, err = stream:sendBody(json.encode(self:createBody(messages, tools)))
 	if not sent then
+		err = self:mapDeadlineError(deadline, err)
 		stream:close()
 		self.active_stream = nil
 		return nil, err
 	end
 	local headers_ok
-	headers_ok, err = stream:receiveHeaders()
+	headers_ok, err = self:applyDeadline(stream, deadline)
+	if headers_ok then headers_ok, err = stream:receiveHeaders() end
 	if not headers_ok then
+		err = self:mapDeadlineError(deadline, err)
 		stream:close()
 		self.active_stream = nil
 		return nil, err
 	end
 	local res = assert(stream.res)
 	if res.status < 200 or res.status >= 300 then
-		local error_body = stream:receiveBody()
+		local error_body
+		error_body, err = self:receiveBody(stream, deadline)
+		if not error_body then
+			stream:close()
+			self.active_stream = nil
+			return nil, err
+		end
 		stream:close()
 		self.active_stream = nil
 		local provider_error = createProviderError(res.status, error_body, res.headers, self.session_id)
@@ -651,6 +762,14 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 	local next_tool_call_index = 0
 	---@type openai.TokenUsage?
 	local usage
+	---@param callback (fun(value: any): boolean?)?
+	---@param value any
+	local function emitDelta(callback, value)
+		if parse_err then return end
+		if callback and callback(value) == false then
+			parse_err = "downstream response stream closed"
+		end
+	end
 	---@param event openai.ResponseEvent
 	---@param item_type string
 	---@return openai.ResponseItem
@@ -704,8 +823,8 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		end
 		if event.type == "response.output_item.added" and type(event.item) == "table" then
 			items[(tonumber(event.output_index) or #items) + 1] = event.item
-			if event.item.type == "function_call" and on_tool_call_delta then
-				on_tool_call_delta({
+			if event.item.type == "function_call" then
+				emitDelta(on_tool_call_delta, {
 					index = getToolCallIndex(event),
 					id = event.item.call_id,
 					name = event.item.name,
@@ -720,23 +839,21 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		elseif event.type == "response.output_text.delta" and type(event.delta) == "string" then
 			local content = getContent(event, "output_text")
 			content.text = (content.text or "") .. event.delta
-			if on_text_delta then on_text_delta(event.delta) end
+			emitDelta(on_text_delta, event.delta)
 		elseif event.type == "response.output_text.done" and type(event.text) == "string" then
 			getContent(event, "output_text").text = event.text
 		elseif event.type == "response.refusal.delta" and type(event.delta) == "string" then
 			local content = getContent(event, "refusal")
 			content.refusal = (content.refusal or "") .. event.delta
-			if on_text_delta then on_text_delta(event.delta) end
+			emitDelta(on_text_delta, event.delta)
 		elseif event.type == "response.refusal.done" and type(event.refusal) == "string" then
 			getContent(event, "refusal").refusal = event.refusal
 		elseif event.type == "response.reasoning_summary_text.delta" and type(event.delta) == "string" then
-			if on_reasoning_delta then on_reasoning_delta(event.delta) end
+			emitDelta(on_reasoning_delta, event.delta)
 		elseif event.type == "response.function_call_arguments.delta" and type(event.delta) == "string" then
 			local item = getItem(event, "function_call")
 			item.arguments = (item.arguments or "") .. event.delta
-			if on_tool_call_delta then
-				on_tool_call_delta({index = getToolCallIndex(event), arguments = event.delta})
-			end
+			emitDelta(on_tool_call_delta, {index = getToolCallIndex(event), arguments = event.delta})
 		elseif event.type == "response.function_call_arguments.done" and type(event.arguments) == "string" then
 			getItem(event, "function_call").arguments = event.arguments
 		elseif event.type == "response.output_item.done" and type(event.item) == "table" then
@@ -786,9 +903,15 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 	end)
 
 	while not done and not parse_err do
+		local deadline_ok
+		deadline_ok, err = self:applyDeadline(stream, deadline)
+		if not deadline_ok then break end
 		local chunk
 		chunk, err = stream:receiveAvailableChunk()
-		if not chunk then break end
+		if not chunk then
+			err = self:mapDeadlineError(deadline, err)
+			break
+		end
 		received_size = received_size + #chunk
 		if received_size > self.max_response_size then
 			parse_err = "OpenAI subscription response is too large"
@@ -797,7 +920,11 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		parser:feed(chunk)
 	end
 	parser:finish()
-	stream:close()
+	if parse_err == "downstream response stream closed" or err == deadline_error then
+		stream:cancel(parse_err or err)
+	else
+		stream:close()
+	end
 	self.active_stream = nil
 	if parse_err then return nil, parse_err, provider_error end
 	if not done then return nil, err or "Responses stream closed before completion" end

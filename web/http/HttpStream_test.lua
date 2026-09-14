@@ -6,6 +6,7 @@ local test = {}
 ---@class web.FakeTcpSocketForHttpStream
 ---@field soc web.StringSocket
 ---@field sent string[]
+---@field timeout number?
 ---@field closed boolean?
 local FakeTcpSocket = {}
 FakeTcpSocket.__index = FakeTcpSocket
@@ -51,6 +52,12 @@ end
 ---@return string?
 function FakeTcpSocket:receiveany(max)
 	return self.soc:receiveany(max)
+end
+
+---@return 1
+function FakeTcpSocket:settimeout(timeout)
+	self.timeout = timeout
+	return 1
 end
 
 ---@return 1
@@ -173,6 +180,16 @@ function test.available_chunk_returns_short_incremental_body(t)
 	t:tdeq({stream:sendHeaders()}, {true})
 	t:tdeq({stream:receiveAvailableChunk()}, {"hello"})
 	t:tdeq({stream:receiveAvailableChunk()}, {nil, "timeout"})
+end
+
+---@param t testing.T
+function test.updates_connected_socket_timeout(t)
+	local tcp_socket = new_tcp_socket("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+	local stream = HttpStream({tcp_socket = tcp_socket --[[@as any]], timeout = 30})
+	t:assert(stream:connect("http://example.test/status"))
+	t:eq(stream:setTimeout(7), 1)
+	t:eq(stream.options.timeout, 7)
+	t:eq(tcp_socket.timeout, 7)
 end
 
 ---@param t testing.T

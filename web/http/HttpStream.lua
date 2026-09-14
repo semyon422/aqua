@@ -102,6 +102,16 @@ function HttpStream:connect(url)
 	return true
 end
 
+---@param timeout number?
+---@return any
+function HttpStream:setTimeout(timeout)
+	self.options.timeout = timeout
+	local client = self.client
+	if client then
+		return client.tcp_soc:settimeout(timeout)
+	end
+end
+
 ---@param chunk string
 function HttpStream:notifyUpload(chunk)
 	self.uploaded = self.uploaded + #chunk

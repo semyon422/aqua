@@ -4,17 +4,39 @@ local Headers = require("web.http.Headers")
 
 local test = {}
 
+---@class openai.FakeHttpStream
+---@field res {status: integer, headers: web.Headers?}
+---@field response_body string?
+---@field timeouts number[]
+---@field timeout number?
+---@field sent_body string?
+---@field cancel_error string?
+---@field closed boolean?
+
 ---@param chunks string[]
----@return web.HttpStream
+---@return openai.FakeHttpStream
 local function makeStream(chunks)
-	return {
+	---@type openai.FakeHttpStream
+	local stream = {
 		res = {status = 200},
 		sendBody = function(self, body)
 			self.sent_body = body
 			return #body
 		end,
 		receiveHeaders = function() return true end,
+		setTimeout = function(self, timeout)
+			self.timeout = timeout
+			table.insert(self.timeouts, timeout)
+		end,
+		timeouts = {},
 		receiveAvailableChunk = function() return table.remove(chunks, 1) end,
+		receiveChunk = function(self)
+			---@cast self openai.FakeHttpStream
+			if self.response_body == nil then return nil, "closed" end
+			local body = self.response_body
+			self.response_body = nil
+			return body
+		end,
 		close = function(self)
 			self.closed = true
 			return true
@@ -24,6 +46,7 @@ local function makeStream(chunks)
 			return true
 		end,
 	}
+	return stream
 end
 
 ---@param open_stream openai.OpenStreamFunc
@@ -96,7 +119,8 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	t:eq(called.options.headers["ChatGPT-Account-Id"], "account")
 	t:ne(called.options.headers["x-client-request-id"], initial_request_id)
 	t:eq(called.options.headers.session_id, called.options.headers["x-client-request-id"])
-	t:eq(called.options.timeout, 45)
+	t:assert(called.options.timeout <= 45)
+	t:assert(called.options.timeout > 44)
 	t:eq(body.instructions, "instructions")
 	t:eq(body.input[1].content[1].text, "hello")
 	t:eq(body.tools[1].name, "inspect")
@@ -291,6 +315,48 @@ function test.converts_function_calls_and_tool_results(t)
 end
 
 ---@param t testing.T
+function test.cancels_chat_stream_when_downstream_closes(t)
+	local stream = makeStream({
+		[[data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"Hi"}]] .. "\n\n",
+		[[data: {"type":"response.completed","response":{"output":[]}}]] .. "\n\n",
+	})
+	local client = makeClient(function() return stream end)
+	local message, err = client:completeStream({{role = "user", content = "hello"}}, nil, function()
+		return false
+	end)
+	t:eq(message, nil)
+	t:eq(err, "downstream response stream closed")
+	t:eq(stream.cancel_error, "downstream response stream closed")
+end
+
+---@param t testing.T
+function test.enforces_global_request_deadline_across_chunks(t)
+	local now = 0
+	local stream = makeStream({
+		[[data: {"type":"response.created"}]] .. "\n\n",
+		[[data: {"type":"response.output_item.added","output_index":0,"item":{"type":"reasoning","summary":[]}}]] .. "\n\n",
+		[[data: {"type":"response.completed","response":{"output":[]}}]] .. "\n\n",
+	})
+	local receive_available_chunk = stream.receiveAvailableChunk
+	stream.receiveAvailableChunk = function(self)
+		now = now + 6
+		return receive_available_chunk(self)
+	end
+	local client = makeClient(function(_, options)
+		t:eq(options.timeout, 10)
+		return stream
+	end, nil, {
+		timeout = 10,
+		get_time = function() return now end,
+	})
+	local message, err = client:completeStream({{role = "user", content = "hello"}})
+	t:eq(message, nil)
+	t:eq(err, "OpenAI subscription request deadline exceeded")
+	t:eq(stream.cancel_error, err)
+	t:eq(stream.timeouts[#stream.timeouts], 4)
+end
+
+---@param t testing.T
 function test.reports_auth_and_stream_errors(t)
 	local client = OpenAiSubscriptionClient({
 		auth = {getAccess = function() return nil, nil, "login required" end},
@@ -311,9 +377,7 @@ function test.reports_auth_and_stream_errors(t)
 	stream = makeStream({})
 	stream.res.status = 429
 	stream.res.headers = Headers():set("x-request-id", "req_123")
-	stream.receiveBody = function()
-		return [[{"error":{"message":"rate\nlimited","type":"rate_limit_error","code":"rate_limit_exceeded"}}]]
-	end
+	stream.response_body = [[{"error":{"message":"rate\nlimited","type":"rate_limit_error","code":"rate_limit_exceeded"}}]]
 	client = makeClient(function() return stream end)
 	local provider_error
 	message, err, provider_error = client:completeStream({})
@@ -328,7 +392,7 @@ function test.reports_auth_and_stream_errors(t)
 	stream = makeStream({})
 	stream.res.status = 400
 	stream.res.headers = Headers()
-	stream.receiveBody = function() return [[{"detail":"Input must be a list"}]] end
+	stream.response_body = [[{"detail":"Input must be a list"}]]
 	client = makeClient(function() return stream end)
 	message, err, provider_error = client:createResponse({model = "gpt-test", input = "hello"})
 	t:eq(message, nil)
