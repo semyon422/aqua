@@ -62,8 +62,9 @@ function ThreadPool:execute(task)
 	if not self.loaded then
 		return
 	end
+	-- Dispatch from the regular update loop. Updating here can complete the task
+	-- before thread.async reaches coroutine.yield(), then resume a running coroutine.
 	table.insert(self.queue, task)
-	self:update()
 end
 
 ---@param f function
