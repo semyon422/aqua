@@ -1,6 +1,85 @@
+local thread = require("thread")
 local ThreadPool = require("thread.ThreadPool")
 
 local test = {}
+
+---@param t testing.T
+function test.async_result_is_deferred_until_after_yield(t)
+	local old_queue = ThreadPool.queue
+	local old_loaded = ThreadPool.loaded
+	local old_update = ThreadPool.update
+	ThreadPool.queue = {}
+	ThreadPool.loaded = true
+
+	local updated = false
+	ThreadPool.update = function(self)
+		updated = true
+		local task = table.remove(self.queue, 1)
+		if task then
+			task.result(42)
+		end
+	end
+
+	local ok, err = xpcall(function()
+		local result
+		local async = thread.async(function()
+			return 42
+		end)
+		local coroutine_ = coroutine.create(function()
+			result = async()
+		end)
+
+		local resumed, resume_error = coroutine.resume(coroutine_)
+		t:eq(resumed, true, resume_error)
+		t:eq(updated, false)
+		t:eq(coroutine.status(coroutine_), "suspended")
+		t:eq(#ThreadPool.queue, 1)
+
+		ThreadPool:update()
+
+		t:eq(updated, true)
+		t:eq(result, 42)
+		t:eq(coroutine.status(coroutine_), "dead")
+		t:eq(#ThreadPool.queue, 0)
+	end, debug.traceback)
+
+	ThreadPool.queue = old_queue
+	ThreadPool.loaded = old_loaded
+	ThreadPool.update = old_update
+
+	assert(ok, err)
+end
+
+---@param t testing.T
+function test.execute_only_queues_task(t)
+	local old_queue = ThreadPool.queue
+	local old_loaded = ThreadPool.loaded
+	local old_update = ThreadPool.update
+	ThreadPool.queue = {}
+	ThreadPool.loaded = true
+
+	local updated = false
+	ThreadPool.update = function()
+		updated = true
+	end
+
+	local task = {
+		f = "",
+		args = {},
+		result = function() end,
+		trace = "",
+		name = "test task",
+	}
+	ThreadPool:execute(task)
+
+	t:eq(updated, false)
+	t:eq(#ThreadPool.queue, 1)
+	t:eq(ThreadPool.queue[1], task)
+
+	ThreadPool.queue = old_queue
+	ThreadPool.loaded = old_loaded
+	ThreadPool.update = old_update
+end
 
 ---@param t testing.T
 function test.managed_thread_names(t)
