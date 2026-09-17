@@ -25,7 +25,7 @@ return function(id, text, w, h, align)
 		p = (h - fh) / 2
 	end
 
-	love.graphics.setColor(1, 1, 1, 1)
+	theme.setTextColor()
 	gfx_util.printFrame(text, p, 0, w - p * 2, h, align, "center")
 
 	just.next(w, h)

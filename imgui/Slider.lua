@@ -28,7 +28,7 @@ return function(id, value, w, h, displayValue)
 	theme.rectangle(w, h)
 
 	local x = map(math.min(math.max(value, 0), 1), 0, 1, h / 2, w - h / 2)
-	love.graphics.setColor(1, 1, 1, 1)
+	theme.setAccentColor()
 	theme.fillrect(h, h, x - h / 2, 0)
 
 	if displayValue then
@@ -39,6 +39,7 @@ return function(id, value, w, h, displayValue)
 		else
 			tx = math.max(tx, x + h / 2)
 		end
+		theme.setTextColor()
 		gfx_util.printFrame(displayValue, tx, 0, width, h, "left", "center")
 	end
 

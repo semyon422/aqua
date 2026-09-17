@@ -12,13 +12,14 @@ return function(id, text, w, h, inactive)
 	theme.setColor(active, hovered)
 	theme.rectangle(w, h)
 
-	love.graphics.setColor(1, 1, 1, 1)
 	if inactive then
-		love.graphics.setColor(0.5, 0.5, 0.5, 1)
+		theme.setMutedColor()
+	else
+		theme.setTextColor()
 	end
 
 	gfx_util.printFrame(tostring(text), 0, 0, w, h, "center", "center")
-	love.graphics.setColor(1, 1, 1, 1)
+	theme.setTextColor()
 
 	just.next(w, h)
 

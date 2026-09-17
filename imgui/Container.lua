@@ -55,12 +55,13 @@ return function(id, w, h, _w, _h, scrollY)
 	local overlap = math.max(height - container_h, 0)
 
 	just.push()
-	love.graphics.translate(container_w - scrollbar_w, 0)
+	local visual_scrollbar_w = math.min(scrollbar_w, 12)
+	love.graphics.translate(container_w - visual_scrollbar_w - 4, 4)
 	local newScroll = ScrollBar(
 		container_id .. "scrollbar",
 		container_scroll_y / overlap,
-		scrollbar_w,
-		container_h,
+		visual_scrollbar_w,
+		math.max(0, container_h - 8),
 		overlap / container_h
 	)
 	if newScroll then
