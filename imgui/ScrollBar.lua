@@ -29,7 +29,8 @@ return function(id, value, w, h, overlap)
 	if overlap <= 0 then
 		return
 	end
-	local _h = w + (h - w) / (overlap + 1)
+	local _h = math.max(w * 2, w + (h - w) / (overlap + 1))
+	_h = math.min(_h, h)
 
 	local over = just.is_over(w, h)
 	local pos = getPosition(h, _h)
@@ -46,11 +47,10 @@ return function(id, value, w, h, overlap)
 		dragPosition = nil
 	end
 
-	theme.setColor(active, hovered)
-	love.graphics.rectangle("fill", 0, 0, w, h)
+	theme.setScrollbarTrackColor(hovered)
+	love.graphics.rectangle("fill", 0, 0, w, h, w / 2, w / 2)
 
-	love.graphics.setColor(1, 1, 1, 0.8)
-
+	theme.setScrollbarThumbColor(active, hovered)
 	local x = w * (1 - size) / 2
 	love.graphics.rectangle(
 		"fill",

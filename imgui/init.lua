@@ -37,6 +37,7 @@ end
 
 function imgui.separator()
 	just.emptyline(8)
+	theme.setDividerColor()
 	love.graphics.line(0, 0, w, 0)
 	just.emptyline(8)
 end
@@ -69,6 +70,7 @@ end
 ---@return number
 function imgui.text(text, limit, right)
 	imgui.indent()
+	theme.setTextColor()
 	return just.text(text, limit, right)
 end
 

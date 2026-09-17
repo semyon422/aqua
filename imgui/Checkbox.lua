@@ -11,15 +11,17 @@ return function(id, v, size, inactive)
 	theme.setColor(active, hovered)
 	theme.rectangle(size, size)
 
-	love.graphics.setColor(1, 1, 1, 1)
 	if inactive then
-		love.graphics.setColor(0.5, 0.5, 0.5, 1)
+		theme.setMutedColor()
+	else
+		theme.setTextColor()
 	end
 
 	if v then
+		theme.setAccentColor()
 		theme.fillrect(size)
 	end
-	love.graphics.setColor(1, 1, 1, 1)
+	theme.setTextColor()
 
 	just.next(size, size)
 
