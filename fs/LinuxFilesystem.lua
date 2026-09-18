@@ -189,6 +189,24 @@ function LinuxFilesystem:read(name, size)
 end
 
 ---@param name string
+---@param offset integer
+---@param size integer
+---@return string?
+---@return string?
+function LinuxFilesystem:readAt(name, offset, size)
+	local f = io.open(name, "rb")
+	if not f then return nil, "failed to open" end
+	local position, err = f:seek("set", offset)
+	if not position then
+		f:close()
+		return nil, err
+	end
+	local data = f:read(size)
+	f:close()
+	return data
+end
+
+---@param name string
 ---@param data string
 ---@param size? number
 ---@return boolean

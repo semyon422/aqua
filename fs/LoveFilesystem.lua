@@ -42,6 +42,28 @@ function LoveFilesystem:read(name, size)
 end
 
 ---@param name string
+---@param offset integer
+---@param size integer
+---@return string?
+---@return string?
+function LoveFilesystem:readAt(name, offset, size)
+	local ok, file = pcall(love.filesystem.openFile, name, "r")
+	if not ok or not file then
+		return nil, ok and "failed to open" or tostring(file)
+	end
+	if not file:seek(offset) then
+		file:close()
+		return nil, "failed to seek"
+	end
+	local data = file:read(size)
+	file:close()
+	if type(data) ~= "string" then
+		return nil, "failed to read"
+	end
+	return data
+end
+
+---@param name string
 ---@param data string
 ---@param size? number
 ---@return boolean
