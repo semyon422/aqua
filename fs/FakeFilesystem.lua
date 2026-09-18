@@ -170,6 +170,20 @@ function FakeFilesystem:read(name, size)
 end
 
 ---@param name string
+---@param offset integer
+---@param size integer
+---@return string?
+---@return string?
+function FakeFilesystem:readAt(name, offset, size)
+	local node = self:findNode(name)
+	if not node or node.items ~= nil then
+		return nil, "File not found"
+	end
+	local content = node.content or ""
+	return content:sub(offset + 1, offset + size)
+end
+
+---@param name string
 ---@param data string
 ---@param size? number
 ---@return boolean

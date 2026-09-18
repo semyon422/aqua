@@ -47,6 +47,21 @@ function IFilesystem:read(name, size)
 	error("not implemented")
 end
 
+---Reads a byte range without requiring callers to load the whole file.
+---Offsets are zero-based. Implementations should override this with a seek-based read.
+---@param name string
+---@param offset integer
+---@param size integer
+---@return string?
+---@return string?
+function IFilesystem:readAt(name, offset, size)
+	local data, err = self:read(name)
+	if not data then
+		return nil, err
+	end
+	return data:sub(offset + 1, offset + size)
+end
+
 ---@param name string
 ---@param data string
 ---@param size? number
