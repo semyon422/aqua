@@ -61,7 +61,12 @@ function LjsqliteDatabase:iter(query, bind_vals)
 	return function()
 		i = i + 1
 		---@type any[]
-		row = stmt:step(row, colnames)
+		local ok, result = pcall(stmt.step, stmt, row, colnames)
+		if not ok then
+			stmt:close()
+			error(result, 0)
+		end
+		row = result
 
 		if row then
 			return i, to_object(row, colnames)
