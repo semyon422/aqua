@@ -4,6 +4,7 @@ local sql_util = require("rdb.sql_util")
 local PrintDatabase = require("rdb.db.PrintDatabase")
 
 ---@alias rdb.Row {[string]: any}
+---@alias rdb.TransactionMode "deferred"|"immediate"|"exclusive"
 
 ---@class rdb.Conditions
 ---@field [string] any?
@@ -70,8 +71,16 @@ function TableOrm:iter(query, bind_vals)
 	return self.db:iter(query, bind_vals)
 end
 
-function TableOrm:begin()
-	self.db:exec("BEGIN")
+local transaction_modes = {
+	deferred = true,
+	immediate = true,
+	exclusive = true,
+}
+
+---@param mode rdb.TransactionMode?
+function TableOrm:begin(mode)
+	assert(not mode or transaction_modes[mode], "invalid transaction mode: " .. tostring(mode))
+	self.db:exec(mode and ("BEGIN " .. mode:upper()) or "BEGIN")
 end
 
 function TableOrm:commit()
