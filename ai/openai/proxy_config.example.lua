@@ -9,7 +9,9 @@ return {
 		["gpt-5.6-sol"] = {input = 4, cached_input = 0.4, output = 20},
 		["gpt-5.6-terra"] = {input = 2, cached_input = 0.2, output = 12},
 		["gpt-5.6-luna"] = {input = 0.2, cached_input = 0.02, output = 1.2},
+		["gpt-5.5"] = {input = 5, cached_input = 0.5, output = 30},
 		["gpt-5.4"] = {input = 2.5, cached_input = 0.25, output = 15},
+		["gpt-5.4-mini"] = {input = 0.75, cached_input = 0.075, output = 4.5},
 	},
 	network_path = "userdata/network.lua",
 	models = {
@@ -22,6 +24,9 @@ return {
 		"gpt-5.4-mini",
 		"gpt-5.3-codex-spark",
 	},
+	-- Map public model names to different upstream models, for example:
+	-- ["gpt-5.6-sol"] = "gpt-5.6-terra",
+	model_redirects = {},
 	reasoning_effort = "medium",
 	verbosity = "low",
 	upstream_timeout = 300,

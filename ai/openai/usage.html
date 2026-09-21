@@ -204,6 +204,11 @@
 			<label>Period <select id="period"><option value="24">Last 24 hours</option><option value="168">Last 7 days</option></select></label>
 			<label>View <select id="view"><option value="total">Total</option><option value="clients">By client</option></select></label>
 			<p class="muted">Hourly buckets, including the current partial hour. Tokens use provider usage when available, otherwise a rough JSON byte / 4 estimate. Images, audio, files and unreported reasoning cannot be estimated accurately. Failed requests may have unknown output.</p>
+			<section id="model-redirects" hidden>
+				<h2>Model redirects</h2>
+				<p class="muted">Public request model → model sent upstream. Model totals and prices use the upstream model.</p>
+				<div id="model-redirect-table" class="table-scroll"></div>
+			</section>
 			<div id="charts"></div>
 			<h2>Client spending & cache efficiency</h2>
 			<p class="muted">API-equivalent cost, not a subscription bill. Cache share = reported cached input / total input tokens. Savings compare cached tokens with the ordinary input rate; missing prices count as $0. Totals use token-weighted shares, not averages of client percentages.</p>
@@ -357,6 +362,21 @@
 			const first = historyData.last_bucket - (count - 1) * 3600;
 			const rows = historyData.rows.filter(row => row.bucket >= first);
 			const clients = [...new Set(rows.map(row => row.client))].sort();
+			const redirects = historyData.model_redirects || {};
+			const redirectEntries = Object.entries(redirects).sort(([a], [b]) => a.localeCompare(b));
+			const redirectSection = byId("model-redirects");
+			redirectSection.hidden = redirectEntries.length === 0;
+			if (redirectEntries.length) {
+				const redirectTable = document.createElement("table");
+				const redirectHeader = redirectTable.insertRow();
+				["Public model", "Upstream model"].forEach(text => {
+					const th = document.createElement("th"); setText(th, text); redirectHeader.append(th);
+				});
+				for (const [source, target] of redirectEntries) {
+					const tr = redirectTable.insertRow(); setText(tr.insertCell(), source); setText(tr.insertCell(), target);
+				}
+				byId("model-redirect-table").replaceChildren(redirectTable);
+			}
 			const names = byId("view").value === "total" ? ["Total"] : clients;
 			const metrics = ["requests", "input_tokens", "output_tokens"];
 			byId("charts").replaceChildren();

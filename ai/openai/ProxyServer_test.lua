@@ -147,6 +147,8 @@ function test.proxies_usage_and_serves_dashboard(t)
 	t:eq(page.headers:get("Content-Type"), "text/html; charset=utf-8")
 	t:assert(page.body:find("OpenAI usage", 1, true))
 	t:assert(page.body:find('fetch("/v1/usage"', 1, true))
+	t:assert(page.body:find("Model redirects", 1, true))
+	t:assert(page.body:find("model_redirects", 1, true))
 	t:assert(page.body:find("Authorization", 1, true))
 	t:eq(fetch_count, 0)
 
@@ -171,8 +173,9 @@ function test.proxies_non_streaming_native_response(t)
 		scheduler = scheduler,
 		users = {{name = "alice", access_token = "proxy-secret"}},
 		models = {"model-a"},
+		model_redirects = {['model-a'] = "model-b"},
 		create_client = function(model, reasoning_effort, request_options)
-			t:eq(model, "model-a")
+			t:eq(model, "model-b")
 			t:eq(reasoning_effort, "high")
 			t:eq(request_options.parallel_tool_calls, false)
 			t:eq(request_options.verbosity, "high")
@@ -269,8 +272,9 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 		scheduler = scheduler,
 		users = {{name = "alice", access_token = "proxy-secret"}},
 		models = {"model-a"},
+		model_redirects = {['model-a'] = "model-b"},
 		create_client = function(model, reasoning_effort, request_options)
-			t:eq(model, "model-a")
+			t:eq(model, "model-b")
 			t:eq(reasoning_effort, "high")
 			t:eq(request_options.parallel_tool_calls, false)
 			t:eq(request_options.verbosity, "high")
@@ -939,6 +943,7 @@ function test.persists_completion_usage(t)
 		scheduler = scheduler,
 		users = {{name = "alice", access_token = "proxy-secret"}},
 		models = {"model-a"},
+		model_redirects = {['model-a'] = "model-b"},
 		usage_repo = repo,
 		create_client = function()
 			return {completeStream = function()
@@ -960,10 +965,13 @@ function test.persists_completion_usage(t)
 	end
 	local response = request(t, scheduler, port, "/v1/usage/history", nil, "proxy-secret")
 	t:eq(response.status, 200)
-	---@type {client: string, requests: integer, input_tokens: integer, output_tokens: integer, estimated_requests: integer}[]
-	local rows = json.decode(response.body).rows
+	local history = json.decode(response.body)
+	t:eq(history.model_redirects["model-a"], "model-b")
+	---@type {client: string, model: string, requests: integer, input_tokens: integer, output_tokens: integer, estimated_requests: integer}[]
+	local rows = history.rows
 	t:eq(#rows, 1)
 	t:eq(rows[1].client, "alice")
+	t:eq(rows[1].model, "model-b")
 	t:eq(rows[1].requests, 2)
 	t:eq(rows[1].input_tokens, 24)
 	t:eq(rows[1].output_tokens, 6)

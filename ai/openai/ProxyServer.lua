@@ -66,6 +66,7 @@ local UsagePage = require("ai.openai.UsagePage")
 ---@field scheduler web.CosocketScheduler
 ---@field users openai.ProxyUser[]
 ---@field models string[]
+---@field model_redirects {[string]: string}?
 ---@field create_client fun(model: string, reasoning_effort: openai.ReasoningEffort?, request_options: openai.ProxyRequestOptions): openai.ProxyClient
 ---@field usage_repo openai.UsageRepo?
 ---@field fetch_usage (fun(): table?, string?, openai.ProviderError?)?
@@ -82,6 +83,7 @@ local UsagePage = require("ai.openai.UsagePage")
 ---@field users_by_token {[string]: string}
 ---@field models string[]
 ---@field models_set {[string]: boolean}
+---@field model_redirects {[string]: string}
 ---@field create_client fun(model: string, reasoning_effort: openai.ReasoningEffort?, request_options: openai.ProxyRequestOptions): openai.ProxyClient
 ---@field usage_repo openai.UsageRepo?
 ---@field fetch_usage fun(): table?, string?, openai.ProviderError?
@@ -135,6 +137,14 @@ function ProxyServer:new(options)
 		self.models_set[model] = true
 	end
 	self.create_client = assert(options.create_client, "create_client is required")
+	self.model_redirects = {}
+	for requested_model, upstream_model in pairs(options.model_redirects or {}) do
+		assert(type(requested_model) == "string" and self.models_set[requested_model],
+			"model redirect source is not configured: " .. tostring(requested_model))
+		assert(type(upstream_model) == "string" and upstream_model ~= "",
+			"model redirect target must be a non-empty string")
+		self.model_redirects[requested_model] = upstream_model
+	end
 	self.fetch_usage = options.fetch_usage or function() return nil, "usage is not configured" end
 	self.usage_repo = options.usage_repo
 	self.logger = options.logger or print
@@ -750,7 +760,8 @@ function ProxyServer:responses(res, request)
 
 	local reasoning_effort = type(request.reasoning) == "table" and request.reasoning.effort or nil
 	local verbosity = type(request.text) == "table" and request.text.verbosity or nil
-	local client = self.create_client(request.model, reasoning_effort, {
+	local requested_model = request.model --[[@as string]]
+	local client = self.create_client(self.model_redirects[requested_model] or requested_model, reasoning_effort, {
 		parallel_tool_calls = request.parallel_tool_calls,
 		verbosity = verbosity,
 	})
@@ -923,7 +934,8 @@ function ProxyServer:complete(res, request)
 		return 400
 	end
 
-	local client = self.create_client(request.model, request.reasoning_effort, {
+	local requested_model = request.model --[[@as string]]
+	local client = self.create_client(self.model_redirects[requested_model] or requested_model, request.reasoning_effort, {
 		prompt_cache_key = request.prompt_cache_key,
 		prompt_cache_options = prompt_cache_options,
 		tool_choice = tool_choice,
@@ -1074,7 +1086,9 @@ end
 ---@return table? result
 function ProxyServer:handleAuthenticated(req, res, path, metrics)
 	if req.method == "GET" and path == "/v1/usage/history" and self.usage_repo then
-		sendJson(res, self.usage_repo:history(os.time()))
+		local history = self.usage_repo:history(os.time())
+		history.model_redirects = self.model_redirects
+		sendJson(res, history)
 		return 200
 	elseif req.method == "GET" and path == "/v1/usage" then
 		return self:usage(res)
@@ -1145,7 +1159,7 @@ function ProxyServer:handle(req, res, ip)
 		res.headers:set("Retry-After", 60)
 		sendError(res, 429, "rate limit exceeded", "rate_limit_error", "rate_limit_exceeded")
 		status = 429
-	elseif not self:acquireRequest(token) then
+	elseif not self:acquireRequest(assert(token)) then
 		res.headers:set("Retry-After", 1)
 		sendError(res, 429, "too many concurrent requests", "rate_limit_error", "concurrency_limit_exceeded")
 		status = 429
@@ -1157,12 +1171,15 @@ function ProxyServer:handle(req, res, ip)
 		end, function(err)
 			handle_err = debug.traceback(err, 2)
 		end)
-		self:releaseRequest(token)
+		self:releaseRequest(assert(token))
 		if not ok then error(handle_err, 0) end
 	end
 	if self.usage_repo and user and req.method == "POST"
 		and (path == "/v1/chat/completions" or path == "/v1/responses") then
-		self.usage_repo:record(os.time(), user, status, metrics.request, metrics.result)
+		local requested_model = metrics.request and metrics.request.model
+		local model = type(requested_model) == "string" and self.models_set[requested_model]
+			and (self.model_redirects[requested_model] or requested_model) or nil
+		self.usage_repo:record(os.time(), user, status, metrics.request, metrics.result, model)
 	end
 	self.logger(("user=%s ip=%s method=%s path=%s status=%d duration=%.3fs")
 		:format(

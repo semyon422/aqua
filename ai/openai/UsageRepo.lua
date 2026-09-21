@@ -41,7 +41,8 @@ end
 ---@param status integer
 ---@param request {[string]: any}?
 ---@param result {[string]: any}?
-function UsageRepo:record(now, client, status, request, result)
+---@param model string?
+function UsageRepo:record(now, client, status, request, result, model)
 	local usage = result and result.usage
 	local input = usage and usage.input_tokens
 	local output = usage and usage.output_tokens
@@ -58,7 +59,7 @@ function UsageRepo:record(now, client, status, request, result)
 	local cached = details and details.cached_tokens or 0
 	assert(type(cached) == "number" and cached >= 0 and cached % 1 == 0 and cached <= input,
 		"cached token count must be an integer between zero and input tokens")
-	local model = request and type(request.model) == "string" and request.model or ""
+	model = model or (request and type(request.model) == "string" and request.model or "")
 	self.models.proxy_usage_models.orm:query([[INSERT INTO proxy_usage_models
 		(bucket, client, model, requests, errors, input_tokens, output_tokens, estimated_requests, cached_input_tokens)
 		VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)

@@ -23,6 +23,7 @@ local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
 ---@field network_path string?
 ---@field users openai.ProxyUser[]
 ---@field models string[]
+---@field model_redirects {[string]: string}?
 ---@field max_body_size integer?
 ---@field client_timeout number?
 ---@field max_clients integer?
@@ -254,6 +255,7 @@ local server = ProxyServer({
 	scheduler = scheduler,
 	users = users,
 	models = assert(config.models, "proxy models are required"),
+	model_redirects = config.model_redirects,
 	max_body_size = config.max_body_size,
 	client_timeout = config.client_timeout,
 	max_clients = config.max_clients,
