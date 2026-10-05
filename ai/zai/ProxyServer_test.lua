@@ -5,7 +5,7 @@ local socket = require("socket")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local http_util = require("web.http.util")
 local json = require("web.json")
-local ProxyServer = require("ai.glm.ProxyServer")
+local ProxyServer = require("ai.zai.ProxyServer")
 
 local test = {}
 
@@ -66,16 +66,16 @@ local function parseSse(body)
 	return events
 end
 
----@class glm.FakeClientState
+---@class zai.FakeClientState
 ---@field body table?
 ---@field completion table?
 ---@field message table?
 ---@field deltas table[]?
 ---@field err string?
----@field provider_error glm.ProviderError?
+---@field provider_error zai.ProviderError?
 
----@param state glm.FakeClientState
----@return glm.Client
+---@param state zai.FakeClientState
+---@return zai.Client
 local function fakeClient(state)
 	return {
 		complete = function(_, body)
@@ -98,7 +98,7 @@ end
 
 ---@param t testing.T
 ---@param options table
----@return glm.ProxyServer
+---@return zai.ProxyServer
 ---@return web.CosocketScheduler
 local function startServer(t, options)
 	local scheduler = CosocketScheduler()
@@ -150,8 +150,8 @@ function test.serves_model_catalog(t)
 	local decoded = json.decode(response.body)
 	t:eq(decoded.object, "list")
 	t:tdeq(decoded.data, {
-		{id = "glm-4.7", object = "model", owned_by = "glm-coding-plan"},
-		{id = "glm-5.3-flash", object = "model", owned_by = "glm-coding-plan"},
+		{id = "glm-4.7", object = "model", owned_by = "zai-coding-plan"},
+		{id = "glm-5.3-flash", object = "model", owned_by = "zai-coding-plan"},
 	})
 	server:stop()
 end
@@ -195,9 +195,9 @@ function test.usage_endpoint_failure_modes(t)
 	local server, scheduler = startServer(t, {
 		create_client = function() error("not used") end,
 		fetch_usage = function()
-			return nil, "GLM usage request failed", {
+			return nil, "Z.ai usage request failed", {
 				status = 401,
-				message = "GLM usage request failed",
+				message = "Z.ai usage request failed",
 				type = "upstream_error",
 				code = "upstream_error",
 			}
@@ -211,7 +211,7 @@ function test.usage_endpoint_failure_modes(t)
 
 	server, scheduler = startServer(t, {
 		create_client = function() error("not used") end,
-		fetch_usage = function() return nil, "GLM usage request failed" end,
+		fetch_usage = function() return nil, "Z.ai usage request failed" end,
 	})
 	_, port = server:getAddress()
 	response = request(t, scheduler, port, "/v1/usage", nil, "proxy-secret-proxy-secret-proxy")
@@ -231,7 +231,7 @@ end
 
 ---@param t testing.T
 function test.proxies_non_streaming_completion(t)
-	---@type glm.FakeClientState
+	---@type zai.FakeClientState
 	local state = {
 		completion = {
 			id = "chatcmpl-upstream",
@@ -281,7 +281,7 @@ end
 
 ---@param t testing.T
 function test.proxies_streaming_completion(t)
-	---@type glm.FakeClientState
+	---@type zai.FakeClientState
 	local state = {
 		deltas = {
 			{role = "assistant", content = ""},
@@ -339,7 +339,7 @@ end
 
 ---@param t testing.T
 function test.validates_requests(t)
-	---@type glm.FakeClientState
+	---@type zai.FakeClientState
 	local state = {}
 	local server, scheduler = startServer(t, {
 		create_client = function() return fakeClient(state) end,
@@ -434,7 +434,7 @@ end
 
 ---@param t testing.T
 function test.maps_upstream_errors(t)
-	---@type glm.FakeClientState
+	---@type zai.FakeClientState
 	local state = {
 		err = "Insufficient balance",
 		provider_error = {
@@ -485,7 +485,7 @@ end
 
 ---@param t testing.T
 function test.rate_limits_requests(t)
-	---@type glm.FakeClientState
+	---@type zai.FakeClientState
 	local state = {completion = {
 		choices = {{message = {role = "assistant", content = "ok"}}},
 	}}

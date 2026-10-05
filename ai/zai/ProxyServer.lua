@@ -5,45 +5,45 @@ local random = require("web.random")
 local socket = require("socket")
 local HttpServer = require("web.http.Server")
 
----@class glm.ProxyUser
+---@class zai.ProxyUser
 ---@field name string
 ---@field access_token string
 
----@class glm.UntrustedObject
+---@class zai.UntrustedObject
 ---@field [any] any
 
----@class glm.UntrustedFunctionCall: glm.UntrustedObject
+---@class zai.UntrustedFunctionCall: zai.UntrustedObject
 ---@field name any?
 ---@field arguments any?
 
----@class glm.UntrustedToolCall: glm.UntrustedObject
+---@class zai.UntrustedToolCall: zai.UntrustedObject
 ---@field id any?
 ---@field type any?
----@field ["function"] glm.UntrustedFunctionCall?
+---@field ["function"] zai.UntrustedFunctionCall?
 
----@class glm.UntrustedMessage: glm.UntrustedObject
+---@class zai.UntrustedMessage: zai.UntrustedObject
 ---@field role any?
 ---@field content any?
 ---@field tool_calls any?
 ---@field tool_call_id any?
 
----@class glm.UntrustedContentPart: glm.UntrustedObject
+---@class zai.UntrustedContentPart: zai.UntrustedObject
 ---@field type any?
 ---@field text any?
 
----@class glm.ToolSchema: glm.UntrustedObject
+---@class zai.ToolSchema: zai.UntrustedObject
 ---@field type any?
----@field ["function"] glm.UntrustedFunctionCall?
+---@field ["function"] zai.UntrustedFunctionCall?
 
----@class glm.ProxyServerOptions
+---@class zai.ProxyServerOptions
 ---@field scheduler web.CosocketScheduler
----@field users glm.ProxyUser[]
+---@field users zai.ProxyUser[]
 ---@field models string[]
 ---@field model_redirects {[string]: string}?
----@field create_client fun(): glm.Client
+---@field create_client fun(): zai.Client
 ---@field thinking "enabled"|"disabled"?
 ---@field tool_stream boolean?
----@field fetch_usage (fun(): table?, string?, glm.ProviderError?)?
+---@field fetch_usage (fun(): table?, string?, zai.ProviderError?)?
 ---@field logger (fun(line: string))?
 ---@field max_body_size integer?
 ---@field client_timeout number?
@@ -56,16 +56,16 @@ local HttpServer = require("web.http.Server")
 --- `POST /v1/chat/completions` plus the read-only `GET /v1/models` and
 --- `GET /v1/usage` routes; usage dashboards, usage history, and a web frontend
 --- are out of scope.
----@class glm.ProxyServer
----@operator call: glm.ProxyServer
+---@class zai.ProxyServer
+---@operator call: zai.ProxyServer
 ---@field users_by_token {[string]: string}
 ---@field models string[]
 ---@field models_set {[string]: boolean}
 ---@field model_redirects {[string]: string}
----@field create_client fun(): glm.Client
+---@field create_client fun(): zai.Client
 ---@field thinking "enabled"|"disabled"?
 ---@field tool_stream boolean
----@field fetch_usage fun(): table?, string?, glm.ProviderError?
+---@field fetch_usage fun(): table?, string?, zai.ProviderError?
 ---@field logger fun(line: string)
 ---@field max_body_size integer
 ---@field max_concurrent_requests_per_user integer
@@ -90,7 +90,7 @@ local finish_reasons = {
 	content_filter = "content_filter",
 }
 
----@param options glm.ProxyServerOptions
+---@param options zai.ProxyServerOptions
 function ProxyServer:new(options)
 	assert(type(options.users) == "table" and #options.users > 0, "at least one proxy user is required")
 	assert(type(options.models) == "table" and #options.models > 0, "at least one proxy model is required")
@@ -177,7 +177,7 @@ local function sendError(res, status, message, error_type, code)
 end
 
 ---@param res web.Response
----@param provider_error glm.ProviderError
+---@param provider_error zai.ProviderError
 ---@return integer status
 local function sendProviderError(res, provider_error)
 	local status = provider_error.status
@@ -217,7 +217,7 @@ local function normalizeContent(content)
 	if not json.isArray(content) then return end
 	---@type string[]
 	local text_parts = {}
-	---@cast content glm.UntrustedContentPart[]
+	---@cast content zai.UntrustedContentPart[]
 	for _, part in ipairs(content) do
 		if not json.isObject(part) or (part.type ~= "text" and part.type ~= "input_text")
 			or type(part.text) ~= "string"
@@ -230,20 +230,20 @@ local function normalizeContent(content)
 end
 
 ---@param messages any
----@return glm.UntrustedMessage[]? normalized
+---@return zai.UntrustedMessage[]? normalized
 function ProxyServer.normalizeMessages(messages)
 	if not json.isArray(messages) or #messages == 0 then return end
-	---@type glm.UntrustedMessage[]
+	---@type zai.UntrustedMessage[]
 	local normalized = {}
 	for _, message in ipairs(messages) do
 		if not json.isObject(message) then return end
-		---@cast message glm.UntrustedMessage
+		---@cast message zai.UntrustedMessage
 		local role = message.role
 		if role == "developer" then role = "system" end
 		if role ~= "system" and role ~= "user" and role ~= "assistant" and role ~= "tool" then
 			return
 		end
-		---@type glm.UntrustedMessage
+		---@type zai.UntrustedMessage
 		local copy = {role = role}
 		local content = normalizeContent(message.content)
 		if content ~= nil then
@@ -257,7 +257,7 @@ function ProxyServer.normalizeMessages(messages)
 		end
 		if isPresent(message.tool_calls) then
 			if role ~= "assistant" or not json.isArray(message.tool_calls) then return end
-			---@type glm.UntrustedToolCall[]
+			---@type zai.UntrustedToolCall[]
 			local tool_calls = {}
 			for index, tool_call in ipairs(message.tool_calls) do
 				if not json.isObject(tool_call) or type(tool_call.id) ~= "string"
@@ -284,11 +284,11 @@ function ProxyServer.normalizeMessages(messages)
 end
 
 ---@param tools any
----@return glm.ToolSchema[]? normalized
+---@return zai.ToolSchema[]? normalized
 function ProxyServer.normalizeTools(tools)
 	if not isPresent(tools) then return {} end
 	if not json.isArray(tools) then return end
-	---@type glm.ToolSchema[]
+	---@type zai.ToolSchema[]
 	local normalized = {}
 	for _, tool in ipairs(tools) do
 		if not json.isObject(tool) or tool.type ~= "function" or not json.isObject(tool["function"]) then
@@ -314,7 +314,7 @@ function ProxyServer.normalizeTools(tools)
 end
 
 ---@param tool_choice any
----@param tools glm.ToolSchema[]
+---@param tools zai.ToolSchema[]
 ---@return any normalized
 ---@return string? err
 local function normalizeToolChoice(tool_choice, tools)
@@ -593,7 +593,7 @@ local function sendChunk(res, model, completion_id, created, delta, finish_reaso
 	})
 end
 
----@param delta glm.MessageDelta
+---@param delta zai.MessageDelta
 ---@return table? relayed
 local function relayDelta(delta)
 	---@type table
@@ -788,7 +788,7 @@ function ProxyServer:handle(req, res, ip)
 		else
 			local models = {}
 			for _, model in ipairs(self.models) do
-				table.insert(models, {id = model, object = "model", owned_by = "glm-coding-plan"})
+				table.insert(models, {id = model, object = "model", owned_by = "zai-coding-plan"})
 			end
 			sendJson(res, {object = "list", data = models})
 			status = 200

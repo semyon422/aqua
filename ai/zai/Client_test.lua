@@ -1,5 +1,5 @@
 local json = require("web.json")
-local Client = require("ai.glm.Client")
+local Client = require("ai.zai.Client")
 
 local test = {}
 

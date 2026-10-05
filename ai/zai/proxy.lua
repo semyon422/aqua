@@ -2,16 +2,16 @@ local HttpStream = require("web.http.HttpStream")
 local http_util = require("web.http.util")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local ProxyNetwork = require("ai.openai.ProxyNetwork")
-local Client = require("ai.glm.Client")
-local ProxyServer = require("ai.glm.ProxyServer")
+local Client = require("ai.zai.Client")
+local ProxyServer = require("ai.zai.ProxyServer")
 
----@class glm.ProxyConfig
+---@class zai.ProxyConfig
 ---@field base_url string?
 ---@field api_key string
 ---@field usage_url string?
 ---@field network_path string?
 ---@field tls_cafile string?
----@field users glm.ProxyUser[]
+---@field users zai.ProxyUser[]
 ---@field models string[]
 ---@field model_redirects {[string]: string}?
 ---@field thinking "enabled"|"disabled"?
@@ -25,19 +25,19 @@ local ProxyServer = require("ai.glm.ProxyServer")
 ---@field host string?
 ---@field port integer?
 
----@class glm.NetworkConfig
+---@class zai.NetworkConfig
 ---@field socks5 openai.Socks5Config?
 
 if arg[1] == "help" or arg[1] == "--help" or arg[1] == "-h" then
 	print("Usage:")
-	print("  ./luajit aqua/ai/glm/proxy.lua [config_path]")
+	print("  ./luajit aqua/ai/zai/proxy.lua [config_path]")
 	return
 end
 
-local config_path = arg[1] or "userdata/glm_proxy.lua"
+local config_path = arg[1] or "userdata/zai_proxy.lua"
 local config_loader, config_err = loadfile(config_path)
 assert(config_loader, ("failed to load proxy config %s: %s"):format(config_path, tostring(config_err)))
----@type glm.ProxyConfig
+---@type zai.ProxyConfig
 local config = config_loader()
 assert(type(config) == "table", "proxy config must return a table")
 
@@ -67,7 +67,7 @@ local ssl_params = {
 local network_path = config.network_path or "userdata/network.lua"
 local network_loader, network_err = loadfile(network_path)
 assert(network_loader, ("failed to load network config %s: %s"):format(network_path, tostring(network_err)))
----@type glm.NetworkConfig
+---@type zai.NetworkConfig
 local network_config = network_loader()
 assert(type(network_config) == "table", "network config must return a table")
 local network = ProxyNetwork({
@@ -103,7 +103,7 @@ local usage_url = config.usage_url or "https://api.z.ai/api/monitor/usage/quota/
 
 ---@return table? usage
 ---@return string? request_error
----@return glm.ProviderError? provider_error
+---@return zai.ProviderError? provider_error
 local function fetchUsage()
 	local response, request_err = request(usage_url, nil, {
 		method = "GET",
@@ -112,19 +112,19 @@ local function fetchUsage()
 			Authorization = "Bearer " .. config.api_key,
 		},
 	})
-	if not response then return nil, request_err or "GLM usage request failed" end
+	if not response then return nil, request_err or "Z.ai usage request failed" end
 	if response.status < 200 or response.status >= 300 then
-		return nil, "GLM usage request failed", {
+		return nil, "Z.ai usage request failed", {
 			status = 502,
-			message = "GLM usage request failed",
+			message = "Z.ai usage request failed",
 			type = "upstream_error",
 			code = "upstream_error",
 		}
 	end
 	local usage, decode_err = json.decode_safe(response.body)
-	if type(usage) ~= "table" then return nil, "invalid GLM usage response: " .. tostring(decode_err) end
+	if type(usage) ~= "table" then return nil, "invalid Z.ai usage response: " .. tostring(decode_err) end
 	local data = usage.data
-	if type(data) ~= "table" then return nil, "invalid GLM usage response: data object is missing" end
+	if type(data) ~= "table" then return nil, "invalid Z.ai usage response: data object is missing" end
 	return data
 end
 
@@ -155,9 +155,9 @@ local server = ProxyServer({
 local host = config.host or "127.0.0.1"
 local port = config.port or 28082
 local ok, start_err = server:start(host, port)
-assert(ok, "failed to start GLM proxy: " .. tostring(start_err))
+assert(ok, "failed to start Z.ai proxy: " .. tostring(start_err))
 local bound_host, bound_port = server:getAddress()
-print(("GLM proxy listening on http://%s:%d/v1"):format(assert(bound_host), assert(bound_port)))
+print(("Z.ai proxy listening on http://%s:%d/v1"):format(assert(bound_host), assert(bound_port)))
 print("Upstream: " .. base_url)
 if network.socks5 then
 	print(("SOCKS5 upstream routing enabled via %s:%d"):format(network.socks5.host, network.socks5.port))

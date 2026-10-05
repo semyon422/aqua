@@ -3,85 +3,85 @@ local json = require("web.json")
 local table_util = require("table_util")
 local SseParser = require("ai.openai.SseParser")
 
----@alias glm.RequestFunc fun(url: string, body: table|string?, options: web.HttpRequestOptions?): {status: integer, headers: web.Headers?, body: string}?, string?
----@alias glm.OpenStreamFunc fun(url: string, options: web.HttpStreamOptions?): web.HttpStream?, string?
+---@alias zai.RequestFunc fun(url: string, body: table|string?, options: web.HttpRequestOptions?): {status: integer, headers: web.Headers?, body: string}?, string?
+---@alias zai.OpenStreamFunc fun(url: string, options: web.HttpStreamOptions?): web.HttpStream?, string?
 
----@class glm.ProviderError
+---@class zai.ProviderError
 ---@field status integer?
 ---@field message string
 ---@field type string
 ---@field code string
 ---@field request_id string?
 
----@class glm.ChatErrorBody
+---@class zai.ChatErrorBody
 ---@field message any?
 ---@field code any?
 ---@field type any?
 
----@class glm.ChatProviderResponse
----@field error glm.ChatErrorBody?
----@field choices glm.ChatProviderChoice[]?
+---@class zai.ChatProviderResponse
+---@field error zai.ChatErrorBody?
+---@field choices zai.ChatProviderChoice[]?
 ---@field usage any?
 ---@field id any?
 ---@field created any?
 ---@field model any?
 ---@field request_id any?
 
----@class glm.ChatProviderChoice
+---@class zai.ChatProviderChoice
 ---@field message any?
 ---@field delta any?
 ---@field finish_reason any?
 
----@class glm.ToolCallDeltaFunction
+---@class zai.ToolCallDeltaFunction
 ---@field name any?
 ---@field arguments any?
 
----@class glm.ToolCallDelta
+---@class zai.ToolCallDelta
 ---@field index any?
 ---@field id any?
 ---@field type any?
----@field ["function"] glm.ToolCallDeltaFunction?
+---@field ["function"] zai.ToolCallDeltaFunction?
 
----@class glm.MessageDelta
+---@class zai.MessageDelta
 ---@field content any?
 ---@field reasoning_content any?
----@field tool_calls glm.ToolCallDelta[]?
+---@field tool_calls zai.ToolCallDelta[]?
 
----@class glm.ToolCall
+---@class zai.ToolCall
 ---@field id string
 ---@field type string
 ---@field ["function"] {name: string, arguments: string}
 
----@class glm.Message
+---@class zai.Message
 ---@field role string
 ---@field content string?
 ---@field reasoning_content string?
----@field tool_calls glm.ToolCall[]?
+---@field tool_calls zai.ToolCall[]?
 ---@field finish_reason string?
 ---@field usage table?
 
----@class glm.ClientOptions
+---@class zai.ClientOptions
 ---@field base_url string
 ---@field api_key string
 ---@field timeout number?
----@field request glm.RequestFunc
----@field open_stream glm.OpenStreamFunc?
+---@field request zai.RequestFunc
+---@field open_stream zai.OpenStreamFunc?
 
 --- Sends chat completions to a GLM coding-plan endpoint. The endpoint speaks the
 --- OpenAI Chat Completions protocol, including `reasoning_content` deltas and
 --- `thinking` request fields.
----@class glm.Client
----@operator call: glm.Client
+---@class zai.Client
+---@operator call: zai.Client
 ---@field base_url string
 ---@field api_key string
 ---@field timeout number?
----@field request glm.RequestFunc
----@field open_stream glm.OpenStreamFunc?
+---@field request zai.RequestFunc
+---@field open_stream zai.OpenStreamFunc?
 ---@field active_stream web.HttpStream?
 ---@field cancel_requested boolean
 local Client = class()
 
----@param options glm.ClientOptions
+---@param options zai.ClientOptions
 function Client:new(options)
 	assert(type(options.base_url) == "string" and options.base_url ~= "", "base_url is required")
 	assert(type(options.api_key) == "string" and options.api_key ~= "", "api_key is required")
@@ -104,11 +104,11 @@ end
 
 ---@param res {status: integer, headers: web.Headers?}
 ---@param decoded table
----@return glm.ProviderError
+---@return zai.ProviderError
 local function providerError(res, decoded)
 	local error_body = type(decoded.error) == "table" and decoded.error or {}
 	local message = type(error_body.message) == "string" and error_body.message
-		or ("GLM provider returned HTTP %d"):format(res.status)
+		or ("Z.ai provider returned HTTP %d"):format(res.status)
 	local code = type(error_body.code) == "string" and error_body.code or "upstream_error"
 	local error_type = type(error_body.type) == "string" and error_body.type or "upstream_error"
 	local request_id = res.headers and res.headers:get("x-request-id") or nil
@@ -136,7 +136,7 @@ end
 ---@param body table
 ---@return table? completion
 ---@return string? err
----@return glm.ProviderError? provider_error
+---@return zai.ProviderError? provider_error
 function Client:complete(body)
 	assert(body.stream ~= true, "streaming completion must use completeStream")
 	local request_body = table_util.copy(body)
@@ -147,7 +147,7 @@ function Client:complete(body)
 		timeout = self.timeout,
 	})
 	if not res then
-		return nil, err or "GLM request failed"
+		return nil, err or "Z.ai request failed"
 	end
 	local decoded, decode_err = json.decode_safe(res.body)
 	if type(decoded) ~= "table" then
@@ -167,8 +167,8 @@ function Client:complete(body)
 	return decoded
 end
 
----@param message glm.Message
----@param delta glm.MessageDelta
+---@param message zai.Message
+---@param delta zai.MessageDelta
 function Client:applyDelta(message, delta)
 	if type(delta.content) == "string" and delta.content ~= "" then
 		message.content = (message.content or "") .. delta.content
@@ -213,10 +213,10 @@ end
 --- `reasoning_content`, `tool_calls`, the terminal `finish_reason`, and the
 --- last reported `usage`.
 ---@param body table
----@param on_delta (fun(delta: glm.MessageDelta): boolean?)?
----@return glm.Message? message
+---@param on_delta (fun(delta: zai.MessageDelta): boolean?)?
+---@return zai.Message? message
 ---@return string? err
----@return glm.ProviderError? provider_error
+---@return zai.ProviderError? provider_error
 function Client:completeStream(body, on_delta)
 	local open_stream = assert(self.open_stream, "open_stream is required for streaming")
 	self.cancel_requested = false
@@ -226,7 +226,7 @@ function Client:completeStream(body, on_delta)
 		timeout = self.timeout,
 	})
 	if not stream then
-		return nil, err or "GLM stream failed"
+		return nil, err or "Z.ai stream failed"
 	end
 	self.active_stream = stream
 	if self.cancel_requested then
@@ -260,10 +260,10 @@ function Client:completeStream(body, on_delta)
 			local provider_error = providerError(res, decoded)
 			return nil, provider_error.message, provider_error
 		end
-		return nil, ("GLM provider returned HTTP %d"):format(res.status)
+		return nil, ("Z.ai provider returned HTTP %d"):format(res.status)
 	end
 
-	---@type glm.Message
+	---@type zai.Message
 	local message = {role = "assistant", content = ""}
 	local done = false
 	---@type string?
@@ -274,13 +274,13 @@ function Client:completeStream(body, on_delta)
 			return
 		end
 		local event, decode_err = json.decode_safe(data)
-		---@cast event glm.ChatProviderResponse?
+		---@cast event zai.ChatProviderResponse?
 		if type(event) ~= "table" then
 			parse_err = "invalid streaming JSON: " .. tostring(decode_err)
 			return
 		end
 		if type(event.error) == "table" then
-			parse_err = tostring(event.error.message or "GLM streaming error")
+			parse_err = tostring(event.error.message or "Z.ai streaming error")
 			return
 		end
 		if type(event.usage) == "table" then

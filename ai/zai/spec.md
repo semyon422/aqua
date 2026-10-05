@@ -25,7 +25,7 @@ Provide a GLM Coding Plan Chat Completions client and a small authenticated prox
 - Streaming responses send SSE headers and the assistant-role chunk immediately after local request validation, before the upstream request starts. Upstream failures after that point are delivered as SSE `error` events followed by `[DONE]` under the already-committed HTTP 200.
 - The proxy re-emits its own chunk IDs and echoes the public model name. Upstream `function_call` finish reasons are mapped to `tool_calls`; unknown upstream finish reasons become mid-stream errors instead of being silently rewritten.
 - Reused shared infrastructure from the OpenAI package: `ai.openai.SseParser` for incremental SSE records and `ai.openai.ProxyNetwork` for SOCKS5 routing and TLS options. Both are protocol-agnostic.
-- The standalone entrypoint loads ignored `userdata/glm_proxy.lua` and ignored `userdata/network.lua`, mirroring the OpenAI proxy layout, so upstream inference follows the user's existing route without copying proxy credentials.
+- The standalone entrypoint loads ignored `userdata/zai_proxy.lua` and ignored `userdata/network.lua`, mirroring the OpenAI proxy layout, so upstream inference follows the user's existing route without copying proxy credentials.
 
 ## Invariants
 
@@ -38,18 +38,18 @@ Provide a GLM Coding Plan Chat Completions client and a small authenticated prox
 - `stream_options` is validated but not forwarded upstream. GLM reports usage on the final stream chunk; the proxy emits a usage-only chunk with an empty `choices` array before `[DONE]` only when the client asked for `include_usage`.
 - When `include_usage` is requested, every chunk carries `"usage": null` except the final usage chunk, matching OpenAI Chat Completions streaming shape.
 - Upstream errors return the bounded provider status, type, code, and message without logging prompts, responses, client tokens, or the GLM API key. Proxy logs contain only the configured user name, remote address, method, path, status, and duration.
-- `GET /v1/models` returns the configured public model allowlist with `owned_by = "glm-coding-plan"`; it never includes `model_redirects` targets. It and `GET /v1/usage` require proxy authentication, return upstream or configured data without reshaping, and must never include the GLM API key or other credentials. They do not consume request-rate or concurrency limits; only inference requests consume them.
+- `GET /v1/models` returns the configured public model allowlist with `owned_by = "zai-coding-plan"`; it never includes `model_redirects` targets. It and `GET /v1/usage` require proxy authentication, return upstream or configured data without reshaping, and must never include the GLM API key or other credentials. They do not consume request-rate or concurrency limits; only inference requests consume them.
 - Every upstream failure path releases the per-user concurrency slot before the handler error is re-raised.
 
 ## Standalone Proxy
 
-Copy `aqua/ai/glm/proxy_config.example.lua` to the ignored `userdata/glm_proxy.lua` and replace `api_key` with a GLM Coding Plan key and the user `access_token` with a long random bearer token. Then start the service:
+Copy `aqua/ai/zai/proxy_config.example.lua` to the ignored `userdata/zai_proxy.lua` and replace `api_key` with a GLM Coding Plan key and the user `access_token` with a long random bearer token. Then start the service:
 
 ```bash
-./luajit aqua/ai/glm/proxy.lua
+./luajit aqua/ai/zai/proxy.lua
 ```
 
-An alternate config path can be passed as the first argument, for example `proxy.lua userdata/other_glm_proxy.lua`. The default listener is loopback-only at `http://127.0.0.1:28082/v1/chat/completions`. `GET /v1/usage` is served on the same listener and returns the monitor `data` object; override `usage_url` in the config when `base_url` points at a different API host. `GET /v1/models` lists the configured public models. The entrypoint loads SOCKS5 routing from ignored `userdata/network.lua`, verifies upstream TLS against the repository CA bundle, and refuses placeholder keys and tokens. Optional config fields:
+An alternate config path can be passed as the first argument, for example `proxy.lua userdata/other_zai_proxy.lua`. The default listener is loopback-only at `http://127.0.0.1:28082/v1/chat/completions`. `GET /v1/usage` is served on the same listener and returns the monitor `data` object; override `usage_url` in the config when `base_url` points at a different API host. `GET /v1/models` lists the configured public models. The entrypoint loads SOCKS5 routing from ignored `userdata/network.lua`, verifies upstream TLS against the repository CA bundle, and refuses placeholder keys and tokens. Optional config fields:
 
 - `thinking = "enabled"|"disabled"` — default thinking mode applied when the request sets neither `thinking` nor `reasoning_effort`.
 - `tool_stream = true|false` — whether tool-bearing requests ask GLM for incremental tool-call streaming (default `true`).
