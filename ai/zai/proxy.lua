@@ -1,5 +1,6 @@
 local HttpStream = require("web.http.HttpStream")
 local http_util = require("web.http.util")
+local json = require("web.json")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local ProxyNetwork = require("ai.openai.ProxyNetwork")
 local Client = require("ai.zai.Client")
