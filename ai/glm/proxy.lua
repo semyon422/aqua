@@ -8,6 +8,7 @@ local ProxyServer = require("ai.glm.ProxyServer")
 ---@class glm.ProxyConfig
 ---@field base_url string?
 ---@field api_key string
+---@field usage_url string?
 ---@field network_path string?
 ---@field tls_cafile string?
 ---@field users glm.ProxyUser[]
@@ -98,6 +99,34 @@ local function openStream(url, options)
 end
 
 local base_url = config.base_url or "https://api.z.ai/api/coding/paas/v4"
+local usage_url = config.usage_url or "https://api.z.ai/api/monitor/usage/quota/limit"
+
+---@return table? usage
+---@return string? request_error
+---@return glm.ProviderError? provider_error
+local function fetchUsage()
+	local response, request_err = request(usage_url, nil, {
+		method = "GET",
+		headers = {
+			Accept = "application/json",
+			Authorization = "Bearer " .. config.api_key,
+		},
+	})
+	if not response then return nil, request_err or "GLM usage request failed" end
+	if response.status < 200 or response.status >= 300 then
+		return nil, "GLM usage request failed", {
+			status = 502,
+			message = "GLM usage request failed",
+			type = "upstream_error",
+			code = "upstream_error",
+		}
+	end
+	local usage, decode_err = json.decode_safe(response.body)
+	if type(usage) ~= "table" then return nil, "invalid GLM usage response: " .. tostring(decode_err) end
+	local data = usage.data
+	if type(data) ~= "table" then return nil, "invalid GLM usage response: data object is missing" end
+	return data
+end
 
 local server = ProxyServer({
 	scheduler = scheduler,
@@ -106,6 +135,7 @@ local server = ProxyServer({
 	model_redirects = config.model_redirects,
 	thinking = config.thinking,
 	tool_stream = config.tool_stream,
+	fetch_usage = fetchUsage,
 	create_client = function()
 		return Client({
 			base_url = base_url,

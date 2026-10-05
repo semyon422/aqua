@@ -121,7 +121,7 @@ function test.authenticates_and_rejects_unknown_routes(t)
 	})
 	local _, port = server:getAddress()
 
-	local response = request(t, scheduler, assert(port), "/v1/models", nil, nil)
+	local response = request(t, scheduler, assert(port), "/v1/embeddings", nil, nil)
 	t:eq(response.status, 404)
 	t:eq(json.decode(response.body).error.code, "not_found")
 
@@ -130,6 +130,102 @@ function test.authenticates_and_rejects_unknown_routes(t)
 	t:eq(json.decode(response.body).error.code, "invalid_api_key")
 	t:assert(logs[1]:find("user=-", 1, true))
 	t:eq(logs[1]:find("proxy-secret", 1, true), nil)
+	server:stop()
+end
+
+---@param t testing.T
+function test.serves_model_catalog(t)
+	local server, scheduler = startServer(t, {
+		create_client = function() error("not used") end,
+		models = {"glm-4.7", "glm-5.3-flash"},
+		model_redirects = {["glm-5.3-flash"] = "glm-5.3"},
+	})
+	local _, port = server:getAddress()
+
+	local response = request(t, scheduler, port, "/v1/models", nil, nil)
+	t:eq(response.status, 401)
+
+	response = request(t, scheduler, port, "/v1/models", nil, "proxy-secret-proxy-secret-proxy")
+	t:eq(response.status, 200)
+	local decoded = json.decode(response.body)
+	t:eq(decoded.object, "list")
+	t:tdeq(decoded.data, {
+		{id = "glm-4.7", object = "model", owned_by = "glm-coding-plan"},
+		{id = "glm-5.3-flash", object = "model", owned_by = "glm-coding-plan"},
+	})
+	server:stop()
+end
+
+---@param t testing.T
+function test.serves_usage_endpoint(t)
+	local calls = 0
+	local server, scheduler = startServer(t, {
+		create_client = function() error("not used") end,
+		fetch_usage = function()
+			calls = calls + 1
+			return {
+				limits = {
+					{type = "CREDIT_LIMIT", unit = 3, number = 5, usage = 2000, currentValue = 128, remaining = 1871, percentage = 6, nextResetTime = 1791236689140},
+					{type = "CREDIT_LIMIT", unit = 6, number = 1, usage = 10000, currentValue = 1104, remaining = 8895, percentage = 11, nextResetTime = 1791535121983},
+				},
+				level = "lite",
+			}
+			end,
+	})
+	local _, port = server:getAddress()
+
+	local response = request(t, scheduler, port, "/v1/usage", nil, nil)
+	t:eq(response.status, 401)
+	t:eq(json.decode(response.body).error.code, "invalid_api_key")
+	t:eq(calls, 0)
+
+	response = request(t, scheduler, port, "/v1/usage", nil, "proxy-secret-proxy-secret-proxy")
+	t:eq(response.status, 200)
+	local usage = json.decode(response.body)
+	t:eq(usage.level, "lite")
+	t:eq(#usage.limits, 2)
+	t:eq(usage.limits[1].percentage, 6)
+	t:eq(usage.limits[2].unit, 6)
+	t:eq(calls, 1)
+	server:stop()
+end
+
+---@param t testing.T
+function test.usage_endpoint_failure_modes(t)
+	local server, scheduler = startServer(t, {
+		create_client = function() error("not used") end,
+		fetch_usage = function()
+			return nil, "GLM usage request failed", {
+				status = 401,
+				message = "GLM usage request failed",
+				type = "upstream_error",
+				code = "upstream_error",
+			}
+		end,
+	})
+	local _, port = server:getAddress()
+	local response = request(t, scheduler, port, "/v1/usage", nil, "proxy-secret-proxy-secret-proxy")
+	t:eq(response.status, 401)
+	t:eq(json.decode(response.body).error.code, "upstream_error")
+	server:stop()
+
+	server, scheduler = startServer(t, {
+		create_client = function() error("not used") end,
+		fetch_usage = function() return nil, "GLM usage request failed" end,
+	})
+	_, port = server:getAddress()
+	response = request(t, scheduler, port, "/v1/usage", nil, "proxy-secret-proxy-secret-proxy")
+	t:eq(response.status, 502)
+	t:eq(json.decode(response.body).error.code, "upstream_error")
+	server:stop()
+
+	-- Without a configured fetch_usage the route still answers with a bounded error.
+	server, scheduler = startServer(t, {
+		create_client = function() error("not used") end,
+	})
+	_, port = server:getAddress()
+	response = request(t, scheduler, port, "/v1/usage", nil, "proxy-secret-proxy-secret-proxy")
+	t:eq(response.status, 502)
 	server:stop()
 end
 

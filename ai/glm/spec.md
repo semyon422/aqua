@@ -5,6 +5,8 @@ Provide a GLM Coding Plan Chat Completions client and a small authenticated prox
 ## User Experience
 
 - Agents and other OpenAI Chat Completions clients can point at the proxy's `POST /v1/chat/completions` endpoint and use a GLM Coding Plan subscription upstream, both non-streaming and SSE streaming.
+- Authenticated clients can read the GLM Coding Plan usage monitor through `GET /v1/usage`, which returns the current plan level and per-window quota usage without exposing the GLM API key.
+- Authenticated clients can list the configured public models through `GET /v1/models`; redirect sources keep their public names and redirect targets stay private.
 - Requests can opt into GLM-specific controls: `thinking` mode, `reasoning_effort`, and incremental `tool_stream` tool-call output.
 - Streaming reasoning arrives as Chat Completions `delta.reasoning_content`, matching how GLM exposes reasoning summaries.
 - Transport, provider, and JSON failures are returned as useful errors instead of escaping into the application loop.
@@ -14,7 +16,9 @@ Provide a GLM Coding Plan Chat Completions client and a small authenticated prox
 - `Client` owns only the upstream `/chat/completions` protocol against a GLM Coding Plan endpoint (default `https://api.z.ai/api/coding/paas/v4`): request encoding, bearer authentication, response decoding, response-shape validation, SSE assembly, and one-active-stream cancellation. Unlike the OpenAI package there is no OAuth or Responses translation because the subscription is a plain API key speaking Chat Completions natively.
 - The HTTP request and stream functions are injected. The client does not create a scheduler or depend on `rizu.net.NetworkService`.
 - `Client:completeStream()` relays each raw upstream delta to a callback and assembles one assistant message with `content`, `reasoning_content`, fragmented `tool_calls`, the terminal `finish_reason`, and the last reported `usage`. Returning `false` from the callback aborts and cancels the upstream stream, which is how the proxy reacts to a closed downstream connection.
-- `ProxyServer` is a single-endpoint server: only `POST /v1/chat/completions` is served. Model catalogs, usage dashboards, usage history, and a web frontend are intentionally out of scope for this package.
+- `ProxyServer` serves `POST /v1/chat/completions`, `GET /v1/models`, and `GET /v1/usage`. The usage route calls an injected `fetch_usage` function so the server stays free of HTTP-client wiring. Usage dashboards, usage history, and a web frontend are intentionally out of scope for this package.
+- The standalone entrypoint implements `fetch_usage` against the z.ai monitor endpoint `https://api.z.ai/api/monitor/usage/quota/limit` (configurable through `usage_url`), using the same SOCKS5 routing and TLS options as inference requests. The endpoint authenticates with the same Coding Plan API key as inference; no web-session JWT, cookies, or `bigmodel-*` headers are required.
+- The upstream monitor response is a z.ai RPC envelope; `fetchUsage` returns its `data` object (`limits` and `level`) without reshaping. Observed `limits` entries are `CREDIT_LIMIT` rows where `unit = 3, number = 5` is the 5-hour window and `unit = 6, number = 1` is the rolling weekly window; `usage` is the quota, `currentValue` the consumption, `percentage` the integer used-percent, and `nextResetTime` an epoch timestamp in milliseconds.
 - The proxy rebuilds the upstream body from validated fields instead of forwarding the client body verbatim. Only the supported allowlist of Chat Completions fields reaches GLM; explicitly unsupported fields fail fast with `unsupported_parameter`.
 - `developer` message history is normalized to `system` because the GLM Coding Plan endpoint does not document the developer role.
 - `max_completion_tokens` and legacy `max_tokens` are both accepted, validated as mutually exclusive positive integers, and sent upstream as `max_tokens`.
@@ -34,6 +38,7 @@ Provide a GLM Coding Plan Chat Completions client and a small authenticated prox
 - `stream_options` is validated but not forwarded upstream. GLM reports usage on the final stream chunk; the proxy emits a usage-only chunk with an empty `choices` array before `[DONE]` only when the client asked for `include_usage`.
 - When `include_usage` is requested, every chunk carries `"usage": null` except the final usage chunk, matching OpenAI Chat Completions streaming shape.
 - Upstream errors return the bounded provider status, type, code, and message without logging prompts, responses, client tokens, or the GLM API key. Proxy logs contain only the configured user name, remote address, method, path, status, and duration.
+- `GET /v1/models` returns the configured public model allowlist with `owned_by = "glm-coding-plan"`; it never includes `model_redirects` targets. It and `GET /v1/usage` require proxy authentication, return upstream or configured data without reshaping, and must never include the GLM API key or other credentials. They do not consume request-rate or concurrency limits; only inference requests consume them.
 - Every upstream failure path releases the per-user concurrency slot before the handler error is re-raised.
 
 ## Standalone Proxy
@@ -44,7 +49,7 @@ Copy `aqua/ai/glm/proxy_config.example.lua` to the ignored `userdata/glm_proxy.l
 ./luajit aqua/ai/glm/proxy.lua
 ```
 
-An alternate config path can be passed as the first argument, for example `proxy.lua userdata/other_glm_proxy.lua`. The default listener is loopback-only at `http://127.0.0.1:28082/v1/chat/completions`. The entrypoint loads SOCKS5 routing from ignored `userdata/network.lua`, verifies upstream TLS against the repository CA bundle, and refuses placeholder keys and tokens. Optional config fields:
+An alternate config path can be passed as the first argument, for example `proxy.lua userdata/other_glm_proxy.lua`. The default listener is loopback-only at `http://127.0.0.1:28082/v1/chat/completions`. `GET /v1/usage` is served on the same listener and returns the monitor `data` object; override `usage_url` in the config when `base_url` points at a different API host. `GET /v1/models` lists the configured public models. The entrypoint loads SOCKS5 routing from ignored `userdata/network.lua`, verifies upstream TLS against the repository CA bundle, and refuses placeholder keys and tokens. Optional config fields:
 
 - `thinking = "enabled"|"disabled"` — default thinking mode applied when the request sets neither `thinking` nor `reasoning_effort`.
 - `tool_stream = true|false` — whether tool-bearing requests ask GLM for incremental tool-call streaming (default `true`).
@@ -54,7 +59,7 @@ For public access, keep the Lua server bound to `127.0.0.1` and terminate HTTPS 
 
 ## Future Work and Open Questions
 
-- A usage dashboard and usage history similar to the OpenAI proxy could be added if the GLM Coding Plan exposes a usage endpoint.
-- A `GET /v1/models` endpoint could be added when more than one consumer needs model discovery.
+- A usage dashboard and usage history similar to the OpenAI proxy could be built on top of the monitor endpoint.
+- Confirm whether GLM hosts other than `api.z.ai` serve the same monitor path before relying on a derived `usage_url`.
 - GLM vision and audio content parts are currently rejected during normalization; revisit when a coding-plan model documents multimodal input.
 - Revisit the finish reason allowlist when GLM documents new terminal reasons such as quota or safety stop codes.

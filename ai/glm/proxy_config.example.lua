@@ -4,6 +4,9 @@ return {
 	-- GLM Coding Plan OpenAI-compatible endpoint.
 	base_url = "https://api.z.ai/api/coding/paas/v4",
 	api_key = "replace-with-your-glm-coding-plan-api-key",
+	-- Usage monitor endpoint polled by GET /v1/usage.
+	-- Override it when pointing base_url at a different API host.
+	usage_url = "https://api.z.ai/api/monitor/usage/quota/limit",
 	network_path = "userdata/network.lua",
 	tls_cafile = "resources/certs/cacert.pem",
 	models = {

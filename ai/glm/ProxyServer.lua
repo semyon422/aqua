@@ -43,6 +43,7 @@ local HttpServer = require("web.http.Server")
 ---@field create_client fun(): glm.Client
 ---@field thinking "enabled"|"disabled"?
 ---@field tool_stream boolean?
+---@field fetch_usage (fun(): table?, string?, glm.ProviderError?)?
 ---@field logger (fun(line: string))?
 ---@field max_body_size integer?
 ---@field client_timeout number?
@@ -51,9 +52,10 @@ local HttpServer = require("web.http.Server")
 ---@field max_requests_per_minute integer?
 ---@field get_time (fun(): number)?
 
---- An authenticated single-endpoint Chat Completions proxy for a GLM coding
---- plan. Only `POST /v1/chat/completions` is served; usage dashboards and model
---- catalogs are out of scope.
+--- An authenticated Chat Completions proxy for a GLM coding plan. It serves
+--- `POST /v1/chat/completions` plus the read-only `GET /v1/models` and
+--- `GET /v1/usage` routes; usage dashboards, usage history, and a web frontend
+--- are out of scope.
 ---@class glm.ProxyServer
 ---@operator call: glm.ProxyServer
 ---@field users_by_token {[string]: string}
@@ -63,6 +65,7 @@ local HttpServer = require("web.http.Server")
 ---@field create_client fun(): glm.Client
 ---@field thinking "enabled"|"disabled"?
 ---@field tool_stream boolean
+---@field fetch_usage fun(): table?, string?, glm.ProviderError?
 ---@field logger fun(line: string)
 ---@field max_body_size integer
 ---@field max_concurrent_requests_per_user integer
@@ -120,6 +123,7 @@ function ProxyServer:new(options)
 	assert(type(options.tool_stream) ~= "boolean" or options.tool_stream == true or options.tool_stream == false,
 		"tool_stream must be a boolean")
 	self.tool_stream = options.tool_stream ~= false
+	self.fetch_usage = options.fetch_usage or function() return nil, "usage is not configured" end
 	self.logger = options.logger or print
 	self.max_body_size = options.max_body_size or self.max_body_size
 	self.max_concurrent_requests_per_user = options.max_concurrent_requests_per_user or self.max_concurrent_requests_per_user
@@ -180,6 +184,17 @@ local function sendProviderError(res, provider_error)
 	if status < 400 or status > 599 then status = 502 end
 	sendError(res, status, provider_error.message, provider_error.type, provider_error.code)
 	return status
+end
+
+---@param res web.Response
+---@param body table
+local function sendJson(res, body)
+	local encoded = json.encode(body)
+	res.status = 200
+	res.headers:set("Content-Type", "application/json")
+	res.headers:set("Cache-Control", "no-store")
+	res:set_length(#encoded)
+	res:send(encoded)
 end
 
 ---@param value any
@@ -740,6 +755,19 @@ local function sanitizeLogValue(value)
 	return string.gsub(tostring(value), "[%c\127]", "?")
 end
 
+---@param res web.Response
+---@return integer status
+function ProxyServer:usage(res)
+	local usage, _, provider_error = self.fetch_usage()
+	if not usage then
+		if provider_error then return sendProviderError(res, provider_error) end
+		sendError(res, 502, "upstream usage request failed", "upstream_error", "upstream_error")
+		return 502
+	end
+	sendJson(res, usage)
+	return 200
+end
+
 ---@param req web.Request
 ---@param res web.Response
 ---@param ip string
@@ -751,7 +779,35 @@ function ProxyServer:handle(req, res, ip)
 	---@type string?
 	local handle_err
 	local path = req.uri:match("^[^?]+") or req.uri
-	if req.method ~= "POST" or path ~= "/v1/chat/completions" then
+	if req.method == "GET" and path == "/v1/models" then
+		-- Read-only catalog route: authenticated like inference, but it does not
+		-- consume request-rate or concurrency limits.
+		if not user then
+			sendError(res, 401, "invalid access token", "authentication_error", "invalid_api_key")
+			status = 401
+		else
+			local models = {}
+			for _, model in ipairs(self.models) do
+				table.insert(models, {id = model, object = "model", owned_by = "glm-coding-plan"})
+			end
+			sendJson(res, {object = "list", data = models})
+			status = 200
+		end
+	elseif req.method == "GET" and path == "/v1/usage" then
+		-- Read-only monitor route: authenticated like inference, but it does not
+		-- consume request-rate or concurrency limits.
+		if not user then
+			sendError(res, 401, "invalid access token", "authentication_error", "invalid_api_key")
+			status = 401
+		else
+			local ok = xpcall(function()
+				status = self:usage(res)
+			end, function(err)
+				handle_err = debug.traceback(err, 2)
+			end)
+			if not ok then error(handle_err, 0) end
+		end
+	elseif req.method ~= "POST" or path ~= "/v1/chat/completions" then
 		sendError(res, 404, "route not found", "invalid_request_error", "not_found")
 		status = 404
 	elseif not user then
