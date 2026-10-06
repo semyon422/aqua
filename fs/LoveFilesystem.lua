@@ -10,10 +10,20 @@ function LoveFilesystem:getWorkingDirectory()
 end
 
 ---@param path string
----@param info? table
+---@param filtertype? string
 ---@return fs.FileInfo?
-function LoveFilesystem:getInfo(path, info)
-	return love.filesystem.getInfo(path, info)
+function LoveFilesystem:getInfo(path, filtertype)
+	local t = love.filesystem.getInfo(path, filtertype)
+
+	if not t then
+		return nil
+	end
+
+	return {
+		type = t.type,
+		size = t.size or 0,
+		modtime = t.modtime or 0,
+	}
 end
 
 ---@param path string
