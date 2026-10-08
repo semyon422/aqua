@@ -14,6 +14,7 @@ Provide reusable OpenAI-compatible Chat Completions and Responses clients backed
 ## Architecture Decisions
 
 - `Client` owns only the `/chat/completions` protocol: request encoding, authentication headers, response decoding, and response-shape validation.
+- `ChatCompat` owns the pure Chat Completions compatibility translation shared by `ProxyServer` and downstream routers such as `ai.router`: request validation and normalization into `ProxyRequestOptions` (including legacy functions, prompt caching, tool choice, and structured output), assistant result shaping, streaming delta construction, and the reasoning-effort/verbosity allowlists. Model allowlisting stays with the caller.
 - `SubscriptionAuth` owns the reusable PKCE authorization, callback-state validation, token refresh, and credential mutation. HTTP requests, scheduling, browser opening, credential persistence, and time are injected.
 - `SubscriptionClient` translates common agent messages and function tools to the Responses input protocol. It also transports native Responses requests without translating their tools, input items, or typed events. It assembles output from typed SSE events and retains provider-owned output items, including encrypted reasoning, across stateless tool rounds.
 - The HTTP request function is injected. The common layer does not create a scheduler or depend on `rizu.net.NetworkService`.
