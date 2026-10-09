@@ -104,6 +104,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field reasoning_effort openai.ReasoningEffort
 ---@field prompt_cache_key string?
 ---@field prompt_cache_options openai.PromptCacheOptions?
+---@field session_id string?
 ---@field tool_choice "none"|"auto"|"required"|openai.ResponsesFunctionToolChoice?
 ---@field parallel_tool_calls boolean?
 ---@field verbosity "low"|"medium"|"high"?
@@ -120,6 +121,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field reasoning_effort openai.ReasoningEffort
 ---@field prompt_cache_key string?
 ---@field prompt_cache_options openai.PromptCacheOptions?
+---@field session_id string?
 ---@field tool_choice "none"|"auto"|"required"|openai.ResponsesFunctionToolChoice?
 ---@field parallel_tool_calls boolean?
 ---@field verbosity "low"|"medium"|"high"?
@@ -130,7 +132,6 @@ local SseParser = require("ai.openai.SseParser")
 ---@field open_stream openai.OpenStreamFunc
 ---@field active_stream web.HttpStream?
 ---@field cancel_requested boolean
----@field session_id string
 local SubscriptionClient = class()
 
 SubscriptionClient.responses_url = "https://chatgpt.com/backend-api/codex/responses"
@@ -144,6 +145,7 @@ function SubscriptionClient:new(options)
 	self.reasoning_effort = options.reasoning_effort
 	self.prompt_cache_key = options.prompt_cache_key
 	self.prompt_cache_options = options.prompt_cache_options
+	self.session_id = options.session_id
 	self.tool_choice = options.tool_choice
 	self.parallel_tool_calls = options.parallel_tool_calls
 	self.verbosity = options.verbosity
@@ -155,7 +157,6 @@ function SubscriptionClient:new(options)
 	self.get_time = options.get_time or socket.gettime
 	self.open_stream = assert(options.open_stream, "open_stream is required")
 	self.cancel_requested = false
-	self.session_id = random.hex(16)
 end
 
 local deadline_error = "OpenAI subscription request deadline exceeded"
@@ -393,8 +394,9 @@ end
 
 ---@param access_token string
 ---@param account_id string
+---@param client_request_id string
 ---@return {[string]: string}
-function SubscriptionClient:createHeaders(access_token, account_id)
+function SubscriptionClient:createHeaders(access_token, account_id, client_request_id)
 	return {
 		Authorization = "Bearer " .. access_token,
 		["ChatGPT-Account-Id"] = account_id,
@@ -403,8 +405,8 @@ function SubscriptionClient:createHeaders(access_token, account_id)
 		["OpenAI-Beta"] = "responses=experimental",
 		Originator = "openai-proxy",
 		["User-Agent"] = "openai-proxy",
-		session_id = self.session_id,
-		["x-client-request-id"] = self.session_id,
+		session_id = self.session_id or client_request_id,
+		["x-client-request-id"] = client_request_id,
 	}
 end
 
@@ -456,11 +458,11 @@ function SubscriptionClient:createResponse(request, on_event)
 	local connect_timeout, deadline_err = self:getRemainingTimeout(deadline)
 	if deadline and not connect_timeout then return nil, deadline_err end
 
-	self.session_id = random.hex(16)
+	local client_request_id = random.hex(16)
 	self.cancel_requested = false
 	local stream, err = self.open_stream(self.responses_url, {
 		method = "POST",
-		headers = self:createHeaders(access_token, account_id),
+		headers = self:createHeaders(access_token, account_id, client_request_id),
 		timeout = connect_timeout,
 	})
 	if not stream then return nil, err or "OpenAI subscription stream failed" end
@@ -506,7 +508,7 @@ function SubscriptionClient:createResponse(request, on_event)
 		end
 		stream:close()
 		self.active_stream = nil
-		local provider_error = createProviderError(res.status, error_body, res.headers, self.session_id)
+		local provider_error = createProviderError(res.status, error_body, res.headers, client_request_id)
 		return nil, ("OpenAI subscription returned HTTP %d: %s"):format(res.status, provider_error.message), provider_error
 	end
 
@@ -546,7 +548,7 @@ function SubscriptionClient:createResponse(request, on_event)
 			parse_err = tostring(event.message or (type(event.error) == "table" and event.error.message)
 				or "OpenAI streaming error")
 			local event_error = type(event.error) == "table" and event.error or event
-			provider_error = createProviderError(502, json.encode({error = event_error}), res.headers, self.session_id)
+			provider_error = createProviderError(502, json.encode({error = event_error}), res.headers, client_request_id)
 		end
 		if on_event and on_event(event) == false and not parse_err then
 			parse_err = "downstream response stream closed"
@@ -693,11 +695,11 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 	local connect_timeout, deadline_err = self:getRemainingTimeout(deadline)
 	if deadline and not connect_timeout then return nil, deadline_err end
 
-	self.session_id = random.hex(16)
+	local client_request_id = random.hex(16)
 	self.cancel_requested = false
 	local stream, err = self.open_stream(self.responses_url, {
 		method = "POST",
-		headers = self:createHeaders(access_token, account_id),
+		headers = self:createHeaders(access_token, account_id, client_request_id),
 		timeout = connect_timeout,
 	})
 	if not stream then return nil, err or "OpenAI subscription stream failed" end
@@ -743,7 +745,7 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		end
 		stream:close()
 		self.active_stream = nil
-		local provider_error = createProviderError(res.status, error_body, res.headers, self.session_id)
+		local provider_error = createProviderError(res.status, error_body, res.headers, client_request_id)
 		return nil, ("OpenAI subscription returned HTTP %d: %s"):format(res.status, provider_error.message), provider_error
 	end
 
@@ -887,18 +889,18 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 					message = parse_err,
 					type = "upstream_incomplete",
 					code = reason_text,
-				}}), res.headers, self.session_id)
+				}}), res.headers, client_request_id)
 			end
 		elseif event.type == "response.failed" then
 			local response_error = type(event.response) == "table" and event.response.error or nil
 			parse_err = type(response_error) == "table" and tostring(response_error.message) or "OpenAI response failed"
 			if type(response_error) == "table" then
-				provider_error = createProviderError(502, json.encode({error = response_error}), res.headers, self.session_id)
+				provider_error = createProviderError(502, json.encode({error = response_error}), res.headers, client_request_id)
 			end
 		elseif event.type == "error" then
 			parse_err = tostring(event.message or (type(event.error) == "table" and event.error.message) or "OpenAI streaming error")
 			local event_error = type(event.error) == "table" and event.error or event
-			provider_error = createProviderError(502, json.encode({error = event_error}), res.headers, self.session_id)
+			provider_error = createProviderError(502, json.encode({error = event_error}), res.headers, client_request_id)
 		end
 	end)
 

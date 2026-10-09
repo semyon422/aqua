@@ -93,13 +93,13 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	end, nil, {
 		prompt_cache_key = "thread-1",
 		prompt_cache_options = {mode = "explicit", ttl = "30m"},
+		session_id = "session-1",
 		tool_choice = {type = "function", name = "inspect"},
 		verbosity = "high",
 		text_format = {type = "json_object"},
 	})
 	local deltas = {}
 	local reasoning_deltas = {}
-	local initial_request_id = client.session_id
 	local message = assert(client:completeStream(
 		{
 			{role = "system", content = "instructions"},
@@ -117,8 +117,11 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	t:eq(called.url, OpenAiSubscriptionClient.responses_url)
 	t:eq(called.options.headers.Authorization, "Bearer access")
 	t:eq(called.options.headers["ChatGPT-Account-Id"], "account")
-	t:ne(called.options.headers["x-client-request-id"], initial_request_id)
-	t:eq(called.options.headers.session_id, called.options.headers["x-client-request-id"])
+	t:eq(called.options.headers.session_id, "session-1")
+	t:ne(called.options.headers["x-client-request-id"], "session-1")
+	t:eq(client:createHeaders("access", "account", "request-2").session_id, "session-1")
+	local fallback_client = makeClient(function() error("not used") end)
+	t:eq(fallback_client:createHeaders("access", "account", "request-3").session_id, "request-3")
 	t:assert(called.options.timeout <= 45)
 	t:assert(called.options.timeout > 44)
 	t:eq(body.instructions, "instructions")

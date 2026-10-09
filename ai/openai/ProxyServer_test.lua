@@ -3,6 +3,7 @@ local coext = require("coext")
 local socket = require("socket")
 
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
+local digest = require("digest")
 local http_util = require("web.http.util")
 local json = require("web.json")
 local ProxyServer = require("ai.openai.ProxyServer")
@@ -30,14 +31,19 @@ end
 ---@param path string
 ---@param body table?
 ---@param token string?
+---@param extra_headers {[string]: string}?
 ---@return {status: integer, body: string}
-local function request(t, scheduler, port, path, body, token)
+local function request(t, scheduler, port, path, body, token, extra_headers)
 	---@type {status: integer, body: string}?
 	local response
 	---@type string?
 	local request_err
+	---@type {[string]: string}
 	local headers = {}
 	if token then headers.Authorization = "Bearer " .. token end
+	if extra_headers then
+		for name, value in pairs(extra_headers) do headers[name] = value end
+	end
 	local options = {
 		method = body and "POST" or "GET",
 		headers = headers,
@@ -179,6 +185,7 @@ function test.proxies_non_streaming_native_response(t)
 			t:eq(reasoning_effort, "high")
 			t:eq(request_options.parallel_tool_calls, false)
 			t:eq(request_options.verbosity, "high")
+			t:eq(request_options.session_id, "response-session")
 			return {
 				createResponse = function(_, request_body, on_event)
 					seen_request = request_body
@@ -210,7 +217,7 @@ function test.proxies_non_streaming_native_response(t)
 		reasoning = {effort = "high", summary = "auto"},
 		text = {verbosity = "high"},
 		parallel_tool_calls = false,
-	}, "proxy-secret")
+	}, "proxy-secret", {['x-client-request-id'] = "response-session"})
 
 	t:eq(response.status, 200)
 	t:eq(seen_request.input, "hello")
@@ -281,6 +288,7 @@ function test.translates_non_streaming_completion_and_hides_subscription_items(t
 			t:eq(request_options.prompt_cache_key, "zed-thread")
 			t:eq(request_options.prompt_cache_options.mode, "explicit")
 			t:eq(request_options.prompt_cache_options.ttl, "30m")
+			t:eq(request_options.session_id, digest.hash("sha256", "zed-thread", true))
 			t:eq(request_options.tool_choice.type, "function")
 			t:eq(request_options.tool_choice.name, "inspect")
 			t:eq(request_options.text_format.type, "json_schema")
@@ -583,6 +591,8 @@ end
 ---@param t testing.T
 function test.streams_chat_completion_chunks_and_tool_calls(t)
 	local scheduler = CosocketScheduler()
+	---@type string[]
+	local logs = {}
 	local server = ProxyServer({
 		scheduler = scheduler,
 		users = {{name = "alice", access_token = "proxy-secret"}},
@@ -620,7 +630,7 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 				end,
 			}
 		end,
-		logger = function() end,
+		logger = function(line) table.insert(logs, line) end,
 	})
 	t:assert(server:start("127.0.0.1", 0))
 	local _, port = server:getAddress()
@@ -629,7 +639,7 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 		messages = {{role = "user", content = "hi"}},
 		stream = true,
 		stream_options = {include_usage = true},
-	}, "proxy-secret")
+	}, "proxy-secret", {['x-session-affinity'] = "thread-cache-1"})
 
 	t:eq(response.status, 200)
 	t:assert(response.body:find('"content":"Hel"', 1, true))
@@ -648,6 +658,15 @@ function test.streams_chat_completion_chunks_and_tool_calls(t)
 	t:assert(response.body:find('"cached_tokens":80', 1, true))
 	t:assert(response.body:find('"reasoning_tokens":20', 1, true))
 	t:assert(response.body:find("data: [DONE]", 1, true))
+	local log = assert(logs[1])
+	t:assert(log:find("model=model-a", 1, true))
+	t:assert(log:find("session_source=x-session-affinity", 1, true))
+	t:assert(log:find("session=sha256:" .. digest.hash("sha256", "thread-cache-1", true):sub(1, 16), 1, true))
+	t:eq(log:find("thread-cache-1", 1, true), nil)
+	t:assert(log:find("input_tokens=120", 1, true))
+	t:assert(log:find("cached_tokens=80", 1, true))
+	t:assert(log:find("cache_hit=yes", 1, true))
+	t:assert(log:find("cache_pct=66.7", 1, true))
 	server:stop()
 end
 
@@ -846,6 +865,13 @@ function test.rejects_unavailable_models_and_invalid_message_shapes(t)
 	}, "proxy-secret")
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "invalid_prompt_cache_key")
+
+	response = request(t, scheduler, port, "/v1/chat/completions", {
+		model = "model-a",
+		messages = {{role = "user", content = "hi"}},
+	}, "proxy-secret", {['x-session-affinity'] = "invalid affinity"})
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "invalid_session_affinity")
 
 	response = request(t, scheduler, port, "/v1/chat/completions", {
 		model = "model-a",

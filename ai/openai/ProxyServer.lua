@@ -1,4 +1,5 @@
 local class = require("class")
+local digest = require("digest")
 local json = require("web.json")
 local random = require("web.random")
 ---@type {gettime: fun(): number}
@@ -58,6 +59,7 @@ local ChatCompat = require("ai.openai.ChatCompat")
 ---@class openai.ProxyRequestOptions
 ---@field prompt_cache_key string?
 ---@field prompt_cache_options openai.PromptCacheOptions?
+---@field session_id string?
 ---@field tool_choice "none"|"auto"|"required"|openai.ResponsesFunctionToolChoice?
 ---@field parallel_tool_calls boolean
 ---@field verbosity "low"|"medium"|"high"?
@@ -164,6 +166,33 @@ function ProxyServer:authenticate(req)
 	return self.users_by_token[token], token
 end
 
+local session_affinity_headers = {"x-session-affinity", "session_id", "x-client-request-id"}
+
+---@param prompt_cache_key string?
+---@return string?
+local function getPromptCacheSessionId(prompt_cache_key)
+	if not prompt_cache_key then return end
+	return digest.hash("sha256", prompt_cache_key, true)
+end
+
+---@param req web.Request
+---@return string?
+---@return string?
+---@return string? source
+local function getSessionAffinity(req)
+	for _, name in ipairs(session_affinity_headers) do
+		local values = req.headers:getTable(name)
+		if #values > 1 then return nil, "multiple " .. name .. " headers are not allowed" end
+		local value = values[1]
+		if value then
+			if #value < 1 or #value > 128 or not value:match("^[%w._:%-]+$") then
+				return nil, name .. " must contain 1 to 128 letters, digits, or ._:-"
+			end
+			return value, nil, name
+		end
+	end
+end
+
 ---@param res web.Response
 ---@param status integer
 ---@param message string
@@ -227,6 +256,40 @@ end
 local function sanitizeLogValue(value)
 	local sanitized = string.gsub(tostring(value), "[%c\127]", "?")
 	return sanitized
+end
+
+---@param req web.Request
+---@param request {[string]: any}?
+---@return string source
+---@return string session_hash
+local function getLogSession(req, request)
+	local session_id, _, source = getSessionAffinity(req)
+	if not session_id and request and type(request.prompt_cache_key) == "string"
+		and request.prompt_cache_key ~= "" and #request.prompt_cache_key <= 64
+	then
+		session_id = getPromptCacheSessionId(request.prompt_cache_key)
+		source = "prompt_cache_key"
+	end
+	if not session_id then return "-", "-" end
+	return assert(source), "sha256:" .. digest.hash("sha256", session_id, true):sub(1, 16)
+end
+
+---@param result {[string]: any}?
+---@return string input_tokens
+---@return string cached_tokens
+---@return string cache_hit
+---@return string cache_pct
+local function getLogCache(result)
+	local usage = result and type(result.usage) == "table" and result.usage or nil
+	local input = usage and usage.input_tokens or nil
+	if type(input) ~= "number" or input < 0 or input % 1 ~= 0 then return "-", "-", "-", "-" end
+	local details = type(usage.input_tokens_details) == "table" and usage.input_tokens_details or nil
+	local cached = details and details.cached_tokens or 0
+	if type(cached) ~= "number" or cached < 0 or cached % 1 ~= 0 or cached > input then
+		return tostring(input), "-", "-", "-"
+	end
+	local cache_pct = input > 0 and ("%.1f"):format(cached / input * 100) or "-"
+	return tostring(input), tostring(cached), cached > 0 and "yes" or "no", cache_pct
 end
 
 ---@param res web.Response
@@ -349,13 +412,19 @@ local function validateResponsesRequest(request, models_set)
 	if request.parallel_tool_calls ~= nil and type(request.parallel_tool_calls) ~= "boolean" then
 		return "parallel_tool_calls must be a boolean", "invalid_parallel_tool_calls"
 	end
+	if request.prompt_cache_key ~= nil and (type(request.prompt_cache_key) ~= "string"
+			or request.prompt_cache_key == "" or #request.prompt_cache_key > 64)
+	then
+		return "prompt_cache_key must contain 1 to 64 bytes", "invalid_prompt_cache_key"
+	end
 end
 
 ---@param res web.Response
 ---@param request table
+---@param session_id string?
 ---@return integer status
 ---@return table? result
-function ProxyServer:responses(res, request)
+function ProxyServer:responses(res, request, session_id)
 	local validation_err, validation_code = validateResponsesRequest(request, self.models_set)
 	if validation_err then
 		sendError(res, 400, validation_err, "invalid_request_error", assert(validation_code))
@@ -368,6 +437,7 @@ function ProxyServer:responses(res, request)
 	local client = self.create_client(self.model_redirects[requested_model] or requested_model, reasoning_effort, {
 		parallel_tool_calls = request.parallel_tool_calls,
 		verbosity = verbosity,
+		session_id = session_id or getPromptCacheSessionId(request.prompt_cache_key),
 	})
 	if request.stream ~= true then
 		local response, _, provider_error = client:createResponse(request)
@@ -407,9 +477,10 @@ end
 
 ---@param res web.Response
 ---@param request table
+---@param session_id string?
 ---@return integer status
 ---@return table? result
-function ProxyServer:complete(res, request)
+function ProxyServer:complete(res, request, session_id)
 	if type(request.model) ~= "string" or not self.models_set[request.model] then
 		sendError(res, 400, "model is not available", "invalid_request_error", "model_not_found")
 		return 400
@@ -421,6 +492,8 @@ function ProxyServer:complete(res, request)
 	end
 
 	local requested_model = request.model --[[@as string]]
+	compat.client_options.session_id = session_id
+		or getPromptCacheSessionId(compat.client_options.prompt_cache_key)
 	local client = self.create_client(self.model_redirects[requested_model] or requested_model,
 		compat.reasoning_effort, compat.client_options)
 	local completion_id = "chatcmpl-" .. random.hex(16)
@@ -585,9 +658,14 @@ function ProxyServer:handleAuthenticated(req, res, path, metrics)
 			sendError(res, 400, "invalid JSON body: " .. tostring(decode_err or receive_err), "invalid_request_error", "invalid_json")
 			return 400
 		end
+		local session_id, session_err = getSessionAffinity(req)
+		if session_err then
+			sendError(res, 400, session_err, "invalid_request_error", "invalid_session_affinity")
+			return 400
+		end
 		if metrics then metrics.request = request end
-		if path == "/v1/responses" then return self:responses(res, request) end
-		return self:complete(res, request)
+		if path == "/v1/responses" then return self:responses(res, request, session_id) end
+		return self:complete(res, request, session_id)
 	end
 	sendError(res, 404, "route not found", "invalid_request_error", "not_found")
 	return 404
@@ -629,21 +707,32 @@ function ProxyServer:handle(req, res, ip)
 		self:releaseRequest(assert(token))
 		if not ok then error(handle_err, 0) end
 	end
+	local requested_model = metrics.request and metrics.request.model
+	local model = type(requested_model) == "string" and self.models_set[requested_model]
+		and (self.model_redirects[requested_model] or requested_model) or "-"
 	if self.usage_repo and user and req.method == "POST"
 		and (path == "/v1/chat/completions" or path == "/v1/responses") then
-		local requested_model = metrics.request and metrics.request.model
-		local model = type(requested_model) == "string" and self.models_set[requested_model]
-			and (self.model_redirects[requested_model] or requested_model) or nil
-		self.usage_repo:record(os.time(), user, status, metrics.request, metrics.result, model)
+		self.usage_repo:record(os.time(), user, status, metrics.request, metrics.result,
+			model ~= "-" and model or nil)
 	end
-	self.logger(("user=%s ip=%s method=%s path=%s status=%d duration=%.3fs")
+	local session_source, session_hash = getLogSession(req, metrics.request)
+	local input_tokens, cached_tokens, cache_hit, cache_pct = getLogCache(metrics.result)
+	self.logger(("user=%s ip=%s method=%s path=%s status=%d duration=%.3fs model=%s "
+			.. "session_source=%s session=%s input_tokens=%s cached_tokens=%s cache_hit=%s cache_pct=%s")
 		:format(
 			sanitizeLogValue(user or "-"),
 			sanitizeLogValue(ip),
 			sanitizeLogValue(req.method),
 			sanitizeLogValue(path),
 			status,
-			self.get_time() - started_at
+			self.get_time() - started_at,
+			sanitizeLogValue(model),
+			sanitizeLogValue(session_source),
+			sanitizeLogValue(session_hash),
+			input_tokens,
+			cached_tokens,
+			cache_hit,
+			cache_pct
 		))
 end
 
