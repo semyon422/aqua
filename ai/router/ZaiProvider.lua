@@ -1,4 +1,5 @@
 local class = require("class")
+local json = require("web.json")
 local ZaiClient = require("ai.zai.Client")
 local ZaiProxyServer = require("ai.zai.ProxyServer")
 local Provider = require("ai.router.Provider")
@@ -12,6 +13,9 @@ local Provider = require("ai.router.Provider")
 ---@field model_redirects {[string]: string}
 ---@field thinking "enabled"|"disabled"?
 ---@field tool_stream boolean
+---@field api_key string
+---@field usage_url string
+---@field request zai.RequestFunc
 ---@field create_client fun(): zai.Client
 local ZaiProvider = class()
 
@@ -114,6 +118,37 @@ function ZaiProvider:completeStream(body, _upstream_model, on_delta)
 		return nil, err, provider_error
 	end
 	return Provider.canonicalMessage(message_result)
+end
+
+-- Fetches the z.ai monitor endpoint with the same Coding Plan API key as
+-- inference: `unit 3/number 5` is the five-hour window and `unit 6/number 1`
+-- the rolling weekly window. Returns the monitor `data` object raw.
+---@return table? usage
+---@return string? request_error
+---@return zai.ProviderError? provider_error
+function ZaiProvider:fetchUsage()
+	local response, request_err = self.request(self.usage_url, nil, {
+		method = "GET",
+		headers = {
+			Accept = "application/json",
+			Authorization = "Bearer " .. self.config_api_key,
+		},
+	})
+	if not response then return nil, request_err or "Z.ai usage request failed" end
+	if response.status < 200 or response.status >= 300 then
+		return nil, "Z.ai usage request failed", {
+			status = 502,
+			message = "Z.ai usage request failed",
+			type = "upstream_error",
+			code = "upstream_error",
+		}
+	end
+	local usage, decode_err = json.decode_safe(response.body)
+	if type(usage) ~= "table" then return nil, "invalid Z.ai usage response: " .. tostring(decode_err) end
+	---@cast usage {[string]: any}
+	local data = usage.data
+	if type(data) ~= "table" then return nil, "invalid Z.ai usage response: data object is missing" end
+	return data
 end
 
 return ZaiProvider

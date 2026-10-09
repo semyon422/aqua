@@ -193,9 +193,15 @@ local function buildSubscription(row, errors)
 			model_redirects = true,
 			thinking = true,
 			tool_stream = true,
+			usage_url = true,
 		}, label, errors)
 		if type(config.base_url) ~= "string" or not config.base_url:match("^https?://") then
 			fail(label, errors, "base_url must be an http(s) URL")
+			return nil
+		end
+		local usage_url = config.usage_url
+		if usage_url ~= nil and (type(usage_url) ~= "string" or not usage_url:match("^https?://")) then
+			fail(label, errors, "usage_url must be an http(s) URL")
 			return nil
 		end
 		if type(config.api_key) ~= "string" or #config.api_key == 0 then
