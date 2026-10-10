@@ -1,0 +1,36 @@
+<h2>Usage — last <%= hours %> hours</h2>
+<p>
+<a href="/admin/usage?hours=24">24h</a> |
+<a href="/admin/usage?hours=168">7d</a>
+</p>
+<h3>Totals</h3>
+<table>
+<tr><th>requests</th><th>errors</th><th>input</th><th>output</th><th>cached input</th><th>estimated</th><th>cost (USD)</th></tr>
+<tr>
+<td><%= totals.requests %></td>
+<td><%= totals.errors %></td>
+<td><%= totals.input_tokens %></td>
+<td><%= totals.output_tokens %></td>
+<td><%= totals.cached_input_tokens %></td>
+<td><%= totals.estimated_requests %></td>
+<td><%= string.format("%.4f", totals.cost_usd) %></td>
+</tr>
+</table>
+<% for _, section in ipairs(sections) do %>
+<h3><%= section.title %></h3>
+<table>
+<tr><th>name</th><th>requests</th><th>errors</th><th>input</th><th>output</th><th>cached</th><th>estimated</th><th>cost (USD)</th></tr>
+<% for _, row in ipairs(section.rows) do %>
+<tr>
+<td><%= row.key %></td>
+<td><%= row.item.requests %></td>
+<td><%= row.item.errors %></td>
+<td><%= row.item.input_tokens %></td>
+<td><%= row.item.output_tokens %></td>
+<td><%= row.item.cached_input_tokens %></td>
+<td><%= row.item.estimated_requests %></td>
+<td><%= string.format("%.4f", row.item.cost_usd) %></td>
+</tr>
+<% end %>
+</table>
+<% end %>

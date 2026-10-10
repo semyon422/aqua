@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>AI Router — Sign in</title>
+<style>
+body { font-family: system-ui, sans-serif; max-width: 24rem; margin: 6rem auto; }
+input, button { font: inherit; width: 100%; padding: 0.4rem; margin: 0.3rem 0; }
+.error_message { background: #fde5e5; border: 1px solid #e08585; padding: 0.5rem; }
+</style>
+</head>
+<body>
+<h1>AI Router admin</h1>
+<% if error_message then %><div class="error_message"><%= error_message %></div><% end %>
+<form method="post" action="/admin/login">
+<input type="password" name="password" placeholder="Admin password" autofocus>
+<button type="submit">Sign in</button>
+</form>
+</body>
+</html>

@@ -12,6 +12,23 @@ local json = require("web.json")
 ---@field cached_input_tokens integer included in input_tokens
 ---@field estimated boolean provider counts were missing for at least one field
 
+--- One history row as returned by UsageRepo:history (aggregate counters plus
+--- computed cost fields).
+---@class ai.router.UsageRow
+---@field bucket integer
+---@field user string
+---@field model string
+---@field upstream_model string
+---@field subscription string
+---@field requests integer
+---@field errors integer
+---@field input_tokens integer
+---@field output_tokens integer
+---@field cached_input_tokens integer
+---@field estimated_requests integer
+---@field cost_usd number
+---@field cache_savings_usd number
+
 -- Hourly usage aggregates keyed by (bucket, user, model, upstream_model,
 -- subscription) with one atomic upsert per completed request. `model` is the
 -- public name the client requested, `upstream_model` is what was sent after

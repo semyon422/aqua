@@ -30,6 +30,7 @@ local Router = require("ai.router.Router")
 ---@field active_requests {[string]: integer}
 ---@field request_windows {[string]: {started_at: number, count: integer}}
 ---@field cooldown_seconds number
+---@field admin_handler (fun(req: web.Request, res: web.Response): boolean?)?
 ---@field http_server web.HttpServer
 local Server = class()
 
@@ -44,6 +45,7 @@ Server.cooldown_seconds = 600
 ---@class ai.router.ProviderMethods
 ---@field complete fun(self: ai.router.ProviderMethods, body: table, upstream_model: string): ai.router.CanonicalMessage?, string?, table?
 ---@field completeStream fun(self: ai.router.ProviderMethods, body: table, upstream_model: string, on_delta: fun(delta: table): boolean?): ai.router.CanonicalMessage?, string?, table?
+---@field fetchUsage (fun(self: ai.router.ProviderMethods): table?, string?, table?)?
 
 ---@class ai.router.ServerOptions
 ---@field scheduler web.CosocketScheduler
@@ -60,6 +62,7 @@ Server.cooldown_seconds = 600
 ---@field max_concurrent_requests_per_user integer?
 ---@field max_requests_per_minute integer?
 ---@field cooldown_seconds number?
+---@field admin_handler (fun(req: web.Request, res: web.Response): boolean?)?
 
 ---@param options ai.router.ServerOptions
 function Server:new(options)
@@ -75,6 +78,7 @@ function Server:new(options)
 		or self.max_concurrent_requests_per_user
 	self.max_requests_per_minute = options.max_requests_per_minute or self.max_requests_per_minute
 	self.cooldown_seconds = options.cooldown_seconds or self.cooldown_seconds
+	self.admin_handler = options.admin_handler
 	self.cooldowns = {}
 	self.active_requests = {}
 	self.request_windows = {}
@@ -530,6 +534,9 @@ end
 ---@param res web.Response
 ---@param ip string
 function Server:handle(req, res, ip)
+	if self.admin_handler and self.admin_handler(req, res) then
+		return
+	end
 	local started_at = self.get_time()
 	local token = self:authenticate(req)
 	local user = token and self.users_repo:findByKeyHash(digest.hash("sha256", token, true)) or nil
@@ -607,7 +614,7 @@ function Server:handle(req, res, ip)
 		end
 		self:releaseRequest(assert(token))
 	end
-	if should_record then
+	if should_record and user then
 		self:record(os.time(), user, status, request, attempt_result)
 	end
 	self.logger(("user=%s ip=%s method=%s path=%s status=%d duration=%.3fs")

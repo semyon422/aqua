@@ -1,0 +1,31 @@
+<h2>Custom models</h2>
+<table>
+<tr><th>id</th><th>name</th><th>chain</th><th>description</th><th>actions</th></tr>
+<% for _, row in ipairs(rows) do %>
+<tr>
+<td><%= row.id %></td>
+<td><%= row.name %></td>
+<td><%= table.concat(row.chain, " → ") %></td>
+<td><%= row.description or "" %></td>
+<td>
+<form class="inline" method="post" action="/admin/models/delete">
+<input type="hidden" name="csrf_token" value="<%= csrf_token %>">
+<input type="hidden" name="id" value="<%= row.id %>">
+<button type="submit">Delete</button>
+</form>
+</td>
+</tr>
+<% end %>
+</table>
+
+<h2>Create or edit</h2>
+<form method="post" action="/admin/models/save">
+<input type="hidden" name="csrf_token" value="<%= csrf_token %>">
+<label>id (empty = create) <input type="text" name="id" size="4"></label>
+<label>name <input type="text" name="name" required></label>
+<label>chain (fallback order, one model per line)<br>
+<textarea name="chain" placeholder="glm-5.3-flash&#10;gpt-6-luna"></textarea>
+</label>
+<label>description <input type="text" name="description"></label>
+<button type="submit">Save model</button>
+</form>

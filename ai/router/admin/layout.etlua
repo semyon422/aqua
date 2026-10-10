@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>AI Router — <%= title %></title>
+<style>
+body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+table { border-collapse: collapse; width: 100%; margin: 0.6rem 0; }
+td, th { border: 1px solid #ccc; padding: 0.3rem 0.5rem; text-align: left; vertical-align: top; font-size: 0.92rem; }
+th { background: #f0f0f0; }
+form { margin: 0.2rem 0; }
+input, select, textarea, button { font: inherit; padding: 0.15rem 0.35rem; }
+textarea { width: 100%; min-height: 5rem; font-family: monospace; }
+nav { margin-bottom: 1rem; }
+nav a { margin-right: 1rem; }
+.flash { background: #e5f6e5; border: 1px solid #7ccc7c; padding: 0.5rem; margin: 0.6rem 0; }
+.error { background: #fde5e5; border: 1px solid #e08585; padding: 0.5rem; margin: 0.6rem 0; white-space: pre-wrap; }
+code { background: #f4f4f4; padding: 0.1rem 0.3rem; }
+.inline { display: inline; }
+.muted { color: #777; }
+h2 { margin-top: 1.6rem; }
+</style>
+</head>
+<body>
+<nav>
+<a href="/admin/users">Users</a>
+<a href="/admin/subscriptions">Subscriptions</a>
+<a href="/admin/models">Models</a>
+<a href="/admin/usage">Usage</a>
+<a href="/admin/status">Status</a>
+<form class="inline" method="post" action="/admin/logout">
+<input type="hidden" name="csrf_token" value="<%= csrf_token %>">
+<button type="submit">Logout</button>
+</form>
+</nav>
+<h1><%= title %></h1>
+<% if error_message then %><div class="error"><%= error_message %></div><% end %>
+<%- content %>
+</body>
+</html>
