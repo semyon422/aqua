@@ -511,6 +511,7 @@ end
 
 ---@param res web.Response
 ---@param form {[string]: any}
+---@diagnostic disable-next-line: unused-local
 function AdminPages:updateUser(res, _session, form)
 	local changes = {}
 	if form.name ~= nil and form.name ~= "" then changes.name = assertName(form.name) end
@@ -522,6 +523,7 @@ end
 
 ---@param res web.Response
 ---@param form {[string]: any}
+---@diagnostic disable-next-line: unused-local
 function AdminPages:updateGrants(res, _session, form)
 	self.users_repo:setGrants(assertId(form.id), formModelList(form.models))
 	self:reload()
@@ -538,6 +540,7 @@ end
 
 ---@param res web.Response
 ---@param form {[string]: any}
+---@diagnostic disable-next-line: unused-local
 function AdminPages:deleteUser(res, _session, form)
 	self.users_repo:delete(assertId(form.id))
 	self:reload()
@@ -683,6 +686,7 @@ end
 
 ---@param res web.Response
 ---@param form {[string]: any}
+---@diagnostic disable-next-line: unused-local
 function AdminPages:deleteModel(res, _session, form)
 	self.models_repo:delete(assertId(form.id))
 	self:reload()
