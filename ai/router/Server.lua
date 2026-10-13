@@ -101,14 +101,14 @@ function Server:new(options)
 end
 
 -- Rebuilds routing state, providers, and monitor wiring from repository
--- rows. Called at startup and after every MCP mutation.
+-- rows. Called at startup and after catalog mutations or an explicit retry.
 ---@param subscription_rows ai.router.SubscriptionRow[]
 ---@param model_rows ai.router.ModelRow[]
 function Server:reload(subscription_rows, model_rows)
 	local state, errors = Catalog.fromRows(subscription_rows, model_rows)
 	self.catalog_errors = errors
 	assert(#errors == 0, "invalid router catalog:\n" .. table.concat(errors, "\n"))
-	self.router = Router({state = state})
+	local router = Router({state = state})
 	---@type {[integer]: ai.router.ProviderMethods}
 	local providers = {}
 	---@type {[integer]: fun(): table?, string?, table?}
@@ -124,8 +124,9 @@ function Server:reload(subscription_rows, model_rows)
 			end
 		end
 	end
-	self.providers = providers
 	self.monitor:setSubscriptions(state.subscriptions, fetchers)
+	self.router = router
+	self.providers = providers
 end
 
 ---@param res web.Response

@@ -46,7 +46,9 @@ function McpTools.create(management)
 	---@param external boolean?
 	local function add(tool_name, method, description, schema, mutation, destructive, external)
 		table.insert(tools, McpTool(management, {
-			name = tool_name, method = method, description = description, input_schema = schema,
+			name = tool_name, method = method,
+			description = description .. (mutation and " Results include operation.persistence and operation.reload. A committed mutation with failed reload must not be replayed; use router_reload_catalog instead." or ""),
+			input_schema = schema,
 			mutation = mutation == true,
 			annotations = {readOnlyHint = not mutation and not external, destructiveHint = destructive == true,
 				openWorldHint = external == true},
@@ -71,6 +73,7 @@ function McpTools.create(management)
 	add("router_start_openai_login", "startLogin", "Start background OpenAI device authorization. Poll router_openai_login_status to obtain the verification URL and code and later the result. The user must approve in their browser; never approve for them.", object({id = id}, {"id"}), false, false, true)
 	add("router_openai_login_status", "loginStatus", "Get OpenAI device login status, verification URL, one-time code and expiry. Never returns tokens or private device IDs.", object({id = id}, {"id"}))
 	add("router_refresh_usage", "refreshUsage", "Schedule an immediate usage poll for a subscription; inspect router_status afterward.", object({id = id}, {"id"}), false, false, true)
+	add("router_reload_catalog", "reloadCatalog", "Retry applying the saved catalog to routing and providers without replaying database mutations. Use after operation.reload=failed; inspect router_status.catalog_reload_pending. Mutation results report operation.persistence and operation.reload even when isError=true.", object({}), false, false, true)
 	return tools
 end
 

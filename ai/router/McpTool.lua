@@ -36,7 +36,7 @@ function McpTool:execute(args)
 	local ok, result, err = pcall(self.management.execute, self.management, self.method, args, self.mutation)
 	if not ok then return "Operation failed; inspect router state before retrying.", true end
 	if not result then return assert(err), true end
-	return json.encode(result), false, result
+	return json.encode(result), err ~= nil, result
 end
 
 return McpTool

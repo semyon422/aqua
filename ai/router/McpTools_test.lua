@@ -49,12 +49,20 @@ end
 ---@param t testing.T
 function test.users_mutations_and_key_revocation(t)
 	local stack = Stack()
+	local router, providers, fetchers = stack.server.router, stack.server.providers, stack.monitor.fetchers
+	local reloads = 0
+	local reload = stack.server.reload
+	function stack.server:reload(subscriptions, models)
+		reloads = reloads + 1
+		return reload(self, subscriptions, models)
+	end
 	run(t, stack, function(client)
 		local listed = assert(client:listTools())
-		t:eq(#listed.tools, 16)
+		t:eq(#listed.tools, 17)
 		t:eq(client.server_info.name, "ai-router")
 		local created = call(client, "create_user", {name = "carol", models = {"lite"}})
 		local id = created.user.id
+		t:tdeq(created.operation, {persistence = "committed", reload = "not_required"})
 		t:assert(#created.api_key >= 32)
 		t:tdeq(stack.users:getGrants(id), {"lite"})
 		local old_hash = digest.hash("sha256", created.api_key, true)
@@ -80,6 +88,7 @@ function test.users_mutations_and_key_revocation(t)
 		local rolled_back = assert(client:callTool("router_create_user", {name = "rollback-after-write", models = {"x"}}))
 		stack.users.setGrants = set_grants
 		t:eq(rolled_back.isError, true)
+		t:tdeq(rolled_back.structuredContent.operation, {persistence = "not_committed", reload = "not_attempted"})
 		t:eq(stack.users:findByName("rollback-after-write"), nil)
 		t:eq(json.encode(rolled_back):find("SECRET-INTERNAL-DETAILS", 1, true), nil)
 		local duplicate = assert(client:callTool("router_create_user", {name = "renamed", models = {}}))
@@ -88,6 +97,10 @@ function test.users_mutations_and_key_revocation(t)
 		t:eq(stack.users:get(id), nil)
 		t:tdeq(stack.users:getGrants(id), {})
 	end)
+	t:eq(reloads, 0)
+	t:eq(stack.server.router, router)
+	t:eq(stack.server.providers, providers)
+	t:eq(stack.monitor.fetchers, fetchers)
 	stack:close()
 end
 
@@ -98,6 +111,7 @@ function test.catalog_validation_redaction_and_patching(t)
 		local created = call(client, "save_subscription", {name = "zai-main", kind = "zai", priority = 1, enabled = false,
 			config = {base_url = "https://api.z.ai/api/coding/paas/v4", api_key = "SECRET-UPSTREAM", models = {"glm-5.3"}}, limits = {five_hour_threshold = 80}})
 		local id = created.subscription.id
+		t:tdeq(created.operation, {persistence = "committed", reload = "applied"})
 		t:eq(created.subscription.enabled, false)
 		t:eq(created.subscription.config.api_key, nil)
 		t:eq(created.subscription.has_api_key, true)
@@ -128,6 +142,72 @@ function test.catalog_validation_redaction_and_patching(t)
 		call(client, "delete_model", {id = alias.id})
 		call(client, "delete_subscription", {id = id})
 		t:eq(#stack.subscriptions:list(), 0)
+	end)
+	stack:close()
+end
+
+---@param t testing.T
+function test.committed_catalog_reload_failure_and_retry(t)
+	local stack = Stack()
+	run(t, stack, function(client)
+		call(client, "save_subscription", {name = "original", kind = "openai_compat", priority = 1,
+			config = {base_url = "http://localhost/v1", models = {"old"}}})
+		local router, providers, fetchers, subscriptions = stack.server.router, stack.server.providers,
+			stack.monitor.fetchers, stack.monitor.subscriptions
+		local factory = stack.server.provider_factory
+		stack.server.provider_factory = function(row)
+			if row.name == "saved" then error("SECRET-PROVIDER-EXCEPTION") end
+			return factory(row)
+		end
+		local result = assert(client:callTool("router_save_subscription", {name = "saved", kind = "openai_compat", priority = 2,
+			config = {base_url = "http://localhost/v1", models = {"new"}}}))
+		t:eq(result.isError, true)
+		t:tdeq(result.structuredContent.operation, {persistence = "committed", reload = "failed"})
+		t:assert(result.structuredContent.subscription.id > 0)
+		t:eq(json.encode(result):find("SECRET-PROVIDER-EXCEPTION", 1, true), nil)
+		t:eq(#stack.subscriptions:list(), 2)
+		t:eq(stack.server.router, router)
+		t:eq(stack.server.providers, providers)
+		t:eq(stack.monitor.fetchers, fetchers)
+		t:eq(stack.monitor.subscriptions, subscriptions)
+		t:eq(stack.server.router.state.public_models.new, nil)
+		t:eq(call(client, "status").catalog_reload_pending, true)
+		t:eq(#call(client, "list_subscriptions").subscriptions, 2)
+		local retry = assert(client:callTool("router_reload_catalog"))
+		t:eq(retry.isError, true)
+		t:tdeq(retry.structuredContent.operation, {persistence = "not_attempted", reload = "failed"})
+		-- User writes neither reload the catalog nor hide a pending reload.
+		local user = call(client, "create_user", {name = "still-usable", models = {"old"}})
+		t:eq(user.operation.reload, "not_required")
+		t:eq(call(client, "status").catalog_reload_pending, true)
+		stack.server.provider_factory = factory
+		local applied = call(client, "reload_catalog")
+		t:tdeq(applied.operation, {persistence = "not_attempted", reload = "applied"})
+		t:eq(call(client, "status").catalog_reload_pending, false)
+		t:eq(stack.server.router.state.public_models.new, true)
+		t:eq(#stack.subscriptions:list(), 2)
+	end)
+	stack:close()
+end
+
+---@param t testing.T
+function test.rollback_failure_reports_unknown_persistence(t)
+	local stack = Stack()
+	run(t, stack, function(client)
+		local db = stack.users.models.router_users.orm.db
+		local exec, set_grants = db.exec, stack.users.setGrants
+		function db:exec(query, values)
+			if query == "ROLLBACK" then error("SECRET-ROLLBACK-DETAILS") end
+			return exec(self, query, values)
+		end
+		stack.users.setGrants = function() error("SECRET-WRITE-DETAILS") end
+		local result = assert(client:callTool("router_create_user", {name = "uncertain", models = {"x"}}))
+		db.exec, stack.users.setGrants = exec, set_grants
+		db:exec("ROLLBACK")
+		t:eq(result.isError, true)
+		t:tdeq(result.structuredContent.operation, {persistence = "unknown", reload = "not_attempted"})
+		t:eq(json.encode(result):find("SECRET-", 1, true), nil)
+		t:eq(stack.users:findByName("uncertain"), nil)
 	end)
 	stack:close()
 end

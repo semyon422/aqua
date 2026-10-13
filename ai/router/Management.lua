@@ -15,12 +15,28 @@ local Catalog = require("ai.router.Catalog")
 
 ---@class ai.router.Management: ai.router.ManagementOptions
 ---@operator call: ai.router.Management
+---@field catalog_reload_pending boolean
 local Management = class()
+
+---@alias ai.router.ManagementPersistence "committed"|"not_committed"|"not_attempted"|"unknown"
+---@alias ai.router.ManagementReload "applied"|"failed"|"not_required"|"not_attempted"
+---@class ai.router.ManagementOperation
+---@field persistence ai.router.ManagementPersistence
+---@field reload ai.router.ManagementReload
+
+---@class ai.router.ManagementReloadResult
+---@field operation ai.router.ManagementOperation
+---@field error string?
+
+---@type {[string]: boolean}
+local catalog_mutations = {saveSubscription = true, deleteSubscription = true, saveModel = true, deleteModel = true}
+local reload_error = "Changes are saved, but catalog reload failed. Do not repeat the mutation; call router_reload_catalog to retry applying the saved catalog."
 
 ---@param options ai.router.ManagementOptions
 function Management:new(options)
 	for key, value in pairs(options) do self[key] = value end
 	self.get_time = options.get_time or os.time
+	self.catalog_reload_pending = false
 end
 
 ---@param condition any
@@ -134,7 +150,7 @@ function Management:status()
 			login_status = row.kind == "openai" and self.openai_login
 				and self.openai_login:getState(row.config.auth_path).status or nil})
 	end
-	return {now = self.get_time(), subscriptions = rows}
+	return {now = self.get_time(), subscriptions = rows, catalog_reload_pending = self.catalog_reload_pending}
 end
 
 ---@param args {[string]: any}
@@ -299,6 +315,17 @@ function Management:refreshUsage(args)
 	return {scheduled_id = args.id}
 end
 
+-- Retry runtime application without replaying a persisted mutation.
+---@return ai.router.ManagementReloadResult
+function Management:reloadCatalog()
+	local ok = pcall(function()
+		self.server:reload(self.subscriptions_repo:list(), self.models_repo:list())
+	end)
+	self.catalog_reload_pending = not ok
+	return {operation = {persistence = "not_attempted", reload = ok and "applied" or "failed"},
+		error = not ok and reload_error or nil}
+end
+
 -- Mutations never yield while a transaction is open. OAuth starts outside it.
 ---@param method string
 ---@param args {[string]: any}
@@ -315,11 +342,24 @@ function Management:execute(method, args, mutation)
 		return value
 	end)
 	if not ok then
-		if begun then orm.db:exec("ROLLBACK") end
-		return nil, type(result) == "table" and result.management_error or "Operation failed; no credentials or internal error details are exposed."
+		local rolled_back = not begun or pcall(orm.db.exec, orm.db, "ROLLBACK")
+		local message = type(result) == "table" and result.management_error or "Operation failed; no credentials or internal error details are exposed."
+		if not rolled_back then message = "Persistence state is unknown after rollback failure. Inspect saved data before retrying." end
+		return {error = message, operation = mutation and {
+			persistence = rolled_back and "not_committed" or "unknown", reload = "not_attempted",
+		} or nil}, message
 	end
-	if mutation then self.server:reload(self.subscriptions_repo:list(), self.models_repo:list()) end
-	return result
+	if mutation then
+		---@type ai.router.ManagementOperation
+		local operation = {persistence = "committed", reload = "not_required"}
+		result.operation = operation
+		if catalog_mutations[method] then
+			local applied = self:reloadCatalog()
+			operation.reload = applied.operation.reload
+			result.error = applied.error
+		end
+	end
+	return result, result.error
 end
 
 return Management

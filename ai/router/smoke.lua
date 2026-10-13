@@ -134,7 +134,7 @@ local mcp_thread = coext.detach(coroutine.create(function()
 	local _, mcp_port = mcp:getAddress()
 	local client = McpClient({url = ("http://127.0.0.1:%d/mcp"):format(mcp_port), token = "smoke-management-token", scheduler = scheduler})
 	assert(client:initialize())
-	assert(#assert(client:listTools()).tools == 16)
+	assert(#assert(client:listTools()).tools == 17)
 	local saved = assert(client:callTool("router_save_subscription", {
 		name = "local-llama", kind = "openai_compat", priority = 1,
 		config = {base_url = ("http://127.0.0.1:%d/v1"):format(upstream_port), models = {"llama-70b"}},
