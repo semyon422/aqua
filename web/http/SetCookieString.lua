@@ -1,7 +1,6 @@
 local class = require("class")
----@type {escape: fun(value: string): string}
-local socket_url = require("socket.url")
 local CookieDate = require("web.http.CookieDate")
+local CookieSyntax = require("web.http.CookieSyntax")
 
 ---@class web.SetCookieString
 ---@operator call: web.SetCookieString
@@ -11,153 +10,106 @@ local CookieDate = require("web.http.CookieDate")
 ---@field ignore boolean
 local SetCookieString = class()
 
----@param name string
----@param value string
----@return string
----@return string
-local function trim_name_value(name, value)
-	return name:match("^%s*(.-)%s*$"), value:match("^%s*(.-)%s*$")
-end
-
----@param a string
----@param b string
----@return boolean
-local function eq_lower(a, b)
-	return a:lower() == b:lower()
-end
-
 ---@param s string?
 function SetCookieString:new(s)
 	self.attribute_list = {}
-
-	if not s then
-		return
-	end
-
-	-- https://www.rfc-editor.org/rfc/rfc6265#section-5.2
-
-	-- algorithm to parse a "set-cookie-string"
-
-	local name_value_pair, unparsed_attributes = s, ""
-
-	if s:find(";") then
-		---@type string, string
-		name_value_pair, unparsed_attributes = s:match("^(.-)(;.+)$")
-	end
-
-	if not name_value_pair:find("=") then
-		self.ignore = true
-		return
-	end
-
-	local name, value = trim_name_value(name_value_pair:match("^(.-)=(.*)$"))
-
-	if name == "" then
-		self.ignore = true
-		return
-	end
-
-	self.name = name
-	self.value = value
-
-	-- algorithm to parse the unparsed-attributes
-
-	if unparsed_attributes == "" then
-		return
-	end
-
-	for cookie_av in unparsed_attributes:gmatch(";([^;]*)") do
-		local _name, _value = cookie_av, ""
-
-		if cookie_av:find("=") then
-			---@type string, string
-			_name, _value = cookie_av:match("^(.-)=(.*)$")
-		end
-
-		self:add(trim_name_value(_name, _value))
+	self.ignore = false
+	if not s then return end
+	local pair, attributes = s:match("^([^;]*)(.*)$")
+	local name, value = pair:match("^(.-)=(.*)$")
+	if not name then self.ignore = true return end
+	name, value = CookieSyntax.trim(name), CookieSyntax.trim(value)
+	if name == "" then self.ignore = true return end
+	self.name, self.value = name, value
+	for attribute in attributes:gmatch(";([^;]*)") do
+		local attr_name, attr_value = attribute:match("^(.-)=(.*)$")
+		if not attr_name then attr_name, attr_value = attribute, "" end
+		self:add(CookieSyntax.trim(attr_name), CookieSyntax.trim(attr_value))
 	end
 end
 
 ---@param name string
----@param value any?
+---@param value string|number?
 function SetCookieString:add(name, value)
-	value = tostring(value or "")
-
-	if eq_lower(name, "Expires") then
-		local expiry_time = CookieDate(value)
-		if expiry_time.failed then
+	value = value == nil and "" or tostring(value)
+	local lower = name:lower()
+	if lower == "expires" then
+		local date = CookieDate(value)
+		if date.failed then return end
+		name, value = "Expires", tostring(date)
+	elseif lower == "max-age" then
+		if not value:match("^%-?[0-9]+$") then return end
+		if value:sub(1, 1) == "-" then value = "0"
+		else value = value:gsub("^0+", "") end
+		if value == "" then value = "0" end
+		name = "Max-Age"
+	elseif lower == "domain" then
+		if value == "" then return end
+		name, value = "Domain", value:gsub("^%.", ""):lower()
+	elseif lower == "path" then
+		-- Without a request URI, omitting an invalid Path delegates default-path to the browser.
+		if value:sub(1, 1) ~= "/" then return end
+		name = "Path"
+	elseif lower == "secure" then
+		name, value = "Secure", ""
+	elseif lower == "httponly" then
+		name, value = "HttpOnly", ""
+	elseif lower == "samesite" then
+		local same_site = {strict = "Strict", lax = "Lax", none = "None"}
+		value = same_site[value:lower()]
+		if not value then return end
+		name = "SameSite"
+	elseif name == "" then
+		return
+	end
+	-- Last attribute wins when parsing; generated headers contain no duplicate attributes.
+	for _, attribute in ipairs(self.attribute_list) do
+		if attribute[1]:lower() == lower then
+			attribute[1], attribute[2] = name, value
 			return
-		end
-		table.insert(self.attribute_list, {"Expires", expiry_time:get_unix_time()})
-	elseif eq_lower(name, "Max-Age") then
-		local first_char = value:sub(1, 1)
-		if not first_char:match("%d") and first_char ~= "-" then
-			return
-		end
-		if value:match("[^%d]", 2) then
-			return
-		end
-		local delta_seconds = tonumber(value)
-		---@type integer
-		local expiry_time
-		if delta_seconds <= 0 then
-			expiry_time = 0
-		else
-			expiry_time = os.time() + delta_seconds
-		end
-		table.insert(self.attribute_list, {"Max-Age", expiry_time})
-	elseif eq_lower(name, "Domain") then
-		if value == "" then
-			return
-		end
-		local cookie_domain = value
-		if value:sub(1, 1) == "." then
-			cookie_domain = value:sub(2)
-		end
-		cookie_domain = cookie_domain:lower()
-		table.insert(self.attribute_list, {"Domain", cookie_domain})
-	elseif eq_lower(name, "Path") then
-		local cookie_path = value
-		if value == "" or value:sub(1, 1) ~= "/" then
-			cookie_path = "" -- TODO: default-path
-		end
-		table.insert(self.attribute_list, {"Path", cookie_path})
-	elseif eq_lower(name, "Secure") then
-		table.insert(self.attribute_list, {"Secure", ""})
-	elseif eq_lower(name, "HttpOnly") then
-		table.insert(self.attribute_list, {"HttpOnly", ""})
-	elseif eq_lower(name, "SameSite") then
-		if eq_lower(value, "Strict") then
-			table.insert(self.attribute_list, {"SameSite", "Strict"})
-		elseif eq_lower(value, "Lax") then
-			table.insert(self.attribute_list, {"SameSite", "Lax"})
-		elseif eq_lower(value, "None") then
-			table.insert(self.attribute_list, {"SameSite", "None"})
 		end
 	end
+	table.insert(self.attribute_list, {name, value})
 end
 
 ---@param name string
 ---@return string?
 function SetCookieString:get(name)
-	for _, av in ipairs(self.attribute_list) do
-		if av[1] == name then
-			return av[2]
-		end
+	for _, attribute in ipairs(self.attribute_list) do
+		if attribute[1]:lower() == name:lower() then return attribute[2] end
 	end
 end
 
 ---@return string
 function SetCookieString:__tostring()
-	local out = {("%s=%s"):format(self.name, self.value)}
-	for _, av in ipairs(self.attribute_list) do
-		---@type string, string
-		local name, value = socket_url.escape(av[1]), av[2]
-		if value ~= "" then
-			table.insert(out, ("%s=%s"):format(name, socket_url.escape(value)))
-		else
-			table.insert(out, ("%s"):format(name))
+	assert(not self.ignore, "cannot serialize an ignored cookie")
+	assert(type(self.name) == "string" and CookieSyntax.validName(self.name), "invalid cookie name")
+	assert(type(self.value) == "string" and CookieSyntax.validValue(self.value), "invalid cookie value")
+	local out = {self.name .. "=" .. self.value}
+	---@type {[string]: boolean}
+	local seen = {}
+	for _, attribute in ipairs(self.attribute_list) do
+		local name, value = attribute[1], attribute[2]
+		assert(CookieSyntax.validName(name), "invalid cookie attribute name")
+		assert(CookieSyntax.validAttributeValue(value), "invalid cookie attribute value")
+		local lower = name:lower()
+		assert(not seen[lower], "duplicate cookie attribute")
+		seen[lower] = true
+		if lower == "domain" then
+			assert(CookieSyntax.validDomain(value), "invalid cookie domain")
+		elseif lower == "path" then
+			assert(value:sub(1, 1) == "/", "invalid cookie path")
+		elseif lower == "max-age" then
+			assert(value == "0" or value:match("^[1-9][0-9]*$"), "invalid cookie max-age")
+		elseif lower == "expires" then
+			local date = CookieDate(value)
+			assert(not date.failed and tostring(date) == value, "invalid cookie expires date")
+		elseif lower == "secure" or lower == "httponly" then
+			assert(value == "", "cookie flag must not have a value")
+		elseif lower == "samesite" then
+			assert(value == "Strict" or value == "Lax" or value == "None", "invalid cookie samesite")
 		end
+		table.insert(out, name .. (value ~= "" and "=" .. value or ""))
 	end
 	return table.concat(out, "; ")
 end
