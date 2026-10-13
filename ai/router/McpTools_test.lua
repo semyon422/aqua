@@ -59,6 +59,7 @@ function test.users_mutations_and_key_revocation(t)
 	run(t, stack, function(client)
 		local listed = assert(client:listTools())
 		t:eq(#listed.tools, 17)
+		for _, tool in ipairs(listed.tools) do t:assert(tool.outputSchema) end
 		t:eq(client.server_info.name, "ai-router")
 		local created = call(client, "create_user", {name = "carol", models = {"lite"}})
 		local id = created.user.id

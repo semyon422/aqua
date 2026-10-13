@@ -65,4 +65,21 @@ function test.distinguishes_objects_arrays_and_null(t)
 	t:assert(JsonSchema.validate({type = "null"}, json.null))
 end
 
+---@param t testing.T
+function test.validates_any_of_with_sibling_constraints(t)
+	local schema = {type = "object", anyOf = {
+		{required = {"value"}, properties = {value = {type = "integer"}}, additionalProperties = false},
+		{required = {"error"}, properties = {error = {type = "string"}}, additionalProperties = false},
+	}}
+	t:assert(JsonSchema.validate(schema, {value = 1}))
+	t:assert(JsonSchema.validate(schema, {error = "failed"}))
+	t:eq(JsonSchema.validate(schema, {value = "wrong"}), nil)
+	t:eq(JsonSchema.validate(schema, {value = 1, secret = "hidden"}), nil)
+	t:eq(JsonSchema.validate(schema, {}), nil)
+	t:eq(JsonSchema.validate(schema, 1), nil)
+	t:eq(JsonSchema.validate({anyOf = {}}, {}), nil)
+	t:assert(JsonSchema.validate({anyOf = {false, true}}, "anything"))
+	t:eq(JsonSchema.validate({type = "integer", minimum = 2, anyOf = {true}}, 1), nil)
+end
+
 return test

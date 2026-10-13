@@ -28,6 +28,80 @@ local Management = class()
 ---@field operation ai.router.ManagementOperation
 ---@field error string?
 
+---@class ai.router.PublicUser
+---@field id integer
+---@field name string
+---@field key_hint string
+---@field disabled boolean
+---@field max_concurrency integer?
+---@field max_rpm integer?
+---@field created_at integer
+---@field updated_at integer
+---@field models string[]
+
+---@class ai.router.PublicSubscriptionConfig
+---@field models string[]?
+---@field model_redirects {[string]: string}?
+---@field auth_path string?
+---@field base_url string?
+---@field usage_url string?
+---@field reasoning_effort "none"|"low"|"medium"|"high"?
+---@field verbosity "low"|"medium"|"high"?
+---@field max_response_size integer?
+---@field thinking "enabled"|"disabled"?
+---@field tool_stream boolean?
+
+---@class ai.router.PublicSubscriptionLimits
+---@field five_hour_threshold number?
+---@field weekly_threshold number?
+---@field five_hour_quota_tokens integer?
+---@field weekly_quota_tokens integer?
+---@field poll_interval integer?
+---@field usage_source {five_hour: ("local"|"upstream")?, weekly: ("local"|"upstream")?}?
+
+---@class ai.router.PublicSubscription
+---@field id integer
+---@field name string
+---@field kind "openai"|"zai"|"openai_compat"
+---@field priority integer
+---@field enabled boolean
+---@field config ai.router.PublicSubscriptionConfig
+---@field limits ai.router.PublicSubscriptionLimits
+---@field has_api_key boolean
+---@field created_at integer
+---@field updated_at integer
+---@field login_status openai.SubscriptionAuthStatus?
+
+---@class ai.router.ManagementSubscriptionStatus
+---@field id integer
+---@field name string
+---@field enabled boolean
+---@field windows {five_hour: ai.router.WindowSnapshot?, weekly: ai.router.WindowSnapshot?}
+---@field cooldown_until number?
+---@field login_status openai.SubscriptionAuthStatus?
+
+---@class ai.router.ManagementResultMetadata
+---@field operation ai.router.ManagementOperation?
+---@field error string?
+
+---@class ai.router.ManagementResult: ai.router.ManagementResultMetadata
+---@field users ai.router.PublicUser[]?
+---@field subscriptions ai.router.PublicSubscription[]|ai.router.ManagementSubscriptionStatus[]?
+---@field public_models string[]?
+---@field aliases ai.router.ModelRow[]?
+---@field now integer?
+---@field catalog_reload_pending boolean?
+---@field hours integer?
+---@field rows ai.router.UsageRow[]?
+---@field user ai.router.PublicUser?
+---@field api_key string?
+---@field id integer?
+---@field deleted_id integer?
+---@field subscription ai.router.PublicSubscription?
+---@field model ai.router.ModelRow?
+---@field login ai.router.OpenAILoginState?
+---@field scheduled_id integer?
+
 ---@type {[string]: boolean}
 local catalog_mutations = {saveSubscription = true, deleteSubscription = true, saveModel = true, deleteModel = true}
 local reload_error = "Changes are saved, but catalog reload failed. Do not repeat the mutation; call router_reload_catalog to retry applying the saved catalog."
@@ -92,7 +166,7 @@ local function validateCatalog(subscriptions, models)
 end
 
 ---@param row ai.router.UserRow
----@return table
+---@return ai.router.PublicUser
 function Management:publicUser(row)
 	return {id = row.id, name = row.name, key_hint = row.key_hint, disabled = row.disabled,
 		max_concurrency = row.max_concurrency, max_rpm = row.max_rpm,
@@ -101,47 +175,67 @@ function Management:publicUser(row)
 end
 
 ---@param row ai.router.SubscriptionRow
----@return table
+---@return ai.router.PublicSubscription
 function Management:publicSubscription(row)
+	---@type ai.router.PublicSubscriptionConfig
 	local config = json.object({})
 	for _, key in ipairs({"models", "model_redirects", "auth_path", "base_url", "usage_url",
 		"reasoning_effort", "verbosity", "max_response_size", "thinking", "tool_stream"}) do
 		local value = row.config[key]
 		if (key == "base_url" or key == "usage_url") and type(value) == "string"
 			and value:find("[@?#]") then value = "[redacted URL]" end
+		if key == "model_redirects" and value then
+			local redirects = json.object({})
+			for source, target in pairs(value) do redirects[source] = target end
+			value = redirects
+		end
 		config[key] = value
 	end
+	---@type ai.router.PublicSubscriptionLimits
+	local limits = json.object({})
+	for key, value in pairs(row.limits) do
+		if key == "usage_source" then
+			local sources = json.object({})
+			for window, source in pairs(value) do sources[window] = source end
+			value = sources
+		end
+		limits[key] = value
+	end
 	return {id = row.id, name = row.name, kind = row.kind, priority = row.priority,
-		enabled = row.enabled, config = config, limits = row.limits,
+		enabled = row.enabled, config = config, limits = limits,
 		has_api_key = row.config.api_key ~= nil, created_at = row.created_at, updated_at = row.updated_at,
 		login_status = row.kind == "openai" and self.openai_login
 			and self.openai_login:getState(row.config.auth_path).status or nil}
 end
 
----@return table
+---@return {users: ai.router.PublicUser[]}
 function Management:listUsers()
+	---@type ai.router.PublicUser[]
 	local rows = json.array({})
 	for _, row in ipairs(self.users_repo:list()) do table.insert(rows, self:publicUser(row)) end
 	return {users = rows}
 end
 
----@return table
+---@return {subscriptions: ai.router.PublicSubscription[]}
 function Management:listSubscriptions()
+	---@type ai.router.PublicSubscription[]
 	local rows = json.array({})
 	for _, row in ipairs(self.subscriptions_repo:list()) do table.insert(rows, self:publicSubscription(row)) end
 	return {subscriptions = rows}
 end
 
----@return table
+---@return {public_models: string[], aliases: ai.router.ModelRow[]}
 function Management:listModels()
+	---@type string[]
 	local names = json.array({})
 	for name in pairs(self.server.router.state.public_models) do table.insert(names, name) end
 	table.sort(names)
 	return {public_models = names, aliases = json.array(self.models_repo:list())}
 end
 
----@return table
+---@return {now: integer, subscriptions: ai.router.ManagementSubscriptionStatus[], catalog_reload_pending: boolean}
 function Management:status()
+	---@type ai.router.ManagementSubscriptionStatus[]
 	local rows = json.array({})
 	for _, row in ipairs(self.subscriptions_repo:list()) do
 		table.insert(rows, {id = row.id, name = row.name, enabled = row.enabled,
@@ -154,9 +248,10 @@ function Management:status()
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {hours: integer, rows: ai.router.UsageRow[]}
 function Management:usage(args)
 	local history = self.usage_repo:history(self.get_time())
+	---@type ai.router.UsageRow[]
 	local rows = json.array({})
 	local since = self.get_time() - (args.hours or 24) * 3600
 	for _, row in ipairs(history.rows) do
@@ -177,7 +272,7 @@ function Management:editableSubscription(id)
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {user: ai.router.PublicUser, api_key: string}
 function Management:createUser(args)
 	checkName(args.name, "User")
 	checkGrants(args.models)
@@ -188,7 +283,7 @@ function Management:createUser(args)
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {user: ai.router.PublicUser}
 function Management:updateUser(args)
 	check(self.users_repo:get(args.id), "User not found.")
 	if args.name then
@@ -204,14 +299,14 @@ function Management:updateUser(args)
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {id: integer, api_key: string}
 function Management:regenerateKey(args)
 	check(self.users_repo:get(args.id), "User not found.")
 	return {id = args.id, api_key = self.users_repo:regenerateKey(args.id, self.get_time())}
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {deleted_id: integer}
 function Management:deleteUser(args)
 	check(self.users_repo:get(args.id), "User not found.")
 	self.users_repo:delete(args.id)
@@ -219,7 +314,7 @@ function Management:deleteUser(args)
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {subscription: ai.router.PublicSubscription}
 function Management:saveSubscription(args)
 	local existing = args.id and self:editableSubscription(args.id)
 	local config = args.config or (existing and existing.config)
@@ -256,7 +351,7 @@ function Management:saveSubscription(args)
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {deleted_id: integer}
 function Management:deleteSubscription(args)
 	self:editableSubscription(args.id)
 	validateCatalog(replace(self.subscriptions_repo:list(), args.id), self.models_repo:list())
@@ -265,7 +360,7 @@ function Management:deleteSubscription(args)
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {model: ai.router.ModelRow}
 function Management:saveModel(args)
 	local existing = args.id and self.models_repo:get(args.id)
 	check(not args.id or existing, "Model not found.")
@@ -282,7 +377,7 @@ function Management:saveModel(args)
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {deleted_id: integer}
 function Management:deleteModel(args)
 	check(self.models_repo:get(args.id), "Model not found.")
 	self.models_repo:delete(args.id)
@@ -290,7 +385,7 @@ function Management:deleteModel(args)
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {id: integer, login: ai.router.OpenAILoginState}
 function Management:loginStatus(args)
 	local row = self.subscriptions_repo:get(args.id)
 	check(row and row.kind == "openai", "An OpenAI subscription is required.")
@@ -299,7 +394,7 @@ function Management:loginStatus(args)
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {id: integer, login: ai.router.OpenAILoginState}
 function Management:startLogin(args)
 	self:loginStatus(args)
 	local row = self:editableSubscription(args.id)
@@ -308,7 +403,7 @@ function Management:startLogin(args)
 end
 
 ---@param args {[string]: any}
----@return table
+---@return {scheduled_id: integer}
 function Management:refreshUsage(args)
 	check(self.subscriptions_repo:get(args.id), "Subscription not found.")
 	self.monitor:refresh(args.id)
@@ -330,7 +425,7 @@ end
 ---@param method string
 ---@param args {[string]: any}
 ---@param mutation boolean
----@return table?
+---@return ai.router.ManagementResult
 ---@return string?
 function Management:execute(method, args, mutation)
 	local orm = self.users_repo.models.router_users.orm

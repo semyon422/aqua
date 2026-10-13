@@ -18,6 +18,7 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 - Tools implement the small `mcp.Tool` interface directly: MCP-native metadata plus an `execute(args)` method returning either `mcp.ToolResult` or the legacy text/error/structured-content tuple.
 - `mcp.ToolResult` supports text, image, audio, embedded-resource, and resource-link content blocks. The server validates block shape and base64 payloads before returning them to clients.
 - Tools may publish an output schema. The server advertises it, requires structured content from that tool, and validates the content before returning it to clients.
+- `JsonSchema` supports `anyOf` alternatives alongside sibling constraints; at least one alternative and all sibling constraints must match. This allows strict success/error result shapes without weakening required fields or extra-field checks.
 - Application adapters may implement multiple tool interfaces so one implementation can serve MCP and other agent protocols without duplicating behavior.
 - Server identity is injected through `server_info`; the reusable module does not depend on `brand` or any application namespace.
 - `mcp.Client` uses the same nonblocking web infrastructure and is suitable for integration tests and application-owned agents. It owns initialization, capability negotiation, bearer and session headers, JSON-RPC request IDs, tool discovery and calls, pings, notifications, local stream cancellation, protocol cancellation, session termination, timeouts, and deterministic closure.

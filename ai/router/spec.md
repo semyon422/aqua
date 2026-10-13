@@ -62,6 +62,9 @@ Provide a standalone multi-subscription OpenAI-compatible router: one server tha
 
 ## Invariants
 
+- Every router MCP tool advertises an object `outputSchema` with strict success/error alternatives (`anyOf`), nested field types, required payloads, and no extra fields. Both alternatives are validated, including execution errors. Public configs exclude credentials; only user creation/key regeneration can return an API key, and only device-login tools can return verification codes. Empty config dictionaries, limits, redirects, and usage sources serialize as objects, not arrays; no database migration is needed.
+- The router tool adapter validates results before the generic MCP server. Invalid payloads are replaced with sanitized structured errors while retaining valid persistence/reload metadata; malformed metadata or unexpected exceptions report unknown persistence for mutations. Output validation never rolls back a completed write or instructs callers to replay it. A malformed key-creation response may require inspecting the user and explicitly regenerating its key, not creating it again.
+
 - Proxy model names for a user are exactly their grants; unknown or ungranted models fail with `404 model not found` before any upstream work.
 - Custom model chains contain only concrete catalog models; direct or indirect cycles are rejected at save time.
 - Every accepted request resolves to at most one serving subscription; failover iterates the candidate list at most once.

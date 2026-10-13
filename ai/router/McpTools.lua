@@ -1,5 +1,6 @@
 local json = require("web.json")
 local McpTool = require("ai.router.McpTool")
+local McpOutputSchemas = require("ai.router.McpOutputSchemas")
 
 ---@class ai.router.McpTools
 local McpTools = {}
@@ -49,6 +50,7 @@ function McpTools.create(management)
 			name = tool_name, method = method,
 			description = description .. (mutation and " Results include operation.persistence and operation.reload. A committed mutation with failed reload must not be replayed; use router_reload_catalog instead." or ""),
 			input_schema = schema,
+			output_schema = McpOutputSchemas.get(method, mutation == true),
 			mutation = mutation == true,
 			annotations = {readOnlyHint = not mutation and not external, destructiveHint = destructive == true,
 				openWorldHint = external == true},

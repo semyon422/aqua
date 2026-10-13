@@ -8,6 +8,7 @@ local JsonSchema = {}
 ---@class mcp.JsonSchemaObject
 ---@field type mcp.JsonSchemaType|mcp.JsonSchemaType[]?
 ---@field enum any[]?
+---@field anyOf mcp.JsonSchema[]?
 ---@field minimum number?
 ---@field maximum number?
 ---@field minItems integer?
@@ -93,6 +94,14 @@ function JsonSchema.validate(schema, value, path)
 		return validation_error(path, "is not allowed")
 	elseif type(schema) ~= "table" then
 		return validation_error(path, "has an invalid schema")
+	end
+
+	if schema.anyOf then
+		local matched = false
+		for _, alternative in ipairs(schema.anyOf) do
+			if JsonSchema.validate(alternative, value, path) then matched = true break end
+		end
+		if not matched then return validation_error(path, "must match an anyOf alternative") end
 	end
 
 	local schema_type = schema.type
