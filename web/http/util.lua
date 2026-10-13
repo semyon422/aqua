@@ -172,9 +172,9 @@ function util.decode_query_string(s)
 	for kv in s:gmatch("([^&]+)&") do
 		local k, v = kv:match("^(.-)=(.*)$")
 		if k then
-			query[socket_url.unescape(k)] = socket_url.unescape(v)
+			query[socket_url.unescape((k:gsub("%+", " ")))] = socket_url.unescape((v:gsub("%+", " ")))
 		else
-			query[socket_url.unescape(kv)] = ""
+			query[socket_url.unescape((kv:gsub("%+", " ")))] = ""
 		end
 	end
 	return query

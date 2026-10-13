@@ -3,6 +3,16 @@ local StringSocket = require("web.socket.StringSocket")
 local util = require("web.http.util")
 local test = {}
 
+---@param t testing.T
+function test.browser_form_encoding(t)
+	t:tdeq(util.decode_query_string("full+name=OpenAI+subscription&config=%7B%22models%22%3A+%5B%22gpt%22%5D%7D&plus=%2B&empty+key"), {
+		["full name"] = "OpenAI subscription",
+		config = '{"models": ["gpt"]}',
+		plus = "+",
+		["empty key"] = "",
+	})
+end
+
 ---@class web.FakeTcpSocketForHttpUtil
 ---@field timeout number?
 ---@field soc web.StringSocket?

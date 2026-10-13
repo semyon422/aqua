@@ -49,6 +49,7 @@ The `aqua/web/` module owns reusable HTTP, websocket, socket, OpenResty, and Lua
 - OpenResty workers inherit `NGINX_CONFIG_PATH`, and compile-time and request-time configuration load the same host-provided Lua file.
 - `web.etlua` errors must map generated Lua load/runtime line numbers back to the template line when source mapping is available.
 - LuaSocket servers use `web.CosocketServer` for nonblocking accept and per-client coroutine ownership. HTTP applications adapt it through `web.HttpServer` and remain responsible for routing and response bodies.
+- `web.http.util.decode_query_string` follows form encoding: literal `+` decodes to a space before percent decoding, while `%2B` stays a plus. This applies to query keys, values, and valueless keys.
 - `CosocketServer` can bound active client coroutines with `max_clients`; excess accepted sockets are closed immediately, and shutdown cancels a snapshot of all active clients so cleanup cannot skip entries while mutating ownership state.
 - `web.HttpServer` bounds request lines, individual header lines, total header bytes, and header count before dispatch. Malformed requests receive HTTP 400, limit violations receive HTTP 431, and closed or timed-out clients are dropped without invoking the application handler.
 - `CosocketTcpSocket:receiveany()` returns currently available bytes without waiting for the requested maximum, so request parsers cannot stall on short headers or bodies.
