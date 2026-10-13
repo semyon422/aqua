@@ -1,4 +1,5 @@
 local table_util = require("table_util")
+local json = require("web.json")
 
 local JsonSchema = {}
 
@@ -32,12 +33,26 @@ end
 ---@param expected string
 ---@return boolean
 local function matches_type(value, expected)
-	if expected == "integer" then
+	if expected == "null" then
+		return value == json.null
+	elseif value == json.null then
+		return false
+	elseif expected == "integer" then
 		return type(value) == "number" and value % 1 == 0
 	elseif expected == "number" then
 		return type(value) == "number"
-	elseif expected == "object" or expected == "array" then
-		return type(value) == "table"
+	elseif expected == "object" then
+		if type(value) ~= "table" or json.isArray(value) then return false end
+		for key in pairs(value) do if type(key) ~= "string" then return false end end
+		return true
+	elseif expected == "array" then
+		if type(value) ~= "table" or json.isObject(value) then return false end
+		local size = #value
+		for key in pairs(value) do
+			if type(key) ~= "number" or key % 1 ~= 0 or key < 1 or key > size then return false end
+		end
+		for i = 1, size do if value[i] == nil then return false end end
+		return true
 	end
 	return type(value) == expected
 end

@@ -101,7 +101,7 @@ function Server:new(options)
 end
 
 -- Rebuilds routing state, providers, and monitor wiring from repository
--- rows. Called at startup and after every admin mutation.
+-- rows. Called at startup and after every MCP mutation.
 ---@param subscription_rows ai.router.SubscriptionRow[]
 ---@param model_rows ai.router.ModelRow[]
 function Server:reload(subscription_rows, model_rows)

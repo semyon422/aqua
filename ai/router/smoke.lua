@@ -1,5 +1,5 @@
 -- Smoke test: boots the full router with a local mock upstream and exercises
--- admin -> user -> subscription -> inference end to end. Run manually with
+-- MCP -> user -> subscription -> inference end to end. Run manually with
 -- ./luajit aqua/ai/router/smoke.lua; not part of the ./test suite.
 ---@diagnostic disable: no-unknown, codestyle-check, unused-local
 require("pkg_config")
@@ -8,12 +8,15 @@ pkg.export_lua()
 
 local coext = require("coext")
 local json = require("web.json")
-local digest = require("digest")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local CosocketServer = require("web.luasocket.CosocketServer")
 local http_util = require("web.http.util")
 local Server = require("ai.router.Server")
 local AdminPages = require("ai.router.AdminPages")
+local Management = require("ai.router.Management")
+local McpTools = require("ai.router.McpTools")
+local McpServer = require("mcp.Server")
+local McpClient = require("mcp.Client")
 local UsageMonitor = require("ai.router.UsageMonitor")
 local UsageRepo = require("ai.router.UsageRepo")
 local UsersRepo = require("ai.router.UsersRepo")
@@ -88,31 +91,27 @@ local admin = AdminPages({
 	password = "admin-password-admin-password",
 	get_time = os.time,
 })
-admin:setReloadCallback(function()
-	server:reload(subscriptions:list(), models:list())
-end)
+local management = Management({users_repo = users, subscriptions_repo = subscriptions, models_repo = models,
+	usage_repo = usage_repo, monitor = monitor, server = server})
+local mcp = McpServer(scheduler, McpTools.create(management), {port = 0, token = "smoke-management-token"})
+assert(mcp:start())
 server:reload(subscriptions:list(), models:list())
 server.admin_handler = function(req, res) return admin:handle(req, res) end
 assert(server:start("127.0.0.1", 0))
 local _, router_port = server:getAddress()
 
-local function request(method, path, form_or_body, cookie, is_json)
+local function request(method, path, form, cookie)
 	local response, request_err
 	local thread = coext.detach(coroutine.create(function()
 		local headers = {}
 		if cookie then headers.Cookie = cookie end
 		local encoded
-		if form_or_body then
-			if is_json then
-				headers["Content-Type"] = "application/json"
-				encoded = json.encode(form_or_body)
-			else
-				headers["Content-Type"] = "application/x-www-form-urlencoded"
-				encoded = http_util.encode_query_string(form_or_body)
-			end
+		if form then
+			headers["Content-Type"] = "application/x-www-form-urlencoded"
+			encoded = http_util.encode_query_string(form)
 		end
 		local result, err = http_util.request(("http://127.0.0.1:%d%s"):format(router_port, path), encoded,
-			{method = form_or_body and "POST" or "GET", headers = headers, scheduler = scheduler, timeout = 3})
+			{method = method, headers = headers, scheduler = scheduler, timeout = 3})
 		response = result
 		request_err = err
 	end))
@@ -125,36 +124,32 @@ local function request(method, path, form_or_body, cookie, is_json)
 	return response
 end
 
--- admin: login, create subscription and user
+-- Dashboard authentication remains available, but management uses MCP.
 local r = request("POST", "/admin/login", {password = "admin-password-admin-password"})
 assert(r.status == 303, "login failed: " .. r.status)
 local cookie = r.headers:get("Set-Cookie"):match("(router_admin=[^;]+)")
 r = request("GET", "/admin/users", nil, cookie)
-local csrf = assert(r.body:match('name="csrf_token" value="([^"]+)"'))
-
-r = request("POST", "/admin/subscriptions/save", {
-	csrf_token = csrf,
-	name = "local-llama",
-	kind = "openai_compat",
-	priority = "1",
-	enabled = "on",
-	config = json.encode({base_url = ("http://127.0.0.1:%d/v1"):format(upstream_port), models = {"llama-70b"}}),
-	limits = json.encode({}),
-}, cookie)
-assert(r.status == 200, "subscription save failed: " .. r.status .. " " .. r.body:sub(1, 200))
-print("public models:", next(server.router.state.public_models))
-print("providers:", next(server.providers))
-
-r = request("POST", "/admin/users/create", {
-	csrf_token = csrf,
-	name = "smoke-user",
-	models = "llama-70b",
-}, cookie)
-assert(r.status == 200, "user create failed")
-local user_key = r.body:match("New API key %(shown only once%): <code>([^<]+)</code>")
-
-io.write(r.body:sub(r.body:find("flash", 1, true) and (r.body:find("flash", 1, true) - 10) or 1, 300), "\n---\n")
-assert(user_key, "no key in response")
+local user_key
+local mcp_thread = coext.detach(coroutine.create(function()
+	local _, mcp_port = mcp:getAddress()
+	local client = McpClient({url = ("http://127.0.0.1:%d/mcp"):format(mcp_port), token = "smoke-management-token", scheduler = scheduler})
+	assert(client:initialize())
+	assert(#assert(client:listTools()).tools == 16)
+	local saved = assert(client:callTool("router_save_subscription", {
+		name = "local-llama", kind = "openai_compat", priority = 1,
+		config = {base_url = ("http://127.0.0.1:%d/v1"):format(upstream_port), models = {"llama-70b"}},
+	}))
+	assert(not saved.isError, saved.content[1].text)
+	local created = assert(client:callTool("router_create_user", {name = "smoke-user", models = {"llama-70b"}}))
+	assert(not created.isError, created.content[1].text)
+	user_key = created.structuredContent.api_key
+	client:close()
+end))
+coroutine.resume(mcp_thread)
+while coroutine.status(mcp_thread) ~= "dead" do assert(scheduler:update(0.01)) end
+assert(user_key, "no key in MCP response")
+r = request("POST", "/admin/users", {name = "forbidden"}, cookie)
+assert(r.status == 405, "dashboard must be read-only")
 
 -- inference through the router with the fresh key
 local inference_response, inference_err
@@ -199,9 +194,9 @@ assert(r.status == 200 and r.body:find("llama-70b", 1, true), "models missing")
 local history = usage_repo:history(os.time())
 assert(history.rows[1] and history.rows[1].input_tokens == 9, "usage not recorded")
 
-print("SMOKE OK: admin -> user -> subscription -> inference -> usage all working")
+print("SMOKE OK: MCP -> user -> subscription -> inference -> usage; dashboard read-only")
 print("upstream requests:", upstream_requests)
-print("user key (smoke only):", user_key)
 upstream_server:stop()
+mcp:stop()
 server:stop()
 storage:close()

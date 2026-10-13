@@ -1,296 +1,161 @@
 local coext = require("coext")
----@type {gettime: fun(): number}
 local socket = require("socket")
-local json = require("web.json")
-local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local http_util = require("web.http.util")
-local Server = require("ai.router.Server")
-local AdminPages = require("ai.router.AdminPages")
-local UsageMonitor = require("ai.router.UsageMonitor")
-local UsageRepo = require("ai.router.UsageRepo")
-local UsersRepo = require("ai.router.UsersRepo")
-local SubscriptionsRepo = require("ai.router.SubscriptionsRepo")
-local ModelsRepo = require("ai.router.ModelsRepo")
-local WindowsRepo = require("ai.router.WindowsRepo")
-local RouterDatabase = require("ai.router.storage.RouterDatabase")
-local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
+local Stack = require("ai.router.testing.Stack")
+local OpenAILoginManager = require("ai.router.OpenAILoginManager")
 
 local test = {}
 
-local ADMIN_PASSWORD = "admin-password-admin-password"
-
----@class test.AdminStack
----@field storage ai.router.RouterDatabase
----@field server ai.router.Server
----@field admin ai.router.AdminPages
----@field scheduler web.CosocketScheduler
----@field users ai.router.UsersRepo
----@field subscriptions ai.router.SubscriptionsRepo
----@field models ai.router.ModelsRepo
----@field usage_repo ai.router.UsageRepo
-
----@return test.AdminStack
-local function startStack()
-	local storage = RouterDatabase(LjsqliteDatabase())
-	storage.path = ":memory:"
-	storage:open()
-	local users = UsersRepo(storage.models)
-	local subscriptions = SubscriptionsRepo(storage.models)
-	local models = ModelsRepo(storage.models)
-	local usage_repo = UsageRepo(storage.models)
-	local monitor = UsageMonitor({
-		usage_repo = usage_repo,
-		windows_repo = WindowsRepo(storage.models),
-		logger = function() end,
-	})
-	local scheduler = CosocketScheduler()
-	local server = Server({
-		scheduler = scheduler,
-		users_repo = users,
-		usage_repo = usage_repo,
-		monitor = monitor,
-		logger = function() end,
-		provider_factory = function() return nil end,
-	})
-	local admin = AdminPages({
-		users_repo = users,
-		subscriptions_repo = subscriptions,
-		models_repo = models,
-		usage_repo = usage_repo,
-		monitor = monitor,
-		server = server,
-		password = ADMIN_PASSWORD,
-	})
-	admin:setReloadCallback(function()
-		server:reload(subscriptions:list(), models:list())
-	end)
-	server:reload(subscriptions:list(), models:list())
-	server.admin_handler = function(req, res)
-		return admin:handle(req, res)
-	end
-	local stack = {
-		storage = storage,
-		server = server,
-		admin = admin,
-		scheduler = scheduler,
-		users = users,
-		subscriptions = subscriptions,
-		models = models,
-		usage_repo = usage_repo,
-	}
-	assert(server:start("127.0.0.1", 0))
-	return stack
-end
-
 ---@param t testing.T
----@param stack test.AdminStack
----@param thread thread
-local function pump(t, stack, thread)
-	local deadline = socket.gettime() + 2
-	while coroutine.status(thread) ~= "dead" do
-		local ok, err = stack.scheduler:update(0.01)
-		if not ok and err then error(err) end
-		t:assert(socket.gettime() < deadline)
-	end
-end
-
--- A POST form request; extra_headers carries the session cookie.
----@param t testing.T
----@param stack test.AdminStack
+---@param stack ai.router.testing.Stack
 ---@param method string
 ---@param path string
 ---@param form table?
 ---@param cookie string?
----@return {status: integer, body: string, headers: web.Headers}
+---@return web.HttpResponse
 local function request(t, stack, method, path, form, cookie)
-	---@type {status: integer, body: string, headers: web.Headers}?
-	local response
-	---@type string?
-	local request_err
+	local response, request_err
 	local thread = coext.detach(coroutine.create(function()
 		local headers = {}
 		if cookie then headers.Cookie = cookie end
 		if form then headers["Content-Type"] = "application/x-www-form-urlencoded" end
 		local _, port = stack.server:getAddress()
-		local encoded = form and http_util.encode_query_string(form) or nil
-		local result, err = http_util.request(
-			("http://127.0.0.1:%d%s"):format(assert(port), path),
-			encoded,
-			{
-				method = method,
-				headers = headers,
-				scheduler = stack.scheduler,
-				timeout = 1,
-			}
-		)
-		response = result and {status = result.status, body = result.body, headers = result.headers} or nil
-		request_err = err
+		response, request_err = http_util.request(("http://127.0.0.1:%d%s"):format(assert(port), path),
+			form and http_util.encode_query_string(form) or nil,
+			{method = method, headers = headers, scheduler = stack.scheduler, timeout = 1})
 	end))
 	coroutine.resume(thread)
-	pump(t, stack, thread)
+	local deadline = socket.gettime() + 3
+	while coroutine.status(thread) ~= "dead" do
+		assert(stack.scheduler:update(0.01))
+		t:assert(socket.gettime() < deadline)
+	end
 	t:eq(request_err, nil)
 	return assert(response)
 end
 
 ---@param t testing.T
----@param stack test.AdminStack
----@return string cookie
----@return string csrf_token
+---@param stack ai.router.testing.Stack
+---@return string
+---@return string
 local function login(t, stack)
-	local response = request(t, stack, "POST", "/admin/login", {password = ADMIN_PASSWORD})
+	local response = request(t, stack, "POST", "/admin/login", {password = stack.password})
 	t:eq(response.status, 303)
-	local set_cookie = response.headers:get("Set-Cookie")
-	t:assert(set_cookie)
-	local cookie = set_cookie:match("(router_admin=[^;]+)")
-	t:assert(cookie)
-	-- extract the csrf token by requesting a page
+	local set_cookie = assert(response.headers:get("Set-Cookie"))
+	t:assert(set_cookie:find("Path=/;", 1, true))
+	local cookie = assert(set_cookie:match("(router_admin=[^;]+)"))
 	response = request(t, stack, "GET", "/admin/users", nil, cookie)
-	local csrf = response.body:match('name="csrf_token" value="([^"]+)"')
-	t:assert(csrf)
-	return cookie, csrf
+	return cookie, assert(response.body:match('name="csrf_token" value="([^"]+)"'))
 end
 
 ---@param t testing.T
 function test.login_flow_and_csrf(t)
-	local stack = startStack()
-	-- unauthenticated access redirects to login
-	local response = request(t, stack, "GET", "/admin/users", nil, nil)
+	local stack = Stack()
+	local response = request(t, stack, "GET", "/admin/users")
 	t:eq(response.status, 303)
 	t:eq(response.headers:get("Location"), "/admin")
-
-	-- wrong password re-renders the login form with 401
-	response = request(t, stack, "POST", "/admin/login", {password = "wrong-password-wrong"})
+	response = request(t, stack, "POST", "/admin/login", {password = "wrong"})
 	t:eq(response.status, 401)
-	t:assert(response.body:find("Invalid password", 1, true))
-
 	local cookie, csrf = login(t, stack)
-
-	-- mutation without CSRF is forbidden
-	response = request(t, stack, "POST", "/admin/users/create", {
-		name = "bob", models = "", csrf_token = "wrong",
-	}, cookie)
+	response = request(t, stack, "POST", "/admin/logout", {csrf_token = "wrong"}, cookie)
 	t:eq(response.status, 403)
+	response = request(t, stack, "POST", "/admin/logout", {csrf_token = csrf}, cookie)
+	t:eq(response.status, 303)
+	t:assert(response.headers:get("Set-Cookie"):find("Max-Age=0", 1, true))
+	stack:close()
+end
 
-	-- mutation with CSRF creates the user
-	response = request(t, stack, "POST", "/admin/users/create", {
-		name = "bob", models = "glm-5.3\ngpt-6-luna", csrf_token = csrf,
-	}, cookie)
+---@param t testing.T
+function test.users_display_grants_and_hide_keys(t)
+	local stack = Stack()
+	local user, key = stack.users:create("carol", os.time())
+	stack.users:setGrants(user.id, {"lite"})
+	local cookie = login(t, stack)
+	local response = request(t, stack, "GET", "/admin/users", nil, cookie)
 	t:eq(response.status, 200)
-	t:assert(response.body:find("bob", 1, true))
-	local new_key = response.body:match("New API key %(shown only once%): <code>([^<]+)</code>")
-	t:assert(new_key and #new_key >= 32)
-
-	-- the created user grants are persisted
-	local user = stack.users:findByName("bob")
-	t:assert(user)
-	t:tdeq(stack.users:getGrants(user.id), {"glm-5.3", "gpt-6-luna"})
-	stack.server:stop()
-	stack.storage:close()
+	t:assert(response.body:find("carol", 1, true))
+	t:assert(response.body:find("lite", 1, true))
+	t:eq(response.body:find(key, 1, true), nil)
+	t:eq(response.body:find(user.key_hash, 1, true), nil)
+	stack:close()
 end
 
 ---@param t testing.T
-function test.users_mutations(t)
-	local stack = startStack()
-	local cookie, csrf = login(t, stack)
-	local form = {csrf_token = csrf}
-
-	local create_response = request(t, stack, "POST", "/admin/users/create", {name = "carol", models = "lite", csrf_token = csrf}, cookie)
-	t:eq(create_response.status, 200)
-	local carol = stack.users:findByName("carol")
-	t:assert(carol)
-
-	-- disable
-	form = {csrf_token = csrf, id = tostring(carol.id), disabled = "on"}
-	request(t, stack, "POST", "/admin/users/update", form, cookie)
-	t:eq(stack.users:get(carol.id).disabled, true)
-
-	-- regenerate keeps the user but invalidates nothing visible here
-	request(t, stack, "POST", "/admin/users/regenerate", {csrf_token = csrf, id = tostring(carol.id)}, cookie)
-
-	-- delete removes grants too
-	request(t, stack, "POST", "/admin/users/delete", {csrf_token = csrf, id = tostring(carol.id)}, cookie)
-	t:eq(stack.users:get(carol.id), nil)
-	t:tdeq(stack.users:getGrants(carol.id), {})
-
-	-- validation error renders a 400 page without crashing
-	local bad_form = {csrf_token = csrf, name = ""}
-	local error_response = request(t, stack, "POST", "/admin/users/create", bad_form, cookie)
-	t:eq(error_response.status, 400)
-	t:assert(error_response.body:find("name is required", 1, true))
-	stack.server:stop()
-	stack.storage:close()
+function test.catalog_pages_display_models_and_hide_credentials(t)
+	local stack = Stack()
+	stack.subscriptions:create("local", "openai_compat", 1, {
+		base_url = "http://127.0.0.1:18020/v1", api_key = "PRIVATE-UPSTREAM-KEY", models = {"qwen"},
+	}, {}, os.time())
+	stack.models:create("lite", {"qwen"}, "Fallback alias", os.time())
+	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	local cookie = login(t, stack)
+	local response = request(t, stack, "GET", "/admin/subscriptions", nil, cookie)
+	t:eq(response.status, 200)
+	t:assert(response.body:find("local", 1, true))
+	t:assert(response.body:find("qwen", 1, true))
+	t:eq(response.body:find("PRIVATE-UPSTREAM-KEY", 1, true), nil)
+	response = request(t, stack, "GET", "/admin/models", nil, cookie)
+	t:eq(response.status, 200)
+	t:assert(response.body:find("lite", 1, true))
+	t:assert(response.body:find("qwen", 1, true))
+	t:assert(response.body:find("Fallback alias", 1, true))
+	stack:close()
 end
 
 ---@param t testing.T
-function test.subscription_save_validates_catalog(t)
-	local stack = startStack()
+function test.read_only_boundary(t)
+	local stack = Stack()
 	local cookie, csrf = login(t, stack)
-
-	-- a valid zai subscription is persisted and the router sees it
-	request(t, stack, "POST", "/admin/subscriptions/save", {
-		csrf_token = csrf,
-		name = "zai-main",
-		kind = "zai",
-		priority = "1",
-		enabled = "on",
-		config = json.encode({
-			base_url = "https://api.z.ai/api/coding/paas/v4",
-			api_key = "key",
-			models = {"glm-5.3"},
-		}),
-		limits = json.encode({five_hour_threshold = 80}),
-	}, cookie)
-	t:assert(stack.subscriptions:findByName("zai-main"))
-	t:eq(stack.server.router.state.subscriptions[1].name, "zai-main")
-	t:eq(stack.server.router.state.public_models["glm-5.3"], true)
-
-	-- a model alias referencing a missing model is rejected before persisting
-	request(t, stack, "POST", "/admin/models/save", {
-		csrf_token = csrf,
-		name = "bad",
-		chain = "missing-model",
-	}, cookie)
-	t:eq(stack.models:findByName("bad"), nil)
-
-	-- a valid alias is created and reloads the router
-	request(t, stack, "POST", "/admin/models/save", {
-		csrf_token = csrf,
-		name = "lite",
-		chain = "glm-5.3",
-	}, cookie)
-	t:assert(stack.models:findByName("lite"))
-	t:eq(stack.server.router.state.alias_models["lite"][1], "glm-5.3")
-
-	-- deleting the subscription breaks the alias: rejected without persisting
-	request(t, stack, "POST", "/admin/subscriptions/delete", {
-		csrf_token = csrf, id = tostring(stack.subscriptions:findByName("zai-main").id),
-	}, cookie)
-	t:assert(stack.subscriptions:findByName("zai-main"))
-	stack.server:stop()
-	stack.storage:close()
+	local response = request(t, stack, "POST", "/admin/users", {csrf_token = csrf, name = "must-not-create"}, cookie)
+	t:eq(response.status, 405)
+	t:eq(response.headers:get("Allow"), "GET")
+	t:eq(#stack.users:list(), 0)
+	for _, path in ipairs({"users", "subscriptions", "models", "usage", "status"}) do
+		response = request(t, stack, "GET", "/admin/" .. path, nil, cookie)
+		local _, forms = response.body:gsub("<form[%s>]", "")
+		t:eq(forms, 1)
+		t:assert(response.body:find('action="/admin/logout"', 1, true))
+	end
+	stack:close()
 end
 
 ---@param t testing.T
 function test.usage_and_status_pages_render(t)
-	local stack = startStack()
-	local cookie, csrf = login(t, stack)
+	local stack = Stack()
+	local cookie = login(t, stack)
 	stack.usage_repo:record(os.time(), "alice", 200, "glm-5.3", "glm-5.3", "zai-1",
 		{input_tokens = 10, output_tokens = 5, cached_input_tokens = 2, estimated = false})
-
 	local response = request(t, stack, "GET", "/admin/usage?hours=168", nil, cookie)
 	t:eq(response.status, 200)
 	t:assert(response.body:find("By user", 1, true))
 	t:assert(response.body:find("alice", 1, true))
 	t:assert(response.body:find("0.0000", 1, true))
-
 	response = request(t, stack, "GET", "/admin/status", nil, cookie)
 	t:eq(response.status, 200)
 	t:assert(response.body:find("Live subscription status", 1, true))
-
 	response = request(t, stack, "GET", "/admin/unknown", nil, cookie)
 	t:eq(response.status, 404)
-	stack.server:stop()
-	stack.storage:close()
+	stack:close()
+end
+
+---@param t testing.T
+function test.openai_status_display_hides_verification_code(t)
+	local stack = Stack()
+	local manager = OpenAILoginManager({scheduler = stack.scheduler,
+		create_auth = function() error("dashboard must not start authorization") end})
+	function manager:getState(auth_path)
+		t:eq(auth_path, "unused")
+		return {status = "logging_in", user_code = "PRIVATE-CODE", verification_url = "https://auth.openai.com/codex/device"}
+	end
+	stack.admin.openai_login = manager
+	stack.subscriptions:create("direct", "openai", 1, {auth_path = "unused", models = {"gpt"}}, {}, os.time())
+	stack.server:reload(stack.subscriptions:list(), {})
+	local cookie = login(t, stack)
+	local response = request(t, stack, "GET", "/admin/subscriptions", nil, cookie)
+	t:assert(response.body:find("logging_in", 1, true))
+	t:eq(response.body:find("PRIVATE-CODE", 1, true), nil)
+	t:eq(response.headers:get("Cache-Control"), "no-store")
+	stack:close()
 end
 
 return test

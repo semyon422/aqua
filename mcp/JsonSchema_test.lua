@@ -1,4 +1,5 @@
 local JsonSchema = require("mcp.JsonSchema")
+local json = require("web.json")
 
 local test = {}
 
@@ -49,6 +50,19 @@ function test.validates_additional_property_schema(t)
 	t:assert(JsonSchema.validate(schema, {first = true, second = false}))
 	local _, err = JsonSchema.validate(schema, {first = "yes"})
 	t:eq(err, "$.first must match type boolean")
+end
+
+---@param t testing.T
+function test.distinguishes_objects_arrays_and_null(t)
+	t:assert(JsonSchema.validate({type = "object"}, json.object({})))
+	t:assert(JsonSchema.validate({type = "array"}, json.array({})))
+	t:eq(JsonSchema.validate({type = "array"}, json.object({})), nil)
+	t:eq(JsonSchema.validate({type = "array"}, {model = "gpt"}), nil)
+	t:eq(JsonSchema.validate({type = "array"}, {[1] = "a", [3] = "b"}), nil)
+	t:eq(JsonSchema.validate({type = "object"}, json.array({})), nil)
+	t:eq(JsonSchema.validate({type = "object"}, {"a"}), nil)
+	t:eq(JsonSchema.validate({type = "object"}, json.null), nil)
+	t:assert(JsonSchema.validate({type = "null"}, json.null))
 end
 
 return test

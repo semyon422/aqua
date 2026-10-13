@@ -12,7 +12,7 @@ local class = require("class")
 ---@field updated_at integer
 
 -- Upstream subscriptions. `config` and `limits` are kind-specific JSON
--- objects; deep validation lives in ai.router.Catalog so admin saves and
+-- objects; deep validation lives in ai.router.Catalog so management saves and
 -- runtime state share one validator.
 ---@class ai.router.SubscriptionsRepo
 ---@operator call: ai.router.SubscriptionsRepo

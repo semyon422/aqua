@@ -1,10 +1,9 @@
 <h2>Subscriptions</h2>
-<% if saved_name then %><div class="flash">Saved: <%= saved_name %></div><% end %>
 <table>
-<tr><th>id</th><th>name</th><th>kind</th><th>prio</th><th>enabled</th><th>models</th><th>thresholds</th><th>5h / weekly</th><th>actions</th></tr>
+<tr><th>id</th><th>name</th><th>kind</th><th>priority</th><th>enabled</th><th>models / redirects</th><th>thresholds</th><th>5h / weekly</th><th>OpenAI login</th></tr>
 <% for _, row in ipairs(rows) do %>
 <%
-local limits = row.limits or {}
+local limits = row.limits
 local windows = window_states[row.id]
 local function fmt(window)
 	local w = windows and windows[window]
@@ -12,48 +11,13 @@ local function fmt(window)
 	return string.format("%s%% (%s)", tostring(w.used_percent or "?"), w.source)
 end
 %>
-<tr>
-<td><%= row.id %></td>
-<td><%= row.name %></td>
-<td><%= row.kind %></td>
-<td><%= row.priority %></td>
-<td><%= row.enabled and "yes" or "no" %></td>
-<td><%= table.concat(row.config.models or {}, ", ") %></td>
+<tr><td><%= row.id %></td><td><%= row.name %></td><td><%= row.kind %></td>
+<td><%= row.priority %></td><td><%= row.enabled and "yes" or "no" %></td>
+<td><%= table.concat(row.config.models, ", ") %>
+<% for source, target in pairs(row.config.model_redirects or {}) do %><div><%= source %> → <%= target %></div><% end %></td>
 <td><%= limits.five_hour_threshold and ("5h ≥ " .. limits.five_hour_threshold .. "%") or "—" %>
 <%= limits.weekly_threshold and (" / weekly ≥ " .. limits.weekly_threshold .. "%") or "" %></td>
 <td><%= fmt("five_hour") %> / <%= fmt("weekly") %></td>
-<td>
-<form method="post" action="/admin/subscriptions/delete">
-<input type="hidden" name="csrf_token" value="<%= csrf_token %>">
-<input type="hidden" name="id" value="<%= row.id %>">
-<button type="submit">Delete</button>
-</form>
-</td>
-</tr>
+<td><%= login_states[row.id] and login_states[row.id].status or "—" %></td></tr>
 <% end %>
 </table>
-
-<h2>Create or edit</h2>
-<form method="post" action="/admin/subscriptions/save">
-<input type="hidden" name="csrf_token" value="<%= csrf_token %>">
-<label>id (empty = create) <input type="text" name="id" size="4"></label>
-<label>name <input type="text" name="name" required></label>
-<label>kind
-<select name="kind">
-<option value="zai">zai</option>
-<option value="openai">openai</option>
-<option value="openai_compat">openai_compat</option>
-</select>
-</label>
-<label>priority <input type="text" name="priority" value="10" size="4"></label>
-<label><input type="checkbox" name="enabled" checked> enabled</label>
-<br>
-<label>config (JSON)<br>
-<textarea name="config" placeholder='{"base_url": "https://api.z.ai/api/coding/paas/v4", "api_key": "…", "models": ["glm-5.3"]}'></textarea>
-</label>
-<label>limits (JSON)<br>
-<textarea name="limits" placeholder='{"five_hour_threshold": 80, "weekly_threshold": 90}'></textarea>
-</label>
-<button type="submit">Save subscription</button>
-</form>
-<p class="muted">Editing an existing subscription: paste its id above and the full config/limits JSON. OpenAI auth files live in ignored userdata paths from the config.</p>

@@ -21,7 +21,7 @@
 ---@field public_models {[string]: boolean} aliases plus enabled subscriptions' models
 
 -- Builds the routing state from repository rows and validates it deeply.
--- Admin saves call this before persisting; the runtime asserts a clean build.
+-- Management saves call this before persisting; the runtime asserts a clean build.
 -- Returns the state plus a list of human-readable errors; a state with errors
 -- must not be served.
 ---@class ai.router.Catalog

@@ -3,6 +3,9 @@ local ZaiProvider = require("ai.router.ZaiProvider")
 local CompatProvider = require("ai.router.CompatProvider")
 local OpenAIProvider = require("ai.router.OpenAIProvider")
 local Provider = require("ai.router.Provider")
+local random = require("web.random")
+---@type {b64: fun(value: string): string}
+local mime = require("mime")
 
 local test = {}
 
@@ -245,6 +248,33 @@ function test.provider_canonical_usage_dialects(t)
 		prompt_tokens = 5, completion_tokens = 6, total_tokens = 11,
 		prompt_tokens_details = {cached_tokens = 1},
 	}), {input_tokens = 5, output_tokens = 6, cached_input_tokens = 1})
+end
+
+---@param t testing.T
+function test.openai_auth_persists_login_and_refresh(t)
+	local path = "tmp/router-auth-test-" .. random.hex(16) .. ".lua"
+	local claims = json.encode({["https://api.openai.com/auth"] = {chatgpt_account_id = "test-account"}})
+	local token = "header." .. mime.b64(claims) .. ".signature"
+	local options = {
+		config = {auth_path = path},
+		scheduler = {},
+		request = function()
+			return {status = 200, body = json.encode({access_token = token, refresh_token = "second-refresh", expires_in = 3600})}
+		end,
+		open_stream = function() error("not used") end,
+	}
+	local auth = OpenAIProvider.createAuth(options)
+	t:eq(auth:isAuthenticated(), false)
+	t:assert(auth:storeTokens({access_token = token, refresh_token = "first-refresh", expires_in = 3600}))
+	local loaded = OpenAIProvider.createAuth(options)
+	t:eq(loaded:isAuthenticated(), true)
+	t:eq(loaded.credentials.account_id, "test-account")
+	t:eq(loaded.credentials.refresh_token, "first-refresh")
+	t:assert(loaded:refresh())
+	local refreshed = OpenAIProvider.createAuth(options)
+	t:eq(refreshed.credentials.refresh_token, "second-refresh")
+	t:assert(os.remove(path))
+	t:eq(io.open(path .. ".tmp", "r"), nil)
 end
 
 return test

@@ -1,51 +1,13 @@
-<% if new_key then %><div class="flash">New API key (shown only once): <code><%= new_key %></code></div><% end %>
 <h2>Users</h2>
-<form method="post" action="/admin/users/create">
-<input type="hidden" name="csrf_token" value="<%= csrf_token %>">
-<input type="text" name="name" placeholder="name" required>
-<textarea name="models" placeholder="granted models, one per line"></textarea>
-<button type="submit">Create user</button>
-</form>
 <table>
-<tr><th>id</th><th>name</th><th>key</th><th>grants</th><th>disabled</th><th>actions</th></tr>
+<tr><th>id</th><th>name</th><th>key hint</th><th>grants</th><th>disabled</th><th>concurrency / RPM</th></tr>
 <% for _, user in ipairs(users) do %>
 <tr>
-<td><%= user.id %></td>
-<td><%= user.name %></td>
+<td><%= user.id %></td><td><%= user.name %></td>
 <td><code>…<%= user.key_hint %></code></td>
-<td>
-<form method="post" action="/admin/users/grants">
-<input type="hidden" name="csrf_token" value="<%= csrf_token %>">
-<input type="hidden" name="id" value="<%= user.id %>">
-<% for _, model in ipairs(all_models) do %>
-<label><input type="checkbox" name="models" value="<%= model %>"
-<% for _, granted in ipairs(grants_by_user[user.id] or {}) do %>
-<% if granted == model then %>checked<% end %>
-<% end %>
-> <%= model %></label><br>
-<% end %>
-<button type="submit">Save grants</button>
-</form>
-</td>
+<td><%= table.concat(grants_by_user[user.id], ", ") %></td>
 <td><%= user.disabled and "yes" or "no" %></td>
-<td>
-<form class="inline" method="post" action="/admin/users/update">
-<input type="hidden" name="csrf_token" value="<%= csrf_token %>">
-<input type="hidden" name="id" value="<%= user.id %>">
-<label><input type="checkbox" name="disabled" <% if user.disabled then %>checked<% end %>> disabled</label>
-<button type="submit">Save</button>
-</form>
-<form class="inline" method="post" action="/admin/users/regenerate">
-<input type="hidden" name="csrf_token" value="<%= csrf_token %>">
-<input type="hidden" name="id" value="<%= user.id %>">
-<button type="submit">New key</button>
-</form>
-<form class="inline" method="post" action="/admin/users/delete">
-<input type="hidden" name="csrf_token" value="<%= csrf_token %>">
-<input type="hidden" name="id" value="<%= user.id %>">
-<button type="submit">Delete</button>
-</form>
-</td>
+<td><%= user.max_concurrency or "default" %> / <%= user.max_rpm or "default" %></td>
 </tr>
 <% end %>
 </table>

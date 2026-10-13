@@ -36,6 +36,7 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 - Tool calls execute in the coroutine handling the request; applications decide which scheduler thread owns that coroutine.
 - Published input and output schemas are runtime contracts, not documentation only; protocol boundaries validate them before application code consumes values.
 - `mcp.JsonSchema` enforces the tool-schema subset currently used by the project: primitive/object/array types, required and additional properties, nested property/item schemas, enums, numeric bounds, and array-size bounds. Expanding that subset requires focused validator tests.
+- Object and array constraints distinguish explicit JSON container tags; arrays must be dense numeric sequences and objects must have string keys. Untagged empty Lua tables remain accepted as either container for native callers. JSON null is not an object or an array.
 - Protocol errors use JSON-RPC errors, while successful tool dispatches report tool execution failures through MCP result content and `isError`.
 - JSON-RPC request IDs are client-scoped, not globally unique. Cancellation is routed only inside an explicit session; stateless cancellation notifications do not target active calls.
 - Session shutdown preserves IDs owned by `mcp.SessionStore`, while explicit `DELETE` removes them. Restored sessions always begin with an empty active-request set.

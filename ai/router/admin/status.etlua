@@ -1,6 +1,6 @@
 <h2>Live subscription status</h2>
 <table>
-<tr><th>subscription</th><th>kind</th><th>priority</th><th>enabled</th><th>window</th><th>fill</th><th>used / quota</th><th>source</th><th>age</th><th>resets at</th></tr>
+<tr><th>subscription</th><th>kind</th><th>priority</th><th>enabled</th><th>cooldown</th><th>window</th><th>fill</th><th>used / quota</th><th>source</th><th>age</th><th>resets at</th></tr>
 <% for _, sub in ipairs(subscriptions) do %>
 <%
 local windows = windows[sub.id] or {}
@@ -14,6 +14,7 @@ for _, window in ipairs(names) do
 <td rowspan="2"><%= sub.kind %></td>
 <td rowspan="2"><%= sub.priority %></td>
 <td rowspan="2"><%= sub.enabled and "yes" or "no" %></td>
+<td rowspan="2"><%= cooldowns[sub.id] and cooldowns[sub.id] > now and (math.ceil(cooldowns[sub.id] - now) .. "s remaining") or "—" %></td>
 <% end %>
 <td><%= window %></td>
 <% if w then %>

@@ -80,6 +80,21 @@ local function saveCredentialsFile(auth_path, credentials)
 end
 
 ---@param options ai.router.OpenAIProviderOptions
+---@return openai.SubscriptionAuth
+function OpenAIProvider.createAuth(options)
+	local credentials = loadCredentialsFile(options.config.auth_path)
+	return SubscriptionAuth({
+		scheduler = options.scheduler,
+		credentials = credentials,
+		save_credentials = function()
+			saveCredentialsFile(options.config.auth_path, credentials)
+		end,
+		open_url = function() return true end,
+		request = options.request,
+	})
+end
+
+---@param options ai.router.OpenAIProviderOptions
 function OpenAIProvider:new(options)
 	local config = options.config
 	assert(type(config.auth_path) == "string" and config.auth_path ~= "", "openai auth_path is required")
@@ -93,19 +108,7 @@ function OpenAIProvider:new(options)
 	if options.auth then
 		self.auth = options.auth
 	else
-		local auth = SubscriptionAuth({
-			scheduler = options.scheduler,
-			credentials = loadCredentialsFile(config.auth_path),
-			save_credentials = function(credentials)
-				saveCredentialsFile(config.auth_path, credentials)
-			end,
-			open_url = function(url)
-				print("Open this URL in a browser to sign in with ChatGPT:")
-				print(url)
-				return true
-			end,
-			request = options.request,
-		})
+		local auth = OpenAIProvider.createAuth(options)
 		self.auth = SubscriptionAuthGuard(auth, options.scheduler)
 	end
 end
