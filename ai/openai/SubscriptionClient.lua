@@ -687,7 +687,7 @@ end
 ---@return openai.Message?
 ---@return string?
 ---@return openai.ProviderError?
-function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_reasoning_delta, on_tool_call_delta)
+function SubscriptionClient:runStream(messages, tools, on_text_delta, on_reasoning_delta, on_tool_call_delta)
 	local deadline = self:createDeadline()
 	local access_token, account_id, auth_err = self.auth:getAccess()
 	if not access_token then return nil, auth_err or "OpenAI login is required" end
@@ -813,6 +813,7 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		return index
 	end
 	local parser = SseParser(function(data)
+		if done or parse_err then return end
 		if data == "[DONE]" then
 			done = true
 			return
@@ -921,7 +922,7 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		end
 		parser:feed(chunk)
 	end
-	parser:finish()
+	if not err then parser:finish() end
 	if parse_err == "downstream response stream closed" or err == deadline_error then
 		stream:cancel(parse_err or err)
 	else
@@ -935,6 +936,24 @@ function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_re
 		return nil, "OpenAI response has neither text nor tool calls"
 	end
 	return message
+end
+
+---@param messages openai.Message[]
+---@param tools openai.ToolSchema[]?
+---@param on_text_delta (fun(content: string): boolean?)?
+---@param on_reasoning_delta (fun(content: string): boolean?)?
+---@param on_tool_call_delta (fun(delta: openai.ToolCallDelta): boolean?)?
+---@return openai.Message?
+---@return string?
+---@return openai.ProviderError?
+function SubscriptionClient:completeStream(messages, tools, on_text_delta, on_reasoning_delta, on_tool_call_delta)
+	local ok, message, err, provider_error = pcall(self.runStream, self, messages, tools,
+		on_text_delta, on_reasoning_delta, on_tool_call_delta)
+	if ok then return message, err, provider_error end
+	local stream = self.active_stream
+	self.active_stream = nil
+	if stream then pcall(stream.close, stream) end
+	return nil, "upstream stream failed"
 end
 
 ---@return boolean

@@ -2,9 +2,9 @@
 <p><%= table.concat(public_models, ", ") %></p>
 <h2>Custom models</h2>
 <table>
-<tr><th>id</th><th>name</th><th>chain</th><th>description</th></tr>
+<tr><th>id</th><th>name</th><th>target</th><th>description</th></tr>
 <% for _, row in ipairs(rows) do %>
 <tr><td><%= row.id %></td><td><%= row.name %></td>
-<td><%= table.concat(row.chain, " → ") %></td><td><%= row.description or "" %></td></tr>
+<td><%= row.target %></td><td><%= row.description or "" %></td></tr>
 <% end %>
 </table>

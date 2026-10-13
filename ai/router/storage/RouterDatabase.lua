@@ -1,7 +1,6 @@
 local class = require("class")
 local TableOrm = require("rdb.TableOrm")
 local Models = require("rdb.Models")
-local SqliteMigrator = require("rdb.db.SqliteMigrator")
 local users_model = require("ai.router.storage.models.router_users")
 local user_models_model = require("ai.router.storage.models.router_user_models")
 local subscriptions_model = require("ai.router.storage.models.router_subscriptions")
@@ -15,12 +14,10 @@ local io_util = require("io_util")
 ---@field db rdb.SqliteDatabase
 ---@field orm rdb.TableOrm
 ---@field models rdb.Models
----@field migrator rdb.SqliteMigrator
----@field migrations table
 local RouterDatabase = class()
 
 RouterDatabase.path = "userdata/ai_router.db"
-local user_version = 1
+local user_version = 2
 
 ---@param db rdb.SqliteDatabase
 function RouterDatabase:new(db)
@@ -34,8 +31,6 @@ function RouterDatabase:new(db)
 		router_subscription_windows = windows_model,
 		router_usage_models = usage_model,
 	}, self.orm)
-	self.migrator = SqliteMigrator(db)
-	self.migrations = {}
 end
 
 function RouterDatabase:open()
@@ -55,14 +50,14 @@ end
 
 function RouterDatabase:migrate()
 	assert(self.db:user_version() <= user_version, "router database is newer than this code")
+	assert(self.db:user_version() == 0 or self.db:user_version() == user_version,
+		"router database schema is incompatible; use a fresh database (no migration is provided)")
 	local ok, err = pcall(function()
 		if self.db:user_version() == 0 then
 			self.db:exec("BEGIN")
 			self.db:exec(io_util.read_file("aqua/ai/router/storage/db.sql"))
 			self.db:user_version(user_version)
 			self.db:exec("COMMIT")
-		else
-			self.migrator:migrate(user_version, self.migrations)
 		end
 	end)
 	if not ok then

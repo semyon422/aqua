@@ -2,14 +2,14 @@
 
 ## Goal
 
-Provide a standalone multi-subscription OpenAI-compatible router: one server that authenticates named users, routes Chat Completions requests across several upstream subscriptions (ChatGPT/Codex OAuth, GLM Coding Plan, local llama.cpp), steers traffic away from subscriptions whose 5-hour or weekly limits are nearly exhausted, supports custom model aliases with ordered fallback chains, and reports usage statistics — without depending on application-specific code beyond the existing `aqua/ai` clients.
+Provide a standalone multi-subscription OpenAI-compatible router: one server that authenticates named users, routes Chat Completions requests across several upstream subscriptions (ChatGPT/Codex OAuth, GLM Coding Plan, local llama.cpp), steers traffic away from subscriptions whose 5-hour or weekly limits are nearly exhausted, supports simple model aliases, and reports usage statistics — without depending on application-specific code beyond the existing `aqua/ai` clients.
 
 ## User Experience
 
 - Operators manage subscriptions, users, grants, and model aliases through the router MCP server and an agent running on their own PC. The password-protected web admin panel is a read-only dashboard; its only POST operations are session login/logout.
 - To connect ChatGPT directly, call `router_save_subscription` with kind `openai`, name, priority, and `config.models`; an ignored credential path is generated if omitted. Call `router_start_openai_login`, then poll `router_openai_login_status` for the verification URL, one-time code, expiry, and result. The operator approves the code in OpenAI's browser page on their PC. The router polls in the background and saves credentials; no compatibility proxy or browser launch on the server is needed.
 - Operators create users with `router_create_user`, receive a generated API key once in the MCP result, and grant each user access to specific public models. Regeneration revokes the old key immediately. Agents must treat key-bearing tool results as secrets.
-- Operators define custom model names with ordered fallback chains, for example `lite → glm-5.3-flash → gpt-6-luna`: requests prefer the first chain entry whose subscriptions are available and fall through to later entries when earlier ones are depleted.
+- Operators define simple aliases, for example `lite → glm-5.3-flash`. Each alias has exactly one concrete model target. Requests may switch between subscriptions serving that target, but never fall back to a different model.
 - Clients point any OpenAI Chat Completions consumer at `POST /v1/chat/completions` (streaming and non-streaming) with their router key and see only the models they were granted in `GET /v1/models`.
 - Subscriptions are consumed in priority order: traffic goes to the highest-priority subscription that serves the model and is not past its thresholds. When it crosses a threshold, new requests move to the next subscription; when its window resets, it becomes primary again.
 - Upstream quota, authentication, and transport failures before any output transparently move the request to the next candidate; the client sees one clean response.
@@ -22,11 +22,11 @@ Provide a standalone multi-subscription OpenAI-compatible router: one server tha
 - Package layout and responsibilities:
   - `proxy.lua` — standalone entrypoint, loads the ignored `userdata/ai_router.lua` config.
   - `ai.router.Server` — HTTP handling: client authentication, request limits, `/v1/*` endpoints, `/admin/*` endpoints, admin sessions.
-  - `ai.router.Catalog` builds and deep-validates the routing state from repository rows (kind-specific config shapes, thresholds, redirect sources, concrete chain entries, alias nesting and shadowing). MCP saves validate through it before persisting; the runtime asserts a clean build. Default `usage_source` is `upstream` for openai and zai subscriptions and `local` for `openai_compat`.
+  - `ai.router.Catalog` builds and deep-validates the routing state from repository rows (kind-specific config shapes, thresholds, redirect sources, concrete alias targets, alias nesting and shadowing). MCP saves validate through it before persisting; the runtime asserts a clean build. Default `usage_source` is `upstream` for openai and zai subscriptions and `local` for `openai_compat`.
   - `ai.router.Router` — model resolution and subscription selection (pure logic over in-memory state; injected clock and window data; unit-testable without sockets).
   - `ai.router.UsageMonitor` — polls upstream usage endpoints and maintains per-subscription window fill state; runs as a scheduler task.
   - `ai.router.Provider` declares the canonical provider contract (assistant message and usage shapes, streaming delta shapes) and shared normalization helpers; `OpenAIProvider`, `ZaiProvider`, and `CompatProvider` implement it.
-  - `ai.router.storage.RouterDatabase` plus repos (`UsersRepo`, `SubscriptionsRepo`, `ModelsRepo`, `WindowsRepo`, `UsageRepo`) following the `ai.openai.storage` SQLite/rdb pattern (`db.sql`, `storage/models/`, numbered `storage/migrations/`, `PRAGMA user_version`).
+  - `ai.router.storage.RouterDatabase` plus repos (`UsersRepo`, `SubscriptionsRepo`, `ModelsRepo`, `WindowsRepo`, `UsageRepo`) following the SQLite/rdb pattern (`db.sql`, `storage/models/`, `PRAGMA user_version`). Schema version 2 uses a scalar alias target; no migration from schema version 1 is provided.
   - `ai.router.AdminPages` — server-rendered etlua (`web.etlua`) HTML with a small self-contained stylesheet and no external assets; charts reuse the existing usage dashboard approach.
   - `ai.router.Management` — management domain operations, public/redacted views, full hypothetical-catalog validation, pending-login guards, synchronous SQLite transactions and selective catalog reloads with explicit persistence/application outcomes. No dependency on HTML or HTTP forms.
   - `ai.router.McpTools` — MCP-native tools with closed input schemas and read-only/destructive annotations; returns JSON text plus structured content. Domain validation errors are bounded, and unexpected errors never reflect SQL, credentials, OAuth responses, or stack traces.
@@ -40,16 +40,16 @@ Provide a standalone multi-subscription OpenAI-compatible router: one server tha
   - `ai.openai.SseParser` and `ai.openai.ProxyNetwork` are shared protocol-agnostic infrastructure and are reused directly.
 - Routing is table-driven from database state, cached in memory and refreshed immediately after subscription/alias writes or explicit catalog reload (single process, no cross-worker coordination). User authentication, grants, and limits are read from repositories on each client request, so user/key writes take effect without reconstructing the catalog or providers:
   1. Authenticate the bearer key (SHA-256 hash lookup), reject disabled users, check the requested public model against the user's grants.
-  2. Resolve the model chain: a custom model expands to its configured ordered target list; a concrete model is a chain of itself. Chain entries must be concrete catalog models; nesting custom models inside chains is rejected at save time, as are direct or indirect cycles.
+   2. Resolve a simple alias to its single concrete target; a concrete model resolves to itself. Targets must be served by a configured subscription. Nested aliases, self-references, and shadowing of concrete model names are rejected.
   3. The public catalog is the union of custom models and every enabled subscription's model list; `/v1/models` returns its intersection with the user's grants.
-  4. For each chain entry in order, candidates are the enabled subscriptions serving it, ordered by `priority` then `id`. Each candidate's upstream model is the subscription's permanent `model_redirects` mapping for that name, or the name itself.
-  5. A subscription is **depleted** when a monitored window's fill is at or above that window's configured threshold and the data is fresh. Depleted subscriptions are skipped. If every candidate of every chain entry is depleted, the least-depleted candidate (lowest maximum window fill) is used instead of failing.
+   4. Candidates are the enabled subscriptions serving the resolved target, ordered by `priority` then `id`. Each candidate's upstream model is the subscription's permanent `model_redirects` mapping for that name, or the name itself. The response echoes the requested public alias; upstream receives the resolved model or its subscription-specific redirect.
+   5. A subscription is **depleted** when a monitored window's fill is at or above that window's configured threshold and the data is fresh. Depleted subscriptions are skipped. If every candidate for the target is depleted, the least-depleted candidate (lowest maximum window fill) is used instead of failing.
   6. A subscription in **cooldown** (recent upstream 401/403) is skipped like depleted ones but never used as a last resort while cooling down.
 - Failover is bounded and honest:
-  - Before any client-visible byte, upstream quota errors (429/`rate_limit_error`), authentication errors (401/403, plus cooldown), 5xx, and transport failures advance to the next candidate across the whole chain. A quota error also requests an immediate usage refresh for that subscription.
+   - Before any client-visible byte, upstream quota errors (429/`rate_limit_error`), authentication errors (401/403, plus cooldown), 5xx, and transport failures advance to the next subscription serving the same resolved model. A quota error also requests an immediate usage refresh for that subscription.
   - Provider-local request validation failures (unsupported parameter, malformed body) return `400` to the client without failover, because supported fields legitimately differ across providers.
-  - Once the first upstream output byte has been relayed, no failover is possible; upstream failures surface as SSE `error` events or transport errors like the existing proxies.
-  - To make pre-output failover possible, the router delays committing the downstream response — no status line, headers, or assistant-role chunk — until the first upstream output event arrives (or a non-streaming response completes). When all candidates fail before output, the client receives a real HTTP error status instead of a committed 200 with an SSE error.
+   - Once downstream headers have been attempted, no failover is possible; upstream failures surface as SSE `error` events or transport errors like the existing proxies. A failed downstream write cancels the current upstream instead of starting another candidate.
+   - To make pre-output failover possible, the router delays committing the downstream response — no status line, headers, or assistant-role chunk — until a non-empty, non-role delta arrives (or a completion succeeds without deltas). This includes content, reasoning, tool-call, refusal, and compatible-provider extensions. Empty deltas and role-only announcements do not commit the response. When all candidates fail before output, the client receives a real HTTP error status instead of a committed 200 with an SSE error.
 - Usage window tracking:
   - `UsageMonitor` polls each subscription's usage source on a configurable interval (default 60 s) with jitter. `OpenAISubscriptionProvider` reads the Codex usage endpoint: `rate_limit.primary_window` is the 5-hour window and `secondary_window` the weekly one, each with `used_percent` and `reset_at`.
   - `ZaiProvider` reads the z.ai monitor endpoint `https://api.z.ai/api/monitor/usage/quota/limit` with the same Coding Plan API key as inference: `unit 3/number 5` is the 5-hour window and `unit 6/number 1` the rolling weekly window, each with `percentage` (integer used-percent), `usage`/`currentValue` (quota/consumption), and `nextResetTime` (epoch milliseconds).
@@ -66,13 +66,17 @@ Provide a standalone multi-subscription OpenAI-compatible router: one server tha
 - The router tool adapter validates results before the generic MCP server. Invalid payloads are replaced with sanitized structured errors while retaining valid persistence/reload metadata; malformed metadata or unexpected exceptions report unknown persistence for mutations. Output validation never rolls back a completed write or instructs callers to replay it. A malformed key-creation response may require inspecting the user and explicitly regenerating its key, not creating it again.
 
 - Proxy model names for a user are exactly their grants; unknown or ungranted models fail with `404 model not found` before any upstream work.
-- Custom model chains contain only concrete catalog models; direct or indirect cycles are rejected at save time.
+- Each alias has one scalar `target` naming a concrete catalog model; arrays and the old `chain` API field are not supported. Nested aliases and self-references are rejected at save time. Grants apply to the requested public name, so access to an alias does not require a separate grant to its target.
 - Every accepted request resolves to at most one serving subscription; failover iterates the candidate list at most once.
 - Depletion decisions use only fresh window data (snapshot age below the configured `staleness` bound, default 120 s); stale data never marks a subscription depleted. The bound is flat across subscriptions: a subscription polling slower than `staleness` simply never depletes, which fails safe.
 - All depleted never produces a failure while a non-cooldown candidate exists; cooldown candidates are never used as last resort.
 - Downstream response commit happens only after the first upstream output event; nothing client-visible is sent for a request that later fails over.
 - Provider-local validation failures never trigger failover and never silently drop unsupported fields.
 - Requests require exactly one `Content-Length`; transfer encoding and duplicate lengths are rejected before buffering. Header, global connection, per-user concurrency, and per-user rate limits are enforced independently, with per-user configured overrides over the global defaults.
+- Request-rate and concurrency counters are keyed by user id, not bearer token: key rotation cannot evade limits or lose the bookkeeping for in-flight requests. Every acquired slot is released even if body reading, routing, provider code, or downstream writing raises. Provider exceptions become sanitized upstream failures; unexpected handler failures become sanitized internal errors, never raw exception text.
+- Streaming results retain the selected subscription/upstream model for accounting. Accounting and logs use the logical outcome: `400` for provider-local rejection, `502` for an upstream failure after SSE commit, and `499` for a failed downstream write, even when the already-sent HTTP status remains `200`. A terminal/usage/`[DONE]` write failure is not recorded as success. Failed intermediate fallback attempts are not separate usage rows.
+- Z.ai and compatible streaming timeouts are total request deadlines covering connection, upload, headers, and stream reads, not reset idle timeouts per chunk. Continuous chunks cannot extend a stream indefinitely. Shared streaming clients close their active stream and clear its reference on exceptions, and ignore coalesced SSE events after cancellation, parse errors, or terminal completion. Non-JSON upstream HTTP errors retain their status so authentication cooldowns and quota refreshes still work.
+- Client disconnection is observed through failed downstream writes. A client that disconnects while upstream is silent may remain active until the next output or the configured upstream deadline; there is no independent downstream-disconnect watcher.
 - Upstream request bodies sent to OpenAI subscriptions carry `store = false` and reject server-managed Responses state, matching the standalone proxy invariants. `[DONE]` terminates successful streams; a stream closed without `[DONE]` is an error unless canceled.
 - Tool arguments are untrusted JSON strings; providers that relay them do so verbatim without parsing or rewriting.
 - Streaming usage chunks honor `stream_options.include_usage` with the empty-`choices` final chunk shape, per provider capability.
@@ -125,7 +129,7 @@ CREATE TABLE router_subscriptions (
 CREATE TABLE router_models (
 	id INTEGER PRIMARY KEY,
 	name TEXT NOT NULL UNIQUE,
-	chain TEXT NOT NULL,             -- JSON ordered array of concrete model names
+	target TEXT NOT NULL,            -- single concrete model name
 	description TEXT,
 	created_at INTEGER NOT NULL,
 	updated_at INTEGER NOT NULL
@@ -178,7 +182,7 @@ CREATE TABLE router_usage_models (
 - `GET /admin` — login form; `POST /admin/login`, `POST /admin/logout`.
 - `GET /admin/users` — users, key hints, grants, enabled state and per-user limits.
 - `GET /admin/subscriptions` — subscriptions, served models, redirects, thresholds, window fills and OAuth status. No authorization code, credential or mutation controls.
-- `GET /admin/models` — public catalog and custom model chains.
+- `GET /admin/models` — public catalog and simple aliases with their targets.
 - Usage: totals, per-user, per-model, and per-subscription views over 24/168 hourly buckets with charts, cost estimates, errors, and estimated counts.
 - Status: per-subscription window fills, freshness, reset countdowns, cooldown state, last poll time.
 
@@ -189,7 +193,7 @@ CREATE TABLE router_usage_models (
 - Users: `router_create_user` (name, models), `router_update_user` (id plus optional name, disabled, models, max_concurrency, max_rpm), `router_regenerate_key`, `router_delete_user`.
 - Subscriptions: `router_save_subscription` (omit id to create; supply id to patch), `router_delete_subscription`, `router_refresh_usage` (schedules polling).
 - Recovery: `router_reload_catalog` reapplies the saved subscriptions/aliases after a reload failure, without replaying writes. Read `operation` and `isError` together; a committed result may still report failed runtime application.
-- Aliases: `router_save_model` (omit id to create; supply id to patch name/chain/description), `router_delete_model`.
+- Aliases: `router_save_model` (omit id to create; supply id to patch name/target/description), `router_delete_model`. `target` is a string, not a list; list/save results expose `target` instead of `chain`.
 - Authorization: `router_start_openai_login`, `router_openai_login_status`. Pass subscription id. Start returns immediately; poll status for code availability and completion. Approval must be performed by the user, not autonomously by the agent.
 - Tool discovery includes schemas, descriptions and safety annotations. Confirm destructive operations in the local agent. The MCP token grants full operator privileges, including upstream requests and credential path selection; do not give it to inference clients or untrusted agents.
 - Keep the listener loopback-only unless intentionally publishing it through authenticated HTTPS or an SSH tunnel. Do not forward its token over plaintext networks; it is independent of `admin_password` and client keys.
@@ -225,17 +229,24 @@ return {
 
 OpenAI subscription OAuth credentials are stored per subscription in ignored files such as `userdata/ai_router_auth_<random>.lua`. Device authorization is started through MCP. The operator must approve the returned code at `https://auth.openai.com/codex/device`; merely creating a subscription does not authenticate it. Existing `openai_compat` subscriptions remain unchanged and can coexist as fallback upstreams.
 
-Configuration migration: every deployed router config (normally ignored `userdata/ai_router.lua`, or the path passed to `proxy.lua`) must add a separate random `mcp_token` of at least 32 characters before restarting; startup fails without it. Optional `mcp_host` and `mcp_port` default to loopback and 28084 and do not inherit the public inference bind address. Existing database rows and OAuth stores require no migration. Local development may load the token from a mode-0600 ignored `userdata/ai_router_mcp_token.lua`; never commit it. Publishing a remote MCP listener requires an explicit proxy/tunnel configuration change; it is not enabled by upgrading code.
+Configuration migration: every deployed router config (normally ignored `userdata/ai_router.lua`, or the path passed to `proxy.lua`) must add a separate random `mcp_token` of at least 32 characters before restarting; startup fails without it. Optional `mcp_host` and `mcp_port` default to loopback and 28084 and do not inherit the public inference bind address. OAuth stores remain usable. Local development may load the token from a mode-0600 ignored `userdata/ai_router_mcp_token.lua`; never commit it. Publishing a remote MCP listener requires an explicit proxy/tunnel configuration change; it is not enabled by upgrading code.
+
+### Database Compatibility
+
+- Simple aliases use schema version 2 (`router_models.target TEXT`), replacing the old JSON `chain` column. Per the chosen feature redesign, there is **no migration** or compatibility layer. Startup rejects a version-1 database without modifying its data.
+- Before deploying this version with an old database, preserve the old database and update `db_path` in the environment's router config (normally `userdata/ai_router.lua`) to a new database file. It starts empty: users, grants, subscriptions, aliases, and usage history are not automatically transferred. Do not delete or overwrite an existing database as part of an ordinary code update. Reusing OAuth files requires explicitly configuring the corresponding subscriptions again.
+- Management clients must send a scalar `target` to `router_save_model` and read `target` from alias results instead of `chain`; no new inference protocol or alias grant is needed.
 
 ## Verification
 
-- `ai.router.Router` is tested as pure logic: chain resolution, cycle rejection, candidate ordering, depletion/last-resort/cooldown selection, and stale-data handling with injected window state and clock.
+- `ai.router.Router` is tested as pure logic: single-target alias resolution, invalid/nested target rejection, same-model candidate ordering, depletion/last-resort/cooldown selection, and stale-data handling with injected window state and clock. Server tests verify that aliases never switch to unrelated models.
 - Adapters are tested with the existing fake HTTP stream and scheduler patterns: failover before first output, no failover after first output, validation-error pass-through, usage accounting, and SSE fidelity per provider.
 - `UsageMonitor` is tested with fake upstream usage responses and aggregate-driven local counting, including staleness and persistence of snapshots.
-- Repos and database migrations are tested like `ai.openai.storage` (`RouterDatabase_test.lua`).
+- Repos and database initialization are tested like `ai.openai.storage` (`RouterDatabase_test.lua`), including rejection of the old schema without modifying its rows or columns.
 - Admin pages are tested for login/logout CSRF, a common read-only HTTP boundary, secret/code non-disclosure, and rendering of users, catalog, usage, and status. Removed web mutation routes are not maintained as individual scenarios; management and device-login behavior are covered by MCP tests.
 - `McpTools_test` uses the native `mcp.Client` over real loopback sockets: initialization/discovery, dedicated-token and Origin enforcement, schema rejection, user key revocation without provider reload, transaction rollback, config patch credential preservation, disabled creation, catalog/alias validation, OAuth status/pending guards, usage and status, and committed reload failures with saved payloads and non-replaying recovery.
 - Run with `./test aqua/ai/router`.
+- `Server_test` covers bounded pre-output fallback for 429/5xx/transport failures, role-only chunks, no fallback after output, auth cooldown expiry, sanitized exceptions and slot cleanup, user-limit overrides/key rotation, terminal-write failure accounting, and real loopback upstream timeouts and downstream disconnect cancellation. Shared client tests cover coalesced SSE terminal/cancellation boundaries and exception cleanup.
 - Also run `./test aqua/mcp` and `./luajit aqua/ai/router/smoke.lua`.
 
 ## Future Work and Open Questions

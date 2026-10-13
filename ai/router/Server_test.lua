@@ -14,6 +14,10 @@ local ModelsRepo = require("ai.router.ModelsRepo")
 local WindowsRepo = require("ai.router.WindowsRepo")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
 local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
+local Headers = require("web.http.Headers")
+local HttpServer = require("web.http.Server")
+local HttpStream = require("web.http.HttpStream")
+local CompatProvider = require("ai.router.CompatProvider")
 
 local test = {}
 
@@ -127,9 +131,9 @@ local function startStack(opts)
 	}, {}, 1000)
 	subscriptions:create("openai-1", "openai", 2, {
 		auth_path = "userdata/unused.lua",
-		models = {"gpt-6-luna"},
+		models = {"gpt-6-luna", "glm-5.3"},
 	}, {}, 1000)
-	models:create("lite", {"glm-5.3", "gpt-6-luna"}, nil, 1000)
+	models:create("lite", "glm-5.3", nil, 1000)
 	server:reload(subscriptions:list(), models:list())
 	local stack = {
 		storage = storage,
@@ -262,7 +266,7 @@ function test.failover_on_transport_error_and_429(t)
 	t:eq(response.status, 503)
 	t:eq(json.decode(response.body).error.code, "upstream_unavailable")
 
-	-- lite chain: glm-5.3 (zai-1) fails with transport, falls through to gpt-6-luna
+	-- The alias stays on glm-5.3 while failing over between subscriptions.
 	stack.providers_by_name["zai-1"] = failing
 	stack.providers_by_name["openai-1"] = serving
 	stack.server:reload(stack.subscriptions:list(), stack.models:list())
@@ -275,9 +279,8 @@ function test.failover_on_transport_error_and_429(t)
 	-- failing served twice: as openai-1 on the first request and as zai-1 on this one
 	t:eq(failing.complete_count, 2)
 	t:eq(serving.complete_count, 1)
-	t:eq(serving.models[1], "gpt-6-luna")
-	-- the second attempt saw the concrete chain entry as the model
-	t:eq(serving.bodies[1].model, "gpt-6-luna")
+	t:eq(serving.models[1], "glm-5.3")
+	t:eq(serving.bodies[1].model, "glm-5.3")
 
 	-- quota errors advance the walk and refresh the monitor
 	stack.providers_by_name["zai-1"] = quota
@@ -367,6 +370,7 @@ function test.streams_deltas_with_delayed_commit(t)
 	-- a provider that fails before any delta yields a plain HTTP error
 	local failing = fakeProvider({err = "no upstream"})
 	stack.providers_by_name["zai-1"] = failing
+	stack.providers_by_name["openai-1"] = failing
 	stack.server:reload(stack.subscriptions:list(), stack.models:list())
 	response = request(t, stack, "/v1/chat/completions", {
 		model = "glm-5.3",
@@ -419,6 +423,309 @@ function test.grants_and_models_endpoint(t)
 
 	response = request(t, stack, "/v1/models", nil, "wrong-token-wrong-token-wrong")
 	t:eq(response.status, 401)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.streaming_failover_only_before_output(t)
+	local first = fakeProvider({deltas = {{role = "assistant", content = ""}, {}}, err = "timeout"})
+	local second = fakeProvider({deltas = {{content = "hello"}}, message = ok_message})
+	local stack = startStack({providers = {["zai-1"] = first, ["openai-1"] = second}})
+	local body = {model = "lite", messages = {{role = "user", content = "hi"}}, stream = true}
+	local response = request(t, stack, "/v1/chat/completions", body, TOKEN)
+	t:eq(response.status, 200)
+	t:eq(second.stream_count, 1)
+	t:eq(parseSse(response.body)[2].choices[1].delta.content, "hello")
+	local row = stack.usage_repo:history(os.time()).rows[1]
+	t:eq(row.subscription, "openai-1")
+	t:eq(row.upstream_model, "glm-5.3")
+	first = fakeProvider({deltas = {{content = "partial"}}, err = "timeout"})
+	stack.providers_by_name["zai-1"] = first
+	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	response = request(t, stack, "/v1/chat/completions", body, TOKEN)
+	t:eq(response.status, 200)
+	t:eq(second.stream_count, 1)
+	local events = parseSse(response.body)
+	t:eq(events[2].choices[1].delta.content, "partial")
+	t:eq(events[3].error.code, "upstream_error")
+	t:eq(#events, 3)
+	t:assert(response.body:find("data: [DONE]", 1, true))
+	local rows = stack.usage_repo:history(os.time()).rows
+	local errors = 0
+	for _, item in ipairs(rows) do errors = errors + item.errors end
+	t:eq(errors, 1)
+	t:eq(next(stack.server.active_requests), nil)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.exceptions_release_slots_and_do_not_leak_details(t)
+	local broken = fakeProvider()
+	broken.complete = function() error("SECRET-PROVIDER") end
+	local fallback = fakeProvider({message = ok_message})
+	local stack = startStack({providers = {["zai-1"] = broken, ["openai-1"] = fallback}})
+	local body = {model = "lite", messages = {{role = "user", content = "hi"}}}
+	t:eq(request(t, stack, "/v1/chat/completions", body, TOKEN).status, 200)
+	local complete = stack.server.complete
+	stack.server.complete = function() error("SECRET-HANDLER") end
+	local response = request(t, stack, "/v1/chat/completions", body, TOKEN)
+	t:eq(response.status, 500)
+	t:eq(response.body:find("SECRET", 1, true), nil)
+	t:eq(next(stack.server.active_requests), nil)
+	stack.server.complete = complete
+	t:eq(request(t, stack, "/v1/chat/completions", body, TOKEN).status, 200)
+	broken.completeStream = function(_, _, _, callback)
+		callback({content = "partial"})
+		error("SECRET-STREAM")
+	end
+	body.stream = true
+	response = request(t, stack, "/v1/chat/completions", body, TOKEN)
+	t:eq(response.status, 200)
+	t:eq(parseSse(response.body)[3].error.code, "upstream_error")
+	t:eq(fallback.stream_count, 0)
+	t:eq(response.body:find("SECRET", 1, true), nil)
+	t:eq(next(stack.server.active_requests), nil)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.authentication_cooldown_expires_and_local_errors_are_counted(t)
+	local bad = fakeProvider({provider_error = {status = 401, message = "unauthorized", type = "authentication_error", code = "unauthorized"}})
+	local good = fakeProvider({message = ok_message})
+	local stack = startStack({providers = {["zai-1"] = bad, ["openai-1"] = good}})
+	local now = 1000
+	stack.server.get_time = function() return now end
+	local body = {model = "lite", messages = {}}
+	t:eq(request(t, stack, "/v1/chat/completions", body, TOKEN).status, 200)
+	t:eq(stack.server.cooldowns[1], 1600)
+	t:eq(request(t, stack, "/v1/chat/completions", body, TOKEN).status, 200)
+	t:eq(bad.complete_count, 1)
+	now = 1600
+	t:eq(request(t, stack, "/v1/chat/completions", body, TOKEN).status, 200)
+	t:eq(bad.complete_count, 2)
+	stack.server.cooldowns[1] = nil
+	stack.providers_by_name["zai-1"] = fakeProvider({provider_error = {
+		status = 400, message = "bad request", type = "invalid_request_error", code = "invalid_request"}})
+	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	for _, stream in ipairs({false, true}) do
+		body.stream = stream
+		t:eq(request(t, stack, "/v1/chat/completions", body, TOKEN).status, 400)
+	end
+	t:eq(good.complete_count, 3)
+	local errors = 0
+	for _, row in ipairs(stack.usage_repo:history(os.time()).rows) do errors = errors + row.errors end
+	t:eq(errors, 2)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@class test.RouterResponse: web.Response
+---@field writes integer
+---@field fail_after integer
+local RouterResponse = {}
+
+function RouterResponse:set_chunked_encoding() end
+function RouterResponse:send_headers()
+	self.headers_sent = true
+	return 1
+end
+---@param data string
+---@return integer?
+function RouterResponse:send(data)
+	self.writes = self.writes + 1
+	if self.writes > self.fail_after then return nil end
+	return #data
+end
+
+---@param t testing.T
+function test.downstream_write_failures_never_fail_over(t)
+	local first = fakeProvider({deltas = {{content = "first"}, {content = "second"}}, message = ok_message})
+	local fallback = fakeProvider({message = ok_message})
+	local stack = startStack({providers = {["zai-1"] = first, ["openai-1"] = fallback}})
+	-- Fail the role write, a content write, or the terminal write.
+	for _, fail_after in ipairs({0, 1, 3}) do
+		local res = setmetatable({headers = Headers(), writes = 0, fail_after = fail_after}, {__index = RouterResponse})
+		local status, result = stack.server:complete(res, {model = "lite", stream = true}, stack.user)
+		t:eq(status, 499)
+		t:eq(result.downstream_closed, true)
+		t:eq(result.subscription, "zai-1")
+		t:eq(fallback.stream_count, 0)
+	end
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.user_limit_overrides_and_key_rotation_share_counters(t)
+	local stack = startStack({providers = {["zai-1"] = fakeProvider({message = ok_message})}})
+	stack.users:update(stack.user.id, {max_rpm = 1, max_concurrency = 1}, os.time())
+	local body = {model = "glm-5.3", messages = {}}
+	t:eq(request(t, stack, "/v1/chat/completions", body, TOKEN).status, 200)
+	local key = stack.users:regenerateKey(stack.user.id, os.time())
+	t:eq(request(t, stack, "/v1/chat/completions", body, key).status, 429)
+	stack.server.request_windows = {}
+	t:assert(stack.server:acquireRequest(tostring(stack.user.id), 1))
+	t:eq(request(t, stack, "/v1/chat/completions", body, key).status, 429)
+	stack.server:releaseRequest(tostring(stack.user.id))
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.real_upstream_auth_failure_and_stream_timeout(t)
+	local fallback = fakeProvider({message = ok_message, deltas = {{content = "hello"}}})
+	local stack = startStack({providers = {["openai-1"] = fallback}})
+	local upstream = HttpServer(stack.scheduler, function(req, res)
+		assert(req:receive("*a"))
+		if req.uri == "/auth/chat/completions" then
+			res.status = 401
+			res:set_length(6)
+			res:send("denied")
+		else
+			res.headers:set("Content-Type", "text/event-stream")
+			res:set_chunked_encoding()
+			res:send([[data: {"choices":[{"delta":{"role":"assistant","content":""}}]}]] .. "\n\n")
+			stack.scheduler:sleep(0.15)
+			res:send("data: [DONE]\n\n")
+			res:send("")
+		end
+	end, {client_timeout = 1})
+	assert(upstream:start("127.0.0.1", 0))
+	local _, port = upstream:getAddress()
+	local closed = 0
+	for _, mode in ipairs({"auth", "stall"}) do
+		stack.providers_by_name["zai-1"] = CompatProvider({
+			config = {base_url = ("http://127.0.0.1:%d/%s"):format(port, mode), models = {"glm-5.3"}}, timeout = 0.05,
+			request = function(url, body, options)
+				options.scheduler = stack.scheduler
+				return http_util.request(url, body, options)
+			end,
+			open_stream = function(url, options)
+				options.scheduler = stack.scheduler
+				options.on_close = function() closed = closed + 1 end
+				local stream = HttpStream(options)
+				local ok, err = stream:connect(url)
+				if not ok then stream:close() return nil, err end
+				return stream
+			end,
+		})
+		stack.server:reload(stack.subscriptions:list(), stack.models:list())
+		stack.server.cooldowns[1] = nil
+		local response = request(t, stack, "/v1/chat/completions", {model = "lite", messages = {}, stream = true}, TOKEN)
+		t:eq(response.status, 200)
+		t:eq(parseSse(response.body)[2].choices[1].delta.content, "hello")
+		if mode == "auth" then t:assert(stack.server.cooldowns[1]) end
+		t:eq(next(stack.server.active_requests), nil)
+	end
+	t:eq(closed, 2)
+	t:eq(fallback.stream_count, 2)
+	upstream:stop()
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.pre_output_failures_visit_each_candidate_once(t)
+	for _, stream in ipairs({false, true}) do
+		for _, code in ipairs({429, 500, 503}) do
+			local first = fakeProvider({provider_error = {status = code, message = "failed", type = "upstream_error", code = "failed"}})
+			local second = fakeProvider({err = "timeout"})
+			local stack = startStack({providers = {["zai-1"] = first, ["openai-1"] = second}})
+			local refreshed = 0
+			stack.monitor.refresh = function(_, id) t:eq(id, 1) refreshed = refreshed + 1 end
+			local response = request(t, stack, "/v1/chat/completions", {model = "lite", stream = stream, messages = {}}, TOKEN)
+			t:eq(response.status, 503)
+			t:eq(first.complete_count + first.stream_count, 1)
+			t:eq(second.complete_count + second.stream_count, 1)
+			t:eq(refreshed, code == 429 and 1 or 0)
+			t:eq(next(stack.server.active_requests), nil)
+			stack.server:stop()
+			stack.storage:close()
+		end
+	end
+end
+
+---@param t testing.T
+function test.real_downstream_disconnect_closes_upstream_and_releases_slot(t)
+	local fallback = fakeProvider({message = ok_message})
+	local stack = startStack({providers = {["openai-1"] = fallback}})
+	local upstream = HttpServer(stack.scheduler, function(req, res)
+		assert(req:receive("*a"))
+		res.headers:set("Content-Type", "text/event-stream")
+		res:set_chunked_encoding()
+		for _ = 1, 20 do
+			if not res:send([[data: {"choices":[{"delta":{"content":"text"}}]}]] .. "\n\n") then return end
+			stack.scheduler:sleep(0.01)
+		end
+		res:send("data: [DONE]\n\n")
+		res:send("")
+	end, {client_timeout = 1})
+	assert(upstream:start("127.0.0.1", 0))
+	local _, upstream_port = upstream:getAddress()
+	local closed = 0
+	stack.providers_by_name["zai-1"] = CompatProvider({
+		config = {base_url = ("http://127.0.0.1:%d"):format(upstream_port), models = {"glm-5.3"}}, timeout = 1,
+		request = function() error("not used") end,
+		open_stream = function(url, options)
+			options.scheduler = stack.scheduler
+			options.on_close = function() closed = closed + 1 end
+			local stream = HttpStream(options)
+			assert(stream:connect(url))
+			return stream
+		end,
+	})
+	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	local log
+	stack.server.logger = function(line) log = line end
+	local failure
+	local thread = coext.detach(coroutine.create(function()
+		local ok, err = pcall(function()
+			local _, port = stack.server:getAddress()
+			local client = HttpStream({scheduler = stack.scheduler, timeout = 1, method = "POST",
+				headers = {Authorization = "Bearer " .. TOKEN}})
+			assert(client:connect(("http://127.0.0.1:%d/v1/chat/completions"):format(port)))
+			assert(client:sendBody(json.encode({model = "lite", messages = {}, stream = true})))
+			assert(client:receiveHeaders())
+			client:cancel("test disconnect")
+			while next(stack.server.active_requests) do stack.scheduler:sleep(0.01) end
+		end)
+		if not ok then failure = err end
+	end))
+	coroutine.resume(thread)
+	pump(t, stack, thread)
+	if failure then error(failure) end
+	t:eq(closed, 1)
+	t:eq(fallback.stream_count, 0)
+	t:assert(log:find("status=499", 1, true))
+	upstream:stop()
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.alias_never_falls_back_to_another_model(t)
+	local failing = fakeProvider({err = "unavailable"})
+	local other = fakeProvider({message = ok_message})
+	local stack = startStack({providers = {["zai-1"] = failing, ["openai-1"] = other}})
+	stack.subscriptions:update(2, {config = {auth_path = "userdata/unused.lua", models = {"gpt-6-luna"}}}, 1001)
+	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.users:setGrants(stack.user.id, {"lite"})
+	stack.providers_by_name["zai-1"] = fakeProvider({message = ok_message})
+	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	local response = request(t, stack, "/v1/chat/completions", {model = "lite", messages = {}}, TOKEN)
+	t:eq(response.status, 200)
+	t:eq(json.decode(response.body).model, "lite")
+	stack.providers_by_name["zai-1"] = failing
+	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	for _, stream in ipairs({false, true}) do
+		local response = request(t, stack, "/v1/chat/completions", {model = "lite", messages = {}, stream = stream}, TOKEN)
+		t:eq(response.status, 503)
+	end
+	t:eq(other.complete_count, 0)
+	t:eq(other.stream_count, 0)
 	stack.server:stop()
 	stack.storage:close()
 end

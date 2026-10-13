@@ -89,22 +89,22 @@ end
 ---@param t testing.T
 function test.models_lifecycle(t)
 	local _, _, models, _, storage = open()
-	local model = models:create("lite", {"glm-5.3-flash", "gpt-6-luna"}, "cheap chain", 1000)
+	local model = models:create("lite", "glm-5.3-flash", "cheap alias", 1000)
 	t:eq(model.name, "lite")
-	t:eq(model.chain[1], "glm-5.3-flash")
-	t:eq(model.chain[2], "gpt-6-luna")
-	t:eq(model.description, "cheap chain")
+	t:eq(model.target, "glm-5.3-flash")
+	t:eq(model.description, "cheap alias")
 
 	t:eq(models:findByName("lite").id, model.id)
 
-	local updated = models:update(model.id, {chain = {"glm-5.3"}}, 1001)
-	t:tdeq(updated.chain, {"glm-5.3"})
-	t:eq(updated.description, "cheap chain")
+	local updated = models:update(model.id, {target = "glm-5.3"}, 1001)
+	t:eq(updated.target, "glm-5.3")
+	t:eq(updated.description, "cheap alias")
 
-	t:has_error(function() models:create("loop", {"loop"}, nil, 1002) end)
-	t:has_error(function() models:create("dup", {"a", "a"}, nil, 1002) end)
-	t:has_error(function() models:create("empty", {}, nil, 1002) end)
-	t:has_error(function() models:update(model.id, {chain = {}}, 1002) end)
+	t:has_error(function() models:create("loop", "loop", nil, 1002) end)
+	t:has_error(function() models:create("bad", {"a", "b"}, nil, 1002) end)
+	t:has_error(function() models:create("empty", "", nil, 1002) end)
+	t:has_error(function() models:update(model.id, {target = ""}, 1002) end)
+	t:has_error(function() models:update(model.id, {name = "glm-5.3"}, 1002) end)
 
 	models:delete(model.id)
 	t:eq(models:findByName("lite"), nil)

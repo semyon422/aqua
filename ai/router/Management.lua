@@ -154,7 +154,7 @@ end
 local function validateCatalog(subscriptions, models)
 	local _, errors = Catalog.fromRows(subscriptions, models)
 	-- Catalog diagnostics may contain operator-supplied values; never reflect them.
-	check(#errors == 0, "Invalid catalog: check subscription config, limits, redirects, and concrete model chains.")
+	check(#errors == 0, "Invalid catalog: check subscription config, limits, redirects, and alias targets.")
 	---@type {[string]: boolean}
 	local paths = {}
 	for _, row in ipairs(subscriptions) do
@@ -365,14 +365,14 @@ function Management:saveModel(args)
 	local existing = args.id and self.models_repo:get(args.id)
 	check(not args.id or existing, "Model not found.")
 	local row = {id = args.id or -1, name = args.name or (existing and existing.name),
-		chain = args.chain or (existing and existing.chain), description = args.description or (existing and existing.description),
+		target = args.target or (existing and existing.target), description = args.description or (existing and existing.description),
 		created_at = self.get_time(), updated_at = self.get_time()}
-	check(row.name and row.chain, "Creating a model requires name and chain.")
+	check(row.name and row.target, "Creating an alias requires name and target.")
 	local duplicate = self.models_repo:findByName(row.name)
 	check(not duplicate or duplicate.id == args.id, "Model name already exists.")
 	validateCatalog(self.subscriptions_repo:list(), replace(self.models_repo:list(), args.id, row))
 	local saved = existing and self.models_repo:update(args.id, row, self.get_time())
-		or self.models_repo:create(row.name, row.chain, row.description, self.get_time())
+		or self.models_repo:create(row.name, row.target, row.description, self.get_time())
 	return {model = saved}
 end
 

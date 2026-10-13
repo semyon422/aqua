@@ -48,8 +48,8 @@ local subscription = object({id = integer, name = text, kind = enum({"openai", "
 	priority = integer, enabled = flag, config = config, limits = limits, has_api_key = flag,
 	created_at = integer, updated_at = integer, login_status = login_status},
 	{"id", "name", "kind", "priority", "enabled", "config", "limits", "has_api_key", "created_at", "updated_at"})
-local model = object({id = integer, name = text, chain = strings, description = text,
-	created_at = integer, updated_at = integer}, {"id", "name", "chain", "created_at", "updated_at"})
+local model = object({id = integer, name = text, target = text, description = text,
+	created_at = integer, updated_at = integer}, {"id", "name", "target", "created_at", "updated_at"})
 local window = object({used_percent = number, used_tokens = integer, quota_tokens = integer,
 	reset_at = integer, source = source, updated_at = number}, {"source", "updated_at"})
 local status = object({id = integer, name = text, enabled = flag,

@@ -38,13 +38,13 @@ local function subRow(id, name, priority, models, opts)
 end
 
 ---@param name string
----@param chain string[]
+---@param target string
 ---@return ai.router.ModelRow
-local function modelRow(name, chain)
+local function modelRow(name, target)
 	return {
 		id = 1,
 		name = name,
-		chain = chain,
+		target = target,
 		description = nil,
 		created_at = 0,
 		updated_at = 0,
@@ -66,7 +66,7 @@ function test.catalog_builds_sorted_state(t)
 		subRow(1, "zai-1", 5, {"glm-5.3", "glm-5.3-flash"}),
 		subRow(3, "local", 20, {"llama-70b"}, {kind = "openai_compat"}),
 	}, {
-		modelRow("lite", {"glm-5.3-flash", "llama-70b"}),
+		modelRow("lite", "glm-5.3-flash"),
 	})
 	t:tdeq(errors, {})
 	t:eq(#state.subscriptions, 3)
@@ -74,7 +74,7 @@ function test.catalog_builds_sorted_state(t)
 	t:eq(state.subscriptions[2].name, "zai-2")
 	t:eq(state.subscriptions[3].name, "local")
 	t:eq(state.concrete_models["llama-70b"], true)
-	t:eq(state.alias_models["lite"][1], "glm-5.3-flash")
+	t:eq(state.alias_models["lite"], "glm-5.3-flash")
 	t:eq(state.public_models["lite"], true)
 	t:eq(state.subscriptions[1].usage_source.five_hour, "upstream")
 	t:eq(state.subscriptions[3].usage_source.five_hour, "local")
@@ -92,22 +92,22 @@ function test.catalog_disabled_subscriptions_stay_concrete(t)
 end
 
 ---@param t testing.T
-function test.catalog_rejects_bad_chains(t)
+function test.catalog_rejects_bad_alias_targets(t)
 	local _, errors = build({subRow(1, "zai-1", 1, {"glm-5.3"})}, {
-		modelRow("bad", {"missing-model"}),
+		modelRow("bad", "missing-model"),
 	})
 	t:eq(#errors, 1)
 	t:assert(errors[1]:find("not served by any subscription", 1, true))
 
 	_, errors = build({subRow(1, "zai-1", 1, {"a", "b"})}, {
-		modelRow("x", {"y"}),
-		modelRow("y", {"a"}),
+		modelRow("x", "y"),
+		modelRow("y", "a"),
 	})
 	t:eq(#errors, 1)
 	t:assert(errors[1]:find("must not reference a custom model", 1, true))
 
 	_, errors = build({subRow(1, "zai-1", 1, {"glm-5.3"})}, {
-		modelRow("glm-5.3", {"glm-5.3"}),
+		modelRow("glm-5.3", "glm-5.3"),
 	})
 	t:eq(#errors, 1)
 	t:assert(errors[1]:find("must not shadow a concrete model name", 1, true))
@@ -156,21 +156,17 @@ local function defaultState()
 		subRow(2, "zai-2", 2, {"glm-5.3"}, {limits = {five_hour_threshold = 80}}),
 		subRow(3, "openai-1", 3, {"gpt-6-luna"}),
 	}, {
-		modelRow("lite", {"glm-5.3-flash", "gpt-6-luna"}),
+		modelRow("lite", "glm-5.3"),
 	})
 	return state
 end
 
 ---@param t testing.T
-function test.router_resolves_chains(t)
+function test.router_resolves_aliases(t)
 	local router = Router({state = defaultState()})
-	t:tdeq(router:resolveChain("lite"), {"glm-5.3-flash", "gpt-6-luna"})
-	t:tdeq(router:resolveChain("glm-5.3"), {"glm-5.3"})
-	t:eq(router:resolveChain("missing"), nil)
-
-	local chain = router:resolveChain("lite")
-	chain[1] = "mutated"
-	t:tdeq(router:resolveChain("lite"), {"glm-5.3-flash", "gpt-6-luna"})
+	t:eq(router:resolveModel("lite"), "glm-5.3")
+	t:eq(router:resolveModel("glm-5.3"), "glm-5.3")
+	t:eq(router:resolveModel("missing"), nil)
 end
 
 ---@param t testing.T
@@ -189,9 +185,9 @@ function test.router_orders_candidates(t)
 	candidates = assert(router:candidates("lite"))
 	t:eq(#candidates, 2)
 	t:eq(candidates[1].subscription.name, "zai-1")
-	t:eq(candidates[1].model, "glm-5.3-flash")
-	t:eq(candidates[2].subscription.name, "openai-1")
-	t:eq(candidates[2].model, "gpt-6-luna")
+	t:eq(candidates[1].model, "glm-5.3")
+	t:eq(candidates[2].subscription.name, "zai-2")
+	t:eq(candidates[2].model, "glm-5.3")
 
 	local _, err = router:candidates("missing")
 	t:eq(err, "unknown model: missing")
@@ -294,7 +290,7 @@ function test.router_failover_start_offset(t)
 	-- first candidate failed with 429: continue after it, even though it is available
 	local i, candidate, reason = router:select(candidates, 2, {}, nil, 1000)
 	t:eq(i, 2)
-	t:eq(candidate.subscription.name, "openai-1")
+	t:eq(candidate.subscription.name, "zai-2")
 
 	i, candidate, reason = router:select(candidates, 3, {}, nil, 1000)
 	t:eq(i, nil)

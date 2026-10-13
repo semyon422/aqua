@@ -31,7 +31,7 @@ CREATE TABLE router_subscriptions (
 CREATE TABLE router_models (
 	id INTEGER PRIMARY KEY,
 	name TEXT NOT NULL UNIQUE,
-	chain TEXT NOT NULL,
+	target TEXT NOT NULL,
 	description TEXT,
 	created_at INTEGER NOT NULL,
 	updated_at INTEGER NOT NULL

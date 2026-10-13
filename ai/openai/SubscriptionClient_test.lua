@@ -421,4 +421,44 @@ function test.reports_auth_and_stream_errors(t)
 	t:eq(provider_error.code, "unexpected_reason")
 end
 
+---@param t testing.T
+function test.chat_stream_exceptions_close_resources(t)
+	for _, failure in ipairs({"sendBody", "receiveHeaders", "receiveAvailableChunk", "callback"}) do
+		local stream = makeStream({[[data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"Hi"}]] .. "\n\n"})
+		if failure ~= "callback" then stream[failure] = function() error("SECRET-EXCEPTION") end end
+		local client = makeClient(function() return stream end)
+		local message, err = client:completeStream({{role = "user", content = "hi"}}, nil,
+			function() error("SECRET-CALLBACK") end)
+		t:eq(message, nil)
+		t:eq(err, "upstream stream failed")
+		t:eq(stream.closed, true)
+		t:eq(client.active_stream, nil)
+	end
+end
+
+---@param t testing.T
+function test.chat_stream_ignores_coalesced_events_after_terminal_or_cancel(t)
+	local delta = [[data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"Hi"}]] .. "\n\n"
+	local completed = [[data: {"type":"response.completed","response":{"output":[]}}]] .. "\n\n"
+	for _, cancel in ipairs({false, true}) do
+		local stream = makeStream({delta .. completed .. delta})
+		local client = makeClient(function() return stream end)
+		local callbacks = 0
+		local message, err = client:completeStream({{role = "user", content = "hi"}}, nil, function()
+			callbacks = callbacks + 1
+			return not cancel
+		end)
+		t:eq(callbacks, 1)
+		if cancel then
+			t:eq(message, nil)
+			t:eq(err, "downstream response stream closed")
+			t:eq(stream.cancel_error, err)
+		else
+			t:eq(message.content, "Hi")
+			t:eq(stream.closed, true)
+		end
+		t:eq(client.active_stream, nil)
+	end
+end
+
 return test

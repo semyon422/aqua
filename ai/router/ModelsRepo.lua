@@ -1,23 +1,19 @@
 local class = require("class")
-local json = require("web.json")
 
 ---@class ai.router.ModelRow
 ---@field id integer
 ---@field name string
----@field chain string[] ordered target public model names
+---@field target string concrete public model name
 ---@field description string?
 ---@field created_at integer
 ---@field updated_at integer
 
--- Custom alias models with ordered fallback chains. Chain entries must be
--- concrete catalog models (served by some subscription); that cross-table
+-- Simple aliases to concrete catalog models (served by some subscription); that cross-table
 -- check lives in ai.router.Catalog.
 ---@class ai.router.ModelsRepo
 ---@operator call: ai.router.ModelsRepo
 ---@field models rdb.Models
 local ModelsRepo = class()
-
-ModelsRepo.max_chain_length = 16
 
 ---@param name string
 local function assertName(name)
@@ -25,20 +21,10 @@ local function assertName(name)
 end
 
 ---@param name string
----@param chain any
-local function assertChain(name, chain)
-	assert(type(chain) == "table" and #chain >= 1 and #chain <= ModelsRepo.max_chain_length,
-		("chain must be a list of 1-%d model names"):format(ModelsRepo.max_chain_length))
-	---@cast chain string[]
-	---@type {[string]: boolean}
-	local seen = {}
-	for i, entry in ipairs(chain) do
-		assert(type(entry) == "string" and #entry >= 1 and #entry <= 128,
-			("chain entry %d must be a 1-128 character name"):format(i))
-		assert(entry ~= name, "chain entry must not reference the alias itself")
-		assert(not seen[entry], "duplicate chain entry: " .. entry)
-		seen[entry] = true
-	end
+---@param target string
+local function assertTarget(name, target)
+	assertName(target)
+	assert(target ~= name, "alias must not reference itself")
 end
 
 ---@param models rdb.Models
@@ -47,18 +33,18 @@ function ModelsRepo:new(models)
 end
 
 ---@param name string
----@param chain string[]
+---@param target string
 ---@param description string?
 ---@param now integer
 ---@return ai.router.ModelRow
-function ModelsRepo:create(name, chain, description, now)
+function ModelsRepo:create(name, target, description, now)
 	assertName(name)
-	assertChain(name, chain)
+	assertTarget(name, target)
 	assert(description == nil or (type(description) == "string" and #description <= 256),
 		"description must be at most 256 characters")
 	return self.models.router_models:create({
 		name = name,
-		chain = json.array(chain),
+		target = target,
 		description = description,
 		created_at = now,
 		updated_at = now,
@@ -84,7 +70,7 @@ end
 
 ---@class ai.router.ModelChanges
 ---@field name string?
----@field chain string[]?
+---@field target string?
 ---@field description string?
 
 ---@param id integer
@@ -95,16 +81,16 @@ function ModelsRepo:update(id, changes, now)
 	local current = self.models.router_models:find({id = id})
 	assert(current, "model not found: " .. id)
 	local name = changes.name or current.name
-	local chain = changes.chain or current.chain
+	local target = changes.target or current.target
 	if changes.name ~= nil then assertName(changes.name) end
-	if changes.chain ~= nil then assertChain(name, chain) end
+	assertTarget(name, target)
 	if changes.description ~= nil then
 		assert(type(changes.description) == "string" and #changes.description <= 256,
 			"description must be at most 256 characters")
 	end
 	local row = {updated_at = now}
 	if changes.name ~= nil then row.name = changes.name end
-	if changes.chain ~= nil then row.chain = json.array(chain) end
+	if changes.target ~= nil then row.target = target end
 	if changes.description ~= nil then row.description = changes.description end
 	local rows = self.models.router_models:update(row, {id = id})
 	return rows[1]

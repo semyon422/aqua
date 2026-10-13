@@ -204,4 +204,107 @@ function test.cancels_active_stream(t)
 	t:eq(stream.cancel_error, "canceled")
 end
 
+---@param t testing.T
+function test.non_json_http_errors_preserve_status(t)
+	for _, status in ipairs({401, 403, 429, 503}) do
+		local stream = makeStream({"<html>upstream error</html>"})
+		stream.res.status = status
+		local client = Client({base_url = "http://localhost/v1", api_key = "secret",
+			request = function() return {status = status, body = "not JSON"} end,
+			open_stream = function() return stream end})
+		local _, _, err = client:complete({})
+		t:eq(err.status, status)
+		local _, _, stream_err = client:completeStream({})
+		t:eq(stream_err.status, status)
+		t:eq(stream.closed, true)
+		t:eq(client.active_stream, nil)
+	end
+end
+
+---@param t testing.T
+function test.coalesced_events_stop_after_cancel_error_or_done(t)
+	local delta = [[data: {"choices":[{"delta":{"content":"text"}}]}]] .. "\n\n"
+	for _, terminal in ipairs({"cancel", "error", "done"}) do
+		local payload = delta .. delta
+		if terminal == "error" then payload = [[data: {"error":{"message":"failed","type":"rate_limit_error"}}]] .. "\n\n" .. delta end
+		if terminal == "done" then payload = delta .. "data: [DONE]\n\n" .. delta end
+		local stream = makeStream({payload})
+		local client = Client({base_url = "http://localhost/v1", api_key = "secret",
+			request = function() error("not used") end, open_stream = function() return stream end})
+		local callbacks = 0
+		local message, err, provider_error = client:completeStream({}, function()
+			callbacks = callbacks + 1
+			if terminal == "cancel" then return false end
+		end)
+		t:eq(callbacks, terminal == "error" and 0 or 1)
+		if terminal == "done" then t:eq(message.content, "text")
+		elseif terminal == "error" then t:eq(provider_error.type, "rate_limit_error")
+		else t:eq(err, "downstream response stream closed") end
+		t:eq(client.active_stream, nil)
+	end
+end
+
+---@param t testing.T
+function test.stream_exceptions_close_resources(t)
+	for _, failure in ipairs({"sendBody", "receiveHeaders", "receiveAvailableChunk", "callback"}) do
+		local stream = makeStream({[[data: {"choices":[{"delta":{"content":"text"}}]}]] .. "\n\n"})
+		if failure ~= "callback" then stream[failure] = function() error("SECRET-EXCEPTION") end end
+		local client = Client({base_url = "http://localhost/v1", api_key = "secret",
+			request = function() error("not used") end, open_stream = function() return stream end})
+		local message, err = client:completeStream({}, function() error("SECRET-CALLBACK") end)
+		t:eq(message, nil)
+		t:eq(err, "upstream stream failed")
+		t:eq(stream.closed, true)
+		t:eq(client.active_stream, nil)
+	end
+end
+
+---@param t testing.T
+function test.stream_timeout_is_a_total_deadline(t)
+	local delta = [[data: {"choices":[{"delta":{"content":"text"}}]}]] .. "\n\n"
+	local stream = makeStream({delta, delta, delta})
+	local timeouts = {}
+	stream.setTimeout = function(_, timeout) table.insert(timeouts, timeout) end
+	local now = 0
+	local client = Client({base_url = "http://localhost/v1", api_key = "secret", timeout = 1,
+		get_time = function() return now end,
+		request = function() error("not used") end, open_stream = function() return stream end})
+	local callbacks = 0
+	local message, err = client:completeStream({}, function()
+		callbacks = callbacks + 1
+		now = now + 0.5
+	end)
+	t:eq(message, nil)
+	t:eq(err, "upstream request timeout exceeded")
+	t:eq(callbacks, 2)
+	t:eq(timeouts[#timeouts], 0.5)
+	t:eq(stream.cancel_error, err)
+	t:eq(client.active_stream, nil)
+end
+
+---@param t testing.T
+function test.streaming_error_body_is_bounded_by_size_and_deadline(t)
+	for _, limit in ipairs({"size", "deadline"}) do
+		local now, reads = 0, 0
+		local stream = makeStream({})
+		stream.res.status = 429
+		stream.setTimeout = function() end
+		stream.receiveAvailableChunk = function()
+			reads = reads + 1
+			if limit == "size" then return string.rep("x", Client.max_error_body_size + 1) end
+			now = now + 0.5
+			return "x"
+		end
+		local client = Client({base_url = "http://localhost/v1", api_key = "secret", timeout = 1,
+			get_time = function() return now end,
+			request = function() error("not used") end, open_stream = function() return stream end})
+		local message, _, err = client:completeStream({})
+		t:eq(message, nil)
+		t:eq(err.status, 429)
+		t:eq(reads, limit == "size" and 1 or 2)
+		t:eq(stream.closed, true)
+		t:eq(client.active_stream, nil)
+	end
+end
+
 return test

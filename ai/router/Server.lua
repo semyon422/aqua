@@ -151,13 +151,14 @@ end
 
 ---@param res web.Response
 ---@param body table
+---@return boolean
 local function sendJson(res, body)
 	local encoded = json.encode(body)
 	res.status = 200
 	res.headers:set("Content-Type", "application/json")
 	res.headers:set("Cache-Control", "no-store")
 	res:set_length(#encoded)
-	res:send(encoded)
+	return res:send(encoded) ~= nil
 end
 
 ---@param res web.Response
@@ -261,34 +262,36 @@ function Server:authenticate(req)
 	return token
 end
 
----@param token string
+---@param user_key string
+---@param limit integer?
 ---@return boolean
-function Server:consumeRateLimit(token)
+function Server:consumeRateLimit(user_key, limit)
 	local now = self.get_time()
-	local window = self.request_windows[token]
+	local window = self.request_windows[user_key]
 	if not window or now - window.started_at >= 60 then
-		self.request_windows[token] = {started_at = now, count = 1}
+		self.request_windows[user_key] = {started_at = now, count = 1}
 		return true
-	elseif window.count >= self.max_requests_per_minute then
+	elseif window.count >= (limit or self.max_requests_per_minute) then
 		return false
 	end
 	window.count = window.count + 1
 	return true
 end
 
----@param token string
+---@param user_key string
+---@param limit integer?
 ---@return boolean
-function Server:acquireRequest(token)
-	local active = self.active_requests[token] or 0
-	if active >= self.max_concurrent_requests_per_user then return false end
-	self.active_requests[token] = active + 1
+function Server:acquireRequest(user_key, limit)
+	local active = self.active_requests[user_key] or 0
+	if active >= (limit or self.max_concurrent_requests_per_user) then return false end
+	self.active_requests[user_key] = active + 1
 	return true
 end
 
----@param token string
-function Server:releaseRequest(token)
-	local active = assert(self.active_requests[token]) - 1
-	self.active_requests[token] = active > 0 and active or nil
+---@param user_key string
+function Server:releaseRequest(user_key)
+	local active = assert(self.active_requests[user_key]) - 1
+	self.active_requests[user_key] = active > 0 and active or nil
 end
 
 -- One upstream attempt. Returns "done" when the response is fully written,
@@ -299,11 +302,12 @@ end
 ---@field status "done"|"failover"
 ---@field message ai.router.CanonicalMessage?
 ---@field provider_error table?
----@field cooldown boolean
----@field refresh_usage boolean
----@field downstream_closed boolean
+---@field cooldown boolean?
+---@field refresh_usage boolean?
+---@field downstream_closed boolean?
 ---@field subscription string?
 ---@field upstream_model string?
+---@field status_code integer? Logical request outcome, including failures after HTTP 200 commit.
 
 ---@param self ai.router.Server
 ---@param res web.Response
@@ -334,19 +338,20 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 	local upstream_model = candidate.upstream_model
 
 	if not stream then
-		local message, err, provider_error = provider:complete(body, upstream_model)
+		local ok, message, err, provider_error = pcall(provider.complete, provider, body, upstream_model)
+		if not ok then message, err = nil, "upstream request failed" end
 		if not message then
 			local status = provider_error and provider_error.status
 			if status == 400 then
 				sendError(res, 400, provider_error.message, provider_error.type, provider_error.code)
-				return {status = "done", provider_error = provider_error,
+				return {status = "done", status_code = 400, provider_error = provider_error,
 					subscription = candidate.subscription.name, upstream_model = candidate.upstream_model}
 			end
 			return {
 				status = "failover",
 				provider_error = provider_error or {message = err, type = "upstream_error", code = "upstream_error"},
 				cooldown = status == 401 or status == 403,
-				refresh_usage = status == 429,
+				refresh_usage = status == 429 or provider_error and provider_error.type == "rate_limit_error",
 				subscription = candidate.subscription.name,
 				upstream_model = candidate.upstream_model,
 			}
@@ -364,8 +369,8 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 		}
 		local usage = ccUsage(message.usage)
 		if usage then completion.usage = usage end
-		sendJson(res, completion)
-		return {status = "done", message = message,
+		local sent = sendJson(res, completion)
+		return {status = "done", message = message, downstream_closed = not sent, status_code = sent and 200 or 499,
 			subscription = candidate.subscription.name, upstream_model = candidate.upstream_model}
 	end
 
@@ -383,7 +388,17 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 		committed = true
 		return true
 	end
-	local message, err, provider_error = provider:completeStream(body, upstream_model, function(delta)
+	local ok, message, err, provider_error = pcall(provider.completeStream, provider, body, upstream_model, function(delta)
+		if downstream_closed then return false end
+		-- Role announcements and empty deltas are not assistant output.
+		if not committed then
+			local has_output = false
+			for key, value in pairs(delta) do
+				if key ~= "role" and value ~= json.null and value ~= ""
+					and (type(value) ~= "table" or next(value)) then has_output = true break end
+			end
+			if not has_output then return true end
+		end
 		if not commit() then
 			downstream_closed = true
 			return false
@@ -395,55 +410,56 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 		end
 		return true
 	end)
+	if not ok then message, err = nil, "upstream request failed" end
 	if not message then
 		if downstream_closed then
-			res:send("")
-			return {status = "done", downstream_closed = true}
+			return {status = "done", status_code = 499, downstream_closed = true}
 		end
-		if committed then
+		if committed or res.headers_sent then
 			local error_body = provider_error or {
 				message = "upstream request failed",
 				type = "upstream_error",
 				code = "upstream_error",
 			}
 			---@cast error_body {[string]: any}
-			sendEvent(res, {error = {
+			local sent = sendEvent(res, {error = {
 				message = error_body.message,
 				type = error_body.type,
 				code = error_body.code,
 				request_id = error_body.request_id,
 			}})
-			sendEvent(res, "[DONE]")
-			res:send("")
-			return {status = "done", provider_error = provider_error,
+			if sent then sent = sendEvent(res, "[DONE]") end
+			if sent then sent = res:send("") ~= nil end
+			return {status = "done", status_code = sent and 502 or 499, downstream_closed = not sent, provider_error = error_body,
+				cooldown = error_body.status == 401 or error_body.status == 403,
+				refresh_usage = error_body.status == 429 or error_body.type == "rate_limit_error",
 				subscription = candidate.subscription.name, upstream_model = candidate.upstream_model}
 		end
 		local status = provider_error and provider_error.status
 		if status == 400 then
 			sendError(res, 400, provider_error.message, provider_error.type, provider_error.code)
-			return {status = "done", provider_error = provider_error}
+			return {status = "done", status_code = 400, provider_error = provider_error}
 		end
 		return {
 			status = "failover",
 			provider_error = provider_error or {message = err, type = "upstream_error", code = "upstream_error"},
 			cooldown = status == 401 or status == 403,
-			refresh_usage = status == 429,
+			refresh_usage = status == 429 or provider_error and provider_error.type == "rate_limit_error",
 		}
 	end
-	if not commit() then
-		res:send("")
-		return {status = "done", message = message, downstream_closed = true}
+	if downstream_closed or not commit() then
+		return {status = "done", status_code = 499, message = message, downstream_closed = true}
 	end
-	sendEvent(res, chunkEvent(completion_id, created, public_model, json.object(), finishReason(message), include_usage))
-	if include_usage then
+	local sent = sendEvent(res, chunkEvent(completion_id, created, public_model, json.object(), finishReason(message), include_usage))
+	if sent and include_usage then
 		local usage = ccUsage(message.usage)
 		if usage then
-			sendEvent(res, usageChunkEvent(completion_id, created, public_model, usage))
+			sent = sendEvent(res, usageChunkEvent(completion_id, created, public_model, usage))
 		end
 	end
-	sendEvent(res, "[DONE]")
-	res:send("")
-	return {status = "done", message = message}
+	if sent then sent = sendEvent(res, "[DONE]") end
+	if sent then sent = res:send("") ~= nil end
+	return {status = "done", message = message, downstream_closed = not sent, status_code = sent and 200 or 499}
 end
 
 -- Resolves, walks, and serves one Chat Completions request.
@@ -483,15 +499,14 @@ function Server:complete(res, request, user)
 			return 503
 		end
 		local result = attempt(self, res, request, public_model, candidate, completion_id, created, include_usage)
-		if result.status == "done" then
-			return 200, result
-		end
+		result.subscription, result.upstream_model = candidate.subscription.name, candidate.upstream_model
 		if result.cooldown then
 			self.cooldowns[candidate.subscription.id] = self.get_time() + self.cooldown_seconds
 		end
 		if result.refresh_usage then
 			self.monitor:refresh(candidate.subscription.id)
 		end
+		if result.status == "done" then return result.status_code or 200, result end
 		start_index = index + 1
 	end
 end
@@ -564,56 +579,71 @@ function Server:handle(req, res, ip)
 	elseif req.method ~= "POST" or path ~= "/v1/chat/completions" then
 		sendError(res, 404, "route not found", "invalid_request_error", "not_found")
 		status = 404
-	elseif not self:consumeRateLimit(assert(token)) then
+	elseif not self:consumeRateLimit(tostring(user.id), user.max_rpm) then
 		res.headers:set("Retry-After", 60)
 		sendError(res, 429, "rate limit exceeded", "rate_limit_error", "rate_limit_exceeded")
 		status = 429
-	elseif not self:acquireRequest(assert(token)) then
+	elseif not self:acquireRequest(tostring(user.id), user.max_concurrency) then
 		res.headers:set("Retry-After", 1)
 		sendError(res, 429, "too many concurrent requests", "rate_limit_error", "concurrency_limit_exceeded")
 		status = 429
 	else
 		should_record = true
-		local transfer_encodings = req.headers:getTable("Transfer-Encoding")
-		local content_lengths = req.headers:getTable("Content-Length")
-		if #transfer_encodings > 0 then
-			sendError(res, 400, "Transfer-Encoding is not supported", "invalid_request_error", "unsupported_transfer_encoding")
-			status = 400
-		elseif #content_lengths == 0 then
-			sendError(res, 411, "Content-Length is required", "invalid_request_error", "length_required")
-			status = 411
-		elseif #content_lengths ~= 1 then
-			sendError(res, 400, "multiple Content-Length headers are not allowed", "invalid_request_error", "invalid_content_length")
-			status = 400
-		else
-			local content_length = tonumber(content_lengths[1])
-			if not content_length then
-				sendError(res, 400, "Content-Length is invalid", "invalid_request_error", "invalid_content_length")
+		local ok = pcall(function()
+			local transfer_encodings = req.headers:getTable("Transfer-Encoding")
+			local content_lengths = req.headers:getTable("Content-Length")
+			if #transfer_encodings > 0 then
+				sendError(res, 400, "Transfer-Encoding is not supported", "invalid_request_error", "unsupported_transfer_encoding")
 				status = 400
-			elseif content_length > self.max_body_size then
-				sendError(res, 413, "request body is too large", "invalid_request_error", "request_too_large")
-				status = 413
+			elseif #content_lengths == 0 then
+				sendError(res, 411, "Content-Length is required", "invalid_request_error", "length_required")
+				status = 411
+			elseif #content_lengths ~= 1 then
+				sendError(res, 400, "multiple Content-Length headers are not allowed", "invalid_request_error", "invalid_content_length")
+				status = 400
 			else
-				local body, receive_err = req:receive("*a")
-				if body then
-					local decoded, decode_err = json.decode_safe(body)
-					if type(decoded) ~= "table" then
-						sendError(res, 400, "invalid JSON body: " .. tostring(decode_err), "invalid_request_error", "invalid_json")
-						status = 400
-					else
-						request = decoded
-						---@type integer
-						local completion_status, completion_result = self:complete(res, request, user)
-						status = completion_status
-						attempt_result = completion_result
-					end
-				else
-					sendError(res, 400, "invalid JSON body: " .. tostring(receive_err), "invalid_request_error", "invalid_json")
+				local content_length = tonumber(content_lengths[1])
+				if not content_length then
+					sendError(res, 400, "Content-Length is invalid", "invalid_request_error", "invalid_content_length")
 					status = 400
+				elseif content_length > self.max_body_size then
+					sendError(res, 413, "request body is too large", "invalid_request_error", "request_too_large")
+					status = 413
+				else
+					local body, receive_err = req:receive("*a")
+					if body then
+						local decoded, decode_err = json.decode_safe(body)
+						if type(decoded) ~= "table" then
+							sendError(res, 400, "invalid JSON body: " .. tostring(decode_err), "invalid_request_error", "invalid_json")
+							status = 400
+						else
+							request = decoded
+							---@type integer
+							local completion_status, completion_result = self:complete(res, request, user)
+							status = completion_status
+							attempt_result = completion_result
+						end
+					else
+						sendError(res, 400, "invalid JSON body: " .. tostring(receive_err), "invalid_request_error", "invalid_json")
+						status = 400
+					end
 				end
 			end
+		end)
+		self:releaseRequest(tostring(user.id))
+		if not ok then
+			status = 500
+			-- Never expose exception text or replace a committed SSE response with JSON.
+			pcall(function()
+				if res.headers_sent then
+					sendEvent(res, {error = {message = "request failed", type = "internal_error", code = "internal_error"}})
+					sendEvent(res, "[DONE]")
+					res:send("")
+				else
+					sendError(res, 500, "request failed", "internal_error", "internal_error")
+				end
+			end)
 		end
-		self:releaseRequest(assert(token))
 	end
 	if should_record and user then
 		self:record(os.time(), user, status, request, attempt_result)

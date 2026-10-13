@@ -16,7 +16,7 @@
 
 ---@class ai.router.CatalogState
 ---@field subscriptions ai.router.SubscriptionState[] ordered by (priority, id)
----@field alias_models {[string]: string[]} custom model chains
+---@field alias_models {[string]: string} aliases to concrete model names
 ---@field concrete_models {[string]: boolean} union of every subscription's models, including disabled
 ---@field public_models {[string]: boolean} aliases plus enabled subscriptions' models
 
@@ -343,7 +343,7 @@ function Catalog.fromRows(subscription_rows, model_rows)
 		end
 	end
 
-	-- Alias names are collected first so chain validation also catches aliases
+	-- Alias names are collected first so target validation also catches aliases
 	-- defined later in the list.
 	---@type {[string]: boolean}
 	local alias_names = {}
@@ -356,18 +356,14 @@ function Catalog.fromRows(subscription_rows, model_rows)
 		if state.concrete_models[row.name] then
 			fail(label, errors, "alias must not shadow a concrete model name")
 		else
-			local valid = true
-			for i, entry in ipairs(row.chain) do
-				if alias_names[entry] ~= nil or entry == row.name then
-					fail(label, errors, ("chain entry %d must not reference a custom model: %s"):format(i, entry))
-					valid = false
-				elseif not state.concrete_models[entry] then
-					fail(label, errors, ("chain entry %d is not served by any subscription: %s"):format(i, entry))
-					valid = false
-				end
-			end
-			if valid then
-				state.alias_models[row.name] = row.chain
+			if type(row.target) ~= "string" or #row.target < 1 or #row.target > 128 then
+				fail(label, errors, "alias target must be a 1-128 character model name")
+			elseif alias_names[row.target] then
+				fail(label, errors, "alias target must not reference a custom model: " .. row.target)
+			elseif not state.concrete_models[row.target] then
+				fail(label, errors, "alias target is not served by any subscription: " .. row.target)
+			else
+				state.alias_models[row.name] = row.target
 				state.public_models[row.name] = true
 			end
 		end

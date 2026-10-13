@@ -2,6 +2,8 @@ local class = require("class")
 local json = require("web.json")
 local table_util = require("table_util")
 local SseParser = require("ai.openai.SseParser")
+---@type {gettime: fun(): number}
+local socket = require("socket")
 
 ---@alias zai.RequestFunc fun(url: string, body: table|string?, options: web.HttpRequestOptions?): {status: integer, headers: web.Headers?, body: string}?, string?
 ---@alias zai.OpenStreamFunc fun(url: string, options: web.HttpStreamOptions?): web.HttpStream?, string?
@@ -66,6 +68,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field timeout number?
 ---@field request zai.RequestFunc
 ---@field open_stream zai.OpenStreamFunc?
+---@field get_time (fun(): number)?
 
 --- Sends chat completions to a GLM coding-plan endpoint. The endpoint speaks the
 --- OpenAI Chat Completions protocol, including `reasoning_content` deltas and
@@ -79,7 +82,10 @@ local SseParser = require("ai.openai.SseParser")
 ---@field open_stream zai.OpenStreamFunc?
 ---@field active_stream web.HttpStream?
 ---@field cancel_requested boolean
+---@field get_time fun(): number
 local Client = class()
+
+Client.max_error_body_size = 64 * 1024
 
 ---@param options zai.ClientOptions
 function Client:new(options)
@@ -91,6 +97,7 @@ function Client:new(options)
 	self.request = assert(options.request, "request is required")
 	self.open_stream = options.open_stream
 	self.cancel_requested = false
+	self.get_time = options.get_time or socket.gettime
 end
 
 ---@return {[string]: string}
@@ -150,12 +157,12 @@ function Client:complete(body)
 		return nil, err or "Z.ai request failed"
 	end
 	local decoded, decode_err = json.decode_safe(res.body)
+	if res.status < 200 or res.status >= 300 then
+		local provider_error = providerError(res, type(decoded) == "table" and decoded or {})
+		return nil, provider_error.message, provider_error
+	end
 	if type(decoded) ~= "table" then
 		return nil, "invalid provider JSON: " .. tostring(decode_err)
-	end
-	if res.status < 200 or res.status >= 300 then
-		local provider_error = providerError(res, decoded)
-		return nil, provider_error.message, provider_error
 	end
 	local choices = decoded.choices
 	local choice = type(choices) == "table" and choices[1] or nil
@@ -217,7 +224,8 @@ end
 ---@return zai.Message? message
 ---@return string? err
 ---@return zai.ProviderError? provider_error
-function Client:completeStream(body, on_delta)
+function Client:runStream(body, on_delta)
+	local deadline = self.timeout and self.get_time() + self.timeout
 	local open_stream = assert(self.open_stream, "open_stream is required for streaming")
 	self.cancel_requested = false
 	local stream, err = open_stream(self.base_url .. "/chat/completions", {
@@ -229,6 +237,20 @@ function Client:completeStream(body, on_delta)
 		return nil, err or "Z.ai stream failed"
 	end
 	self.active_stream = stream
+	---@return boolean
+	local function applyDeadline()
+		if not deadline then return true end
+		local remaining = deadline - self.get_time()
+		if remaining <= 0 then return false end
+		stream:setTimeout(remaining)
+		return true
+	end
+	local timeout_error = "upstream request timeout exceeded"
+	if not applyDeadline() then
+		stream:cancel(timeout_error)
+		self.active_stream = nil
+		return nil, timeout_error
+	end
 	if self.cancel_requested then
 		stream:cancel("canceled")
 		self.active_stream = nil
@@ -244,6 +266,11 @@ function Client:completeStream(body, on_delta)
 		return nil, err
 	end
 	local headers_ok
+	if not applyDeadline() then
+		stream:cancel(timeout_error)
+		self.active_stream = nil
+		return nil, timeout_error
+	end
 	headers_ok, err = stream:receiveHeaders()
 	if not headers_ok then
 		stream:close()
@@ -252,15 +279,25 @@ function Client:completeStream(body, on_delta)
 	end
 	local res = assert(stream.res)
 	if res.status < 200 or res.status >= 300 then
-		local error_body = stream:receiveBody()
+		---@type string[]
+		local chunks = {}
+		local size = 0
+		while applyDeadline() do
+			local chunk = stream:receiveAvailableChunk()
+			if not chunk then break end
+			size = size + #chunk
+			if size > self.max_error_body_size then chunks = {} break end
+			table.insert(chunks, chunk)
+		end
 		stream:close()
 		self.active_stream = nil
-		local decoded = error_body and json.decode_safe(error_body) or nil
+		local decoded = json.decode_safe(table.concat(chunks))
 		if type(decoded) == "table" then
 			local provider_error = providerError(res, decoded)
 			return nil, provider_error.message, provider_error
 		end
-		return nil, ("Z.ai provider returned HTTP %d"):format(res.status)
+		local provider_error = providerError(res, {})
+		return nil, provider_error.message, provider_error
 	end
 
 	---@type zai.Message
@@ -268,7 +305,10 @@ function Client:completeStream(body, on_delta)
 	local done = false
 	---@type string?
 	local parse_err
+	---@type zai.ProviderError?
+	local provider_error
 	local parser = SseParser(function(data)
+		if done or parse_err then return end
 		if data == "[DONE]" then
 			done = true
 			return
@@ -280,7 +320,8 @@ function Client:completeStream(body, on_delta)
 			return
 		end
 		if type(event.error) == "table" then
-			parse_err = tostring(event.error.message or "Z.ai streaming error")
+			provider_error = providerError({status = 502, headers = res.headers}, event)
+			parse_err = provider_error.message
 			return
 		end
 		if type(event.usage) == "table" then
@@ -302,6 +343,7 @@ function Client:completeStream(body, on_delta)
 	end)
 
 	while not done and not parse_err do
+		if not applyDeadline() then err = timeout_error break end
 		local chunk
 		chunk, err = stream:receiveAvailableChunk()
 		if not chunk then
@@ -309,15 +351,15 @@ function Client:completeStream(body, on_delta)
 		end
 		parser:feed(chunk)
 	end
-	parser:finish()
-	if parse_err == "downstream response stream closed" or err == "canceled" then
+	if not err then parser:finish() end
+	if parse_err == "downstream response stream closed" or err == "canceled" or err == timeout_error then
 		stream:cancel(parse_err or err)
 	else
 		stream:close()
 	end
 	self.active_stream = nil
 	if parse_err then
-		return nil, parse_err
+		return nil, parse_err, provider_error
 	end
 	if not done then
 		return nil, err or "stream closed before [DONE]"
@@ -331,6 +373,20 @@ function Client:completeStream(body, on_delta)
 		return nil, "assistant message has neither text nor tool calls"
 	end
 	return message
+end
+
+---@param body table
+---@param on_delta (fun(delta: zai.MessageDelta): boolean?)?
+---@return zai.Message?
+---@return string?
+---@return zai.ProviderError?
+function Client:completeStream(body, on_delta)
+	local ok, message, err, provider_error = pcall(self.runStream, self, body, on_delta)
+	if ok then return message, err, provider_error end
+	local stream = self.active_stream
+	self.active_stream = nil
+	if stream then pcall(stream.close, stream) end
+	return nil, "upstream stream failed"
 end
 
 ---@return boolean

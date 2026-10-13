@@ -76,4 +76,16 @@ function test.invalid_output_preserves_commit_metadata(t)
 	t:assert(JsonSchema.validate(tool.output_schema, failure))
 end
 
+---@param t testing.T
+function test.alias_output_has_one_scalar_target(t)
+	local schema = McpOutputSchemas.get("listModels", false)
+	local alias = {id = 1, name = "lite", target = "model", created_at = 1, updated_at = 1}
+	t:assert(JsonSchema.validate(schema, {public_models = {"lite", "model"}, aliases = {alias}}))
+	alias.target = {"model", "other"}
+	t:eq(JsonSchema.validate(schema, {public_models = {}, aliases = {alias}}), nil)
+	alias.target = "model"
+	alias.chain = {"model"}
+	t:eq(JsonSchema.validate(schema, {public_models = {}, aliases = {alias}}), nil)
+end
+
 return test

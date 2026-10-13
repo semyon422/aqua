@@ -10,7 +10,7 @@ local class = require("class")
 
 ---@class ai.router.Candidate
 ---@field subscription ai.router.SubscriptionState
----@field model string public chain entry requested
+---@field model string resolved concrete public model name
 ---@field upstream_model string model name sent upstream after the permanent redirect
 
 -- Pure routing logic over an immutable catalog state. Window and cooldown
@@ -41,51 +41,39 @@ function Router:new(options)
 	self.staleness = options.staleness or Router.default_staleness
 end
 
--- Expands a public model name to its ordered chain: an alias resolves to its
--- configured targets, a concrete model to itself.
+-- An alias resolves to its single target; a concrete model resolves to itself.
 ---@param public_model string
----@return string[]? chain
-function Router:resolveChain(public_model)
-	---@type string[]
+---@return string? model
+function Router:resolveModel(public_model)
 	local alias = self.state.alias_models[public_model]
-	if alias then
-		---@type string[]
-		local chain = {}
-		for i, entry in ipairs(alias) do
-			chain[i] = entry
-		end
-		return chain
-	end
+	if alias then return alias end
 	if self.state.concrete_models[public_model] then
-		return {public_model}
+		return public_model
 	end
 	return nil
 end
 
--- All serving candidates in preference order: chain entries in order, then
--- subscriptions by (priority, id). Disabled subscriptions are skipped. The
+-- All subscriptions serving the resolved model, ordered by (priority, id). Disabled subscriptions are skipped. The
 -- list is walked by the server for the initial pick and for failover.
 ---@param public_model string
 ---@return ai.router.Candidate[]? candidates
 ---@return string? error_message
 function Router:candidates(public_model)
-	local chain = self:resolveChain(public_model)
-	if not chain then
+	local model = self:resolveModel(public_model)
+	if not model then
 		return nil, "unknown model: " .. tostring(public_model)
 	end
 	---@type ai.router.Candidate[]
 	local candidates = {}
-	for _, model in ipairs(chain) do
-		for _, subscription in ipairs(self.state.subscriptions) do
-			if subscription.enabled and subscription.models[model] then
-				---@type ai.router.Candidate
-				local candidate = {
-					subscription = subscription,
-					model = model,
-					upstream_model = subscription.model_redirects[model] or model,
-				}
-				table.insert(candidates, candidate)
-			end
+	for _, subscription in ipairs(self.state.subscriptions) do
+		if subscription.enabled and subscription.models[model] then
+			---@type ai.router.Candidate
+			local candidate = {
+				subscription = subscription,
+				model = model,
+				upstream_model = subscription.model_redirects[model] or model,
+			}
+			table.insert(candidates, candidate)
 		end
 	end
 	return candidates

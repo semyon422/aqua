@@ -37,6 +37,7 @@ Provide reusable OpenAI-compatible Chat Completions and Responses clients backed
 - The number of consecutive tool rounds is bounded.
 - Provider response tables are not exposed until the required `choices[1].message` shape has been validated.
 - Streaming input is parsed incrementally because SSE records and JSON payloads may cross arbitrary transport chunk boundaries.
+- Chat Completions subscription streams ignore coalesced events after terminal completion, parse errors, or downstream callback cancellation. Exceptions during upload, header/body reads, parsing, or callbacks close the active stream, clear its reference, and return a sanitized upstream error.
 - Responses text, refusal, and function-call arguments are assembled from typed incremental events. A terminal response with an empty output array must not discard already assembled output items.
 - Native Responses requests are stateless: the proxy forces `store = false`, rejects server-managed response state and background execution, and always consumes the subscription backend as SSE. Public string input is normalized to the private backend's required input-item array.
 - Native Responses streaming preserves typed event objects and emits matching SSE `event` and `data` fields without a Chat Completions `[DONE]` sentinel. Non-streaming requests return the terminal Response object assembled from the same event stream.

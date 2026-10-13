@@ -86,7 +86,7 @@ function test.catalog_pages_display_models_and_hide_credentials(t)
 	stack.subscriptions:create("local", "openai_compat", 1, {
 		base_url = "http://127.0.0.1:18020/v1", api_key = "PRIVATE-UPSTREAM-KEY", models = {"qwen"},
 	}, {}, os.time())
-	stack.models:create("lite", {"qwen"}, "Fallback alias", os.time())
+	stack.models:create("lite", "qwen", "Simple alias", os.time())
 	stack.server:reload(stack.subscriptions:list(), stack.models:list())
 	local cookie = login(t, stack)
 	local response = request(t, stack, "GET", "/admin/subscriptions", nil, cookie)
@@ -98,7 +98,7 @@ function test.catalog_pages_display_models_and_hide_credentials(t)
 	t:eq(response.status, 200)
 	t:assert(response.body:find("lite", 1, true))
 	t:assert(response.body:find("qwen", 1, true))
-	t:assert(response.body:find("Fallback alias", 1, true))
+	t:assert(response.body:find("Simple alias", 1, true))
 	stack:close()
 end
 

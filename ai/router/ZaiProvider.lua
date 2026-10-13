@@ -59,7 +59,7 @@ function ZaiProvider:new(options)
 end
 
 -- Validates and normalizes the request through the standalone proxy rules.
--- The caller sets body.model to the concrete chain entry; the provider maps
+-- The caller sets body.model to the resolved concrete model; the provider maps
 -- it through the subscription's permanent redirects.
 ---@param body table
 ---@return table? upstream_body

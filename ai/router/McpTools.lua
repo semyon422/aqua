@@ -58,7 +58,7 @@ function McpTools.create(management)
 	end
 	add("router_list_users", "listUsers", "List users, grants, limits, and key hints. Never returns stored key hashes or API keys.", object({}))
 	add("router_list_subscriptions", "listSubscriptions", "List subscriptions and redacted config. Credentials are never returned.", object({}))
-	add("router_list_models", "listModels", "List public models and ordered alias fallback chains.", object({}))
+	add("router_list_models", "listModels", "List public models and aliases with their single concrete model target.", object({}))
 	add("router_status", "status", "Read usage windows, freshness timestamps, cooldowns, and OAuth status.", object({}))
 	add("router_usage", "usage", "Read hourly usage and cost aggregates for the last 24 or 168 hours. No message content.", object({hours = {type = "integer", enum = {24, 168}}}))
 	add("router_create_user", "createUser", "Create a user with model grants. Returns a new API key ONCE: treat the result as a secret.", object({name = name, models = models}, {"name", "models"}), true)
@@ -69,8 +69,8 @@ function McpTools.create(management)
 		kind = {type = "string", enum = {"openai", "zai", "openai_compat"}}, priority = {type = "integer"},
 		enabled = flag, config = config, limits = limits}), true, true)
 	add("router_delete_subscription", "deleteSubscription", "Delete a subscription if no alias depends on its models and no OAuth login is pending. Credential files are not removed.", object({id = id}, {"id"}), true, true)
-	add("router_save_model", "saveModel", "Create (omit id) or patch an alias with an ordered chain of concrete models; nested aliases and cycles are rejected.", object({id = id, name = model_name,
-		chain = {type = "array", items = model_name, minItems = 1, maxItems = 16}, description = {type = "string"}}), true, true)
+	add("router_save_model", "saveModel", "Create (omit id) or patch a simple alias to one concrete model. Creation requires name and target; nested aliases and self-references are rejected. Failover only uses subscriptions serving that same model.", object({id = id, name = model_name,
+		target = model_name, description = {type = "string"}}), true, true)
 	add("router_delete_model", "deleteModel", "Delete a custom model alias. Existing user grants are kept but the model becomes unavailable.", object({id = id}, {"id"}), true, true)
 	add("router_start_openai_login", "startLogin", "Start background OpenAI device authorization. Poll router_openai_login_status to obtain the verification URL and code and later the result. The user must approve in their browser; never approve for them.", object({id = id}, {"id"}), false, false, true)
 	add("router_openai_login_status", "loginStatus", "Get OpenAI device login status, verification URL, one-time code and expiry. Never returns tokens or private device IDs.", object({id = id}, {"id"}))
