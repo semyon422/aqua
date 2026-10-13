@@ -11,7 +11,6 @@ local UsageRepo = require("ai.router.UsageRepo")
 local UsersRepo = require("ai.router.UsersRepo")
 local SubscriptionsRepo = require("ai.router.SubscriptionsRepo")
 local ModelsRepo = require("ai.router.ModelsRepo")
-local WindowsRepo = require("ai.router.WindowsRepo")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
 local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
 local Headers = require("web.http.Headers")
@@ -98,7 +97,6 @@ local function startStack(opts)
 	local usage_repo = UsageRepo(storage.models)
 	local monitor = UsageMonitor({
 		usage_repo = usage_repo,
-		windows_repo = WindowsRepo(storage.models),
 		logger = function() end,
 	})
 	---@type {[string]: test.FakeProvider}

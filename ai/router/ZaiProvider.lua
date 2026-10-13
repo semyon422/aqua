@@ -19,6 +19,8 @@ local Provider = require("ai.router.Provider")
 ---@field create_client fun(): zai.Client
 local ZaiProvider = class()
 
+ZaiProvider.usage_url = "https://api.z.ai/api/monitor/usage/quota/limit"
+
 ---@class ai.router.ZaiProviderOptions
 ---@field config {[string]: any} subscription config: base_url, api_key, models, model_redirects?, thinking?, tool_stream?
 ---@field request zai.RequestFunc
@@ -45,6 +47,9 @@ function ZaiProvider:new(options)
 	end
 	self.thinking = config.thinking
 	self.tool_stream = config.tool_stream ~= false
+	self.api_key = config.api_key
+	self.request = options.request
+	self.usage_url = config.usage_url or ZaiProvider.usage_url
 	local request = options.request
 	local open_stream = options.open_stream
 	self.create_client = function()
@@ -131,7 +136,7 @@ function ZaiProvider:fetchUsage()
 		method = "GET",
 		headers = {
 			Accept = "application/json",
-			Authorization = "Bearer " .. self.config_api_key,
+			Authorization = "Bearer " .. self.api_key,
 		},
 	})
 	if not response then return nil, request_err or "Z.ai usage request failed" end

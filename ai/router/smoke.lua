@@ -22,7 +22,6 @@ local UsageRepo = require("ai.router.UsageRepo")
 local UsersRepo = require("ai.router.UsersRepo")
 local SubscriptionsRepo = require("ai.router.SubscriptionsRepo")
 local ModelsRepo = require("ai.router.ModelsRepo")
-local WindowsRepo = require("ai.router.WindowsRepo")
 local CompatProvider = require("ai.router.CompatProvider")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
 local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
@@ -35,7 +34,7 @@ local users = UsersRepo(storage.models)
 local subscriptions = SubscriptionsRepo(storage.models)
 local models = ModelsRepo(storage.models)
 local usage_repo = UsageRepo(storage.models)
-local monitor = UsageMonitor({usage_repo = usage_repo, windows_repo = WindowsRepo(storage.models), logger = function() end})
+local monitor = UsageMonitor({usage_repo = usage_repo, logger = function() end})
 
 -- Mock upstream: an OpenAI-compatible chat completions endpoint.
 local upstream_requests = 0

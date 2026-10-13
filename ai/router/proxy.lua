@@ -1,4 +1,3 @@
-local coext = require("coext")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local HttpStream = require("web.http.HttpStream")
 local http_util = require("web.http.util")
@@ -15,7 +14,6 @@ local McpServer = require("mcp.Server")
 local UsersRepo = require("ai.router.UsersRepo")
 local SubscriptionsRepo = require("ai.router.SubscriptionsRepo")
 local ModelsRepo = require("ai.router.ModelsRepo")
-local WindowsRepo = require("ai.router.WindowsRepo")
 local UsageRepo = require("ai.router.UsageRepo")
 local UsageMonitor = require("ai.router.UsageMonitor")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
@@ -111,11 +109,9 @@ local users_repo = UsersRepo(storage.models)
 local subscriptions_repo = SubscriptionsRepo(storage.models)
 local models_repo = ModelsRepo(storage.models)
 local usage_repo = UsageRepo(storage.models, config.model_prices)
-local windows_repo = WindowsRepo(storage.models)
 
 local monitor = UsageMonitor({
 	usage_repo = usage_repo,
-	windows_repo = windows_repo,
 	logger = print,
 	default_interval = config.usage_poll_interval,
 })
@@ -214,12 +210,7 @@ end
 server:reload(subscriptions_repo:list(), models_repo:list())
 
 -- Background usage polling.
-coext.detach(coroutine.create(function()
-	while true do
-		monitor:update(os.time())
-		scheduler:sleep(5)
-	end
-end))
+monitor:startPolling(scheduler)
 
 local host = config.host or "127.0.0.1"
 local port = config.port or 28083

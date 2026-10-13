@@ -3,6 +3,7 @@ local ZaiProvider = require("ai.router.ZaiProvider")
 local CompatProvider = require("ai.router.CompatProvider")
 local OpenAIProvider = require("ai.router.OpenAIProvider")
 local Provider = require("ai.router.Provider")
+local UsageMonitor = require("ai.router.UsageMonitor")
 local random = require("web.random")
 ---@type {b64: fun(value: string): string}
 local mime = require("mime")
@@ -72,6 +73,35 @@ function test.zai_provider_normalizes_and_canonicalizes(t)
 	t:eq(upstream.model, "glm-5.3")
 	t:eq(upstream.thinking.type, "disabled")
 	t:eq(upstream.messages[1].content, "hi")
+end
+
+---@param t testing.T
+function test.zai_provider_fetches_usage_with_constructor_wiring(t)
+	local data = {limits = {
+		{unit = 3, number = 5, percentage = 42, usage = 1000, currentValue = 420, nextResetTime = 1800000000000},
+		{unit = 6, number = 1, percentage = 15, usage = 10000, currentValue = 1500, nextResetTime = 1800100000000},
+	}}
+	for _, url in ipairs({ZaiProvider.usage_url, "https://example.com/usage"}) do
+		local provider = ZaiProvider({
+			config = {base_url = zai_config.base_url, api_key = zai_config.api_key,
+				models = zai_config.models, usage_url = url ~= ZaiProvider.usage_url and url or nil},
+			request = function(request_url, body, options)
+				t:eq(request_url, url)
+				t:eq(body, nil)
+				t:eq(options.method, "GET")
+				t:eq(options.headers.Authorization, "Bearer " .. zai_config.api_key)
+				return {status = 200, body = json.encode({data = data})}
+			end,
+		})
+		local usage, err, provider_error = provider:fetchUsage()
+		t:eq(err, nil)
+		t:eq(provider_error, nil)
+		t:tdeq(usage, data)
+		local windows = UsageMonitor.parseZaiUsage(usage)
+		t:eq(windows.five_hour.used_percent, 42)
+		t:eq(windows.weekly.used_percent, 15)
+		t:eq(windows.five_hour.reset_at, 1800000000)
+	end
 end
 
 ---@param t testing.T

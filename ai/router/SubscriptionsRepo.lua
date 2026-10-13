@@ -123,7 +123,6 @@ end
 
 ---@param id integer
 function SubscriptionsRepo:delete(id)
-	self.models.router_subscription_windows:delete({subscription_id = id})
 	local rows = self.models.router_subscriptions:delete({id = id})
 	assert(#rows == 1, "subscription not found: " .. id)
 end

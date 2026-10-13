@@ -1,4 +1,5 @@
 local class = require("class")
+local coext = require("coext")
 
 ---@class ai.router.WindowSnapshot
 ---@field used_percent number?
@@ -11,8 +12,7 @@ local class = require("class")
 -- Maintains per-subscription usage-window state for routing decisions.
 -- Polls upstream monitor endpoints through injected provider fetchers,
 -- computes local-counting windows from usage aggregates, keeps the in-memory
--- state the Router selects against, and persists snapshots through
--- WindowsRepo so fills survive restarts. Failed polls keep the previous
+-- state the Router selects against only in memory. Failed polls keep the previous
 -- snapshot; stale data never depletes a subscription.
 ---@class ai.router.UsageMonitor
 ---@operator call: ai.router.UsageMonitor
@@ -22,7 +22,6 @@ local class = require("class")
 ---@field fetchers {[integer]: fun(): table?, string?, table?}
 ---@field last_poll {[integer]: number}
 ---@field usage_repo ai.router.UsageRepo
----@field windows_repo ai.router.WindowsRepo
 ---@field logger fun(line: string)
 ---@field get_time fun(): number
 ---@field default_interval integer
@@ -36,7 +35,6 @@ UsageMonitor.window_seconds = {
 
 ---@class ai.router.UsageMonitorOptions
 ---@field usage_repo ai.router.UsageRepo
----@field windows_repo ai.router.WindowsRepo
 ---@field get_time (fun(): number)?
 ---@field logger (fun(line: string))?
 ---@field default_interval integer?
@@ -44,7 +42,6 @@ UsageMonitor.window_seconds = {
 ---@param options ai.router.UsageMonitorOptions
 function UsageMonitor:new(options)
 	self.usage_repo = options.usage_repo
-	self.windows_repo = options.windows_repo
 	self.get_time = options.get_time or os.time
 	self.logger = options.logger or function() end
 	self.default_interval = options.default_interval or UsageMonitor.default_interval
@@ -53,6 +50,20 @@ function UsageMonitor:new(options)
 	self.subscriptions_by_id = {}
 	self.fetchers = {}
 	self.last_poll = {}
+end
+
+-- Starts the process-lifetime background loop, including the first poll.
+---@param scheduler web.CosocketScheduler
+---@return thread
+function UsageMonitor:startPolling(scheduler)
+	local co = coext.detach(coroutine.create(function()
+		while true do
+			self:update(self.get_time())
+			scheduler:sleep(5)
+		end
+	end))
+	scheduler:resume(co)
+	return co
 end
 
 -- Installs the current catalog states and their usage fetchers. Window state
@@ -172,13 +183,6 @@ function UsageMonitor:saveWindow(subscription, window, fields, source, now)
 		self.windows[subscription.id] = {}
 	end
 	self.windows[subscription.id][window] = snapshot
-	self.windows_repo:save(subscription.id, window, {
-		used_percent = fields.used_percent,
-		used_tokens = fields.used_tokens,
-		quota_tokens = fields.quota_tokens,
-		reset_at = fields.reset_at,
-		source = source,
-	}, now)
 end
 
 -- Computes a local-counting window from usage aggregates against the

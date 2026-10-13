@@ -10,8 +10,8 @@ local class = require("class")
 ---@field source "upstream"|"local"
 ---@field updated_at integer
 
--- Last-known usage-window snapshots per subscription. The monitor refreshes
--- them; fills survive restarts and the admin always has something to show.
+-- Legacy snapshot storage retained for schema compatibility only.
+-- Runtime quota monitoring does not read or write this repository.
 ---@class ai.router.WindowsRepo
 ---@operator call: ai.router.WindowsRepo
 ---@field models rdb.Models
