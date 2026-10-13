@@ -4,10 +4,59 @@ local random = require("web.random")
 -- Pure Chat Completions compatibility translation for the ChatGPT Codex
 -- subscription backend: request validation and normalization into Responses
 -- client options, assistant result shaping, and streaming delta construction.
--- Shared by ai.openai.ProxyServer and the ai.router OpenAI subscription
--- provider; nothing here touches sockets, responses, or server state.
+-- Used by the ai.router OpenAI subscription provider, not the Responses-only
+-- standalone proxy; nothing here touches sockets, responses, or server state.
 ---@class openai.ChatCompat
 local ChatCompat = {}
+
+---@class openai.UntrustedObject
+---@field [any] any
+
+---@class openai.PromptCacheBreakpoint: openai.UntrustedObject
+---@field mode any?
+
+---@class openai.ImagePart: openai.UntrustedObject
+---@field url any?
+---@field detail any?
+
+---@class openai.AudioPart: openai.UntrustedObject
+---@field data any?
+---@field format any?
+
+---@class openai.FilePart: openai.UntrustedObject
+---@field file_data any?
+---@field file_id any?
+---@field filename any?
+
+---@class openai.ContentPart: openai.UntrustedObject
+---@field type any?
+---@field text any?
+---@field refusal any?
+---@field prompt_cache_breakpoint openai.PromptCacheBreakpoint?
+---@field image_url openai.ImagePart?
+---@field input_audio openai.AudioPart?
+---@field file openai.FilePart?
+
+---@class openai.UntrustedFunctionCall: openai.UntrustedObject
+---@field name any?
+---@field arguments any?
+
+---@class openai.UntrustedMessage: openai.UntrustedObject
+---@field role any?
+---@field content any?
+---@field function_call openai.UntrustedFunctionCall?
+---@field tool_calls any?
+---@field name any?
+---@field tool_call_id any?
+
+---@class openai.ProxyRequestOptions
+---@field prompt_cache_key string?
+---@field prompt_cache_options openai.PromptCacheOptions?
+---@field session_id string?
+---@field tool_choice "none"|"auto"|"required"|openai.ResponsesFunctionToolChoice?
+---@field parallel_tool_calls boolean
+---@field verbosity "low"|"medium"|"high"?
+---@field text_format openai.ResponsesTextFormat?
 
 ChatCompat.reasoning_efforts = {
 	none = true,

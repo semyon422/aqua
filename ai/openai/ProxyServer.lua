@@ -1,76 +1,29 @@
 local class = require("class")
 local digest = require("digest")
 local json = require("web.json")
-local random = require("web.random")
 ---@type {gettime: fun(): number}
 local socket = require("socket")
 local HttpServer = require("web.http.Server")
 local UsagePage = require("ai.openai.UsagePage")
-local ChatCompat = require("ai.openai.ChatCompat")
 
 ---@class openai.ProxyUser
 ---@field name string
 ---@field access_token string
 
 ---@class openai.ProxyClient
----@field completeStream fun(self: openai.ProxyClient, messages: openai.Message[], tools: openai.ToolSchema[]?, on_text_delta: (fun(content: string): boolean?)?, on_reasoning_delta: (fun(content: string): boolean?)?, on_tool_call_delta: (fun(delta: openai.ToolCallDelta): boolean?)?): openai.Message?, string?, openai.ProviderError?
 ---@field createResponse fun(self: openai.ProxyClient, request: table, on_event: (fun(event: table): boolean?)?): table?, string?, openai.ProviderError?
 
----@class openai.UntrustedObject
----@field [any] any
-
----@class openai.PromptCacheBreakpoint: openai.UntrustedObject
----@field mode any?
-
----@class openai.ImagePart: openai.UntrustedObject
----@field url any?
----@field detail any?
-
----@class openai.AudioPart: openai.UntrustedObject
----@field data any?
----@field format any?
-
----@class openai.FilePart: openai.UntrustedObject
----@field file_data any?
----@field file_id any?
----@field filename any?
-
----@class openai.ContentPart: openai.UntrustedObject
----@field type any?
----@field text any?
----@field refusal any?
----@field prompt_cache_breakpoint openai.PromptCacheBreakpoint?
----@field image_url openai.ImagePart?
----@field input_audio openai.AudioPart?
----@field file openai.FilePart?
-
----@class openai.UntrustedFunctionCall: openai.UntrustedObject
----@field name any?
----@field arguments any?
-
----@class openai.UntrustedMessage: openai.UntrustedObject
----@field role any?
----@field content any?
----@field function_call openai.UntrustedFunctionCall?
----@field tool_calls any?
----@field name any?
----@field tool_call_id any?
-
----@class openai.ProxyRequestOptions
----@field prompt_cache_key string?
----@field prompt_cache_options openai.PromptCacheOptions?
+---@class openai.ProxyResponseOptions
 ---@field session_id string?
----@field tool_choice "none"|"auto"|"required"|openai.ResponsesFunctionToolChoice?
----@field parallel_tool_calls boolean
+---@field parallel_tool_calls boolean?
 ---@field verbosity "low"|"medium"|"high"?
----@field text_format openai.ResponsesTextFormat?
 
 ---@class openai.ProxyServerOptions
 ---@field scheduler web.CosocketScheduler
 ---@field users openai.ProxyUser[]
 ---@field models string[]
 ---@field model_redirects {[string]: string}?
----@field create_client fun(model: string, reasoning_effort: openai.ReasoningEffort?, request_options: openai.ProxyRequestOptions): openai.ProxyClient
+---@field create_client fun(model: string, reasoning_effort: openai.ReasoningEffort?, request_options: openai.ProxyResponseOptions): openai.ProxyClient
 ---@field usage_repo openai.UsageRepo?
 ---@field fetch_usage (fun(): table?, string?, openai.ProviderError?)?
 ---@field logger (fun(line: string))?
@@ -87,7 +40,7 @@ local ChatCompat = require("ai.openai.ChatCompat")
 ---@field models string[]
 ---@field models_set {[string]: boolean}
 ---@field model_redirects {[string]: string}
----@field create_client fun(model: string, reasoning_effort: openai.ReasoningEffort?, request_options: openai.ProxyRequestOptions): openai.ProxyClient
+---@field create_client fun(model: string, reasoning_effort: openai.ReasoningEffort?, request_options: openai.ProxyResponseOptions): openai.ProxyClient
 ---@field usage_repo openai.UsageRepo?
 ---@field fetch_usage fun(): table?, string?, openai.ProviderError?
 ---@field logger fun(line: string)
@@ -293,15 +246,6 @@ local function getLogCache(result)
 end
 
 ---@param res web.Response
----@param event table|string
----@return boolean
-local function sendEvent(res, event)
-	local data = type(event) == "string" and event or json.encode(event)
-	local sent = res:send("data: " .. data .. "\n\n")
-	return sent ~= nil
-end
-
----@param res web.Response
 ---@param event table
 ---@return boolean
 local function sendResponseEvent(res, event)
@@ -320,41 +264,6 @@ local function startEventStream(res)
 	res.headers:set("Cache-Control", "no-cache")
 	res:set_chunked_encoding()
 	return res:send_headers() ~= nil
-end
-
----@param res web.Response
----@param model string
----@param completion_id string
----@param created integer
----@param delta table
----@param finish_reason string?
----@param include_usage boolean
----@return boolean
-local function sendChunk(res, model, completion_id, created, delta, finish_reason, include_usage)
-	return sendEvent(res, {
-		id = completion_id,
-		object = "chat.completion.chunk",
-		created = created,
-		model = model,
-		choices = {{index = 0, delta = delta, finish_reason = finish_reason}},
-		usage = include_usage and json.null or nil,
-	})
-end
-
----@param res web.Response
----@param model string
----@param completion_id string
----@param created integer
----@param usage openai.TokenUsage
-local function sendUsageChunk(res, model, completion_id, created, usage)
-	sendEvent(res, {
-		id = completion_id,
-		object = "chat.completion.chunk",
-		created = created,
-		model = model,
-		choices = {},
-		usage = ChatCompat.createCompletionUsage(usage),
-	})
 end
 
 ---@param request table
@@ -382,7 +291,8 @@ local function validateResponsesRequest(request, models_set)
 	if request.background ~= nil and request.background ~= json.null and request.background ~= false then
 		return "background Responses are not supported", "unsupported_background"
 	end
-	if ChatCompat.isPresent(request.previous_response_id) or ChatCompat.isPresent(request.conversation) then
+	if (request.previous_response_id ~= nil and request.previous_response_id ~= json.null)
+		or (request.conversation ~= nil and request.conversation ~= json.null) then
 		return "server-managed response state is not supported", "unsupported_response_state"
 	end
 	if request.reasoning ~= nil and request.reasoning ~= json.null then
@@ -390,9 +300,8 @@ local function validateResponsesRequest(request, models_set)
 			return "reasoning must be an object", "invalid_reasoning"
 		end
 		if request.reasoning.effort ~= nil and request.reasoning.effort ~= json.null
-			and not ChatCompat.reasoning_efforts[request.reasoning.effort]
-		then
-			return "reasoning effort is invalid", "invalid_reasoning"
+			and type(request.reasoning.effort) ~= "string" then
+			return "reasoning effort must be a string", "invalid_reasoning"
 		end
 	end
 	if request.text ~= nil and request.text ~= json.null and not json.isObject(request.text) then
@@ -475,94 +384,6 @@ function ProxyServer:responses(res, request, session_id)
 	return 200, response
 end
 
----@param res web.Response
----@param request table
----@param session_id string?
----@return integer status
----@return table? result
-function ProxyServer:complete(res, request, session_id)
-	if type(request.model) ~= "string" or not self.models_set[request.model] then
-		sendError(res, 400, "model is not available", "invalid_request_error", "model_not_found")
-		return 400
-	end
-	local compat, message, code = ChatCompat.normalizeRequest(request)
-	if not compat then
-		sendError(res, 400, message, "invalid_request_error", code)
-		return 400
-	end
-
-	local requested_model = request.model --[[@as string]]
-	compat.client_options.session_id = session_id
-		or getPromptCacheSessionId(compat.client_options.prompt_cache_key)
-	local client = self.create_client(self.model_redirects[requested_model] or requested_model,
-		compat.reasoning_effort, compat.client_options)
-	local completion_id = "chatcmpl-" .. random.hex(16)
-	local created = os.time()
-	if not compat.stream then
-		local message, _, provider_error = client:completeStream(compat.messages, compat.tools)
-		if not message then
-			if provider_error then
-				return sendProviderError(res, provider_error)
-			end
-			sendError(res, 502, "upstream request failed", "upstream_error", "upstream_error")
-			return 502
-		end
-		sendJson(res, ChatCompat.createCompletion(request.model, message, completion_id, created,
-			compat.legacy_functions))
-		return 200, message
-	end
-
-	local streamed_tool_calls = false
-	if not startEventStream(res)
-		or not sendChunk(res, request.model, completion_id, created, {role = "assistant"}, nil, compat.include_usage)
-	then
-		return 499
-	end
-	local message, completion_err, provider_error = client:completeStream(compat.messages, compat.tools, function(content)
-		return sendChunk(res, request.model, completion_id, created, {content = content}, nil, compat.include_usage)
-	end, function(content)
-		return sendChunk(res, request.model, completion_id, created, {reasoning_content = content}, nil, compat.include_usage)
-	end, function(delta)
-		streamed_tool_calls = true
-		return sendChunk(res, request.model, completion_id, created,
-			ChatCompat.toolCallDelta(delta, compat.legacy_functions), nil, compat.include_usage)
-	end)
-	if not message then
-		if completion_err == "downstream response stream closed" then
-			res:send("")
-			return 499
-		end
-		local error_body = provider_error or {
-			message = "upstream request failed",
-			type = "upstream_error",
-			code = "upstream_error",
-		}
-		sendEvent(res, {error = {
-			message = error_body.message,
-			type = error_body.type,
-			code = error_body.code,
-			request_id = error_body.request_id,
-		}})
-		sendEvent(res, "[DONE]")
-		res:send("")
-		return 502
-	end
-	if not streamed_tool_calls then
-		local delta = ChatCompat.terminalToolCalls(message, compat.legacy_functions)
-		if delta then
-			sendChunk(res, request.model, completion_id, created, delta, nil, compat.include_usage)
-		end
-	end
-	sendChunk(res, request.model, completion_id, created, json.object(),
-		ChatCompat.getFinishReason(message, compat.legacy_functions), compat.include_usage)
-	if compat.include_usage and message.usage then
-		sendUsageChunk(res, request.model, completion_id, created, message.usage)
-	end
-	sendEvent(res, "[DONE]")
-	res:send("")
-	return 200, message
-end
-
 ---@param token string
 ---@return boolean
 function ProxyServer:consumeRateLimit(token)
@@ -627,7 +448,7 @@ function ProxyServer:handleAuthenticated(req, res, path, metrics)
 		end
 		sendJson(res, {object = "list", data = models})
 		return 200
-	elseif req.method == "POST" and (path == "/v1/chat/completions" or path == "/v1/responses") then
+	elseif req.method == "POST" and path == "/v1/responses" then
 		local transfer_encodings = req.headers:getTable("Transfer-Encoding")
 		local content_lengths = req.headers:getTable("Content-Length")
 		if #transfer_encodings > 0 then
@@ -664,8 +485,7 @@ function ProxyServer:handleAuthenticated(req, res, path, metrics)
 			return 400
 		end
 		if metrics then metrics.request = request end
-		if path == "/v1/responses" then return self:responses(res, request, session_id) end
-		return self:complete(res, request, session_id)
+		return self:responses(res, request, session_id)
 	end
 	sendError(res, 404, "route not found", "invalid_request_error", "not_found")
 	return 404
@@ -711,7 +531,7 @@ function ProxyServer:handle(req, res, ip)
 	local model = type(requested_model) == "string" and self.models_set[requested_model]
 		and (self.model_redirects[requested_model] or requested_model) or "-"
 	if self.usage_repo and user and req.method == "POST"
-		and (path == "/v1/chat/completions" or path == "/v1/responses") then
+		and path == "/v1/responses" then
 		self.usage_repo:record(os.time(), user, status, metrics.request, metrics.result,
 			model ~= "-" and model or nil)
 	end

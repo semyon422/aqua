@@ -263,19 +263,14 @@ local server = ProxyServer({
 	max_requests_per_minute = config.max_requests_per_minute,
 	fetch_usage = fetchUsage,
 	create_client = function(model, reasoning_effort, request_options)
-		---@type openai.ProxyRequestOptions
+		---@type openai.ProxyResponseOptions
 		local client_options = request_options
 		return SubscriptionClient({
 			auth = shared_auth,
 			model = model,
 			reasoning_effort = reasoning_effort or config.reasoning_effort or "medium",
-			prompt_cache_key = client_options.prompt_cache_key,
-			prompt_cache_options = client_options.prompt_cache_options,
 			session_id = client_options.session_id,
-			tool_choice = client_options.tool_choice,
-			parallel_tool_calls = client_options.parallel_tool_calls,
 			verbosity = client_options.verbosity or config.verbosity or "low",
-			text_format = client_options.text_format,
 			max_response_size = config.max_response_size,
 			timeout = upstream_timeout,
 			get_time = scheduler.get_time,
@@ -290,6 +285,7 @@ local ok, start_err = server:start(host, port)
 assert(ok, "failed to start OpenAI subscription proxy: " .. tostring(start_err))
 local bound_host, bound_port = server:getAddress()
 print(("OpenAI subscription proxy listening on http://%s:%d/v1"):format(assert(bound_host), assert(bound_port)))
+print(("Responses endpoint: http://%s:%d/v1/responses"):format(bound_host, bound_port))
 print(("OpenAI usage dashboard available at http://%s:%d/usage"):format(bound_host, bound_port))
 if network.socks5 then
 	print(("SOCKS5 upstream routing enabled via %s:%d"):format(network.socks5.host, network.socks5.port))
