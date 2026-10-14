@@ -8,7 +8,7 @@ Provide a standalone multi-channel router: one server that authenticates named u
 
 - Operators manage channels, users, grants, and model aliases through the router MCP server and an agent running on their own PC. The password-protected web admin panel is a read-only dashboard; its only POST operations are session login/logout.
 - A channel is an inference destination: either a subscription account (`openai` or `zai`) or a compatible proxy (`openai_compat`, currently Chat Completions only). Channels need not represent subscriptions.
-- To connect ChatGPT directly, call `router_save_channel` with kind `openai`, name and `config.models`; an ignored credential path is generated if omitted. Call `router_start_openai_login`, then poll `router_openai_login_status` for the verification URL, one-time code, expiry, and result. The operator approves the code in OpenAI's browser page on their PC. The router polls in the background and saves credentials; no compatibility proxy or browser launch on the server is needed.
+- To connect ChatGPT directly, call `router_save_channel` with kind `openai`, name and `config.models`; private empty OAuth storage is created in SQLite. Call `router_start_openai_login`, then poll `router_openai_login_status` for the verification URL, one-time code, expiry, and result. The operator approves the code in OpenAI's browser page on their PC. The router polls in the background and saves credentials in the database; no compatibility proxy, credential file or browser launch on the server is needed.
 - Operators create users with `router_create_user`, receive a generated API key once in the MCP result, and grant each user access to specific public models. Regeneration revokes the old key immediately. Agents must treat key-bearing tool results as secrets.
 - Public concrete model names are `channel/model`, for example `openai-plus/gpt-6-astra` and `openai-pro/gpt-6-astra`. Prefixes are channel names, not provider kinds. Channel names contain 1–64 ASCII letters, digits or `._-`; upstream model names may contain slashes, preserved after the first separator. Renaming a channel changes its public model names and requires updating grants and aliases explicitly.
 - Optional aliases, for example `fast → openai-pro/gpt-6-astra`, pin both channel and model. Bare upstream model names are not resolved implicitly.
@@ -21,6 +21,7 @@ Provide a standalone multi-channel router: one server that authenticates named u
 - The read-only Requests page lists completed authenticated inference attempts: ID, start time, user, requested model, selected channel, upstream model, protocol, streaming, logical status, total duration, input/cache/output tokens. Exact-match user/model/channel and success/error filters combine with stable 50-row cursor pagination. Estimated counts have a `~` prefix. No prompts, responses, credentials or error text are stored.
 - Requests also shows streaming TTFT, output tokens/s and a short sanitized error category beneath the status. Unknown metrics appear as `—`, not zero. Ordinary JSON responses do not expose first-token timing or generation speed.
 - Requests combines protocol and transport (`Responses · SSE`, `Chat Completions · JSON`). The upstream model appears as muted secondary text below the requested model only for aliases/redirects or another actual name difference; a matching `channel/model` prefix alone does not count as a difference.
+- In Requests, Channel precedes Model; concrete model labels omit only the first `channel/` segment, preserving slashes inside upstream names. Aliases remain unchanged. Stored IDs, inference IDs and exact-match model filters remain qualified; the filter placeholder makes this explicit.
 - Operators can explicitly call `router_test_channel` with channel ID and a configured unqualified model to check authentication and native inference with one short request. This is not a free health check: it consumes provider quota. No prompt or generated output is returned or persisted; the diagnostic reports success, protocol, resolved model, elapsed time, logical status, sanitized error category and reported token counts.
 
 ## Architecture Decisions
@@ -33,13 +34,13 @@ Provide a standalone multi-channel router: one server that authenticates named u
   - `ai.router.Router` — pure resolution of a qualified name or alias to exactly one enabled channel and its unqualified upstream model. No clock or quota state is needed.
   - `ai.router.UsageMonitor` — polls upstream usage endpoints and maintains per-channel window fill state; runs as a scheduler task.
    - `ai.router.Provider` declares Chat Completions canonical message/delta shapes and shared usage normalization. Native Responses bypass the canonical assistant-message shape so provider-owned output items and typed events are not lost.
-   - `ai.router.storage.RouterDatabase` plus repos follow the SQLite/rdb pattern. Schema version 6 extends bounded request metadata with nullable timing/error fields; earlier databases are rejected without modification. No runtime migration is provided.
+   - `ai.router.storage.RouterDatabase` plus repos follow the SQLite/rdb pattern. Schema version 8 adds private per-channel OAuth credentials; earlier databases are rejected without modification. No runtime migration is provided.
    - `ai.router.RequestLogsRepo` persists individual completion records independently of hourly usage, retaining at most 10,000 entries for seven days. Inserts prune expired/excess rows; reads hide expired rows even when idle. Log write failures are sanitized and never change the inference outcome.
   - `ai.router.AdminPages` — server-rendered etlua (`web.etlua`) HTML with a small self-contained stylesheet and no external assets; charts reuse the existing usage dashboard approach.
   - `ai.router.Management` — management domain operations, public/redacted views, full hypothetical-catalog validation, pending-login guards, synchronous SQLite transactions and selective catalog reloads with explicit persistence/application outcomes. No dependency on HTML or HTTP forms.
   - `ai.router.McpTools` — MCP-native tools with closed input schemas and read-only/destructive annotations; returns JSON text plus structured content. Domain validation errors are bounded, and unexpected errors never reflect SQL, credentials, OAuth responses, or stack traces.
   - `mcp.Server` — reused stateless Streamable HTTP transport on a separate privileged listener, sharing the router's scheduler and database, not the public inference listener. Its bearer token is always required, including on loopback. Browser Origin requests are rejected. Web cookies and client inference keys cannot authorize MCP.
-  - `ai.router.OpenAILoginManager` — owns persistent per-auth-path OAuth instances and refresh guards, starts detached device-login coroutines through the same `SubscriptionAuth:loginWithDeviceCode` flow as `aqua/ai/openai`, and exposes bounded MCP login state; the dashboard reads only its status. Provider reconstruction reuses its guard, so catalog reloads cannot lose a pending login or authenticated credentials.
+   - `ai.router.OpenAILoginManager` — owns per-channel OAuth instances and refresh guards, starts detached device-login coroutines through the same `SubscriptionAuth:loginWithDeviceCode` flow as `aqua/ai/openai`, and exposes bounded MCP login state; the dashboard reads only its status. `OAuthRepo` loads and atomically saves access/refresh tokens, expiry and account ID. Provider reconstruction reuses its guard, so catalog reloads cannot lose a pending login or authenticated credentials. The standalone OpenAI proxy's file storage remains unchanged.
 - `aqua/ai/router/proxy.lua` — standalone entrypoint: loads the ignored config, wires the database, network, monitor loop (5-second scheduler tick), read-only admin pages, MCP and inference listeners. `aqua/ai/router/smoke.lua` boots the full stack with a local mock upstream and exercises MCP → channel/user → inference → usage, and rejects web mutations.
 - Upstream adapters reuse existing clients instead of new protocol code. Chat Completions providers return `ai.router.CanonicalMessage` (content, optional reasoning/tool calls, finish reason, and normalized usage) through `complete` / `completeStream`; local validation failures return a 400-shaped provider error without failover. Native OpenAI providers expose `createResponse(body, upstream_model, session_id, on_event?)` and return native response objects/events.
    - `OpenAIProvider` wraps `ai.openai.SubscriptionAuth` (one instance and auth file per channel), `ai.openai.SubscriptionClient` (per request), and the Codex usage fetch (`fetchUsage`). It no longer imports `ChatCompat` or supports Chat Completions. `ai.openai.ResponsesProtocol` supplies the same stateless request and affinity validation used by the standalone OpenAI proxy. Existing Codex transport constraints/defaults still apply; this is not the complete public Responses API.
@@ -56,7 +57,7 @@ Provide a standalone multi-channel router: one server that authenticates named u
    - `UsageMonitor` polls each channel's usage source on a configurable interval (default 60 s) with jitter. `OpenAIProvider` reads the Codex usage endpoint: `rate_limit.primary_window` is the 5-hour window and `secondary_window` the weekly one, each with `used_percent` and `reset_at`.
    - `ZaiProvider` reads the z.ai monitor endpoint `https://api.z.ai/api/monitor/usage/quota/limit` with the same Coding Plan API key as inference: `unit 3/number 5` is the 5-hour window and `unit 6/number 1` the rolling weekly window, each with `percentage` (integer used-percent), `usage`/`currentValue` (quota/consumption), and `nextResetTime` (epoch milliseconds). Its constructor wires the usage request function, key, and endpoint (including the optional `config.usage_url` override); provider tests exercise polling through a constructed instance.
   - Channels without a usable upstream usage endpoint use **local counting**: `UsageRepo:channelTokens` sums input plus output tokens from the router's own hourly usage aggregates over the trailing window, divided by a configured token quota, at hour-bucket granularity. This is an estimate; the spec does not claim provider-exact fill.
-   - Each channel declares `usage_source = "upstream" | "local"` per window. Failed polls keep the last in-memory snapshot and timestamp. `UsageMonitor:refresh(channel_id)` requests immediate polling after quota errors. Disabled channels drop in-memory state. Quotas are neither loaded from nor written to SQLite; after restart they are unknown until polling/recomputation. Catalog reloads preserve snapshots. Request/token statistics remain persistent; the legacy window table/repo remain unused by runtime monitoring.
+   - Each channel declares `usage_source = "upstream" | "local"` per window. Failed polls keep the last in-memory snapshot and timestamp. `UsageMonitor:refresh(channel_id)` requests immediate polling after quota errors. Disabled channels drop in-memory state. Quotas are neither loaded from nor written to SQLite; after restart they are unknown until polling/recomputation. Catalog reloads preserve snapshots. No persisted quota-window table or repository exists. Request/token statistics remain persistent; hourly aggregates are retained indefinitely, independently of bounded request-log retention.
 - Usage accounting follows the existing OpenAI proxy semantics, extended with a channel dimension: requests are counted once at completion (including local rejections and upstream errors), input/output/cached tokens prefer provider-reported usage with the `ceil(JSON bytes / 4)` estimate as fallback, `estimated_requests` marks rows with missing provider counts, and no prompts, responses, keys, or addresses are persisted.
 - Aggregates are hourly UTC upserts keyed by `(bucket, user, model, upstream_model, channel)` where `model` is the public name the client requested and `upstream_model` is what was sent after the channel's permanent redirect. `model_prices` in the config is keyed by upstream model, with the same cost formula and limitations as the OpenAI proxy.
 - Dashboard authentication: a single operator password from the ignored config file. `POST /admin/login` issues an HMAC-signed stateless session cookie (`web.framework.Sessions`, HttpOnly, SameSite=Lax) carrying an expiry and a CSRF token; logout validates CSRF. All configuration-changing web routes are removed; authenticated non-GET requests outside login/logout return 405. Query parameters cannot reveal API keys or start operations. Dashboard cookies survive restart until expiry.
@@ -83,9 +84,9 @@ Provide a standalone multi-channel router: one server that authenticates named u
 - Tool arguments are untrusted JSON strings; providers that relay them do so verbatim without parsing or rewriting.
 - Streaming usage chunks honor `stream_options.include_usage` with the empty-`choices` final chunk shape, per provider capability.
 - Proxy logs contain only the user name, remote address, method, path, status, duration, public model, and channel used. Prompts, responses, client keys, admin password, session secrets, and upstream credentials are never logged or persisted.
-- Upstream credential files (per-channel OAuth stores, GLM API keys) live in ignored `userdata/` files or the database, never in the repository; the admin UI masks them.
-- All management operations require the dedicated MCP bearer token. OpenAI creation generates a random `userdata/ai_router_auth_*.lua` path when omitted; saves require distinct auth paths across OpenAI channels. Credentials are atomically replaced after token exchange and refresh. Missing credential files represent channels awaiting login, not startup failures.
-- Only one device login may run per auth path. Editing/deleting that channel is blocked while login is pending. Restart abandons pending flows but retains saved credentials. Successful login requests usage refresh.
+- All upstream credentials live in the ignored SQLite database, never in public channel config responses or the repository. They are plaintext secrets at rest, not encrypted: restrict database, WAL/SHM and backup access to the service user (0600 files, 0700 backup directories). Protect the runtime config separately.
+- All management operations require the dedicated MCP bearer token. Creating an OpenAI channel initializes empty OAuth credentials in the same management transaction; renames/config edits retain them. Deleting the channel or changing its kind removes them transactionally. A random credential generation identifies each storage lifetime: stale in-flight refreshes cannot recreate deleted rows or overwrite a replacement channel even if SQLite reuses its numeric ID. Login-manager caches compare generation before reusing a guard. `auth_path` is no longer accepted in MCP input/output or catalog config; runtime never reads or imports Lua credential files.
+- Only one device login may run per channel. Editing/deleting that channel is blocked while login is pending. Restart abandons pending flows but retains saved credentials. Successful login requests usage refresh.
 - Pending verification codes are returned only by authenticated MCP login tools, never by general listing/status tools or HTML. Private device IDs, token exchange data, stored credentials, key hashes, and raw OAuth exception/response text are never exposed. Error state allows a fresh login attempt.
 - Management transactions never yield and are rolled back on validation/persistence failure. Catalog edits validate the complete hypothetical state before writes; deleting a channel cannot break an alias. Only channel/alias commits rebuild routing/providers; user/grant/key commits do not disturb provider instances or monitor wiring.
 - Write results include `operation.persistence = "committed"|"not_committed"|"unknown"` and `operation.reload = "applied"|"failed"|"not_required"|"not_attempted"`, in both JSON text and structured content. `not_committed` means no write began or rollback succeeded; rollback failure reports `unknown`, requiring inspection/recovery rather than blind retries. Successful user/key writes report `committed`/`not_required`.
@@ -99,7 +100,7 @@ Provide a standalone multi-channel router: one server that authenticates named u
 - Channel probes require an enabled, live configured channel/model and no pending catalog reload or OAuth login. They never pick a default model or resolve an alias, and apply the selected channel's permanent redirect exactly once. Only one probe per channel runs at a time; exceptions release that guard. Calls use the existing provider and configured deadlines without retry/fallback or a database transaction across network I/O. The fixed prompt asks for exactly OK; success means native inference completed, not an exact-content assertion. Chat Completions sends `max_tokens=16` and Z.ai disables thinking for this request; OpenAI Responses has no hard output cap, reflecting backend constraints. Native failed responses are logical failures. `probe.ok=false` is a successful diagnostic tool result, while invalid selections are MCP execution errors. OAuth refresh may persist credentials normally. Probes do not use a user key/grants, fabricate a user, write request history/usage aggregates, or affect local token estimates; upstream quotas still include them.
 - Persisted error codes are a closed vocabulary: `rate_limit`, `concurrency_limit`, `timeout`, `auth`, `client_disconnected`, `model_not_found`, `unsupported_protocol`, `invalid_request`, `upstream_unavailable`, `upstream_error`, `internal_error`. Raw provider codes/text never enter this field. Provider status/type/known codes and transport timeout signals determine the category; unrecognized failures are generic. Post-commit logical failures retain the underlying category, disconnects take precedence, and successful requests have no error code. Old rows remain unknown rather than inferred retroactively.
 
-## Data Model (schema version 6)
+## Data Model (schema version 8)
 
 ```sql
 CREATE TABLE router_users (
@@ -140,18 +141,6 @@ CREATE TABLE router_models (
 	updated_at INTEGER NOT NULL
 );
 
-CREATE TABLE router_channel_windows (
-	channel_id INTEGER NOT NULL,
-	window TEXT NOT NULL,            -- five_hour | weekly
-	used_percent REAL,
-	used_tokens INTEGER,
-	quota_tokens INTEGER,
-	reset_at INTEGER,
-	source TEXT NOT NULL,            -- upstream | local
-	updated_at INTEGER NOT NULL,
-	PRIMARY KEY (channel_id, window)
-);
-
 CREATE TABLE router_usage_models (
 	bucket INTEGER NOT NULL,
 	user TEXT NOT NULL,
@@ -165,6 +154,15 @@ CREATE TABLE router_usage_models (
 	cached_input_tokens INTEGER NOT NULL DEFAULT 0,
 	estimated_requests INTEGER NOT NULL DEFAULT 0,
 	PRIMARY KEY (bucket, user, model, upstream_model, channel)
+);
+
+CREATE TABLE router_oauth_credentials (
+	channel_id INTEGER PRIMARY KEY,
+	generation TEXT NOT NULL,
+	access_token TEXT NOT NULL,
+	refresh_token TEXT NOT NULL,
+	expires_at INTEGER NOT NULL,
+	account_id TEXT NOT NULL
 );
 
 CREATE TABLE router_request_logs (
@@ -190,7 +188,7 @@ CREATE INDEX router_request_logs_created_at ON router_request_logs (created_at);
 ```
 
 - `router_channels.config` JSON shape per kind:
-  - `openai`: `{auth_path, models: string[], model_redirects: {[string]: string}, reasoning_effort?, verbosity?, max_response_size?}`
+   - `openai`: `{models: string[], model_redirects: {[string]: string}, reasoning_effort?, verbosity?, max_response_size?}`
   - `zai`: `{base_url, api_key, models: string[], model_redirects: {[string]: string}, thinking?, tool_stream?, usage_url?}`
   - `openai_compat`: `{base_url, api_key?, models: string[], model_redirects: {[string]: string}}`
 - `router_channels.limits` JSON shape: `{five_hour_quota_tokens?: number, weekly_quota_tokens?: number, usage_source?: {five_hour?: "upstream"|"local", weekly?: "upstream"|"local"}, poll_interval?: number}`
@@ -224,7 +222,7 @@ CREATE INDEX router_request_logs_created_at ON router_request_logs (created_at);
 - Diagnostics: `router_test_channel({id, model})`, where `model` is an unqualified entry from that channel's `config.models`, not a qualified public ID or alias. The tool is external/non-read-only, not destructive. Invoke explicitly, never as an automatic listing/status/polling step. MCP clients must refresh discovery to see the new tool; no additional configuration or database migration is needed for probes or the compact table.
 - Aliases: `router_save_model` (omit id to create; supply id to patch name/target/description), `router_delete_model`. `target` is a string, not a list; list/save results expose `target` instead of `chain`.
 - Authorization: `router_start_openai_login`, `router_openai_login_status`. Pass channel id. Start returns immediately; poll status for code availability and completion. Approval must be performed by the user, not autonomously by the agent.
-- Tool discovery includes schemas, descriptions and safety annotations. Confirm destructive operations in the local agent. The MCP token grants full operator privileges, including upstream requests and credential path selection; do not give it to inference clients or untrusted agents.
+- Tool discovery includes schemas, descriptions and safety annotations. Confirm destructive operations in the local agent. The MCP token grants full operator privileges, including upstream requests and device authorization; do not give it to inference clients or untrusted agents.
 - Keep the listener loopback-only unless intentionally publishing it through authenticated HTTPS or an SSH tunnel. Do not forward its token over plaintext networks; it is independent of `admin_password` and client keys.
 
 ## Configuration
@@ -254,13 +252,16 @@ return {
 }
 ```
 
-OpenAI channel OAuth credentials are stored per channel in ignored files such as `userdata/ai_router_auth_<random>.lua`. Device authorization is started through MCP. The operator must approve the returned code at `https://auth.openai.com/codex/device`; merely creating a channel does not authenticate it.
+OpenAI channel OAuth credentials are stored privately in `router_oauth_credentials`, keyed by channel ID. Device authorization is started through MCP. The operator must approve the returned code at `https://auth.openai.com/codex/device`; merely creating a channel does not authenticate it.
 
 Configuration migration: every deployed router config (normally ignored `userdata/ai_router.lua`, or the path passed to `proxy.lua`) must add a separate random `mcp_token` of at least 32 characters before restarting; startup fails without it. Optional `mcp_host` and `mcp_port` default to loopback and 28084 and do not inherit the public inference bind address. OAuth stores remain usable. Local development may load the token from a mode-0600 ignored `userdata/ai_router_mcp_token.lua`; never commit it. Publishing a remote MCP listener requires an explicit proxy/tunnel configuration change; it is not enabled by upgrading code.
 
 ### Database Compatibility
 
-- Runtime initialization accepts only fresh or version-6 databases and never migrates existing data. Alias targets, grants, credentials and aggregate history remain unchanged.
+- Runtime initialization accepts only fresh or version-8 databases and never migrates existing data. Alias targets, grants, request logs and aggregate history remain unchanged.
+- Before upgrading schema 7, stop the router and back up SQLite consistently and every OpenAI channel's referenced auth Lua file. Create `router_oauth_credentials` using the definition above. For each OpenAI channel, import its four credential fields without logging tokens (or initialize empty values when no auth file exists), generate a fresh random generation value and remove only `config.auth_path`. Commit these changes and `PRAGMA user_version=8` in one manual transaction. Verify every imported field against its source and every other row/column unchanged; archive old router-only auth files after verification. Do not move files shared with standalone proxies or other installations. Protect database/WAL/SHM/backups as secrets. Every deployed database needs this out-of-band conversion; no new runtime config fields are required. Reconnect MCP clients to refresh the removed `auth_path` contract.
+- Before upgrading schema 6, stop the router and make a consistent SQLite backup (including WAL). In a manual transaction, run `DROP TABLE router_channel_windows`, set `PRAGMA user_version=7`, then commit. Verify every other table and row remains unchanged. Only obsolete quota snapshots are discarded; live quotas repopulate in memory through normal polling. All deployed router databases require this out-of-band conversion before restart; no configuration fields change.
+- Earlier versions must first follow the relevant conversion steps below through schema 6, then apply schema 7 and schema 8 in order.
 - Before upgrading schema 5, stop the router and make a consistent SQLite backup (including WAL). In a manual transaction, run `ALTER TABLE router_request_logs ADD COLUMN ttft_ms INTEGER`, `ALTER TABLE router_request_logs ADD COLUMN generation_ms INTEGER`, and `ALTER TABLE router_request_logs ADD COLUMN error_code TEXT`, then set `PRAGMA user_version=6` and commit. Verify all old columns/rows are unchanged; existing rows must keep NULL for the added fields. All deployed router databases need this out-of-band conversion before restart. No new `userdata/ai_router.lua` configuration fields are required.
 - Before upgrading schema 4, stop and back up as above, create only `router_request_logs` and its index using the current definitions above, then set `PRAGMA user_version=6` and commit. Verify that pre-existing tables/rows are unchanged. Request history starts empty; do not fabricate rows from aggregates.
 - Before upgrading schema 3, stop the router and back up SQLite consistently (including WAL). Convert out of band: rename `router_subscriptions` to `router_channels`, `router_subscription_windows` to `router_channel_windows`, its `subscription_id` column to `channel_id`, and `router_usage_models.subscription` to `channel`. Replace `router_usage_subscription_bucket` with `router_usage_channel_bucket(channel, bucket)` and set `user_version=4`. Preserve all row values, hashes, credentials, grants, aliases and historical usage.
@@ -272,13 +273,14 @@ Configuration migration: every deployed router config (normally ignored `userdat
 - Native Responses tests cover endpoint isolation, grants, state/affinity validation, aliases/redirects, reasoning/tool items, cache usage, error pass-through, quota refresh and downstream failures. Tests assert that neither endpoint calls another channel after any failure, before or after streaming begins.
 - OpenAI clients use native Responses; GLM/compat use Chat Completions. Both require qualified concrete model names. Full stored/background/WebSocket Responses support remains out of scope, as documented in `../openai/spec.md`.
 
-- Monitor tests verify that quota snapshots live only in memory, survive catalog reloads but not process restarts, and never read or overwrite legacy database snapshots. Failed polls preserve the current process's last-known values and original timestamps.
+- Monitor tests verify that quota snapshots live only in memory, survive catalog reloads but not process restarts, and work without a persisted quota table or changes to usage aggregates. Failed polls preserve the current process's last-known values and original timestamps. Database tests verify schema 7 omits the quota table and rejects schema 6 without dropping its data automatically.
 - The entrypoint starts polling via `UsageMonitor:startPolling`: detaching a coroutine alone does not execute it. The loop is explicitly resumed and checks due channels every five seconds. Scheduler-driven tests verify the initial poll and subsequent polls after an upstream failure.
 
 - `Router_test` covers qualified resolution, identical model suffixes on different channels, redirects, embedded slashes, disabled targets, invalid aliases/configs and rejection of removed monitoring thresholds.
 - Adapters are tested with fake HTTP streams and schedulers for validation, usage accounting and SSE fidelity.
 - `UsageMonitor` tests cover fake upstream responses, aggregate-driven local estimates and in-memory snapshot lifetime.
 - Repos and database initialization are tested like `ai.openai.storage` (`RouterDatabase_test.lua`), including rejection of the old schema without modifying its rows or columns.
+- OAuth tests cover per-channel database persistence, login/refresh saves, generation checks on stale writes and cached guards, credential retention across renames, removal on kind change/deletion, public result redaction and rejection of schema 7 and removed auth-path input without automatic imports.
 - Request-log tests cover individual metadata persistence, safe combined filters, stable pagination with new inserts, age/count retention, booleans/numeric SQLite normalization, both protocols, JSON/SSE, local/upstream/post-commit errors, 499 cancellation, secret non-disclosure, write-failure isolation and authenticated read-only escaped HTML.
 - Timing tests use deterministic clocks and verify ignored metadata/empty events, first-output stability, reasoning/tool deltas, native lifecycle events, missing/zero timing, speed eligibility, both protocols and no metrics for JSON. Error tests cover local validation, protocol/model rejection, upstream auth/rate/transport timeout, native failed responses, disconnect precedence, closed categories and schema-5 rejection without changing history.
 - Probe tests exercise MCP discovery/annotations and strict schemas, all three provider kinds, explicit selection, redirects, one call only, fixed bodies, quota-consuming diagnostic semantics, sanitized timeout/auth/exception results, per-channel concurrency guard cleanup and absence from user statistics/request history. Compact-table tests cover hidden redundant upstream names, alias details, combined protocol/transport and escaped HTML.

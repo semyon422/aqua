@@ -1,7 +1,6 @@
 local UsersRepo = require("ai.router.UsersRepo")
 local ChannelsRepo = require("ai.router.ChannelsRepo")
 local ModelsRepo = require("ai.router.ModelsRepo")
-local WindowsRepo = require("ai.router.WindowsRepo")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
 local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
 local digest = require("digest")
@@ -11,19 +10,18 @@ local test = {}
 ---@return ai.router.UsersRepo
 ---@return ai.router.ChannelsRepo
 ---@return ai.router.ModelsRepo
----@return ai.router.WindowsRepo
 ---@return ai.router.RouterDatabase
 local function open()
 	local storage = RouterDatabase(LjsqliteDatabase())
 	storage.path = ":memory:"
 	storage:open()
 	return UsersRepo(storage.models), ChannelsRepo(storage.models),
-		ModelsRepo(storage.models), WindowsRepo(storage.models), storage
+		ModelsRepo(storage.models), storage
 end
 
 ---@param t testing.T
 function test.users_lifecycle(t)
-	local users, _, _, _, storage = open()
+	local users, _, _, storage = open()
 	local user, key = users:create("alice", 1000)
 	t:eq(user.name, "alice")
 	t:eq(user.disabled, false)
@@ -61,7 +59,7 @@ end
 
 ---@param t testing.T
 function test.channels_lifecycle(t)
-	local _, subs, _, _, storage = open()
+	local _, subs, _, storage = open()
 	local sub = subs:create("zai-1", "zai",
 		{base_url = "https://api.z.ai/api/coding/paas/v4", models = {"glm-5.3"}},
 		{poll_interval = 80}, 1000)
@@ -88,7 +86,7 @@ end
 
 ---@param t testing.T
 function test.models_lifecycle(t)
-	local _, _, models, _, storage = open()
+	local _, _, models, storage = open()
 	local model = models:create("lite", "zai/glm-5.3-flash", "cheap alias", 1000)
 	t:eq(model.name, "lite")
 	t:eq(model.target, "zai/glm-5.3-flash")
@@ -112,29 +110,13 @@ function test.models_lifecycle(t)
 end
 
 ---@param t testing.T
-function test.windows_snapshots(t)
-	local _, subs, _, windows, storage = open()
-	local sub = subs:create("zai-1", "zai", {models = {}}, {}, 1000)
-
-	windows:save(sub.id, "five_hour",
-		{used_percent = 42.5, used_tokens = 850, quota_tokens = 2000, reset_at = 2000, source = "upstream"}, 1500)
-	local snapshot = windows:snapshot(sub.id)
-	t:eq(snapshot.five_hour.used_percent, 42.5)
-	t:eq(snapshot.five_hour.source, "upstream")
-
-	windows:save(sub.id, "five_hour", {used_percent = 60, source = "local"}, 1600)
-	windows:save(sub.id, "weekly", {used_percent = 10, source = "local"}, 1600)
-	snapshot = windows:snapshot(sub.id)
-	t:eq(snapshot.five_hour.used_percent, 60)
-	t:eq(snapshot.five_hour.used_tokens, nil)
-	t:eq(snapshot.weekly.used_percent, 10)
-	t:eq(#subs:list(), 1)
-
-	windows:delete(sub.id)
-	t:eq(next(windows:snapshot(sub.id)), nil)
-	subs:delete(sub.id)
-	t:eq(next(windows:snapshot(sub.id)), nil)
-	t:has_error(function() windows:save(sub.id, "monthly", {source = "local"}, 1700) end)
+function test.channel_lifecycle_requires_no_persisted_quota_table(t)
+	local _, channels, _, storage = open()
+	local channel = channels:create("zai-1", "zai", {models = {}}, {}, 1000)
+	t:eq(#channels:list(), 1)
+	channels:delete(channel.id)
+	t:eq(#channels:list(), 0)
+	t:eq(#storage.db:query("SELECT name FROM sqlite_master WHERE name = 'router_channel_windows'"), 0)
 	storage:close()
 end
 

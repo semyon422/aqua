@@ -149,12 +149,12 @@ function test.openai_status_display_hides_verification_code(t)
 	local stack = Stack()
 	local manager = OpenAILoginManager({scheduler = stack.scheduler,
 		create_auth = function() error("dashboard must not start authorization") end})
-	function manager:getState(auth_path)
-		t:eq(auth_path, "unused")
+	function manager:getState(channel_id)
+		t:eq(channel_id, 1)
 		return {status = "logging_in", user_code = "PRIVATE-CODE", verification_url = "https://auth.openai.com/codex/device"}
 	end
 	stack.admin.openai_login = manager
-	stack.channels:create("direct", "openai", {auth_path = "unused", models = {"gpt"}}, {}, os.time())
+	stack.channels:create("direct", "openai", {models = {"gpt"}}, {}, os.time())
 	stack.server:reload(stack.channels:list(), {})
 	local cookie = login(t, stack)
 	local response = request(t, stack, "GET", "/admin/channels", nil, cookie)
@@ -281,7 +281,28 @@ function test.requests_hide_redundant_upstream_names_and_combine_protocol_transp
 	local _, count = response.body:gsub('<div class="muted">→ model</div>', "")
 	t:eq(count, 1)
 	t:assert(response.body:find("Responses · SSE", 1, true))
+	t:assert(response.body:find("<th>Channel</th><th>Model</th>", 1, true))
+	t:assert(response.body:find("<td>openai</td>\n<td>model", 1, true))
+	t:assert(response.body:find("<td>openai</td>\n<td>alias", 1, true))
+	t:eq(response.body:find(">openai/model", 1, true), nil)
 	t:eq(response.body:find("<th>Stream</th>", 1, true), nil)
+	stack:close()
+end
+
+---@param t testing.T
+function test.requests_strip_only_channel_prefix_and_keep_qualified_model_filters(t)
+	local stack = Stack()
+	stack.server.request_logs_repo:record({created_at = os.time(), user = "alice", model = "proxy/org/model",
+		channel = "proxy", upstream_model = "org/model", protocol = "chat_completions", stream = false,
+		status = 200, duration_ms = 1000, input_tokens = 1, output_tokens = 1,
+		cached_input_tokens = 0, estimated = false})
+	local cookie = login(t, stack)
+	local response = request(t, stack, "GET", "/admin/requests?model=proxy%2Forg%2Fmodel", nil, cookie)
+	t:eq(response.status, 200)
+	t:assert(response.body:find('<td>proxy</td>\n<td>org/model', 1, true))
+	t:assert(response.body:find('value="proxy/org/model"', 1, true))
+	t:eq(response.body:find('<div class="muted">→ org/model</div>', 1, true), nil)
+	t:eq(stack.server.request_logs_repo:list({}, os.time())[1].model, "proxy/org/model")
 	stack:close()
 end
 

@@ -8,15 +8,15 @@ function test.creates_empty_database(t)
 	local storage = RouterDatabase(LjsqliteDatabase())
 	storage.path = ":memory:"
 	storage:open()
-	t:eq(storage.db:user_version(), 6)
+	t:eq(storage.db:user_version(), 8)
 	local names = {}
 	for _, row in ipairs(storage.db:query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")) do
 		table.insert(names, row.name)
 	end
 	t:tdeq(names, {
-		"router_channel_windows",
 		"router_channels",
 		"router_models",
+		"router_oauth_credentials",
 		"router_request_logs",
 		"router_usage_models",
 		"router_user_models",
@@ -32,7 +32,7 @@ function test.migrate_is_idempotent(t)
 	storage.path = ":memory:"
 	storage:open()
 	storage:migrate()
-	t:eq(storage.db:user_version(), 6)
+	t:eq(storage.db:user_version(), 8)
 	t:eq(#storage.models.router_users:select(), 0)
 	storage:close()
 end
@@ -42,9 +42,9 @@ function test.rejects_future_version(t)
 	local storage = RouterDatabase(LjsqliteDatabase())
 	storage.path = ":memory:"
 	storage:open()
-	storage.db:user_version(7)
+	storage.db:user_version(9)
 	t:has_error(function() storage:migrate() end)
-	t:eq(storage.db:user_version(), 7)
+	t:eq(storage.db:user_version(), 9)
 	storage:close()
 end
 
@@ -138,6 +138,35 @@ function test.rejects_version_five_without_rewriting_request_history(t)
 	t:eq(db:user_version(), 5)
 	t:tdeq(db:columns("router_request_logs"), {"id", "model"})
 	t:eq(db:query("SELECT model FROM router_request_logs")[1].model, "zai/glm")
+	db:close()
+end
+
+---@param t testing.T
+function test.rejects_version_six_without_dropping_legacy_windows(t)
+	local db = LjsqliteDatabase()
+	db:open(":memory:")
+	db:exec("CREATE TABLE router_channel_windows (channel_id INTEGER PRIMARY KEY, used_percent REAL)")
+	db:exec("INSERT INTO router_channel_windows VALUES (1, 42.5)")
+	db:user_version(6)
+	local storage = RouterDatabase(db)
+	t:has_error(function() storage:migrate() end)
+	t:eq(db:user_version(), 6)
+	t:eq(db:query("SELECT used_percent FROM router_channel_windows")[1].used_percent, 42.5)
+	db:close()
+end
+
+---@param t testing.T
+function test.rejects_version_seven_without_importing_oauth_files(t)
+	local db = LjsqliteDatabase()
+	db:open(":memory:")
+	db:exec("CREATE TABLE router_channels (id INTEGER PRIMARY KEY, config TEXT)")
+	db:exec([[INSERT INTO router_channels VALUES (1, '{"auth_path":"legacy.lua"}')]])
+	db:user_version(7)
+	local storage = RouterDatabase(db)
+	t:has_error(function() storage:migrate() end)
+	t:eq(db:user_version(), 7)
+	t:eq(db:query("SELECT config FROM router_channels")[1].config, '{"auth_path":"legacy.lua"}')
+	t:eq(#db:query("SELECT name FROM sqlite_master WHERE name = 'router_oauth_credentials'"), 0)
 	db:close()
 end
 

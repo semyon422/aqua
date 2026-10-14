@@ -1,13 +1,10 @@
 local class = require("class")
-local stbl = require("stbl")
 local json = require("web.json")
 local random = require("web.random")
 local SubscriptionAuth = require("ai.openai.SubscriptionAuth")
-local SubscriptionAuthGuard = require("ai.openai.SubscriptionAuthGuard")
 local SubscriptionClient = require("ai.openai.SubscriptionClient")
 
 ---@class ai.router.OpenAIProviderConfig
----@field auth_path string
 ---@field reasoning_effort openai.ReasoningEffort?
 ---@field verbosity "low"|"medium"|"high"?
 ---@field max_response_size integer?
@@ -19,7 +16,7 @@ local SubscriptionClient = require("ai.openai.SubscriptionClient")
 ---@field open_stream openai.OpenStreamFunc
 ---@field timeout number?
 ---@field get_time (fun(): number)?
----@field auth openai.SubscriptionAuthGuard? injected in tests; built from auth_path otherwise
+---@field auth openai.SubscriptionAuthGuard
 ---@field usage_url string?
 
 -- Upstream adapter for one ChatGPT channel: per-channel OAuth
@@ -39,53 +36,22 @@ local OpenAIProvider = class()
 
 OpenAIProvider.usage_url = "https://chatgpt.com/backend-api/codex/usage"
 
----@param auth_path string
----@return openai.SubscriptionCredentials
-local function loadCredentialsFile(auth_path)
-	---@type {[string]: any}
-	local credentials = {}
-	local file = io.open(auth_path, "rb")
-	if file then
-		file:close()
-		local loader, load_err = loadfile(auth_path)
-		assert(loader, ("failed to load channel auth %s: %s"):format(auth_path, tostring(load_err)))
-		---@type {[string]: any}
-		local loaded = loader()
-		credentials = loaded
-		assert(type(credentials) == "table", "channel auth must return a table")
-	end
-	---@type {[string]: string|integer}
-	local defaults = {access_token = "", refresh_token = "", expires_at = 0, account_id = ""}
-	for key, default in pairs(defaults) do
-		if credentials[key] == nil then credentials[key] = default end
-		assert(type(credentials[key]) == type(default), "channel auth " .. key .. " has an invalid type")
-	end
-	assert(credentials.expires_at >= 0 and credentials.expires_at % 1 == 0,
-		"channel auth expires_at must be a non-negative integer")
-	return credentials --[[@as openai.SubscriptionCredentials]]
-end
+---@class ai.router.OpenAIAuthOptions
+---@field channel_id integer
+---@field oauth_repo ai.router.OAuthRepo
+---@field scheduler web.CosocketScheduler
+---@field request openai.RequestFunc
 
----@param auth_path string
----@param credentials openai.SubscriptionCredentials
-local function saveCredentialsFile(auth_path, credentials)
-	local tmp_path = auth_path .. ".tmp"
-	local file = io.open(tmp_path, "w")
-	assert(file, "failed to open " .. tmp_path .. " for writing")
-	local ok, write_err = file:write(("return %s\n"):format(stbl.encode_pretty(credentials)))
-	local close_ok, close_err = file:close()
-	assert(ok and close_ok, write_err or close_err)
-	assert(os.rename(tmp_path, auth_path), "failed to replace " .. auth_path)
-end
-
----@param options ai.router.OpenAIProviderOptions
+---@param options ai.router.OpenAIAuthOptions
 ---@return openai.SubscriptionAuth
 function OpenAIProvider.createAuth(options)
-	local credentials = loadCredentialsFile(options.config.auth_path)
+	local credentials = options.oauth_repo:get(options.channel_id)
+	local generation = credentials.generation
 	return SubscriptionAuth({
 		scheduler = options.scheduler,
 		credentials = credentials,
 		save_credentials = function()
-			saveCredentialsFile(options.config.auth_path, credentials)
+			options.oauth_repo:save(options.channel_id, generation, credentials)
 		end,
 		open_url = function() return true end,
 		request = options.request,
@@ -95,7 +61,6 @@ end
 ---@param options ai.router.OpenAIProviderOptions
 function OpenAIProvider:new(options)
 	local config = options.config
-	assert(type(config.auth_path) == "string" and config.auth_path ~= "", "openai auth_path is required")
 	self.config = config
 	self.scheduler = options.scheduler
 	self.request = options.request
@@ -103,12 +68,7 @@ function OpenAIProvider:new(options)
 	self.timeout = options.timeout
 	self.get_time = options.get_time or os.time
 	self.usage_url = options.usage_url or OpenAIProvider.usage_url
-	if options.auth then
-		self.auth = options.auth
-	else
-		local auth = OpenAIProvider.createAuth(options)
-		self.auth = SubscriptionAuthGuard(auth, options.scheduler)
-	end
+	self.auth = assert(options.auth, "OpenAI auth guard is required")
 end
 
 -- Creates a per-request client so concurrent requests never share response

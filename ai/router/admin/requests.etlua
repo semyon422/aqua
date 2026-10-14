@@ -1,7 +1,7 @@
 <form class="filters" method="get" action="/admin/requests">
 <label>User<input name="user" value="<%= filters.user or '' %>" maxlength="193"></label>
-<label>Model<input name="model" value="<%= filters.model or '' %>" maxlength="193"></label>
 <label>Channel<input name="channel" value="<%= filters.channel or '' %>" maxlength="193"></label>
+<label>Model<input name="model" value="<%= filters.model or '' %>" maxlength="193" placeholder="channel/model or alias"></label>
 <label>Result<select name="outcome">
 <option value="">All</option>
 <option value="success"<% if filters.outcome == "success" then %> selected<% end %>>Success</option>
@@ -10,14 +10,14 @@
 </form>
 <p class="muted">Newest completed requests first. Exact-match filters. Last <%= retention_days %> days, up to <%= max_rows %> entries. No prompts or responses are stored.</p>
 <div class="scroll"><table>
-<tr><th>ID</th><th>Time</th><th>User</th><th>Model</th><th>Channel</th><th>Protocol</th><th>Result</th><th>Duration</th><th>TTFT</th><th>Tokens/s</th><th>Input</th><th>Cache</th><th>Output</th></tr>
+<tr><th>ID</th><th>Time</th><th>User</th><th>Channel</th><th>Model</th><th>Protocol</th><th>Result</th><th>Duration</th><th>TTFT</th><th>Tokens/s</th><th>Input</th><th>Cache</th><th>Output</th></tr>
 <% for _, row in ipairs(rows) do %>
 <tr><td><%= row.id %></td><td><%= os.date("%Y-%m-%d %H:%M:%S", row.created_at) %></td>
-<td><%= row.user %></td><td><%= row.model ~= "" and row.model or "—" %>
+<td><%= row.user %></td><td><%= row.channel ~= "" and row.channel or "—" %></td>
+<td><%= row.model:match("^[%w._%-]+/(.+)$") or (row.model ~= "" and row.model or "—") %>
 <% if row.upstream_model ~= "" and row.upstream_model ~= row.model and row.model ~= row.channel .. "/" .. row.upstream_model then %>
 <div class="muted">→ <%= row.upstream_model %></div>
 <% end %></td>
-<td><%= row.channel ~= "" and row.channel or "—" %></td>
 <td><%= row.protocol == "responses" and "Responses" or "Chat Completions" %> · <%= row.stream and "SSE" or "JSON" %></td>
 <td<% if row.status >= 400 then %> class="error"<% end %>><%= row.status %><% if row.error_code then %><div class="muted"><%= row.error_code %></div><% end %></td>
 <td><%= string.format("%.3fs", row.duration_ms / 1000) %></td>

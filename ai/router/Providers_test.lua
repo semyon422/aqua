@@ -4,7 +4,9 @@ local CompatProvider = require("ai.router.CompatProvider")
 local OpenAIProvider = require("ai.router.OpenAIProvider")
 local Provider = require("ai.router.Provider")
 local UsageMonitor = require("ai.router.UsageMonitor")
-local random = require("web.random")
+local OAuthRepo = require("ai.router.OAuthRepo")
+local RouterDatabase = require("ai.router.storage.RouterDatabase")
+local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
 ---@type {b64: fun(value: string): string}
 local mime = require("mime")
 
@@ -225,7 +227,7 @@ function test.openai_provider_preserves_native_responses_and_affinity(t)
 		}}}),
 	})
 	local provider = OpenAIProvider({
-		config = {auth_path = "unused"},
+		config = {},
 		auth = {getAccess = function() return "access", "account" end},
 		request = function() error("usage only") end,
 		open_stream = function(url, options)
@@ -284,16 +286,19 @@ end
 
 ---@param t testing.T
 function test.openai_auth_persists_login_and_refresh(t)
-	local path = "tmp/router-auth-test-" .. random.hex(16) .. ".lua"
+	local storage = RouterDatabase(LjsqliteDatabase())
+	storage.path = ":memory:"
+	storage:open()
+	local oauth_repo = OAuthRepo(storage.models)
+	oauth_repo:create(1)
 	local claims = json.encode({["https://api.openai.com/auth"] = {chatgpt_account_id = "test-account"}})
 	local token = "header." .. mime.b64(claims) .. ".signature"
 	local options = {
-		config = {auth_path = path},
+		channel_id = 1, oauth_repo = oauth_repo,
 		scheduler = {},
 		request = function()
 			return {status = 200, body = json.encode({access_token = token, refresh_token = "second-refresh", expires_in = 3600})}
 		end,
-		open_stream = function() error("not used") end,
 	}
 	local auth = OpenAIProvider.createAuth(options)
 	t:eq(auth:isAuthenticated(), false)
@@ -305,8 +310,8 @@ function test.openai_auth_persists_login_and_refresh(t)
 	t:assert(loaded:refresh())
 	local refreshed = OpenAIProvider.createAuth(options)
 	t:eq(refreshed.credentials.refresh_token, "second-refresh")
-	t:assert(os.remove(path))
-	t:eq(io.open(path .. ".tmp", "r"), nil)
+	t:eq(oauth_repo:get(1).refresh_token, "second-refresh")
+	storage:close()
 end
 
 return test

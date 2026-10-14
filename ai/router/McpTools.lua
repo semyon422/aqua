@@ -21,7 +21,7 @@ local positive = {type = "integer", minimum = 1}
 local flag = {type = "boolean"}
 local text = {type = "string"}
 local config = object({
-	models = models, auth_path = text, base_url = text, api_key = text, usage_url = text,
+	models = models, base_url = text, api_key = text, usage_url = text,
 	model_redirects = {type = "object", additionalProperties = {type = "string"}},
 	reasoning_effort = {type = "string", enum = {"none", "low", "medium", "high"}},
 	verbosity = {type = "string", enum = {"low", "medium", "high"}},
@@ -64,10 +64,10 @@ function McpTools.create(management)
 	add("router_update_user", "updateUser", "Patch a user: rename, disable/enable, replace grants, or set positive concurrency/RPM limits. Omitted fields are unchanged.", object({id = id, name = name, models = models, disabled = flag, max_concurrency = positive, max_rpm = positive}, {"id"}), true, true)
 	add("router_regenerate_key", "regenerateKey", "Revoke the user's current key and return a replacement ONCE. Treat the result as a secret.", object({id = id}, {"id"}), true, true)
 	add("router_delete_user", "deleteUser", "Delete a user and all grants; immediately revoke access.", object({id = id}, {"id"}), true, true)
-	add("router_save_channel", "saveChannel", "Create (omit id) or patch a channel. Creation requires name, kind, config.models and kind-specific credentials/URL. Name is the public channel/model prefix (letters, digits, ._-); renaming changes client model names. OpenAI auth_path is generated if omitted. Config fields are merged on same-kind edits, preserving unreadable credentials; limits replace the entire limits object. Omitted fields remain unchanged. Catalog is validated before saving; pending OAuth blocks edits.", object({id = id, name = name,
+	add("router_save_channel", "saveChannel", "Create (omit id) or patch a channel. Creation requires name, kind, config.models and kind-specific credentials/URL. Name is the public channel/model prefix (letters, digits, ._-); renaming changes client model names. OpenAI OAuth credentials are stored privately in SQLite per channel, never supplied or returned here. Config fields are merged on same-kind edits, preserving unreadable credentials; limits replace the entire limits object. Omitted fields remain unchanged. Catalog is validated before saving; pending OAuth blocks edits.", object({id = id, name = name,
 		kind = {type = "string", enum = {"openai", "zai", "openai_compat"}},
 		enabled = flag, config = config, limits = limits}), true, true)
-	add("router_delete_channel", "deleteChannel", "Delete a channel if no alias depends on its models and no OAuth login is pending. Credential files are not removed.", object({id = id}, {"id"}), true, true)
+	add("router_delete_channel", "deleteChannel", "Delete a channel and its stored OAuth credentials if no alias depends on its models and no OAuth login is pending.", object({id = id}, {"id"}), true, true)
 	add("router_save_model", "saveModel", "Create (omit id) or patch an alias to one channel/model target. Creation requires a name without slashes and a qualified target; nested aliases and self-references are rejected. Requests never switch channels.", object({id = id, name = model_name,
 		target = model_name, description = {type = "string"}}), true, true)
 	add("router_delete_model", "deleteModel", "Delete a custom model alias. Existing user grants are kept but the model becomes unavailable.", object({id = id}, {"id"}), true, true)

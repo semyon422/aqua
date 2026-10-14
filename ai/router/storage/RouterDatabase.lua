@@ -5,9 +5,9 @@ local users_model = require("ai.router.storage.models.router_users")
 local user_models_model = require("ai.router.storage.models.router_user_models")
 local channels_model = require("ai.router.storage.models.router_channels")
 local models_model = require("ai.router.storage.models.router_models")
-local windows_model = require("ai.router.storage.models.router_channel_windows")
 local usage_model = require("ai.router.storage.models.router_usage_models")
 local request_logs_model = require("ai.router.storage.models.router_request_logs")
+local oauth_model = require("ai.router.storage.models.router_oauth_credentials")
 local io_util = require("io_util")
 
 ---@class ai.router.RouterDatabase
@@ -18,7 +18,7 @@ local io_util = require("io_util")
 local RouterDatabase = class()
 
 RouterDatabase.path = "userdata/ai_router.db"
-local user_version = 6
+local user_version = 8
 
 ---@param db rdb.SqliteDatabase
 function RouterDatabase:new(db)
@@ -29,9 +29,9 @@ function RouterDatabase:new(db)
 		router_user_models = user_models_model,
 		router_channels = channels_model,
 		router_models = models_model,
-		router_channel_windows = windows_model,
 		router_usage_models = usage_model,
 		router_request_logs = request_logs_model,
+		router_oauth_credentials = oauth_model,
 	}, self.orm)
 end
 

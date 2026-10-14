@@ -153,7 +153,7 @@ function AdminPages:pageChannels(res, session)
 	local rows = self.channels_repo:list()
 	if self.openai_login then
 		for _, row in ipairs(rows) do
-			if row.kind == "openai" then states[row.id] = {status = self.openai_login:getState(row.config.auth_path).status} end
+			if row.kind == "openai" then states[row.id] = {status = self.openai_login:getState(row.id).status} end
 		end
 	end
 	self:render(res, session, "Channels", self.templates.channels({rows = rows,

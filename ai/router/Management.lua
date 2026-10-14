@@ -1,6 +1,6 @@
 local class = require("class")
 local json = require("web.json")
-local random = require("web.random")
+local OAuthRepo = require("ai.router.OAuthRepo")
 local Catalog = require("ai.router.Catalog")
 local Provider = require("ai.router.Provider")
 local RequestMetrics = require("ai.router.RequestMetrics")
@@ -19,6 +19,7 @@ local RequestMetrics = require("ai.router.RequestMetrics")
 ---@operator call: ai.router.Management
 ---@field catalog_reload_pending boolean
 ---@field active_probes {[integer]: boolean}
+---@field oauth_repo ai.router.OAuthRepo
 local Management = class()
 
 ---@alias ai.router.ManagementPersistence "committed"|"not_committed"|"not_attempted"|"unknown"
@@ -45,7 +46,6 @@ local Management = class()
 ---@class ai.router.PublicChannelConfig
 ---@field models string[]?
 ---@field model_redirects {[string]: string}?
----@field auth_path string?
 ---@field base_url string?
 ---@field usage_url string?
 ---@field reasoning_effort "none"|"low"|"medium"|"high"?
@@ -126,6 +126,7 @@ function Management:new(options)
 	self.get_time = options.get_time or os.time
 	self.catalog_reload_pending = false
 	self.active_probes = {}
+	self.oauth_repo = OAuthRepo(options.channels_repo.models)
 end
 
 ---@param condition any
@@ -170,14 +171,6 @@ local function validateCatalog(channels, models)
 	local _, errors = Catalog.fromRows(channels, models)
 	-- Catalog diagnostics may contain operator-supplied values; never reflect them.
 	check(#errors == 0, "Invalid catalog: check channel config, limits, redirects, and alias targets.")
-	---@type {[string]: boolean}
-	local paths = {}
-	for _, row in ipairs(channels) do
-		if row.kind == "openai" then
-			check(not paths[row.config.auth_path], "Each OpenAI channel requires a distinct auth_path.")
-			paths[row.config.auth_path] = true
-		end
-	end
 end
 
 ---@param row ai.router.UserRow
@@ -194,7 +187,7 @@ end
 function Management:publicChannel(row)
 	---@type ai.router.PublicChannelConfig
 	local config = json.object({})
-	for _, key in ipairs({"models", "model_redirects", "auth_path", "base_url", "usage_url",
+	for _, key in ipairs({"models", "model_redirects", "base_url", "usage_url",
 		"reasoning_effort", "verbosity", "max_response_size", "thinking", "tool_stream"}) do
 		local value = row.config[key]
 		if (key == "base_url" or key == "usage_url") and type(value) == "string"
@@ -220,7 +213,7 @@ function Management:publicChannel(row)
 		enabled = row.enabled, config = config, limits = limits,
 		has_api_key = row.config.api_key ~= nil, created_at = row.created_at, updated_at = row.updated_at,
 		login_status = row.kind == "openai" and self.openai_login
-			and self.openai_login:getState(row.config.auth_path).status or nil}
+			and self.openai_login:getState(row.id).status or nil}
 end
 
 ---@return {users: ai.router.PublicUser[]}
@@ -256,7 +249,7 @@ function Management:status()
 		table.insert(rows, {id = row.id, name = row.name, enabled = row.enabled,
 			windows = self.monitor.windows[row.id] or json.object({}),
 			login_status = row.kind == "openai" and self.openai_login
-				and self.openai_login:getState(row.config.auth_path).status or nil})
+				and self.openai_login:getState(row.id).status or nil})
 	end
 	return {now = self.get_time(), channels = rows, catalog_reload_pending = self.catalog_reload_pending}
 end
@@ -280,7 +273,7 @@ function Management:editableChannel(id)
 	local row = self.channels_repo:get(id)
 	check(row, "Channel not found.")
 	if row.kind == "openai" and self.openai_login then
-		check(not self.openai_login:isLoggingIn(row.config.auth_path), "Wait for the OpenAI login to finish before editing or deleting this channel.")
+		check(not self.openai_login:isLoggingIn(row.id), "Wait for the OpenAI login to finish before editing or deleting this channel.")
 	end
 	return row
 end
@@ -333,9 +326,6 @@ function Management:saveChannel(args)
 	local existing = args.id and self:editableChannel(args.id)
 	local config = args.config or (existing and existing.config)
 	local kind = args.kind or (existing and existing.kind)
-	if not existing and kind == "openai" and config and not config.auth_path then
-		config.auth_path = "userdata/ai_router_auth_" .. random.hex(16) .. ".lua"
-	end
 	-- Config updates are patches, allowing edits without reading stored credentials.
 	if existing and args.config then
 		config = {}
@@ -361,6 +351,10 @@ function Management:saveChannel(args)
 		saved = self.channels_repo:create(row.name, row.kind, row.config, row.limits, self.get_time())
 		if not row.enabled then saved = self.channels_repo:update(saved.id, {enabled = false}, self.get_time()) end
 	end
+	if not existing or existing.kind ~= saved.kind then
+		self.oauth_repo:delete(saved.id)
+		if saved.kind == "openai" then self.oauth_repo:create(saved.id) end
+	end
 	return {channel = self:publicChannel(saved)}
 end
 
@@ -370,6 +364,7 @@ function Management:deleteChannel(args)
 	self:editableChannel(args.id)
 	validateCatalog(replace(self.channels_repo:list(), args.id), self.models_repo:list())
 	self.channels_repo:delete(args.id)
+	self.oauth_repo:delete(args.id)
 	return {deleted_id = args.id}
 end
 
@@ -404,7 +399,7 @@ function Management:loginStatus(args)
 	local row = self.channels_repo:get(args.id)
 	check(row and row.kind == "openai", "An OpenAI channel is required.")
 	check(self.openai_login, "OpenAI login is unavailable.")
-	return {id = args.id, login = self.openai_login:getState(row.config.auth_path)}
+	return {id = args.id, login = self.openai_login:getState(row.id)}
 end
 
 ---@param args {[string]: any}
@@ -432,7 +427,7 @@ function Management:testChannel(args)
 	check(row, "Channel not found.")
 	check(row.enabled, "Enable the channel before testing it.")
 	if row.kind == "openai" and self.openai_login then
-		check(not self.openai_login:isLoggingIn(row.config.auth_path), "Wait for the OpenAI login to finish before testing this channel.")
+		check(not self.openai_login:isLoggingIn(row.id), "Wait for the OpenAI login to finish before testing this channel.")
 	end
 	check(not self.active_probes[row.id], "A test is already running for this channel.")
 	local public_model = row.name .. "/" .. args.model

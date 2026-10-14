@@ -265,7 +265,8 @@ end
 function test.openai_device_login_and_pending_guards(t)
 	local stack = Stack()
 	local pending
-	local manager = OpenAILoginManager({scheduler = stack.scheduler, spawn = function(callback) pending = callback end,
+	local manager = OpenAILoginManager({scheduler = stack.scheduler, oauth_repo = stack.management.oauth_repo,
+		spawn = function(callback) pending = callback end,
 		create_auth = function()
 			return SubscriptionAuth({scheduler = stack.scheduler,
 				credentials = {access_token = "", refresh_token = "", expires_at = 0, account_id = ""},
@@ -275,10 +276,10 @@ function test.openai_device_login_and_pending_guards(t)
 	stack.management.openai_login = manager
 	run(t, stack, function(client)
 		local row = call(client, "save_channel", {name = "ChatGPT-direct", kind = "openai", config = {models = {"gpt"}}}).channel
-		t:assert(row.config.auth_path:match("^userdata/ai_router_auth_%x+%.lua$"))
+		t:eq(row.config.auth_path, nil)
 		t:eq(call(client, "start_openai_login", {id = row.id}).login.status, "logging_in")
 		t:assert(pending)
-		local state = manager:getState(row.config.auth_path)
+		local state = manager:getState(row.id)
 		state.user_code, state.verification_url, state.expires_at = "ONE-TIME", "https://auth.openai.com/codex/device", os.time() + 60
 		t:eq(call(client, "openai_login_status", {id = row.id}).login.user_code, "ONE-TIME")
 		t:eq(call(client, "list_channels").channels[1].login_status, "logging_in")
@@ -287,9 +288,10 @@ function test.openai_device_login_and_pending_guards(t)
 			local result = assert(client:callTool("router_" .. tool, {id = row.id}))
 			t:eq(result.isError, true)
 		end
-		local duplicate = assert(client:callTool("router_save_channel", {name = "duplicate", kind = "openai",
-			config = {auth_path = row.config.auth_path, models = {"gpt"}}}))
-		t:eq(duplicate.isError, true)
+		local rejected, schema_error = client:callTool("router_save_channel", {name = "legacy", kind = "openai",
+			config = {auth_path = "legacy.lua", models = {"gpt"}}})
+		t:eq(rejected, nil)
+		t:eq(schema_error.code, -32602)
 		call(client, "refresh_usage", {id = row.id})
 		pending()
 		t:eq(call(client, "openai_login_status", {id = row.id}).login.status, "error")
@@ -459,6 +461,30 @@ function test.channel_probe_handles_native_failure_and_blocks_pending_login(t)
 		stack.server.providers[id] = nil
 		t:eq(assert(client:callTool("router_test_channel", {id = id, model = "model"})).isError, true)
 		t:eq(calls, 1)
+	end)
+	stack:close()
+end
+
+---@param t testing.T
+function test.oauth_storage_follows_channel_lifetime_and_never_appears_in_public_results(t)
+	local stack = Stack()
+	run(t, stack, function(client)
+		local channel = call(client, "save_channel", {name = "oauth", kind = "openai", config = {models = {"model"}}}).channel
+		local repo = stack.management.oauth_repo
+		local credentials = repo:get(channel.id)
+		credentials.access_token, credentials.refresh_token = "PRIVATE-ACCESS", "PRIVATE-REFRESH"
+		repo:save(channel.id, credentials.generation, credentials)
+		local renamed = call(client, "save_channel", {id = channel.id, name = "renamed"})
+		t:eq(repo:get(channel.id).refresh_token, "PRIVATE-REFRESH")
+		t:eq(json.encode(renamed):find("PRIVATE", 1, true), nil)
+		t:eq(json.encode(call(client, "list_channels")):find("PRIVATE", 1, true), nil)
+		call(client, "save_channel", {id = channel.id, kind = "openai_compat", config = {models = {"model"}, base_url = "http://localhost:1/v1"}})
+		t:has_error(function() repo:get(channel.id) end)
+		call(client, "save_channel", {id = channel.id, kind = "openai", config = {models = {"model"}}})
+		t:eq(repo:get(channel.id).refresh_token, "")
+		t:ne(repo:get(channel.id).generation, credentials.generation)
+		call(client, "delete_channel", {id = channel.id})
+		t:has_error(function() repo:get(channel.id) end)
 	end)
 	stack:close()
 end

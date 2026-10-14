@@ -155,17 +155,12 @@ local function buildChannel(row, errors)
 
 	if row.kind == "openai" then
 		assertKnownKeys(config, {
-			auth_path = true,
 			models = true,
 			model_redirects = true,
 			reasoning_effort = true,
 			verbosity = true,
 			max_response_size = true,
 		}, label, errors)
-		if type(config.auth_path) ~= "string" or #config.auth_path == 0 then
-			fail(label, errors, "auth_path must be a non-empty string")
-			return nil
-		end
 		local reasoning_effort = config.reasoning_effort
 		if reasoning_effort ~= nil and reasoning_effort ~= "none"
 			and reasoning_effort ~= "low" and reasoning_effort ~= "medium"

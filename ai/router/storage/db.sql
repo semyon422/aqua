@@ -36,16 +36,13 @@ CREATE TABLE router_models (
 	updated_at INTEGER NOT NULL
 );
 
-CREATE TABLE router_channel_windows (
-	channel_id INTEGER NOT NULL,
-	window TEXT NOT NULL,
-	used_percent REAL,
-	used_tokens INTEGER,
-	quota_tokens INTEGER,
-	reset_at INTEGER,
-	source TEXT NOT NULL,
-	updated_at INTEGER NOT NULL,
-	PRIMARY KEY (channel_id, window)
+CREATE TABLE router_oauth_credentials (
+	channel_id INTEGER PRIMARY KEY,
+	generation TEXT NOT NULL,
+	access_token TEXT NOT NULL,
+	refresh_token TEXT NOT NULL,
+	expires_at INTEGER NOT NULL,
+	account_id TEXT NOT NULL
 );
 
 CREATE TABLE router_usage_models (

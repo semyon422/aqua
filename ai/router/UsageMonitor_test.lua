@@ -1,6 +1,5 @@
 local UsageMonitor = require("ai.router.UsageMonitor")
 local UsageRepo = require("ai.router.UsageRepo")
-local WindowsRepo = require("ai.router.WindowsRepo")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
 local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
@@ -26,13 +25,12 @@ local function subState(opts)
 end
 
 ---@return ai.router.UsageRepo
----@return ai.router.WindowsRepo
 ---@return ai.router.RouterDatabase
 local function open()
 	local storage = RouterDatabase(LjsqliteDatabase())
 	storage.path = ":memory:"
 	storage:open()
-	return UsageRepo(storage.models), WindowsRepo(storage.models), storage
+	return UsageRepo(storage.models), storage
 end
 
 ---@param t testing.T
@@ -76,7 +74,7 @@ end
 
 ---@param t testing.T
 function test.upstream_poll_updates_memory_only(t)
-	local usage_repo, windows_repo, storage = open()
+	local usage_repo, storage = open()
 	local monitor = UsageMonitor({
 		usage_repo = usage_repo,
 		logger = function() end,
@@ -98,8 +96,7 @@ function test.upstream_poll_updates_memory_only(t)
 	t:eq(monitor.windows[7].five_hour.used_percent, 25)
 	t:eq(monitor.windows[7].five_hour.source, "upstream")
 	t:eq(monitor.windows[7].weekly.used_percent, 10)
-	local snapshot = windows_repo:snapshot(7)
-	t:tdeq(snapshot, {})
+	t:eq(#storage.db:query("SELECT name FROM sqlite_master WHERE name = 'router_channel_windows'"), 0)
 	t:eq(monitor.windows[7].five_hour.quota_tokens, 2000)
 	t:eq(monitor.windows[7].weekly.reset_at, 1791535121)
 
@@ -118,7 +115,7 @@ end
 
 ---@param t testing.T
 function test.local_counting_uses_aggregates(t)
-	local usage_repo, windows_repo, storage = open()
+	local usage_repo, storage = open()
 	usage_repo:record(3600, "alice", 200, "m", "u", "local-1",
 		{input_tokens = 600, output_tokens = 200, cached_input_tokens = 0, estimated = false})
 	local monitor = UsageMonitor({
@@ -138,13 +135,13 @@ function test.local_counting_uses_aggregates(t)
 	t:eq(monitor.windows[3].five_hour.source, "local")
 	-- no weekly quota configured: no weekly state
 	t:eq(monitor.windows[3].weekly, nil)
-	t:tdeq(windows_repo:snapshot(3), {})
+	t:eq(#storage.models.router_usage_models:select(), 1)
 	storage:close()
 end
 
 ---@param t testing.T
 function test.disabled_channels_drop_state(t)
-	local usage_repo, windows_repo, storage = open()
+	local usage_repo, storage = open()
 	local monitor = UsageMonitor({
 		usage_repo = usage_repo,
 		logger = function() end,
@@ -169,10 +166,8 @@ function test.disabled_channels_drop_state(t)
 end
 
 ---@param t testing.T
-function test.new_monitor_ignores_legacy_snapshots(t)
-	local usage_repo, windows_repo, storage = open()
-	windows_repo:save(1, "five_hour", {used_percent = 89, reset_at = 2000, source = "upstream"}, 1000)
-	windows_repo:save(1, "weekly", {used_percent = 14, source = "upstream"}, 1000)
+function test.new_monitor_starts_without_persisted_snapshots(t)
+	local usage_repo, storage = open()
 	local monitor = UsageMonitor({usage_repo = usage_repo})
 	local channel = subState({kind = "openai"})
 	monitor:setChannels({channel}, {[1] = function() return nil, "offline" end})
@@ -183,7 +178,7 @@ function test.new_monitor_ignores_legacy_snapshots(t)
 	t:eq(monitor.windows[1], nil)
 	monitor:saveWindow(channel, "five_hour", {used_percent = 10}, "upstream", 3001)
 	t:eq(monitor.windows[1].five_hour.used_percent, 10)
-	t:eq(windows_repo:snapshot(1).five_hour.used_percent, 89)
+	t:eq(#storage.models.router_usage_models:select(), 0)
 	local restarted = UsageMonitor({usage_repo = usage_repo})
 	restarted:setChannels({channel}, {})
 	t:eq(restarted.windows[1], nil)
@@ -192,7 +187,7 @@ end
 
 ---@param t testing.T
 function test.catalog_reload_preserves_in_memory_windows(t)
-	local usage_repo, windows_repo, storage = open()
+	local usage_repo, storage = open()
 	local monitor = UsageMonitor({usage_repo = usage_repo})
 	local channel = subState({id = 1})
 	monitor:setChannels({channel}, {})
@@ -200,7 +195,7 @@ function test.catalog_reload_preserves_in_memory_windows(t)
 	monitor:setChannels({channel}, {})
 	t:eq(monitor.windows[1].five_hour.used_percent, 89)
 	t:eq(monitor.windows[1].five_hour.updated_at, 1000)
-	t:tdeq(windows_repo:snapshot(1), {})
+	t:eq(#storage.models.router_usage_models:select(), 0)
 	monitor:setChannels({}, {})
 	t:eq(monitor.windows[1], nil)
 	storage:close()
@@ -208,7 +203,7 @@ end
 
 ---@param t testing.T
 function test.background_polling_starts_and_repeats_after_failures(t)
-	local usage_repo, _, storage = open()
+	local usage_repo, storage = open()
 	local now = 1000
 	local scheduler = CosocketScheduler(function() return {}, {} end, function() return now end)
 	local monitor = UsageMonitor({usage_repo = usage_repo, get_time = function() return now end})

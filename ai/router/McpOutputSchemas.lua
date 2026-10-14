@@ -38,7 +38,7 @@ local user = object({id = integer, name = text, key_hint = text, disabled = flag
 	max_concurrency = integer, max_rpm = integer, created_at = integer, updated_at = integer, models = strings},
 	{"id", "name", "key_hint", "disabled", "created_at", "updated_at", "models"})
 local config = object({models = strings, model_redirects = {type = "object", additionalProperties = text},
-	auth_path = text, base_url = text, usage_url = text,
+	base_url = text, usage_url = text,
 	reasoning_effort = enum({"none", "low", "medium", "high"}), verbosity = enum({"low", "medium", "high"}),
 	max_response_size = integer, thinking = enum({"enabled", "disabled"}), tool_stream = flag})
 local limits = object({

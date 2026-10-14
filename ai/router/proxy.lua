@@ -15,6 +15,7 @@ local UsersRepo = require("ai.router.UsersRepo")
 local ChannelsRepo = require("ai.router.ChannelsRepo")
 local ModelsRepo = require("ai.router.ModelsRepo")
 local UsageRepo = require("ai.router.UsageRepo")
+local OAuthRepo = require("ai.router.OAuthRepo")
 local UsageMonitor = require("ai.router.UsageMonitor")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
 local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
@@ -116,12 +117,13 @@ local monitor = UsageMonitor({
 
 local openai_login = OpenAILoginManager({
 	scheduler = scheduler,
-	create_auth = function(auth_path)
+	oauth_repo = OAuthRepo(storage.models),
+	create_auth = function(channel_id)
 		return OpenAIProvider.createAuth({
-			config = {auth_path = auth_path},
+			channel_id = channel_id,
+			oauth_repo = OAuthRepo(storage.models),
 			scheduler = scheduler,
 			request = request,
-			open_stream = openStream,
 		})
 	end,
 })
@@ -134,9 +136,8 @@ local function providerFactory(channel)
 	---@cast channel_config {[string]: any}
 	if channel.kind == "openai" then
 		return OpenAIProvider({
-			auth = openai_login:getGuard(channel_config.auth_path),
+			auth = openai_login:getGuard(channel.id),
 			config = {
-				auth_path = assert(channel_config.auth_path),
 				reasoning_effort = channel_config.reasoning_effort,
 				verbosity = channel_config.verbosity,
 				max_response_size = channel_config.max_response_size,

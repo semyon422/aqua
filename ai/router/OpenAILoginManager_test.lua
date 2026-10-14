@@ -15,10 +15,11 @@ function test.device_login_shares_auth_and_saves_credentials(t)
 	local access_token = "header." .. payload .. ".signature"
 	local manager = OpenAILoginManager({
 		scheduler = {},
+		oauth_repo = {get = function() return {generation = "test"} end},
 		get_time = function() return now end,
 		on_authenticated = function(id) refreshed = id end,
-		create_auth = function(path)
-			t:eq(path, "test-auth.lua")
+		create_auth = function(channel_id)
+			t:eq(channel_id, 7)
 			created = created + 1
 			return SubscriptionAuth({
 				scheduler = {},
@@ -38,12 +39,12 @@ function test.device_login_shares_auth_and_saves_credentials(t)
 			})
 		end,
 	})
-	local guard = manager:getGuard("test-auth.lua")
-	t:eq(manager:getState("test-auth.lua").status, "unauthenticated")
-	manager:start({id = 7, kind = "openai", config = {auth_path = "test-auth.lua"}})
-	t:eq(manager:getState("test-auth.lua").status, "authenticated")
-	t:eq(manager:getState("test-auth.lua").user_code, nil)
-	t:eq(manager:getGuard("test-auth.lua"), guard)
+	local guard = manager:getGuard(7)
+	t:eq(manager:getState(7).status, "unauthenticated")
+	manager:start({id = 7, kind = "openai", config = {}})
+	t:eq(manager:getState(7).status, "authenticated")
+	t:eq(manager:getState(7).user_code, nil)
+	t:eq(manager:getGuard(7), guard)
 	local token, account_id = guard:getAccess()
 	t:eq(token, access_token)
 	t:eq(account_id, "account-1")
@@ -71,6 +72,7 @@ function test.pending_login_code_and_failure_are_bounded(t)
 	})
 	local manager = OpenAILoginManager({
 		scheduler = {},
+		oauth_repo = {get = function() return {generation = "test"} end},
 		create_auth = function() return auth end,
 		get_time = function() return 100 end,
 		spawn = function(callback)
@@ -78,9 +80,9 @@ function test.pending_login_code_and_failure_are_bounded(t)
 			assert(coroutine.resume(thread))
 		end,
 	})
-	local row = {id = 1, kind = "openai", config = {auth_path = "test.lua"}}
+	local row = {id = 1, kind = "openai", config = {}}
 	manager:start(row)
-	local state = manager:getState("test.lua")
+	local state = manager:getState(1)
 	t:eq(state.status, "logging_in")
 	t:eq(state.user_code, "ABCD-EFGH")
 	t:eq(state.verification_url, SubscriptionAuth.device_verification_url)
@@ -88,11 +90,29 @@ function test.pending_login_code_and_failure_are_bounded(t)
 	t:eq(state.device_auth_id, nil)
 	t:has_error(function() manager:start(row) end)
 	t:assert(coroutine.resume(thread))
-	state = manager:getState("test.lua")
+	state = manager:getState(1)
 	t:eq(state.status, "error")
 	t:eq(state.user_code, nil)
 	t:assert(not state.error:find("private", 1, true))
 	t:has_error(function() manager:start({id = 2, kind = "openai_compat", config = {}}) end)
+end
+
+---@param t testing.T
+function test.reused_channel_id_gets_a_new_auth_guard(t)
+	local generation = "first"
+	local count = 0
+	local manager = OpenAILoginManager({scheduler = {},
+		oauth_repo = {get = function() return {generation = generation} end},
+		create_auth = function()
+			count = count + 1
+			return SubscriptionAuth({scheduler = {}, credentials = {access_token = "", refresh_token = "", expires_at = 0, account_id = ""},
+				save_credentials = function() end, open_url = function() return true end, request = function() error("not used") end})
+		end})
+	local guard = manager:getGuard(1)
+	t:eq(manager:getGuard(1), guard)
+	generation = "second"
+	t:ne(manager:getGuard(1), guard)
+	t:eq(count, 2)
 end
 
 return test

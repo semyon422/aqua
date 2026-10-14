@@ -717,7 +717,7 @@ function test.alias_never_falls_back_to_another_model(t)
 	local failing = fakeProvider({err = "unavailable"})
 	local other = fakeProvider({message = ok_message})
 	local stack = startStack({providers = {["zai-1"] = failing, ["openai-1"] = other}})
-	stack.channels:update(2, {kind = "openai", config = {auth_path = "userdata/unused.lua", models = {"gpt-6-luna"}}}, 1001)
+	stack.channels:update(2, {kind = "openai", config = {models = {"gpt-6-luna"}}}, 1001)
 	stack.server:reload(stack.channels:list(), stack.models:list())
 	stack.users:setGrants(stack.user.id, {"lite"})
 	stack.providers_by_name["zai-1"] = fakeProvider({message = ok_message})
@@ -744,7 +744,7 @@ end
 local function addNative(stack, name, provider)
 	stack.providers_by_name[name] = provider
 	local row = stack.channels:create(name, "openai", {
-		auth_path = "userdata/test-" .. name .. ".lua", models = {"gpt-6-luna", "glm-5.3"},
+		models = {"gpt-6-luna", "glm-5.3"},
 		model_redirects = {["glm-5.3"] = "native-model"},
 	}, {}, 1000)
 	local grants = stack.users:getGrants(stack.user.id)
