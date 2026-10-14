@@ -21,17 +21,16 @@ h2 { margin-top: 1.6rem; }
 <body>
 <nav>
 <a href="/admin/users">Users</a>
-<a href="/admin/subscriptions">Subscriptions</a>
+<a href="/admin/channels">Channels</a>
 <a href="/admin/models">Models</a>
 <a href="/admin/usage">Usage</a>
-<a href="/admin/status">Status</a>
 <form class="inline" method="post" action="/admin/logout">
 <input type="hidden" name="csrf_token" value="<%= csrf_token %>">
 <button type="submit">Logout</button>
 </form>
 </nav>
 <h1><%= title %></h1>
-<p class="muted">Read-only dashboard. Manage users, subscriptions, models, and authorization through the router MCP server and your local agent.</p>
+<p class="muted">Read-only dashboard. Manage users, channels, models, and authorization through the router MCP server and your local agent.</p>
 <%- content %>
 </body>
 </html>

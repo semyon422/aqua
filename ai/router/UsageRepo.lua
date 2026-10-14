@@ -19,7 +19,7 @@ local json = require("web.json")
 ---@field user string
 ---@field model string
 ---@field upstream_model string
----@field subscription string
+---@field channel string
 ---@field requests integer
 ---@field errors integer
 ---@field input_tokens integer
@@ -30,9 +30,9 @@ local json = require("web.json")
 ---@field cache_savings_usd number
 
 -- Hourly usage aggregates keyed by (bucket, user, model, upstream_model,
--- subscription) with one atomic upsert per completed request. `model` is the
+-- channel) with one atomic upsert per completed request. `model` is the
 -- public name the client requested, `upstream_model` is what was sent after
--- the subscription's permanent redirect, and prices are keyed by the upstream
+-- the channel's permanent redirect, and prices are keyed by the upstream
 -- model. No prompts, responses, keys, or addresses are persisted.
 ---@class ai.router.UsageRepo
 ---@operator call: ai.router.UsageRepo
@@ -63,25 +63,25 @@ end
 ---@param status integer
 ---@param public_model string
 ---@param upstream_model string
----@param subscription string
+---@param channel string
 ---@param counters ai.router.UsageCounters
-function UsageRepo:record(now, user, status, public_model, upstream_model, subscription, counters)
+function UsageRepo:record(now, user, status, public_model, upstream_model, channel, counters)
 	assert(type(counters.input_tokens) == "number" and counters.input_tokens >= 0, "input_tokens must be a non-negative integer")
 	assert(type(counters.output_tokens) == "number" and counters.output_tokens >= 0, "output_tokens must be a non-negative integer")
 	local cached = counters.cached_input_tokens or 0
 	assert(type(cached) == "number" and cached >= 0 and cached % 1 == 0 and cached <= counters.input_tokens,
 		"cached token count must be an integer between zero and input tokens")
 	self.models.router_usage_models.orm:query([[INSERT INTO router_usage_models
-		(bucket, user, model, upstream_model, subscription, requests, errors,
+		(bucket, user, model, upstream_model, channel, requests, errors,
 			input_tokens, output_tokens, cached_input_tokens, estimated_requests)
 		VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
-		ON CONFLICT(bucket, user, model, upstream_model, subscription) DO UPDATE SET
+		ON CONFLICT(bucket, user, model, upstream_model, channel) DO UPDATE SET
 		requests = requests + 1, errors = errors + excluded.errors,
 		input_tokens = input_tokens + excluded.input_tokens,
 		output_tokens = output_tokens + excluded.output_tokens,
 		cached_input_tokens = cached_input_tokens + excluded.cached_input_tokens,
 		estimated_requests = estimated_requests + excluded.estimated_requests]],
-		{math.floor(now / 3600) * 3600, user, public_model, upstream_model, subscription,
+		{math.floor(now / 3600) * 3600, user, public_model, upstream_model, channel,
 			status >= 400 and 1 or 0,
 			counters.input_tokens, counters.output_tokens, cached,
 			counters.estimated and 1 or 0})
@@ -93,7 +93,7 @@ function UsageRepo:history(now)
 	local last = math.floor(now / 3600) * 3600
 	local first = last - 167 * 3600
 	local rows = self.models.router_usage_models:select({bucket__gte = first, bucket__lte = last}, {
-		order = {"bucket", "user", "model", "upstream_model", "subscription"},
+		order = {"bucket", "user", "model", "upstream_model", "channel"},
 	})
 	for _, row in ipairs(rows) do
 		local price = self.prices[row.upstream_model]
@@ -107,19 +107,19 @@ function UsageRepo:history(now)
 		generated_at = now, currency = "USD", rows = json.array(rows)}
 end
 
--- Input plus output tokens served by a subscription since the hour bucket
+-- Input plus output tokens served by a channel since the hour bucket
 -- containing `now - window_seconds`. Hour-bucket granularity is an estimate
 -- used for local limit-window counting.
----@param subscription string
+---@param channel string
 ---@param now number
 ---@param window_seconds integer
 ---@return integer tokens
-function UsageRepo:subscriptionTokens(subscription, now, window_seconds)
+function UsageRepo:channelTokens(channel, now, window_seconds)
 	local since = math.floor((now - window_seconds) / 3600) * 3600
 	local rows = self.models.router_usage_models.orm:query(
 		[[SELECT COALESCE(SUM(input_tokens + output_tokens), 0) AS tokens
-			FROM router_usage_models WHERE subscription = ? AND bucket >= ?]],
-		{subscription, since}
+			FROM router_usage_models WHERE channel = ? AND bucket >= ?]],
+		{channel, since}
 	)
 	return tonumber(rows[1].tokens) or 0
 end

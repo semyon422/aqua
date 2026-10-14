@@ -8,7 +8,7 @@ local class = require("class")
 ---@field created_at integer
 ---@field updated_at integer
 
--- Simple aliases to concrete catalog models (served by some subscription); that cross-table
+-- Simple aliases to concrete catalog models (served by some channel); that cross-table
 -- check lives in ai.router.Catalog.
 ---@class ai.router.ModelsRepo
 ---@operator call: ai.router.ModelsRepo
@@ -25,7 +25,7 @@ end
 ---@param target string
 local function assertTarget(name, target)
 	assert(type(target) == "string" and #target <= 193 and target:match("^[^/]+/.+$"),
-		"alias target must be a subscription/model name")
+		"alias target must be a channel/model name")
 	assert(target ~= name, "alias must not reference itself")
 end
 

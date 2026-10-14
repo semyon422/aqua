@@ -11,7 +11,7 @@ return {
 	network_path = "userdata/network.lua",
 	tls_cafile = "resources/certs/cacert.pem",
 	-- Upstream model prices, USD per million tokens; omitted models cost 0.
-	-- Keys are upstream model names (after per-subscription redirects).
+	-- Keys are upstream model names (after per-channel redirects).
 	model_prices = {},
 	upstream_timeout = 300,
 	client_timeout = 300,

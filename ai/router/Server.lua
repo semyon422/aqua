@@ -11,7 +11,7 @@ local Provider = require("ai.router.Provider")
 local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
 
 -- The authenticated OpenAI-compatible router endpoint. Resolves public
--- models through ai.router.Router to one explicit subscription,
+-- models through ai.router.Router to one explicit channel,
 -- relays native Responses or Chat Completions results, and
 -- records hourly usage aggregates. Nothing downstream is committed before
 -- the first upstream output byte, so early failures return real HTTP errors.
@@ -52,7 +52,7 @@ Server.max_requests_per_minute = 120
 ---@field users_repo ai.router.UsersRepo
 ---@field usage_repo ai.router.UsageRepo
 ---@field monitor ai.router.UsageMonitor
----@field provider_factory fun(subscription: ai.router.SubscriptionRow): ai.router.ProviderMethods?
+---@field provider_factory fun(channel: ai.router.ChannelRow): ai.router.ProviderMethods?
 ---@field logger (fun(line: string))?
 ---@field get_time (fun(): number)?
 ---@field client_timeout number?
@@ -98,10 +98,10 @@ end
 
 -- Rebuilds routing state, providers, and monitor wiring from repository
 -- rows. Called at startup and after catalog mutations or an explicit retry.
----@param subscription_rows ai.router.SubscriptionRow[]
+---@param channel_rows ai.router.ChannelRow[]
 ---@param model_rows ai.router.ModelRow[]
-function Server:reload(subscription_rows, model_rows)
-	local state, errors = Catalog.fromRows(subscription_rows, model_rows)
+function Server:reload(channel_rows, model_rows)
+	local state, errors = Catalog.fromRows(channel_rows, model_rows)
 	self.catalog_errors = errors
 	assert(#errors == 0, "invalid router catalog:\n" .. table.concat(errors, "\n"))
 	local router = Router({state = state})
@@ -109,7 +109,7 @@ function Server:reload(subscription_rows, model_rows)
 	local providers = {}
 	---@type {[integer]: fun(): table?, string?, table?}
 	local fetchers = {}
-	for _, row in ipairs(subscription_rows) do
+	for _, row in ipairs(channel_rows) do
 		local provider = self.provider_factory(row)
 		if provider then
 			providers[row.id] = provider
@@ -120,7 +120,7 @@ function Server:reload(subscription_rows, model_rows)
 			end
 		end
 	end
-	self.monitor:setSubscriptions(state.subscriptions, fetchers)
+	self.monitor:setChannels(state.channels, fetchers)
 	self.router = router
 	self.providers = providers
 end
@@ -290,14 +290,14 @@ function Server:releaseRequest(user_key)
 	self.active_requests[user_key] = active > 0 and active or nil
 end
 
--- One request to the explicitly selected subscription. Never retries.
+-- One request to the explicitly selected channel. Never retries.
 ---@class ai.router.AttemptResult
 ---@field message ai.router.CanonicalMessage?
 ---@field response table? Native Responses result; never converted to a canonical assistant message.
 ---@field provider_error table?
 ---@field refresh_usage boolean?
 ---@field downstream_closed boolean?
----@field subscription string?
+---@field channel string?
 ---@field upstream_model string?
 ---@field status_code integer Logical request outcome, including failures after HTTP 200 commit.
 
@@ -311,7 +311,7 @@ end
 ---@param include_usage boolean
 ---@return ai.router.AttemptResult
 local function attempt(self, res, request, public_model, candidate, completion_id, created, include_usage)
-	local provider = self.providers[candidate.subscription.id]
+	local provider = self.providers[candidate.channel.id]
 	if not provider then
 		return {status_code = 503}
 	end
@@ -467,7 +467,7 @@ end
 ---@param session_id string?
 ---@return ai.router.AttemptResult
 local function attemptResponse(self, res, request, public_model, candidate, session_id)
-	local provider = self.providers[candidate.subscription.id]
+	local provider = self.providers[candidate.channel.id]
 	if not provider then return {status_code = 503} end
 	local committed, downstream_closed = false, false
 	local sequence_number = -1
@@ -526,7 +526,7 @@ local function attemptResponse(self, res, request, public_model, candidate, sess
 		status_code = not sent and 499 or response.status == "failed" and 502 or 200}
 end
 
--- Resolves one subscription and checks its native protocol, without retrying.
+-- Resolves one channel and checks its native protocol, without retrying.
 ---@param res web.Response
 ---@param request {[string]: any}
 ---@param user ai.router.UserRow
@@ -552,7 +552,7 @@ function Server:complete(res, request, user, protocol, session_id)
 		return 503
 	end
 	local native = protocol == "responses"
-	if (candidate.subscription.kind == "openai") ~= native then
+	if (candidate.channel.kind == "openai") ~= native then
 		sendError(res, 400, "model is not available on this endpoint; use its native protocol",
 			"invalid_request_error", "unsupported_protocol")
 		return 400
@@ -576,8 +576,8 @@ function Server:complete(res, request, user, protocol, session_id)
 	else
 		result = attempt(self, res, request, public_model, candidate, completion_id, created, include_usage)
 	end
-	result.subscription, result.upstream_model = candidate.subscription.name, candidate.upstream_model
-	if result.refresh_usage then self.monitor:refresh(candidate.subscription.id) end
+	result.channel, result.upstream_model = candidate.channel.name, candidate.upstream_model
+	if result.refresh_usage then self.monitor:refresh(candidate.channel.id) end
 	local status = result.status_code
 	if status >= 400 and not res.headers_sent and not result.downstream_closed then
 		local err = result.provider_error or {message = "upstream is unavailable", type = "upstream_error", code = "upstream_unavailable"}
@@ -608,14 +608,14 @@ function Server:record(now, user, status, request, result)
 		output_tokens = response and estimate(response.output)
 			or message and estimate({content = message.content, tool_calls = message.tool_calls}) or 0
 	end
-	local subscription = ""
+	local channel = ""
 	local upstream_model = ""
 	if result then
-		if result.subscription then subscription = result.subscription end
+		if result.channel then channel = result.channel end
 		if result.upstream_model then upstream_model = result.upstream_model end
 	end
 	pcall(function()
-		self.usage_repo:record(now, user.name, status, public_model, upstream_model, subscription, {
+		self.usage_repo:record(now, user.name, status, public_model, upstream_model, channel, {
 			input_tokens = input_tokens,
 			output_tokens = output_tokens,
 			cached_input_tokens = cached,

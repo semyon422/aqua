@@ -12,7 +12,7 @@ local Management = require("ai.router.Management")
 local McpTools = require("ai.router.McpTools")
 local McpServer = require("mcp.Server")
 local UsersRepo = require("ai.router.UsersRepo")
-local SubscriptionsRepo = require("ai.router.SubscriptionsRepo")
+local ChannelsRepo = require("ai.router.ChannelsRepo")
 local ModelsRepo = require("ai.router.ModelsRepo")
 local UsageRepo = require("ai.router.UsageRepo")
 local UsageMonitor = require("ai.router.UsageMonitor")
@@ -104,7 +104,7 @@ if config.db_path then storage.path = config.db_path end
 storage:open()
 
 local users_repo = UsersRepo(storage.models)
-local subscriptions_repo = SubscriptionsRepo(storage.models)
+local channels_repo = ChannelsRepo(storage.models)
 local models_repo = ModelsRepo(storage.models)
 local usage_repo = UsageRepo(storage.models, config.model_prices)
 
@@ -127,35 +127,35 @@ local openai_login = OpenAILoginManager({
 })
 
 -- OAuth state and refresh guards survive catalog reloads.
----@param subscription ai.router.SubscriptionRow
+---@param channel ai.router.ChannelRow
 ---@return ai.router.ProviderMethods?
-local function providerFactory(subscription)
-	local subscription_config = subscription.config
-	---@cast subscription_config {[string]: any}
-	if subscription.kind == "openai" then
+local function providerFactory(channel)
+	local channel_config = channel.config
+	---@cast channel_config {[string]: any}
+	if channel.kind == "openai" then
 		return OpenAIProvider({
-			auth = openai_login:getGuard(subscription_config.auth_path),
+			auth = openai_login:getGuard(channel_config.auth_path),
 			config = {
-				auth_path = assert(subscription_config.auth_path),
-				reasoning_effort = subscription_config.reasoning_effort,
-				verbosity = subscription_config.verbosity,
-				max_response_size = subscription_config.max_response_size,
+				auth_path = assert(channel_config.auth_path),
+				reasoning_effort = channel_config.reasoning_effort,
+				verbosity = channel_config.verbosity,
+				max_response_size = channel_config.max_response_size,
 			},
 			scheduler = scheduler,
 			request = request,
 			open_stream = openStream,
 			timeout = upstream_timeout,
 		})
-	elseif subscription.kind == "zai" then
+	elseif channel.kind == "zai" then
 		return ZaiProvider({
-			config = subscription_config,
+			config = channel_config,
 			request = request,
 			open_stream = openStream,
 			timeout = upstream_timeout,
 		})
-	elseif subscription.kind == "openai_compat" then
+	elseif channel.kind == "openai_compat" then
 		return CompatProvider({
-			config = subscription_config,
+			config = channel_config,
 			request = request,
 			open_stream = openStream,
 			timeout = upstream_timeout,
@@ -181,17 +181,17 @@ local server = Server({
 local admin = AdminPages({
 	openai_login = openai_login,
 	users_repo = users_repo,
-	subscriptions_repo = subscriptions_repo,
+	channels_repo = channels_repo,
 	models_repo = models_repo,
 	usage_repo = usage_repo,
 	monitor = monitor,
 	server = server,
 	password = assert(config.admin_password),
 })
-openai_login.on_authenticated = function(subscription_id)
-	monitor:refresh(subscription_id)
+openai_login.on_authenticated = function(channel_id)
+	monitor:refresh(channel_id)
 end
-local management = Management({users_repo = users_repo, subscriptions_repo = subscriptions_repo,
+local management = Management({users_repo = users_repo, channels_repo = channels_repo,
 	models_repo = models_repo, usage_repo = usage_repo, monitor = monitor, server = server, openai_login = openai_login})
 local mcp = McpServer(scheduler, McpTools.create(management), {
 	host = config.mcp_host or "127.0.0.1", port = config.mcp_port or 28084, token = config.mcp_token,
@@ -202,7 +202,7 @@ server.admin_handler = function(req, res)
 	return admin:handle(req, res)
 end
 
-server:reload(subscriptions_repo:list(), models_repo:list())
+server:reload(channels_repo:list(), models_repo:list())
 
 -- Background usage polling.
 monitor:startPolling(scheduler)

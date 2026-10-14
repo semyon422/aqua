@@ -1,0 +1,27 @@
+<table>
+<tr><th>id</th><th>name</th><th>kind</th><th>enabled</th><th>models / redirects</th><th>5h</th><th>weekly</th></tr>
+<% for _, row in ipairs(rows) do %>
+<tr><td><%= row.id %></td><td><%= row.name %></td><td><%= row.kind %>
+<% if row.kind == "openai" then %>
+<div class="muted"><%= login_states[row.id] and login_states[row.id].status or "—" %></div>
+<% elseif row.kind == "zai" then %>
+<div class="muted"><%= row.config.api_key and row.config.api_key ~= "" and "API key configured" or "API key missing" %></div>
+<% end %></td>
+<td><%= row.enabled and "yes" or "no" %></td>
+<td><% for _, model in ipairs(row.config.models) do %>
+<div><%= model %><% local target = row.config.model_redirects and row.config.model_redirects[model] %><% if target then %> → <%= target %><% end %></div>
+<% end %></td>
+<% for _, window in ipairs({"five_hour", "weekly"}) do %>
+<% local w = window_states[row.id] and window_states[row.id][window] %>
+<td><% if w then %>
+<div><%= w.used_percent and string.format("%.1f%%", w.used_percent) or "—" %></div>
+<% if w.used_tokens then %><div class="muted"><%= w.used_tokens %> / <%= w.quota_tokens or "?" %> tokens</div><% end %>
+<% if w.source == "local" then %><div class="muted">local estimate</div><% end %>
+<div class="muted">updated <%= math.max(0, math.floor(now - w.updated_at)) %>s ago</div>
+<% if w.reset_at then %><div class="muted">resets <%= os.date("%Y-%m-%d %H:%M", w.reset_at) %></div><% end %>
+<% else %>—<% end %></td>
+<% end %>
+</tr>
+<% end %>
+</table>
+<p class="muted">Quotas are informational. Requests always use the explicitly selected channel, without automatic switching.</p>

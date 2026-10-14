@@ -44,7 +44,7 @@ local config = object({models = strings, model_redirects = {type = "object", add
 local limits = object({
 	five_hour_quota_tokens = integer, weekly_quota_tokens = integer, poll_interval = integer,
 	usage_source = object({five_hour = source, weekly = source})})
-local subscription = object({id = integer, name = text, kind = enum({"openai", "zai", "openai_compat"}),
+local channel = object({id = integer, name = text, kind = enum({"openai", "zai", "openai_compat"}),
 	enabled = flag, config = config, limits = limits, has_api_key = flag,
 	created_at = integer, updated_at = integer, login_status = login_status},
 	{"id", "name", "kind", "enabled", "config", "limits", "has_api_key", "created_at", "updated_at"})
@@ -55,10 +55,10 @@ local window = object({used_percent = number, used_tokens = integer, quota_token
 local status = object({id = integer, name = text, enabled = flag,
 	windows = object({five_hour = window, weekly = window}), login_status = login_status},
 	{"id", "name", "enabled", "windows"})
-local usage = object({bucket = integer, user = text, model = text, upstream_model = text, subscription = text,
+local usage = object({bucket = integer, user = text, model = text, upstream_model = text, channel = text,
 	requests = integer, errors = integer, input_tokens = integer, output_tokens = integer,
 	cached_input_tokens = integer, estimated_requests = integer, cost_usd = number, cache_savings_usd = number},
-	{"bucket", "user", "model", "upstream_model", "subscription", "requests", "errors", "input_tokens",
+	{"bucket", "user", "model", "upstream_model", "channel", "requests", "errors", "input_tokens",
 		"output_tokens", "cached_input_tokens", "estimated_requests", "cost_usd", "cache_savings_usd"})
 local login = object({status = login_status, verification_url = text, user_code = text,
 	expires_at = number, error = text}, {"status"})
@@ -66,17 +66,17 @@ local login = object({status = login_status, verification_url = text, user_code 
 ---@type {[string]: mcp.JsonSchemaObject}
 local results = {
 	listUsers = object({users = array(user)}, {"users"}),
-	listSubscriptions = object({subscriptions = array(subscription)}, {"subscriptions"}),
+	listChannels = object({channels = array(channel)}, {"channels"}),
 	listModels = object({public_models = strings, aliases = array(model)}, {"public_models", "aliases"}),
-	status = object({now = integer, subscriptions = array(status), catalog_reload_pending = flag},
-		{"now", "subscriptions", "catalog_reload_pending"}),
+	status = object({now = integer, channels = array(status), catalog_reload_pending = flag},
+		{"now", "channels", "catalog_reload_pending"}),
 	usage = object({hours = {type = "integer", enum = {24, 168}}, rows = array(usage)}, {"hours", "rows"}),
 	createUser = object({user = user, api_key = text}, {"user", "api_key"}),
 	updateUser = object({user = user}, {"user"}),
 	regenerateKey = object({id = integer, api_key = text}, {"id", "api_key"}),
 	deleteUser = object({deleted_id = integer}, {"deleted_id"}),
-	saveSubscription = object({subscription = subscription}, {"subscription"}),
-	deleteSubscription = object({deleted_id = integer}, {"deleted_id"}),
+	saveChannel = object({channel = channel}, {"channel"}),
+	deleteChannel = object({deleted_id = integer}, {"deleted_id"}),
 	saveModel = object({model = model}, {"model"}),
 	deleteModel = object({deleted_id = integer}, {"deleted_id"}),
 	startLogin = object({id = integer, login = login}, {"id", "login"}),

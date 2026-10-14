@@ -17,7 +17,7 @@ local SubscriptionAuthGuard = require("ai.openai.SubscriptionAuthGuard")
 ---@class ai.router.OpenAILoginManagerOptions
 ---@field scheduler web.CosocketScheduler
 ---@field create_auth fun(auth_path: string): openai.SubscriptionAuth
----@field on_authenticated (fun(subscription_id: integer))?
+---@field on_authenticated (fun(channel_id: integer))?
 ---@field spawn (fun(callback: fun()))?
 ---@field get_time (fun(): number)?
 
@@ -28,7 +28,7 @@ local SubscriptionAuthGuard = require("ai.openai.SubscriptionAuthGuard")
 ---@field scheduler web.CosocketScheduler
 ---@field spawn fun(callback: fun())
 ---@field get_time fun(): number
----@field on_authenticated (fun(subscription_id: integer))?
+---@field on_authenticated (fun(channel_id: integer))?
 local OpenAILoginManager = class()
 
 ---@param options ai.router.OpenAILoginManagerOptions
@@ -78,10 +78,10 @@ function OpenAILoginManager:isLoggingIn(auth_path)
 	return self:getState(auth_path).status == "logging_in"
 end
 
----@param subscription ai.router.SubscriptionRow
-function OpenAILoginManager:start(subscription)
-	assert(subscription.kind == "openai", "device login requires an OpenAI subscription")
-	local entry = self:entry(subscription.config.auth_path)
+---@param channel ai.router.ChannelRow
+function OpenAILoginManager:start(channel)
+	assert(channel.kind == "openai", "device login requires an OpenAI channel")
+	local entry = self:entry(channel.config.auth_path)
 	assert(entry.state.status ~= "logging_in", "OpenAI login is already in progress")
 	entry.state = {status = "logging_in"}
 	self.spawn(function()
@@ -96,7 +96,7 @@ function OpenAILoginManager:start(subscription)
 		entry.state = ok and authenticated and {status = "authenticated"}
 			or {status = "error", error = "OpenAI login failed or expired. Start a new login to retry."}
 		if ok and authenticated and self.on_authenticated then
-			self.on_authenticated(subscription.id)
+			self.on_authenticated(channel.id)
 		end
 	end)
 end

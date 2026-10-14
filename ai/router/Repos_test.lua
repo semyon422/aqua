@@ -1,5 +1,5 @@
 local UsersRepo = require("ai.router.UsersRepo")
-local SubscriptionsRepo = require("ai.router.SubscriptionsRepo")
+local ChannelsRepo = require("ai.router.ChannelsRepo")
 local ModelsRepo = require("ai.router.ModelsRepo")
 local WindowsRepo = require("ai.router.WindowsRepo")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
@@ -9,7 +9,7 @@ local digest = require("digest")
 local test = {}
 
 ---@return ai.router.UsersRepo
----@return ai.router.SubscriptionsRepo
+---@return ai.router.ChannelsRepo
 ---@return ai.router.ModelsRepo
 ---@return ai.router.WindowsRepo
 ---@return ai.router.RouterDatabase
@@ -17,7 +17,7 @@ local function open()
 	local storage = RouterDatabase(LjsqliteDatabase())
 	storage.path = ":memory:"
 	storage:open()
-	return UsersRepo(storage.models), SubscriptionsRepo(storage.models),
+	return UsersRepo(storage.models), ChannelsRepo(storage.models),
 		ModelsRepo(storage.models), WindowsRepo(storage.models), storage
 end
 
@@ -60,7 +60,7 @@ function test.users_lifecycle(t)
 end
 
 ---@param t testing.T
-function test.subscriptions_lifecycle(t)
+function test.channels_lifecycle(t)
 	local _, subs, _, _, storage = open()
 	local sub = subs:create("zai-1", "zai",
 		{base_url = "https://api.z.ai/api/coding/paas/v4", models = {"glm-5.3"}},

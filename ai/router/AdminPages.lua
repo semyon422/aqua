@@ -15,7 +15,7 @@ AdminPages.session_seconds = 12 * 3600
 
 ---@class ai.router.AdminPagesOptions
 ---@field users_repo ai.router.UsersRepo
----@field subscriptions_repo ai.router.SubscriptionsRepo
+---@field channels_repo ai.router.ChannelsRepo
 ---@field models_repo ai.router.ModelsRepo
 ---@field usage_repo ai.router.UsageRepo
 ---@field monitor ai.router.UsageMonitor
@@ -28,7 +28,7 @@ AdminPages.session_seconds = 12 * 3600
 function AdminPages:new(options)
 	assert(type(options.password) == "string" and #options.password >= 16, "admin password must contain at least 16 characters")
 	self.users_repo = options.users_repo
-	self.subscriptions_repo = options.subscriptions_repo
+	self.channels_repo = options.channels_repo
 	self.models_repo = options.models_repo
 	self.usage_repo = options.usage_repo
 	self.monitor = options.monitor
@@ -38,7 +38,7 @@ function AdminPages:new(options)
 	self.get_time = options.get_time or os.time
 	self.sessions = Sessions("router_admin", options.password, false)
 	self.templates = {}
-	for _, name in ipairs({"layout", "login", "users", "subscriptions", "models", "usage", "status"}) do
+	for _, name in ipairs({"layout", "login", "users", "channels", "models", "usage"}) do
 		self.templates[name] = etlua.compile(io_util.read_file("aqua/ai/router/admin/" .. name .. ".etlua"), "@" .. name)
 	end
 end
@@ -116,8 +116,12 @@ function AdminPages:handle(req, res)
 		return true
 	end
 	local query = http_util.decode_query_string(req.uri:match("%?(.+)$") or "")
-	local pages = { ["/admin/users"] = self.pageUsers, ["/admin/subscriptions"] = self.pageSubscriptions,
-		["/admin/models"] = self.pageModels, ["/admin/usage"] = self.pageUsage, ["/admin/status"] = self.pageStatus }
+	if path == "/admin/subscriptions" or path == "/admin/status" then
+		redirect(res, "/admin/channels")
+		return true
+	end
+	local pages = { ["/admin/users"] = self.pageUsers, ["/admin/channels"] = self.pageChannels,
+		["/admin/models"] = self.pageModels, ["/admin/usage"] = self.pageUsage }
 	if pages[path] then pages[path](self, res, session, query)
 	else send(res, 404, "Unknown admin page.") end
 	return true
@@ -143,16 +147,16 @@ end
 
 ---@param res web.Response
 ---@param session {csrf_token: string}
-function AdminPages:pageSubscriptions(res, session)
+function AdminPages:pageChannels(res, session)
 	local states = {}
-	local rows = self.subscriptions_repo:list()
+	local rows = self.channels_repo:list()
 	if self.openai_login then
 		for _, row in ipairs(rows) do
 			if row.kind == "openai" then states[row.id] = {status = self.openai_login:getState(row.config.auth_path).status} end
 		end
 	end
-	self:render(res, session, "Subscriptions", self.templates.subscriptions({rows = rows,
-		login_states = states, window_states = self.monitor.windows}))
+	self:render(res, session, "Channels", self.templates.channels({rows = rows,
+		login_states = states, window_states = self.monitor.windows, now = self.get_time()}))
 end
 
 ---@param res web.Response
@@ -175,7 +179,7 @@ function AdminPages:pageUsage(res, session, query)
 	end
 	local totals = bucket()
 	local groups = {{title = "By user", field = "user", entries = {}},
-		{title = "By model", field = "model", entries = {}}, {title = "By subscription", field = "subscription", entries = {}}}
+		{title = "By model", field = "model", entries = {}}, {title = "By channel", field = "channel", entries = {}}}
 	for _, row in ipairs(self.usage_repo:history(self.get_time()).rows) do
 		if row.bucket >= self.get_time() - hours * 3600 then
 			for key in pairs(totals) do totals[key] = totals[key] + row[key] end
@@ -195,13 +199,6 @@ function AdminPages:pageUsage(res, session, query)
 		table.insert(sections, {title = group.title, rows = rows})
 	end
 	self:render(res, session, "Usage", self.templates.usage({hours = hours, totals = totals, sections = sections}))
-end
-
----@param res web.Response
----@param session {csrf_token: string}
-function AdminPages:pageStatus(res, session)
-	self:render(res, session, "Status", self.templates.status({subscriptions = self.server.router.state.subscriptions,
-		windows = self.monitor.windows, now = self.get_time()}))
 end
 
 ---@class ai.router.UsageTotals

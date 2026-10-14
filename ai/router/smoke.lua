@@ -1,5 +1,5 @@
 -- Smoke test: boots the full router with a local mock upstream and exercises
--- MCP -> user -> subscription -> inference end to end. Run manually with
+-- MCP -> user -> channel -> inference end to end. Run manually with
 -- ./luajit aqua/ai/router/smoke.lua; not part of the ./test suite.
 ---@diagnostic disable: no-unknown, codestyle-check, unused-local
 require("pkg_config")
@@ -20,7 +20,7 @@ local McpClient = require("mcp.Client")
 local UsageMonitor = require("ai.router.UsageMonitor")
 local UsageRepo = require("ai.router.UsageRepo")
 local UsersRepo = require("ai.router.UsersRepo")
-local SubscriptionsRepo = require("ai.router.SubscriptionsRepo")
+local ChannelsRepo = require("ai.router.ChannelsRepo")
 local ModelsRepo = require("ai.router.ModelsRepo")
 local CompatProvider = require("ai.router.CompatProvider")
 local OpenAIProvider = require("ai.router.OpenAIProvider")
@@ -33,7 +33,7 @@ local storage = RouterDatabase(LjsqliteDatabase())
 storage.path = ":memory:"
 storage:open()
 local users = UsersRepo(storage.models)
-local subscriptions = SubscriptionsRepo(storage.models)
+local channels = ChannelsRepo(storage.models)
 local models = ModelsRepo(storage.models)
 local usage_repo = UsageRepo(storage.models)
 local monitor = UsageMonitor({usage_repo = usage_repo, logger = function() end})
@@ -76,9 +76,9 @@ local server = Server({
 	usage_repo = usage_repo,
 	monitor = monitor,
 	logger = function() end,
-	provider_factory = function(subscription)
-		if subscription.kind == "openai" then
-			return OpenAIProvider({config = subscription.config,
+	provider_factory = function(channel)
+		if channel.kind == "openai" then
+			return OpenAIProvider({config = channel.config,
 				auth = {getAccess = function() return "mock-access", "mock-account" end},
 				request = function() return nil, "usage not used" end,
 				open_stream = function(_, options)
@@ -89,8 +89,8 @@ local server = Server({
 					return stream
 				end, timeout = 5})
 		end
-		if subscription.kind ~= "openai_compat" then return nil end
-		local config = subscription.config
+		if channel.kind ~= "openai_compat" then return nil end
+		local config = channel.config
 		---@cast config {[string]: any}
 		return CompatProvider({
 			config = config,
@@ -106,7 +106,7 @@ local server = Server({
 })
 local admin = AdminPages({
 	users_repo = users,
-	subscriptions_repo = subscriptions,
+	channels_repo = channels,
 	models_repo = models,
 	usage_repo = usage_repo,
 	monitor = monitor,
@@ -114,11 +114,11 @@ local admin = AdminPages({
 	password = "admin-password-admin-password",
 	get_time = os.time,
 })
-local management = Management({users_repo = users, subscriptions_repo = subscriptions, models_repo = models,
+local management = Management({users_repo = users, channels_repo = channels, models_repo = models,
 	usage_repo = usage_repo, monitor = monitor, server = server})
 local mcp = McpServer(scheduler, McpTools.create(management), {port = 0, token = "smoke-management-token"})
 assert(mcp:start())
-server:reload(subscriptions:list(), models:list())
+server:reload(channels:list(), models:list())
 server.admin_handler = function(req, res) return admin:handle(req, res) end
 assert(server:start("127.0.0.1", 0))
 local _, router_port = server:getAddress()
@@ -158,12 +158,12 @@ local mcp_thread = coext.detach(coroutine.create(function()
 	local client = McpClient({url = ("http://127.0.0.1:%d/mcp"):format(mcp_port), token = "smoke-management-token", scheduler = scheduler})
 	assert(client:initialize())
 	assert(#assert(client:listTools()).tools == 17)
-	local saved = assert(client:callTool("router_save_subscription", {
+	local saved = assert(client:callTool("router_save_channel", {
 		name = "local-llama", kind = "openai_compat",
 		config = {base_url = ("http://127.0.0.1:%d/v1"):format(upstream_port), models = {"llama-70b"}},
 	}))
 	assert(not saved.isError, saved.content[1].text)
-	local native = assert(client:callTool("router_save_subscription", {
+	local native = assert(client:callTool("router_save_channel", {
 		name = "native-openai", kind = "openai", config = {models = {"gpt-native"}},
 	}))
 	assert(not native.isError, native.content[1].text)
@@ -245,14 +245,14 @@ while coroutine.status(native_thread) ~= "dead" do
 end
 local found_native = false
 for _, row in ipairs(usage_repo:history(os.time()).rows) do
-	if row.subscription == "native-openai" then
+	if row.channel == "native-openai" then
 		assert(row.requests == 2 and row.input_tokens == 24 and row.cached_input_tokens == 16)
 		found_native = true
 	end
 end
 assert(found_native and upstream_requests == 3, "native usage missing")
 
-print("SMOKE OK: MCP -> user -> subscriptions -> native Responses/Chat Completions -> usage; dashboard read-only")
+print("SMOKE OK: MCP -> user -> channels -> native Responses/Chat Completions -> usage; dashboard read-only")
 print("upstream requests:", upstream_requests)
 upstream_server:stop()
 mcp:stop()

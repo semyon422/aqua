@@ -35,7 +35,7 @@ function test.record_upserts_by_all_dimensions(t)
 	t:eq(row.user, "alice")
 	t:eq(row.model, "lite")
 	t:eq(row.upstream_model, "glm-5.3")
-	t:eq(row.subscription, "zai-1")
+	t:eq(row.channel, "zai-1")
 	t:eq(row.requests, 2)
 	t:eq(row.errors, 0)
 	t:eq(row.input_tokens, 15)
@@ -75,7 +75,7 @@ function test.history_costs_use_upstream_prices(t)
 end
 
 ---@param t testing.T
-function test.subscription_tokens_window(t)
+function test.channel_tokens_window(t)
 	local repo, storage = open()
 	-- buckets: 0, 3600, 7200, 10800
 	for _, bucket in ipairs({0, 3600, 7200, 10800}) do
@@ -86,13 +86,13 @@ function test.subscription_tokens_window(t)
 		{input_tokens = 100, output_tokens = 0, cached_input_tokens = 0, estimated = false})
 
 	-- now = 10800 + 3599, 2h window starts inside bucket 3600
-	t:eq(repo:subscriptionTokens("zai-1", 14399, 2 * 3600), 45)
+	t:eq(repo:channelTokens("zai-1", 14399, 2 * 3600), 45)
 	-- full range
-	t:eq(repo:subscriptionTokens("zai-1", 14399, 24 * 3600), 60)
-	-- other subscription excluded
-	t:eq(repo:subscriptionTokens("zai-2", 14399, 24 * 3600), 100)
-	-- empty subscription
-	t:eq(repo:subscriptionTokens("zai-3", 14399, 24 * 3600), 0)
+	t:eq(repo:channelTokens("zai-1", 14399, 24 * 3600), 60)
+	-- other channel excluded
+	t:eq(repo:channelTokens("zai-2", 14399, 24 * 3600), 100)
+	-- empty channel
+	t:eq(repo:channelTokens("zai-3", 14399, 24 * 3600), 0)
 	storage:close()
 end
 

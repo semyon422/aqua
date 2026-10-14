@@ -9,16 +9,14 @@ local coext = require("coext")
 ---@field source "upstream"|"local"
 ---@field updated_at number unix seconds of the poll
 
--- Maintains per-subscription usage-window state for routing decisions.
--- Polls upstream monitor endpoints through injected provider fetchers,
--- computes local-counting windows from usage aggregates, keeps the in-memory
--- state the Router selects against only in memory. Failed polls keep the previous
--- snapshot; stale data never depletes a subscription.
+-- Maintains informational channel quotas in memory. Polls upstream monitors
+-- and estimates local windows from usage aggregates. Failed polls retain the
+-- previous snapshot and its timestamp; none of this state affects routing.
 ---@class ai.router.UsageMonitor
 ---@operator call: ai.router.UsageMonitor
 ---@field windows {[integer]: {[string]: ai.router.WindowSnapshot}}
----@field subscriptions ai.router.SubscriptionState[]
----@field subscriptions_by_id {[integer]: ai.router.SubscriptionState}
+---@field channels ai.router.ChannelState[]
+---@field channels_by_id {[integer]: ai.router.ChannelState}
 ---@field fetchers {[integer]: fun(): table?, string?, table?}
 ---@field last_poll {[integer]: number}
 ---@field usage_repo ai.router.UsageRepo
@@ -46,8 +44,8 @@ function UsageMonitor:new(options)
 	self.logger = options.logger or function() end
 	self.default_interval = options.default_interval or UsageMonitor.default_interval
 	self.windows = {}
-	self.subscriptions = {}
-	self.subscriptions_by_id = {}
+	self.channels = {}
+	self.channels_by_id = {}
 	self.fetchers = {}
 	self.last_poll = {}
 end
@@ -67,17 +65,17 @@ function UsageMonitor:startPolling(scheduler)
 end
 
 -- Installs the current catalog states and their usage fetchers. Window state
--- for subscriptions that no longer exist is dropped.
----@param subscriptions ai.router.SubscriptionState[]
+-- for channels that no longer exist is dropped.
+---@param channels ai.router.ChannelState[]
 ---@param fetchers {[integer]: fun(): table?, string?, table?}
-function UsageMonitor:setSubscriptions(subscriptions, fetchers)
-	self.subscriptions = subscriptions
-	---@type {[integer]: ai.router.SubscriptionState}
+function UsageMonitor:setChannels(channels, fetchers)
+	self.channels = channels
+	---@type {[integer]: ai.router.ChannelState}
 	local by_id = {}
-	for _, subscription in ipairs(subscriptions) do
-		by_id[subscription.id] = subscription
+	for _, channel in ipairs(channels) do
+		by_id[channel.id] = channel
 	end
-	self.subscriptions_by_id = by_id
+	self.channels_by_id = by_id
 	self.fetchers = fetchers
 	---@type {[integer]: boolean}
 	local live = {}
@@ -155,22 +153,22 @@ function UsageMonitor.parseZaiUsage(data)
 	return windows
 end
 
----@param subscription ai.router.SubscriptionState
+---@param channel ai.router.ChannelState
 ---@param window "five_hour"|"weekly"
 ---@return integer? quota
-local function windowQuota(subscription, window)
+local function windowQuota(channel, window)
 	if window == "five_hour" then
-		return subscription.five_hour_quota_tokens
+		return channel.five_hour_quota_tokens
 	end
-	return subscription.weekly_quota_tokens
+	return channel.weekly_quota_tokens
 end
 
----@param subscription ai.router.SubscriptionState
+---@param channel ai.router.ChannelState
 ---@param window "five_hour"|"weekly"
 ---@param fields {used_percent: number?, used_tokens: integer?, quota_tokens: integer?, reset_at: integer?}
 ---@param source "upstream"|"local"
 ---@param now number
-function UsageMonitor:saveWindow(subscription, window, fields, source, now)
+function UsageMonitor:saveWindow(channel, window, fields, source, now)
 	local snapshot = {
 		used_percent = fields.used_percent,
 		used_tokens = fields.used_tokens,
@@ -179,96 +177,96 @@ function UsageMonitor:saveWindow(subscription, window, fields, source, now)
 		source = source,
 		updated_at = now,
 	}
-	if not self.windows[subscription.id] then
-		self.windows[subscription.id] = {}
+	if not self.windows[channel.id] then
+		self.windows[channel.id] = {}
 	end
-	self.windows[subscription.id][window] = snapshot
+	self.windows[channel.id][window] = snapshot
 end
 
 -- Computes a local-counting window from usage aggregates against the
 -- configured token quota. Quota-less windows keep no state.
----@param subscription ai.router.SubscriptionState
+---@param channel ai.router.ChannelState
 ---@param window "five_hour"|"weekly"
 ---@param now number
-function UsageMonitor:countLocally(subscription, window, now)
-	local quota = windowQuota(subscription, window)
+function UsageMonitor:countLocally(channel, window, now)
+	local quota = windowQuota(channel, window)
 	if quota == nil then return end
-	local tokens = self.usage_repo:subscriptionTokens(subscription.name, now, UsageMonitor.window_seconds[window])
-	self:saveWindow(subscription, window, {
+	local tokens = self.usage_repo:channelTokens(channel.name, now, UsageMonitor.window_seconds[window])
+	self:saveWindow(channel, window, {
 		used_percent = tokens / quota * 100,
 		used_tokens = tokens,
 		quota_tokens = quota,
 	}, "local", now)
 end
 
--- Polls one subscription now: upstream windows through its fetcher, local
+-- Polls one channel now: upstream windows through its fetcher, local
 -- windows from aggregates. Failed fetches keep previous state.
----@param subscription ai.router.SubscriptionState
+---@param channel ai.router.ChannelState
 ---@param now number
-function UsageMonitor:pollSubscription(subscription, now)
+function UsageMonitor:pollChannel(channel, now)
 	for _, window in ipairs({"five_hour", "weekly"}) do
-		if subscription.usage_source[window] == "local" then
-			self:countLocally(subscription, window, now)
+		if channel.usage_source[window] == "local" then
+			self:countLocally(channel, window, now)
 		end
 	end
-	local fetcher = self.fetchers[subscription.id]
+	local fetcher = self.fetchers[channel.id]
 	if not fetcher then return end
 	local ok, usage, request_err = pcall(fetcher)
 	if not ok then
 		usage, request_err = nil, usage
 	end
 	if not usage then
-		self.logger(("subscription=%s usage poll failed: %s")
-			:format(subscription.name, tostring(request_err)))
+		self.logger(("channel=%s usage poll failed: %s")
+			:format(channel.name, tostring(request_err)))
 		return
 	end
 	---@cast usage {[string]: any}
 	---@type {[string]: {used_percent: number?, used_tokens: integer?, quota_tokens: integer?, reset_at: integer?}}
 	local windows
-	if subscription.kind == "openai" then
+	if channel.kind == "openai" then
 		windows = UsageMonitor.parseOpenAIUsage(usage)
-	elseif subscription.kind == "zai" then
+	elseif channel.kind == "zai" then
 		windows = UsageMonitor.parseZaiUsage(usage)
 	else
 		return
 	end
 	for _, window in ipairs({"five_hour", "weekly"}) do
-		if subscription.usage_source[window] == "upstream" then
+		if channel.usage_source[window] == "upstream" then
 			local fields = windows[window]
 			if fields and fields.used_percent ~= nil then
-				self:saveWindow(subscription, window, fields, "upstream", now)
+				self:saveWindow(channel, window, fields, "upstream", now)
 			end
 		end
 	end
 end
 
--- Polls every subscription whose interval has elapsed.
+-- Polls every channel whose interval has elapsed.
 ---@param now number?
 function UsageMonitor:update(now)
 	now = now or self.get_time()
-	for _, subscription in ipairs(self.subscriptions) do
-		if not subscription.enabled then
-			self.windows[subscription.id] = nil
+	for _, channel in ipairs(self.channels) do
+		if not channel.enabled then
+			self.windows[channel.id] = nil
 		else
-			local interval = subscription.poll_interval or self.default_interval
-			local last = self.last_poll[subscription.id]
+			local interval = channel.poll_interval or self.default_interval
+			local last = self.last_poll[channel.id]
 			if last == nil or now - last >= interval then
-				self.last_poll[subscription.id] = now
-				self:pollSubscription(subscription, now)
+				self.last_poll[channel.id] = now
+				self:pollChannel(channel, now)
 			end
 		end
 	end
 end
 
--- Forces an immediate poll of one subscription; used after a quota error.
----@param subscription_id integer
+-- Forces an immediate poll of one channel; used after a quota error.
+---@param channel_id integer
 ---@param now number?
-function UsageMonitor:refresh(subscription_id, now)
+function UsageMonitor:refresh(channel_id, now)
 	now = now or self.get_time()
-	local subscription = self.subscriptions_by_id[subscription_id]
-	if not subscription or not subscription.enabled then return end
-	self.last_poll[subscription_id] = now
-	self:pollSubscription(subscription, now)
+	local channel = self.channels_by_id[channel_id]
+	if not channel or not channel.enabled then return end
+	self.last_poll[channel_id] = now
+	self:pollChannel(channel, now)
 end
 
 return UsageMonitor

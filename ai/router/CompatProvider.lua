@@ -12,7 +12,7 @@ local Provider = require("ai.router.Provider")
 local CompatProvider = class()
 
 ---@class ai.router.CompatProviderOptions
----@field config {[string]: any} subscription config: base_url, api_key?, models
+---@field config {[string]: any} channel config: base_url, api_key?, models
 ---@field request zai.RequestFunc
 ---@field open_stream zai.OpenStreamFunc
 ---@field timeout number?

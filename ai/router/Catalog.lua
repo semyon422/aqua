@@ -1,10 +1,10 @@
 
----@class ai.router.SubscriptionState
+---@class ai.router.ChannelState
 ---@field id integer
 ---@field name string
 ---@field kind "openai"|"zai"|"openai_compat"
 ---@field enabled boolean
----@field models {[string]: boolean} public model names this subscription serves
+---@field models {[string]: boolean} public model names this channel serves
 ---@field model_redirects {[string]: string} permanent upstream renames
 ---@field five_hour_quota_tokens integer? local counting quota
 ---@field weekly_quota_tokens integer? local counting quota
@@ -12,10 +12,10 @@
 ---@field poll_interval integer? seconds
 
 ---@class ai.router.CatalogState
----@field subscriptions ai.router.SubscriptionState[] ordered by id
+---@field channels ai.router.ChannelState[] ordered by id
 ---@field alias_models {[string]: string} aliases to concrete model names
----@field concrete_models {[string]: boolean} union of every subscription's models, including disabled
----@field public_models {[string]: boolean} aliases plus enabled subscriptions' models
+---@field concrete_models {[string]: boolean} union of every channel's models, including disabled
+---@field public_models {[string]: boolean} aliases plus enabled channels' models
 
 -- Builds the routing state from repository rows and validates it deeply.
 -- Management saves call this before persisting; the runtime asserts a clean build.
@@ -107,11 +107,11 @@ local function checkRedirects(value, label, errors)
 	return redirects
 end
 
----@param row ai.router.SubscriptionRow
+---@param row ai.router.ChannelRow
 ---@param errors string[]
----@return ai.router.SubscriptionState?
-local function buildSubscription(row, errors)
-	local label = "subscription " .. row.name
+---@return ai.router.ChannelState?
+local function buildChannel(row, errors)
+	local label = "channel " .. row.name
 	if #row.name > 64 or not row.name:match("^[%w._%-]+$") then
 		fail(label, errors, "name must contain only letters, digits, ._- and no slash")
 		return nil
@@ -128,7 +128,7 @@ local function buildSubscription(row, errors)
 		usage_source = {},
 		poll_interval = nil,
 	}
-	---@cast state ai.router.SubscriptionState
+	---@cast state ai.router.ChannelState
 
 	local config = row.config
 	if not isPlainObject(config) then
@@ -147,7 +147,7 @@ local function buildSubscription(row, errors)
 	if not redirects then return nil end
 	for source in pairs(redirects) do
 		if not state.models[source] then
-			fail(label, errors, "model redirect source is not served by this subscription: " .. source)
+			fail(label, errors, "model redirect source is not served by this channel: " .. source)
 			return nil
 		end
 	end
@@ -295,27 +295,27 @@ local default_usage_source = {
 	openai_compat = "local",
 }
 
----@param subscription_rows ai.router.SubscriptionRow[]
+---@param channel_rows ai.router.ChannelRow[]
 ---@param model_rows ai.router.ModelRow[]
 ---@return ai.router.CatalogState state
 ---@return string[] errors
-function Catalog.fromRows(subscription_rows, model_rows)
+function Catalog.fromRows(channel_rows, model_rows)
 	---@type string[]
 	local errors = {}
 	---@type ai.router.CatalogState
 	local state = {
-		subscriptions = {},
+		channels = {},
 		alias_models = {},
 		concrete_models = {},
 		public_models = {},
 	}
 
-	---@type ai.router.SubscriptionState[]
-	local subscription_states = {}
-	for _, row in ipairs(subscription_rows) do
-		local sub_state = buildSubscription(row, errors)
+	---@type ai.router.ChannelState[]
+	local channel_states = {}
+	for _, row in ipairs(channel_rows) do
+		local sub_state = buildChannel(row, errors)
 		if sub_state then
-			table.insert(subscription_states, sub_state)
+			table.insert(channel_states, sub_state)
 			for model in pairs(sub_state.models) do
 				local qualified = sub_state.name .. "/" .. model
 				state.concrete_models[qualified] = true
@@ -342,11 +342,11 @@ function Catalog.fromRows(subscription_rows, model_rows)
 			fail(label, errors, "alias must not shadow a concrete model name")
 		else
 			if type(row.target) ~= "string" or #row.target < 1 or #row.target > 193 then
-				fail(label, errors, "alias target must be a 1-193 character subscription/model name")
+				fail(label, errors, "alias target must be a 1-193 character channel/model name")
 			elseif alias_names[row.target] then
 				fail(label, errors, "alias target must not reference a custom model: " .. row.target)
 			elseif not state.concrete_models[row.target] then
-				fail(label, errors, "alias target is not served by any subscription: " .. row.target)
+				fail(label, errors, "alias target is not served by any channel: " .. row.target)
 			else
 				state.alias_models[row.name] = row.target
 				state.public_models[row.name] = true
@@ -354,12 +354,12 @@ function Catalog.fromRows(subscription_rows, model_rows)
 		end
 	end
 
-	table.sort(subscription_states, function(a, b)
+	table.sort(channel_states, function(a, b)
 		return a.id < b.id
 	end)
-	state.subscriptions = subscription_states
+	state.channels = channel_states
 
-	for _, sub_state in ipairs(state.subscriptions) do
+	for _, sub_state in ipairs(state.channels) do
 		for _, window in ipairs({"five_hour", "weekly"}) do
 			if sub_state.usage_source[window] == nil then
 				sub_state.usage_source[window] = default_usage_source[sub_state.kind]

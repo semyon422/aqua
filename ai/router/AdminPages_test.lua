@@ -83,16 +83,22 @@ end
 ---@param t testing.T
 function test.catalog_pages_display_models_and_hide_credentials(t)
 	local stack = Stack()
-	stack.subscriptions:create("local", "openai_compat", {
-		base_url = "http://127.0.0.1:18020/v1", api_key = "PRIVATE-UPSTREAM-KEY", models = {"qwen"},
+	stack.channels:create("local", "openai_compat", {
+		base_url = "http://127.0.0.1:18020/v1", api_key = "PRIVATE-UPSTREAM-KEY", models = {"qwen", "org/model"},
+		model_redirects = {qwen = "qwen-real"},
 	}, {}, os.time())
 	stack.models:create("lite", "local/qwen", "Simple alias", os.time())
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	local cookie = login(t, stack)
-	local response = request(t, stack, "GET", "/admin/subscriptions", nil, cookie)
+	local response = request(t, stack, "GET", "/admin/channels", nil, cookie)
 	t:eq(response.status, 200)
 	t:assert(response.body:find("local", 1, true))
 	t:assert(response.body:find("qwen", 1, true))
+	t:assert(response.body:find("qwen → qwen-real", 1, true))
+	t:assert(response.body:find("org/model", 1, true))
+	t:eq(response.body:find("local/qwen", 1, true), nil)
+	t:eq(response.body:find("(upstream)", 1, true), nil)
+	t:eq(response.body:find('href="/admin/status"', 1, true), nil)
 	t:eq(response.body:find("PRIVATE-UPSTREAM-KEY", 1, true), nil)
 	response = request(t, stack, "GET", "/admin/models", nil, cookie)
 	t:eq(response.status, 200)
@@ -110,7 +116,7 @@ function test.read_only_boundary(t)
 	t:eq(response.status, 405)
 	t:eq(response.headers:get("Allow"), "GET")
 	t:eq(#stack.users:list(), 0)
-	for _, path in ipairs({"users", "subscriptions", "models", "usage", "status"}) do
+	for _, path in ipairs({"users", "channels", "models", "usage"}) do
 		response = request(t, stack, "GET", "/admin/" .. path, nil, cookie)
 		local _, forms = response.body:gsub("<form[%s>]", "")
 		t:eq(forms, 1)
@@ -120,7 +126,7 @@ function test.read_only_boundary(t)
 end
 
 ---@param t testing.T
-function test.usage_and_status_pages_render(t)
+function test.usage_and_channels_pages_render(t)
 	local stack = Stack()
 	local cookie = login(t, stack)
 	stack.usage_repo:record(os.time(), "alice", 200, "glm-5.3", "glm-5.3", "zai-1",
@@ -130,9 +136,9 @@ function test.usage_and_status_pages_render(t)
 	t:assert(response.body:find("By user", 1, true))
 	t:assert(response.body:find("alice", 1, true))
 	t:assert(response.body:find("0.0000", 1, true))
-	response = request(t, stack, "GET", "/admin/status", nil, cookie)
+	response = request(t, stack, "GET", "/admin/channels", nil, cookie)
 	t:eq(response.status, 200)
-	t:assert(response.body:find("Live subscription status", 1, true))
+	t:assert(response.body:find("<h1>Channels</h1>", 1, true))
 	response = request(t, stack, "GET", "/admin/unknown", nil, cookie)
 	t:eq(response.status, 404)
 	stack:close()
@@ -148,13 +154,69 @@ function test.openai_status_display_hides_verification_code(t)
 		return {status = "logging_in", user_code = "PRIVATE-CODE", verification_url = "https://auth.openai.com/codex/device"}
 	end
 	stack.admin.openai_login = manager
-	stack.subscriptions:create("direct", "openai", {auth_path = "unused", models = {"gpt"}}, {}, os.time())
-	stack.server:reload(stack.subscriptions:list(), {})
+	stack.channels:create("direct", "openai", {auth_path = "unused", models = {"gpt"}}, {}, os.time())
+	stack.server:reload(stack.channels:list(), {})
 	local cookie = login(t, stack)
-	local response = request(t, stack, "GET", "/admin/subscriptions", nil, cookie)
+	local response = request(t, stack, "GET", "/admin/channels", nil, cookie)
 	t:assert(response.body:find("logging_in", 1, true))
+	t:assert(response.body:find('<td>openai\n\n<div class="muted">logging_in</div>', 1, true))
+	t:eq(response.body:find("<th>OpenAI login</th>", 1, true), nil)
 	t:eq(response.body:find("PRIVATE-CODE", 1, true), nil)
 	t:eq(response.headers:get("Cache-Control"), "no-store")
+	stack:close()
+end
+
+---@param t testing.T
+function test.channels_combine_quotas_freshness_resets_and_local_estimates(t)
+	local stack = Stack()
+	stack.channels:create("proxy", "openai_compat", {base_url = "http://localhost/v1", models = {"qwen"}}, {}, 1000)
+	stack.channels:create("disabled", "openai_compat", {base_url = "http://localhost/v1", models = {"other"}}, {}, 1000)
+	stack.channels:update(2, {enabled = false}, 1001)
+	stack.server:reload(stack.channels:list(), {})
+	stack.admin.get_time = function() return 2000 end
+	stack.monitor.windows[1] = {
+		five_hour = {used_percent = 0, source = "upstream", updated_at = 1985, reset_at = 3000},
+		weekly = {used_percent = 40, used_tokens = 80, quota_tokens = 200, source = "local", updated_at = 1995},
+	}
+	local cookie = login(t, stack)
+	local response = request(t, stack, "GET", "/admin/channels", nil, cookie)
+	t:eq(response.status, 200)
+	for _, text in ipairs({"0.0%", "40.0%", "80 / 200 tokens", "local estimate", "updated 15s ago",
+		"updated 5s ago", "resets " .. os.date("%Y-%m-%d %H:%M", 3000), "disabled", "no"}) do
+		t:assert(response.body:find(text, 1, true))
+	end
+	t:eq(response.body:find("upstream", 1, true), nil)
+	t:eq(response.body:find("proxy/qwen", 1, true), nil)
+	stack:close()
+end
+
+---@param t testing.T
+function test.retired_dashboard_pages_redirect_to_channels(t)
+	local stack = Stack()
+	local cookie = login(t, stack)
+	for _, path in ipairs({"/admin/subscriptions", "/admin/status"}) do
+		local response = request(t, stack, "GET", path, nil, cookie)
+		t:eq(response.status, 303)
+		t:eq(response.headers:get("Location"), "/admin/channels")
+		response = request(t, stack, "POST", path, {name = "forbidden"}, cookie)
+		t:eq(response.status, 405)
+	end
+	stack:close()
+end
+
+---@param t testing.T
+function test.zai_key_status_is_muted_in_kind_column_and_hides_key(t)
+	local stack = Stack()
+	stack.channels:create("glm", "zai", {
+		base_url = "https://api.z.ai/api/coding/paas/v4", api_key = "PRIVATE-ZAI-KEY", models = {"glm-5.3"},
+	}, {}, os.time())
+	stack.server:reload(stack.channels:list(), {})
+	local cookie = login(t, stack)
+	local response = request(t, stack, "GET", "/admin/channels", nil, cookie)
+	t:eq(response.status, 200)
+	t:assert(response.body:find('<td>zai\n\n<div class="muted">API key configured</div>', 1, true))
+	t:eq(response.body:find("PRIVATE-ZAI-KEY", 1, true), nil)
+	t:eq(response.body:find("<th>OpenAI login</th>", 1, true), nil)
 	stack:close()
 end
 

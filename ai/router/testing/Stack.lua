@@ -8,7 +8,7 @@ local McpServer = require("mcp.Server")
 local UsageMonitor = require("ai.router.UsageMonitor")
 local UsageRepo = require("ai.router.UsageRepo")
 local UsersRepo = require("ai.router.UsersRepo")
-local SubscriptionsRepo = require("ai.router.SubscriptionsRepo")
+local ChannelsRepo = require("ai.router.ChannelsRepo")
 local ModelsRepo = require("ai.router.ModelsRepo")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
 local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
@@ -22,7 +22,7 @@ local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
 ---@field management ai.router.Management
 ---@field mcp mcp.Server
 ---@field users ai.router.UsersRepo
----@field subscriptions ai.router.SubscriptionsRepo
+---@field channels ai.router.ChannelsRepo
 ---@field models ai.router.ModelsRepo
 ---@field usage_repo ai.router.UsageRepo
 ---@field monitor ai.router.UsageMonitor
@@ -37,14 +37,14 @@ function Stack:new()
 	self.storage.path = ":memory:"
 	self.storage:open()
 	self.users = UsersRepo(self.storage.models)
-	self.subscriptions = SubscriptionsRepo(self.storage.models)
+	self.channels = ChannelsRepo(self.storage.models)
 	self.models = ModelsRepo(self.storage.models)
 	self.usage_repo = UsageRepo(self.storage.models)
 	self.monitor = UsageMonitor({usage_repo = self.usage_repo, logger = function() end})
 	self.server = Server({scheduler = self.scheduler, users_repo = self.users, usage_repo = self.usage_repo,
 		monitor = self.monitor, logger = function() end, provider_factory = function() return nil end})
 	self.server:reload({}, {})
-	local options = {users_repo = self.users, subscriptions_repo = self.subscriptions, models_repo = self.models,
+	local options = {users_repo = self.users, channels_repo = self.channels, models_repo = self.models,
 		usage_repo = self.usage_repo, monitor = self.monitor, server = self.server, password = self.password}
 	self.admin = AdminPages(options)
 	self.management = Management(options)

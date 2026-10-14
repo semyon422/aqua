@@ -5,7 +5,7 @@ local Catalog = require("ai.router.Catalog")
 
 ---@class ai.router.ManagementOptions
 ---@field users_repo ai.router.UsersRepo
----@field subscriptions_repo ai.router.SubscriptionsRepo
+---@field channels_repo ai.router.ChannelsRepo
 ---@field models_repo ai.router.ModelsRepo
 ---@field usage_repo ai.router.UsageRepo
 ---@field monitor ai.router.UsageMonitor
@@ -39,7 +39,7 @@ local Management = class()
 ---@field updated_at integer
 ---@field models string[]
 
----@class ai.router.PublicSubscriptionConfig
+---@class ai.router.PublicChannelConfig
 ---@field models string[]?
 ---@field model_redirects {[string]: string}?
 ---@field auth_path string?
@@ -51,25 +51,25 @@ local Management = class()
 ---@field thinking "enabled"|"disabled"?
 ---@field tool_stream boolean?
 
----@class ai.router.PublicSubscriptionLimits
+---@class ai.router.PublicChannelLimits
 ---@field five_hour_quota_tokens integer?
 ---@field weekly_quota_tokens integer?
 ---@field poll_interval integer?
 ---@field usage_source {five_hour: ("local"|"upstream")?, weekly: ("local"|"upstream")?}?
 
----@class ai.router.PublicSubscription
+---@class ai.router.PublicChannel
 ---@field id integer
 ---@field name string
 ---@field kind "openai"|"zai"|"openai_compat"
 ---@field enabled boolean
----@field config ai.router.PublicSubscriptionConfig
----@field limits ai.router.PublicSubscriptionLimits
+---@field config ai.router.PublicChannelConfig
+---@field limits ai.router.PublicChannelLimits
 ---@field has_api_key boolean
 ---@field created_at integer
 ---@field updated_at integer
 ---@field login_status openai.SubscriptionAuthStatus?
 
----@class ai.router.ManagementSubscriptionStatus
+---@class ai.router.ManagementChannelStatus
 ---@field id integer
 ---@field name string
 ---@field enabled boolean
@@ -82,7 +82,7 @@ local Management = class()
 
 ---@class ai.router.ManagementResult: ai.router.ManagementResultMetadata
 ---@field users ai.router.PublicUser[]?
----@field subscriptions ai.router.PublicSubscription[]|ai.router.ManagementSubscriptionStatus[]?
+---@field channels ai.router.PublicChannel[]|ai.router.ManagementChannelStatus[]?
 ---@field public_models string[]?
 ---@field aliases ai.router.ModelRow[]?
 ---@field now integer?
@@ -93,13 +93,13 @@ local Management = class()
 ---@field api_key string?
 ---@field id integer?
 ---@field deleted_id integer?
----@field subscription ai.router.PublicSubscription?
+---@field channel ai.router.PublicChannel?
 ---@field model ai.router.ModelRow?
 ---@field login ai.router.OpenAILoginState?
 ---@field scheduled_id integer?
 
 ---@type {[string]: boolean}
-local catalog_mutations = {saveSubscription = true, deleteSubscription = true, saveModel = true, deleteModel = true}
+local catalog_mutations = {saveChannel = true, deleteChannel = true, saveModel = true, deleteModel = true}
 local reload_error = "Changes are saved, but catalog reload failed. Do not repeat the mutation; call router_reload_catalog to retry applying the saved catalog."
 
 ---@param options ai.router.ManagementOptions
@@ -145,17 +145,17 @@ local function replace(rows, id, replacement)
 	return result
 end
 
----@param subscriptions ai.router.SubscriptionRow[]
+---@param channels ai.router.ChannelRow[]
 ---@param models ai.router.ModelRow[]
-local function validateCatalog(subscriptions, models)
-	local _, errors = Catalog.fromRows(subscriptions, models)
+local function validateCatalog(channels, models)
+	local _, errors = Catalog.fromRows(channels, models)
 	-- Catalog diagnostics may contain operator-supplied values; never reflect them.
-	check(#errors == 0, "Invalid catalog: check subscription config, limits, redirects, and alias targets.")
+	check(#errors == 0, "Invalid catalog: check channel config, limits, redirects, and alias targets.")
 	---@type {[string]: boolean}
 	local paths = {}
-	for _, row in ipairs(subscriptions) do
+	for _, row in ipairs(channels) do
 		if row.kind == "openai" then
-			check(not paths[row.config.auth_path], "Each OpenAI subscription requires a distinct auth_path.")
+			check(not paths[row.config.auth_path], "Each OpenAI channel requires a distinct auth_path.")
 			paths[row.config.auth_path] = true
 		end
 	end
@@ -170,10 +170,10 @@ function Management:publicUser(row)
 		models = json.array(self.users_repo:getGrants(row.id))}
 end
 
----@param row ai.router.SubscriptionRow
----@return ai.router.PublicSubscription
-function Management:publicSubscription(row)
-	---@type ai.router.PublicSubscriptionConfig
+---@param row ai.router.ChannelRow
+---@return ai.router.PublicChannel
+function Management:publicChannel(row)
+	---@type ai.router.PublicChannelConfig
 	local config = json.object({})
 	for _, key in ipairs({"models", "model_redirects", "auth_path", "base_url", "usage_url",
 		"reasoning_effort", "verbosity", "max_response_size", "thinking", "tool_stream"}) do
@@ -187,7 +187,7 @@ function Management:publicSubscription(row)
 		end
 		config[key] = value
 	end
-	---@type ai.router.PublicSubscriptionLimits
+	---@type ai.router.PublicChannelLimits
 	local limits = json.object({})
 	for key, value in pairs(row.limits) do
 		if key == "usage_source" then
@@ -212,12 +212,12 @@ function Management:listUsers()
 	return {users = rows}
 end
 
----@return {subscriptions: ai.router.PublicSubscription[]}
-function Management:listSubscriptions()
-	---@type ai.router.PublicSubscription[]
+---@return {channels: ai.router.PublicChannel[]}
+function Management:listChannels()
+	---@type ai.router.PublicChannel[]
 	local rows = json.array({})
-	for _, row in ipairs(self.subscriptions_repo:list()) do table.insert(rows, self:publicSubscription(row)) end
-	return {subscriptions = rows}
+	for _, row in ipairs(self.channels_repo:list()) do table.insert(rows, self:publicChannel(row)) end
+	return {channels = rows}
 end
 
 ---@return {public_models: string[], aliases: ai.router.ModelRow[]}
@@ -229,17 +229,17 @@ function Management:listModels()
 	return {public_models = names, aliases = json.array(self.models_repo:list())}
 end
 
----@return {now: integer, subscriptions: ai.router.ManagementSubscriptionStatus[], catalog_reload_pending: boolean}
+---@return {now: integer, channels: ai.router.ManagementChannelStatus[], catalog_reload_pending: boolean}
 function Management:status()
-	---@type ai.router.ManagementSubscriptionStatus[]
+	---@type ai.router.ManagementChannelStatus[]
 	local rows = json.array({})
-	for _, row in ipairs(self.subscriptions_repo:list()) do
+	for _, row in ipairs(self.channels_repo:list()) do
 		table.insert(rows, {id = row.id, name = row.name, enabled = row.enabled,
 			windows = self.monitor.windows[row.id] or json.object({}),
 			login_status = row.kind == "openai" and self.openai_login
 				and self.openai_login:getState(row.config.auth_path).status or nil})
 	end
-	return {now = self.get_time(), subscriptions = rows, catalog_reload_pending = self.catalog_reload_pending}
+	return {now = self.get_time(), channels = rows, catalog_reload_pending = self.catalog_reload_pending}
 end
 
 ---@param args {[string]: any}
@@ -256,12 +256,12 @@ function Management:usage(args)
 end
 
 ---@param id integer
----@return ai.router.SubscriptionRow
-function Management:editableSubscription(id)
-	local row = self.subscriptions_repo:get(id)
-	check(row, "Subscription not found.")
+---@return ai.router.ChannelRow
+function Management:editableChannel(id)
+	local row = self.channels_repo:get(id)
+	check(row, "Channel not found.")
 	if row.kind == "openai" and self.openai_login then
-		check(not self.openai_login:isLoggingIn(row.config.auth_path), "Wait for the OpenAI login to finish before editing or deleting this subscription.")
+		check(not self.openai_login:isLoggingIn(row.config.auth_path), "Wait for the OpenAI login to finish before editing or deleting this channel.")
 	end
 	return row
 end
@@ -309,9 +309,9 @@ function Management:deleteUser(args)
 end
 
 ---@param args {[string]: any}
----@return {subscription: ai.router.PublicSubscription}
-function Management:saveSubscription(args)
-	local existing = args.id and self:editableSubscription(args.id)
+---@return {channel: ai.router.PublicChannel}
+function Management:saveChannel(args)
+	local existing = args.id and self:editableChannel(args.id)
 	local config = args.config or (existing and existing.config)
 	local kind = args.kind or (existing and existing.kind)
 	if not existing and kind == "openai" and config and not config.auth_path then
@@ -330,27 +330,27 @@ function Management:saveSubscription(args)
 		enabled = args.enabled,
 		created_at = existing and existing.created_at or self.get_time(), updated_at = self.get_time()}
 	if row.enabled == nil then row.enabled = not existing or existing.enabled end
-	check(type(row.name) == "string" and #row.name >= 1 and #row.name <= 64, "Subscription name must be 1-64 characters.")
-	check(row.kind and row.config, "Creating a subscription requires name, kind, and config.")
-	local duplicate = self.subscriptions_repo:findByName(row.name)
-	check(not duplicate or duplicate.id == args.id, "Subscription name already exists.")
-	validateCatalog(replace(self.subscriptions_repo:list(), args.id, row), self.models_repo:list())
+	check(type(row.name) == "string" and #row.name >= 1 and #row.name <= 64, "Channel name must be 1-64 characters.")
+	check(row.kind and row.config, "Creating a channel requires name, kind, and config.")
+	local duplicate = self.channels_repo:findByName(row.name)
+	check(not duplicate or duplicate.id == args.id, "Channel name already exists.")
+	validateCatalog(replace(self.channels_repo:list(), args.id, row), self.models_repo:list())
 	local saved
 	if existing then
-		saved = self.subscriptions_repo:update(args.id, row, self.get_time())
+		saved = self.channels_repo:update(args.id, row, self.get_time())
 	else
-		saved = self.subscriptions_repo:create(row.name, row.kind, row.config, row.limits, self.get_time())
-		if not row.enabled then saved = self.subscriptions_repo:update(saved.id, {enabled = false}, self.get_time()) end
+		saved = self.channels_repo:create(row.name, row.kind, row.config, row.limits, self.get_time())
+		if not row.enabled then saved = self.channels_repo:update(saved.id, {enabled = false}, self.get_time()) end
 	end
-	return {subscription = self:publicSubscription(saved)}
+	return {channel = self:publicChannel(saved)}
 end
 
 ---@param args {[string]: any}
 ---@return {deleted_id: integer}
-function Management:deleteSubscription(args)
-	self:editableSubscription(args.id)
-	validateCatalog(replace(self.subscriptions_repo:list(), args.id), self.models_repo:list())
-	self.subscriptions_repo:delete(args.id)
+function Management:deleteChannel(args)
+	self:editableChannel(args.id)
+	validateCatalog(replace(self.channels_repo:list(), args.id), self.models_repo:list())
+	self.channels_repo:delete(args.id)
 	return {deleted_id = args.id}
 end
 
@@ -365,7 +365,7 @@ function Management:saveModel(args)
 	check(row.name and row.target, "Creating an alias requires name and target.")
 	local duplicate = self.models_repo:findByName(row.name)
 	check(not duplicate or duplicate.id == args.id, "Model name already exists.")
-	validateCatalog(self.subscriptions_repo:list(), replace(self.models_repo:list(), args.id, row))
+	validateCatalog(self.channels_repo:list(), replace(self.models_repo:list(), args.id, row))
 	local saved = existing and self.models_repo:update(args.id, row, self.get_time())
 		or self.models_repo:create(row.name, row.target, row.description, self.get_time())
 	return {model = saved}
@@ -382,8 +382,8 @@ end
 ---@param args {[string]: any}
 ---@return {id: integer, login: ai.router.OpenAILoginState}
 function Management:loginStatus(args)
-	local row = self.subscriptions_repo:get(args.id)
-	check(row and row.kind == "openai", "An OpenAI subscription is required.")
+	local row = self.channels_repo:get(args.id)
+	check(row and row.kind == "openai", "An OpenAI channel is required.")
 	check(self.openai_login, "OpenAI login is unavailable.")
 	return {id = args.id, login = self.openai_login:getState(row.config.auth_path)}
 end
@@ -392,7 +392,7 @@ end
 ---@return {id: integer, login: ai.router.OpenAILoginState}
 function Management:startLogin(args)
 	self:loginStatus(args)
-	local row = self:editableSubscription(args.id)
+	local row = self:editableChannel(args.id)
 	self.openai_login:start(row)
 	return self:loginStatus(args)
 end
@@ -400,7 +400,7 @@ end
 ---@param args {[string]: any}
 ---@return {scheduled_id: integer}
 function Management:refreshUsage(args)
-	check(self.subscriptions_repo:get(args.id), "Subscription not found.")
+	check(self.channels_repo:get(args.id), "Channel not found.")
 	self.monitor:refresh(args.id)
 	return {scheduled_id = args.id}
 end
@@ -409,7 +409,7 @@ end
 ---@return ai.router.ManagementReloadResult
 function Management:reloadCatalog()
 	local ok = pcall(function()
-		self.server:reload(self.subscriptions_repo:list(), self.models_repo:list())
+		self.server:reload(self.channels_repo:list(), self.models_repo:list())
 	end)
 	self.catalog_reload_pending = not ok
 	return {operation = {persistence = "not_attempted", reload = ok and "applied" or "failed"},

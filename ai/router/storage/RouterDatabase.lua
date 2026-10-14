@@ -3,9 +3,9 @@ local TableOrm = require("rdb.TableOrm")
 local Models = require("rdb.Models")
 local users_model = require("ai.router.storage.models.router_users")
 local user_models_model = require("ai.router.storage.models.router_user_models")
-local subscriptions_model = require("ai.router.storage.models.router_subscriptions")
+local channels_model = require("ai.router.storage.models.router_channels")
 local models_model = require("ai.router.storage.models.router_models")
-local windows_model = require("ai.router.storage.models.router_subscription_windows")
+local windows_model = require("ai.router.storage.models.router_channel_windows")
 local usage_model = require("ai.router.storage.models.router_usage_models")
 local io_util = require("io_util")
 
@@ -17,7 +17,7 @@ local io_util = require("io_util")
 local RouterDatabase = class()
 
 RouterDatabase.path = "userdata/ai_router.db"
-local user_version = 3
+local user_version = 4
 
 ---@param db rdb.SqliteDatabase
 function RouterDatabase:new(db)
@@ -26,9 +26,9 @@ function RouterDatabase:new(db)
 	self.models = Models({
 		router_users = users_model,
 		router_user_models = user_models_model,
-		router_subscriptions = subscriptions_model,
+		router_channels = channels_model,
 		router_models = models_model,
-		router_subscription_windows = windows_model,
+		router_channel_windows = windows_model,
 		router_usage_models = usage_model,
 	}, self.orm)
 end

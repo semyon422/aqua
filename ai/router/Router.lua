@@ -6,11 +6,11 @@ local class = require("class")
 ---@alias ai.router.Windows {[integer]: {[string]: ai.router.WindowState}}
 
 ---@class ai.router.Candidate
----@field subscription ai.router.SubscriptionState
+---@field channel ai.router.ChannelState
 ---@field model string unqualified model name
----@field upstream_model string after the subscription's permanent redirect
+---@field upstream_model string after the channel's permanent redirect
 
--- Resolves a public name to exactly one subscription. Quotas are display-only.
+-- Resolves a public name to exactly one channel. Quotas are display-only.
 ---@class ai.router.Router
 ---@operator call: ai.router.Router
 ---@field state ai.router.CatalogState
@@ -34,10 +34,10 @@ function Router:resolve(public_model)
 	local target = self:resolveModel(public_model)
 	if not target then return end
 	local name, model = target:match("^([^/]+)/(.+)$")
-	for _, subscription in ipairs(self.state.subscriptions) do
-		if subscription.name == name and subscription.enabled and subscription.models[model] then
-			return {subscription = subscription, model = model,
-				upstream_model = subscription.model_redirects[model] or model}
+	for _, channel in ipairs(self.state.channels) do
+		if channel.name == name and channel.enabled and channel.models[model] then
+			return {channel = channel, model = model,
+				upstream_model = channel.model_redirects[model] or model}
 		end
 	end
 end

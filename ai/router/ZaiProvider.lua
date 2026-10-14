@@ -4,7 +4,7 @@ local ZaiClient = require("ai.zai.Client")
 local ZaiProxyServer = require("ai.zai.ProxyServer")
 local Provider = require("ai.router.Provider")
 
--- Upstream adapter for a GLM Coding Plan subscription. Reuses the standalone
+-- Upstream adapter for a GLM Coding Plan channel. Reuses the standalone
 -- proxy's field allowlist and model resolution so router traffic follows the
 -- same validation rules; request bodies are rebuilt, never forwarded verbatim.
 ---@class ai.router.ZaiProvider
@@ -22,7 +22,7 @@ local ZaiProvider = class()
 ZaiProvider.usage_url = "https://api.z.ai/api/monitor/usage/quota/limit"
 
 ---@class ai.router.ZaiProviderOptions
----@field config {[string]: any} subscription config: base_url, api_key, models, model_redirects?, thinking?, tool_stream?
+---@field config {[string]: any} channel config: base_url, api_key, models, model_redirects?, thinking?, tool_stream?
 ---@field request zai.RequestFunc
 ---@field open_stream zai.OpenStreamFunc
 ---@field timeout number?
@@ -65,7 +65,7 @@ end
 
 -- Validates and normalizes the request through the standalone proxy rules.
 -- The caller sets body.model to the resolved concrete model; the provider maps
--- it through the subscription's permanent redirects.
+-- it through the channel's permanent redirects.
 ---@param body table
 ---@return table? upstream_body
 ---@return string? public_model

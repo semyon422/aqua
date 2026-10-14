@@ -9,7 +9,7 @@ local Server = require("ai.router.Server")
 local UsageMonitor = require("ai.router.UsageMonitor")
 local UsageRepo = require("ai.router.UsageRepo")
 local UsersRepo = require("ai.router.UsersRepo")
-local SubscriptionsRepo = require("ai.router.SubscriptionsRepo")
+local ChannelsRepo = require("ai.router.ChannelsRepo")
 local ModelsRepo = require("ai.router.ModelsRepo")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
 local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
@@ -92,7 +92,7 @@ end
 ---@field server ai.router.Server
 ---@field scheduler web.CosocketScheduler
 ---@field users ai.router.UsersRepo
----@field subscriptions ai.router.SubscriptionsRepo
+---@field channels ai.router.ChannelsRepo
 ---@field models ai.router.ModelsRepo
 ---@field monitor ai.router.UsageMonitor
 ---@field usage_repo ai.router.UsageRepo
@@ -106,7 +106,7 @@ local function startStack(opts)
 	storage.path = ":memory:"
 	storage:open()
 	local users = UsersRepo(storage.models)
-	local subscriptions = SubscriptionsRepo(storage.models)
+	local channels = ChannelsRepo(storage.models)
 	local models = ModelsRepo(storage.models)
 	local usage_repo = UsageRepo(storage.models)
 	local monitor = UsageMonitor({
@@ -125,8 +125,8 @@ local function startStack(opts)
 		usage_repo = usage_repo,
 		monitor = monitor,
 		logger = function() end,
-		provider_factory = function(subscription)
-			return providers_by_name[subscription.name]
+		provider_factory = function(channel)
+			return providers_by_name[channel.name]
 		end,
 	})
 	local user = users:create("alice", 1000)
@@ -136,23 +136,23 @@ local function startStack(opts)
 		{id = user.id}
 	)
 	users:setGrants(user.id, {"zai-1/glm-5.3", "openai-1/gpt-6-luna", "lite"})
-	subscriptions:create("zai-1", "zai", {
+	channels:create("zai-1", "zai", {
 		base_url = "https://api.z.ai/api/coding/paas/v4",
 		api_key = "key",
 		models = {"glm-5.3"},
 	}, {}, 1000)
-	subscriptions:create("openai-1", "openai_compat", {
+	channels:create("openai-1", "openai_compat", {
 		base_url = "http://localhost:28080/v1",
 		models = {"gpt-6-luna", "glm-5.3"},
 	}, {}, 1000)
 	models:create("lite", "zai-1/glm-5.3", nil, 1000)
-	server:reload(subscriptions:list(), models:list())
+	server:reload(channels:list(), models:list())
 	local stack = {
 		storage = storage,
 		server = server,
 		scheduler = scheduler,
 		users = users,
-		subscriptions = subscriptions,
+		channels = channels,
 		models = models,
 		monitor = monitor,
 		usage_repo = usage_repo,
@@ -256,7 +256,7 @@ function test.routes_non_streaming_and_records_usage(t)
 	t:eq(row.user, "alice")
 	t:eq(row.model, "zai-1/glm-5.3")
 	t:eq(row.upstream_model, "glm-5.3")
-	t:eq(row.subscription, "zai-1")
+	t:eq(row.channel, "zai-1")
 	t:eq(row.input_tokens, 10)
 	t:eq(row.cached_input_tokens, 2)
 	t:eq(row.estimated_requests, 0)
@@ -265,7 +265,7 @@ function test.routes_non_streaming_and_records_usage(t)
 end
 
 ---@param t testing.T
-function test.transport_error_and_429_never_switch_subscription(t)
+function test.transport_error_and_429_never_switch_channel(t)
 	local failing = fakeProvider({err = "upstream request failed"})
 	local quota = fakeProvider({provider_error = {
 		status = 429, message = "rate limited", type = "rate_limit_error", code = "rate_limit_exceeded",
@@ -279,10 +279,10 @@ function test.transport_error_and_429_never_switch_subscription(t)
 	t:eq(response.status, 502)
 	t:eq(json.decode(response.body).error.code, "upstream_error")
 
-	-- The alias pins both model and subscription.
+	-- The alias pins both model and channel.
 	stack.providers_by_name["zai-1"] = failing
 	stack.providers_by_name["openai-1"] = serving
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	response = request(t, stack, "/v1/chat/completions", {
 		model = "lite",
 		messages = json.array({{role = "user", content = "hi"}}),
@@ -293,7 +293,7 @@ function test.transport_error_and_429_never_switch_subscription(t)
 
 	-- Quota errors return to the caller and refresh display-only monitoring.
 	stack.providers_by_name["zai-1"] = quota
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	local refreshed = false
 	local original_refresh = stack.monitor.refresh
 	---@param monitor ai.router.UsageMonitor
@@ -332,13 +332,13 @@ function test.local_400_does_not_fail_over(t)
 end
 
 ---@param t testing.T
-function test.quota_snapshots_do_not_change_selected_subscription(t)
+function test.quota_snapshots_do_not_change_selected_channel(t)
 	local depleted = fakeProvider({message = ok_message})
 	local serving = fakeProvider({message = ok_message})
 	local stack = startStack({providers = {["zai-1"] = depleted, ["openai-1"] = serving}})
 	-- fresh upstream snapshot: zai-1 is 95% full
-	stack.monitor:setSubscriptions(stack.server.router.state.subscriptions, {})
-	stack.monitor:saveWindow(stack.server.router.state.subscriptions[1], "five_hour",
+	stack.monitor:setChannels(stack.server.router.state.channels, {})
+	stack.monitor:saveWindow(stack.server.router.state.channels[1], "five_hour",
 		{used_percent = 95}, "upstream", os.time())
 	local response = request(t, stack, "/v1/chat/completions", {
 		model = "lite",
@@ -379,7 +379,7 @@ function test.streams_deltas_with_delayed_commit(t)
 	local failing = fakeProvider({err = "no upstream"})
 	stack.providers_by_name["zai-1"] = failing
 	stack.providers_by_name["openai-1"] = failing
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	response = request(t, stack, "/v1/chat/completions", {
 		model = "zai-1/glm-5.3",
 		messages = json.array({{role = "user", content = "hi"}}),
@@ -415,7 +415,7 @@ function test.grants_and_models_endpoint(t)
 	}, TOKEN)
 	t:eq(response.status, 200)
 	stack.users:setGrants(stack.user.id, {"lite"})
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	response = request(t, stack, "/v1/chat/completions", {
 		model = "zai-1/glm-5.3",
 		messages = json.array({{role = "user", content = "hi"}}),
@@ -445,11 +445,11 @@ function test.streaming_errors_before_and_after_output_never_switch(t)
 	t:eq(response.status, 502)
 	t:eq(second.stream_count, 0)
 	local row = stack.usage_repo:history(os.time()).rows[1]
-	t:eq(row.subscription, "zai-1")
+	t:eq(row.channel, "zai-1")
 	t:eq(row.upstream_model, "glm-5.3")
 	first = fakeProvider({deltas = {{content = "partial"}}, err = "timeout"})
 	stack.providers_by_name["zai-1"] = first
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	response = request(t, stack, "/v1/chat/completions", body, TOKEN)
 	t:eq(response.status, 200)
 	t:eq(second.stream_count, 0)
@@ -514,7 +514,7 @@ function test.authentication_errors_do_not_cool_down_and_are_counted(t)
 	t:eq(bad.complete_count, 3)
 	stack.providers_by_name["zai-1"] = fakeProvider({provider_error = {
 		status = 400, message = "bad request", type = "invalid_request_error", code = "invalid_request"}})
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	for _, stream in ipairs({false, true}) do
 		body.stream = stream
 		t:eq(request(t, stack, "/v1/chat/completions", body, TOKEN).status, 400)
@@ -556,7 +556,7 @@ function test.downstream_write_failures_never_fail_over(t)
 		local status, result = stack.server:complete(res, {model = "lite", stream = true}, stack.user)
 		t:eq(status, 499)
 		t:eq(result.downstream_closed, true)
-		t:eq(result.subscription, "zai-1")
+		t:eq(result.channel, "zai-1")
 		t:eq(fallback.stream_count, 0)
 	end
 	stack.server:stop()
@@ -617,7 +617,7 @@ function test.real_upstream_auth_failure_and_stream_timeout(t)
 				return stream
 			end,
 		})
-		stack.server:reload(stack.subscriptions:list(), stack.models:list())
+		stack.server:reload(stack.channels:list(), stack.models:list())
 		local response = request(t, stack, "/v1/chat/completions", {model = "lite", messages = {}, stream = true}, TOKEN)
 		t:eq(response.status, mode == "auth" and 401 or 502)
 		t:eq(next(stack.server.active_requests), nil)
@@ -630,7 +630,7 @@ function test.real_upstream_auth_failure_and_stream_timeout(t)
 end
 
 ---@param t testing.T
-function test.pre_output_failures_call_only_selected_subscription_once(t)
+function test.pre_output_failures_call_only_selected_channel_once(t)
 	for _, stream in ipairs({false, true}) do
 		for _, code in ipairs({429, 500, 503}) do
 			local first = fakeProvider({provider_error = {status = code, message = "failed", type = "upstream_error", code = "failed"}})
@@ -679,7 +679,7 @@ function test.real_downstream_disconnect_closes_upstream_and_releases_slot(t)
 			return stream
 		end,
 	})
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	local log
 	stack.server.logger = function(line) log = line end
 	local failure
@@ -712,16 +712,16 @@ function test.alias_never_falls_back_to_another_model(t)
 	local failing = fakeProvider({err = "unavailable"})
 	local other = fakeProvider({message = ok_message})
 	local stack = startStack({providers = {["zai-1"] = failing, ["openai-1"] = other}})
-	stack.subscriptions:update(2, {kind = "openai", config = {auth_path = "userdata/unused.lua", models = {"gpt-6-luna"}}}, 1001)
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.channels:update(2, {kind = "openai", config = {auth_path = "userdata/unused.lua", models = {"gpt-6-luna"}}}, 1001)
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	stack.users:setGrants(stack.user.id, {"lite"})
 	stack.providers_by_name["zai-1"] = fakeProvider({message = ok_message})
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	local response = request(t, stack, "/v1/chat/completions", {model = "lite", messages = {}}, TOKEN)
 	t:eq(response.status, 200)
 	t:eq(json.decode(response.body).model, "lite")
 	stack.providers_by_name["zai-1"] = failing
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	for _, stream in ipairs({false, true}) do
 		local response = request(t, stack, "/v1/chat/completions", {model = "lite", messages = {}, stream = stream}, TOKEN)
 		t:eq(response.status, 502)
@@ -735,10 +735,10 @@ end
 ---@param stack test.Stack
 ---@param name string
 ---@param provider test.FakeProvider
----@return ai.router.SubscriptionRow
+---@return ai.router.ChannelRow
 local function addNative(stack, name, provider)
 	stack.providers_by_name[name] = provider
-	local row = stack.subscriptions:create(name, "openai", {
+	local row = stack.channels:create(name, "openai", {
 		auth_path = "userdata/test-" .. name .. ".lua", models = {"gpt-6-luna", "glm-5.3"},
 		model_redirects = {["glm-5.3"] = "native-model"},
 	}, {}, 1000)
@@ -750,7 +750,7 @@ local function addNative(stack, name, provider)
 	if alias.target == "zai-1/glm-5.3" then
 		stack.models:update(alias.id, {target = name .. "/glm-5.3"}, 1001)
 	end
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	return row
 end
 
@@ -788,7 +788,7 @@ function test.native_responses_preserve_items_aliases_affinity_and_usage(t)
 	t:eq(native.session_id, "explicit-thread")
 	local row = stack.usage_repo:history(os.time()).rows[1]
 	t:eq(row.requests, 2)
-	t:eq(row.subscription, "native-1")
+	t:eq(row.channel, "native-1")
 	t:eq(row.model, "lite")
 	t:eq(row.upstream_model, "native-model")
 	t:eq(row.input_tokens, 20)
@@ -804,8 +804,8 @@ function test.native_endpoint_validation_grants_and_protocol_isolation(t)
 	t:eq(request(t, stack, "/v1/responses", {model = "lite", input = "hi"}, TOKEN).status, 400)
 	local native = fakeProvider({response = native_result})
 	addNative(stack, "native-1", native)
-	stack.subscriptions:update(2, {config = {base_url = "http://localhost/v1", models = {"glm-5.3"}}}, 1001)
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.channels:update(2, {config = {base_url = "http://localhost/v1", models = {"glm-5.3"}}}, 1001)
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	local response = request(t, stack, "/v1/chat/completions", {model = "native-1/gpt-6-luna", messages = {}}, TOKEN)
 	t:eq(response.status, 400)
 	t:eq(json.decode(response.body).error.code, "unsupported_protocol")
@@ -827,7 +827,7 @@ function test.native_endpoint_validation_grants_and_protocol_isolation(t)
 end
 
 ---@param t testing.T
-function test.native_stream_errors_never_switch_subscription(t)
+function test.native_stream_errors_never_switch_channel(t)
 	local stack = startStack()
 	local first = fakeProvider({provider_error = {status = 429, type = "rate_limit_error", code = "rate_limit_exceeded"}})
 	local second = fakeProvider({response = native_result, events = {
@@ -856,7 +856,7 @@ function test.native_stream_errors_never_switch_subscription(t)
 	stack.providers_by_name["native-1"] = fakeProvider({err = "timeout", events = {
 		{type = "response.created", response = {id = "resp_failed", model = "native-model"}},
 	}})
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	body.model = "lite"
 	response = request(t, stack, "/v1/responses", body, TOKEN)
 	t:eq(response.status, 200)
@@ -883,10 +883,10 @@ function test.native_auth_errors_quota_snapshots_and_downstream_failures(t)
 	t:eq(first.complete_count, 2)
 	t:eq(second.complete_count, 0)
 	stack.providers_by_name["native-1"] = second
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
-	for _, subscription in ipairs(stack.server.router.state.subscriptions) do
-		if subscription.id == 3 then
-			stack.monitor:saveWindow(subscription, "five_hour", {used_percent = 95}, "upstream", os.time())
+	stack.server:reload(stack.channels:list(), stack.models:list())
+	for _, channel in ipairs(stack.server.router.state.channels) do
+		if channel.id == 3 then
+			stack.monitor:saveWindow(channel, "five_hour", {used_percent = 95}, "upstream", os.time())
 		end
 	end
 	t:eq(request(t, stack, "/v1/responses", body, TOKEN).status, 200)
@@ -917,7 +917,7 @@ function test.native_failed_and_incomplete_results_remain_native(t)
 			incomplete_details = status == "incomplete" and {reason = "max_output_tokens"} or nil}
 		native = fakeProvider({response = result, events = {{type = "response." .. status, response = result}}})
 		stack.providers_by_name["native-1"] = native
-		stack.server:reload(stack.subscriptions:list(), stack.models:list())
+		stack.server:reload(stack.channels:list(), stack.models:list())
 		for _, streaming in ipairs({false, true}) do
 			local response = request(t, stack, "/v1/responses", {model = "lite", input = "hi", stream = streaming}, TOKEN)
 			t:eq(response.status, 200)
@@ -955,7 +955,7 @@ function test.protocols_share_user_limits_and_native_exceptions_are_sanitized(t)
 end
 
 ---@param t testing.T
-function test.qualified_grants_do_not_authorize_other_subscriptions_or_bare_names(t)
+function test.qualified_grants_do_not_authorize_other_channels_or_bare_names(t)
 	local first = fakeProvider({message = ok_message})
 	local second = fakeProvider({message = ok_message})
 	local stack = startStack({providers = {["zai-1"] = first, ["openai-1"] = second}})
@@ -971,8 +971,8 @@ function test.qualified_grants_do_not_authorize_other_subscriptions_or_bare_name
 	t:eq(second.models[1], "glm-5.3")
 	t:eq(second.bodies[1].model, "glm-5.3")
 	t:eq(first.complete_count, 0)
-	stack.subscriptions:update(2, {enabled = false}, os.time())
-	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	stack.channels:update(2, {enabled = false}, os.time())
+	stack.server:reload(stack.channels:list(), stack.models:list())
 	t:eq(request(t, stack, "/v1/chat/completions", {model = "openai-1/glm-5.3", messages = {}}, TOKEN).status, 404)
 	t:eq(first.complete_count, 0)
 	stack.server:stop()

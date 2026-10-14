@@ -8,7 +8,7 @@ local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local test = {}
 
 ---@param opts {id: integer?, name: string?, kind: string?, usage_source: table?, five_hour_quota_tokens: integer?, weekly_quota_tokens: integer?, poll_interval: integer?, enabled: boolean?}?
----@return ai.router.SubscriptionState
+---@return ai.router.ChannelState
 local function subState(opts)
 	opts = opts or {}
 	return {
@@ -81,7 +81,7 @@ function test.upstream_poll_updates_memory_only(t)
 		usage_repo = usage_repo,
 		logger = function() end,
 	})
-	monitor:setSubscriptions({subState({id = 7, name = "zai-1"})}, {
+	monitor:setChannels({subState({id = 7, name = "zai-1"})}, {
 		[7] = function()
 			return {
 				level = "lite",
@@ -104,7 +104,7 @@ function test.upstream_poll_updates_memory_only(t)
 	t:eq(monitor.windows[7].weekly.reset_at, 1791535121)
 
 	-- second update within the interval does not poll again
-	monitor:setSubscriptions({subState({id = 7, name = "zai-1"})}, {
+	monitor:setChannels({subState({id = 7, name = "zai-1"})}, {
 		[7] = function() error("must not poll") end,
 	})
 	monitor:update(1010)
@@ -125,7 +125,7 @@ function test.local_counting_uses_aggregates(t)
 		usage_repo = usage_repo,
 		logger = function() end,
 	})
-	monitor:setSubscriptions({subState({
+	monitor:setChannels({subState({
 		id = 3,
 		name = "local-1",
 		kind = "openai_compat",
@@ -143,13 +143,13 @@ function test.local_counting_uses_aggregates(t)
 end
 
 ---@param t testing.T
-function test.disabled_subscriptions_drop_state(t)
+function test.disabled_channels_drop_state(t)
 	local usage_repo, windows_repo, storage = open()
 	local monitor = UsageMonitor({
 		usage_repo = usage_repo,
 		logger = function() end,
 	})
-	monitor:setSubscriptions({subState({id = 1})}, {
+	monitor:setChannels({subState({id = 1})}, {
 		[1] = function()
 			return {limits = {{type = "CREDIT_LIMIT", unit = 3, number = 5, usage = 100,
 				currentValue = 10, percentage = 10}}}
@@ -158,11 +158,11 @@ function test.disabled_subscriptions_drop_state(t)
 	monitor:update(1000)
 	t:assert(monitor.windows[1].five_hour)
 
-	monitor:setSubscriptions({subState({id = 1, enabled = false})}, {})
+	monitor:setChannels({subState({id = 1, enabled = false})}, {})
 	monitor:update(2000)
 	t:eq(monitor.windows[1], nil)
 
-	monitor:setSubscriptions({subState({id = 1})}, {})
+	monitor:setChannels({subState({id = 1})}, {})
 	monitor:update(3000)
 	t:eq(monitor.windows[1], nil)
 	storage:close()
@@ -174,18 +174,18 @@ function test.new_monitor_ignores_legacy_snapshots(t)
 	windows_repo:save(1, "five_hour", {used_percent = 89, reset_at = 2000, source = "upstream"}, 1000)
 	windows_repo:save(1, "weekly", {used_percent = 14, source = "upstream"}, 1000)
 	local monitor = UsageMonitor({usage_repo = usage_repo})
-	local subscription = subState({kind = "openai"})
-	monitor:setSubscriptions({subscription}, {[1] = function() return nil, "offline" end})
+	local channel = subState({kind = "openai"})
+	monitor:setChannels({channel}, {[1] = function() return nil, "offline" end})
 	t:eq(monitor.windows[1], nil)
 	monitor:update(3000)
 	t:eq(monitor.windows[1], nil)
-	monitor:setSubscriptions({subscription}, {})
+	monitor:setChannels({channel}, {})
 	t:eq(monitor.windows[1], nil)
-	monitor:saveWindow(subscription, "five_hour", {used_percent = 10}, "upstream", 3001)
+	monitor:saveWindow(channel, "five_hour", {used_percent = 10}, "upstream", 3001)
 	t:eq(monitor.windows[1].five_hour.used_percent, 10)
 	t:eq(windows_repo:snapshot(1).five_hour.used_percent, 89)
 	local restarted = UsageMonitor({usage_repo = usage_repo})
-	restarted:setSubscriptions({subscription}, {})
+	restarted:setChannels({channel}, {})
 	t:eq(restarted.windows[1], nil)
 	storage:close()
 end
@@ -194,14 +194,14 @@ end
 function test.catalog_reload_preserves_in_memory_windows(t)
 	local usage_repo, windows_repo, storage = open()
 	local monitor = UsageMonitor({usage_repo = usage_repo})
-	local subscription = subState({id = 1})
-	monitor:setSubscriptions({subscription}, {})
-	monitor:saveWindow(subscription, "five_hour", {used_percent = 89}, "upstream", 1000)
-	monitor:setSubscriptions({subscription}, {})
+	local channel = subState({id = 1})
+	monitor:setChannels({channel}, {})
+	monitor:saveWindow(channel, "five_hour", {used_percent = 89}, "upstream", 1000)
+	monitor:setChannels({channel}, {})
 	t:eq(monitor.windows[1].five_hour.used_percent, 89)
 	t:eq(monitor.windows[1].five_hour.updated_at, 1000)
 	t:tdeq(windows_repo:snapshot(1), {})
-	monitor:setSubscriptions({}, {})
+	monitor:setChannels({}, {})
 	t:eq(monitor.windows[1], nil)
 	storage:close()
 end
@@ -213,7 +213,7 @@ function test.background_polling_starts_and_repeats_after_failures(t)
 	local scheduler = CosocketScheduler(function() return {}, {} end, function() return now end)
 	local monitor = UsageMonitor({usage_repo = usage_repo, get_time = function() return now end})
 	local polls = 0
-	monitor:setSubscriptions({subState({id = 1})}, {
+	monitor:setChannels({subState({id = 1})}, {
 		[1] = function()
 			polls = polls + 1
 			if polls == 1 then error("upstream offline") end

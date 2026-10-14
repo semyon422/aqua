@@ -22,7 +22,7 @@ local SubscriptionClient = require("ai.openai.SubscriptionClient")
 ---@field auth openai.SubscriptionAuthGuard? injected in tests; built from auth_path otherwise
 ---@field usage_url string?
 
--- Upstream adapter for one ChatGPT subscription: per-subscription OAuth
+-- Upstream adapter for one ChatGPT channel: per-channel OAuth
 -- credentials, native Responses transport, and the
 -- Codex usage monitor fetch.
 ---@class ai.router.OpenAIProvider
@@ -48,20 +48,20 @@ local function loadCredentialsFile(auth_path)
 	if file then
 		file:close()
 		local loader, load_err = loadfile(auth_path)
-		assert(loader, ("failed to load subscription auth %s: %s"):format(auth_path, tostring(load_err)))
+		assert(loader, ("failed to load channel auth %s: %s"):format(auth_path, tostring(load_err)))
 		---@type {[string]: any}
 		local loaded = loader()
 		credentials = loaded
-		assert(type(credentials) == "table", "subscription auth must return a table")
+		assert(type(credentials) == "table", "channel auth must return a table")
 	end
 	---@type {[string]: string|integer}
 	local defaults = {access_token = "", refresh_token = "", expires_at = 0, account_id = ""}
 	for key, default in pairs(defaults) do
 		if credentials[key] == nil then credentials[key] = default end
-		assert(type(credentials[key]) == type(default), "subscription auth " .. key .. " has an invalid type")
+		assert(type(credentials[key]) == type(default), "channel auth " .. key .. " has an invalid type")
 	end
 	assert(credentials.expires_at >= 0 and credentials.expires_at % 1 == 0,
-		"subscription auth expires_at must be a non-negative integer")
+		"channel auth expires_at must be a non-negative integer")
 	return credentials --[[@as openai.SubscriptionCredentials]]
 end
 
