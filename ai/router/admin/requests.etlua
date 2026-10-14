@@ -10,14 +10,19 @@
 </form>
 <p class="muted">Newest completed requests first. Exact-match filters. Last <%= retention_days %> days, up to <%= max_rows %> entries. No prompts or responses are stored.</p>
 <div class="scroll"><table>
-<tr><th>ID</th><th>Time</th><th>User</th><th>Model</th><th>Channel</th><th>Upstream model</th><th>Protocol</th><th>Stream</th><th>Result</th><th>Duration</th><th>Input</th><th>Cache</th><th>Output</th></tr>
+<tr><th>ID</th><th>Time</th><th>User</th><th>Model</th><th>Channel</th><th>Protocol</th><th>Result</th><th>Duration</th><th>TTFT</th><th>Tokens/s</th><th>Input</th><th>Cache</th><th>Output</th></tr>
 <% for _, row in ipairs(rows) do %>
 <tr><td><%= row.id %></td><td><%= os.date("%Y-%m-%d %H:%M:%S", row.created_at) %></td>
-<td><%= row.user %></td><td><%= row.model ~= "" and row.model or "—" %></td>
-<td><%= row.channel ~= "" and row.channel or "—" %></td><td><%= row.upstream_model ~= "" and row.upstream_model or "—" %></td>
-<td><%= row.protocol %></td><td><%= row.stream and "yes" or "no" %></td>
-<td<% if row.status >= 400 then %> class="error"<% end %>><%= row.status %></td>
+<td><%= row.user %></td><td><%= row.model ~= "" and row.model or "—" %>
+<% if row.upstream_model ~= "" and row.upstream_model ~= row.model and row.model ~= row.channel .. "/" .. row.upstream_model then %>
+<div class="muted">→ <%= row.upstream_model %></div>
+<% end %></td>
+<td><%= row.channel ~= "" and row.channel or "—" %></td>
+<td><%= row.protocol == "responses" and "Responses" or "Chat Completions" %> · <%= row.stream and "SSE" or "JSON" %></td>
+<td<% if row.status >= 400 then %> class="error"<% end %>><%= row.status %><% if row.error_code then %><div class="muted"><%= row.error_code %></div><% end %></td>
 <td><%= string.format("%.3fs", row.duration_ms / 1000) %></td>
+<td><%= row.ttft_ms and string.format("%.3fs", row.ttft_ms / 1000) or "—" %></td>
+<td><%= row.output_tps and string.format("%.1f", row.output_tps) or "—" %></td>
 <% for _, key in ipairs({"input_tokens", "cached_input_tokens", "output_tokens"}) do %>
 <td><%= row.estimated and "~" or "" %><%= row[key] %></td>
 <% end %></tr>
@@ -26,3 +31,4 @@
 </table></div>
 <p><a href="/admin/requests">Latest</a><% if older_url then %> · <a href="<%= older_url %>">Older →</a><% end %></p>
 <p class="muted">Result is the logical outcome: stream failures may show 502 after HTTP 200; disconnected clients show 499. Token counts prefixed with ~ are estimates; cache tokens are included in input. Duration covers the full request, including streaming. Time uses the server timezone.</p>
+<p class="muted">TTFT measures time from request handling to the first nonempty streamed text, reasoning or tool output, not headers or lifecycle events. Tokens/s is reported output tokens divided by time from first output to provider completion, including relay delays; it is not pure model decoding speed. JSON responses, old entries, streams without output, missing usage and failed requests have no speed value.</p>

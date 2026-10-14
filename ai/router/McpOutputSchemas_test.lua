@@ -88,4 +88,20 @@ function test.alias_output_has_one_scalar_target(t)
 	t:eq(JsonSchema.validate(schema, {public_models = {}, aliases = {alias}}), nil)
 end
 
+---@param t testing.T
+function test.channel_probe_schema_only_allows_diagnostic_metadata(t)
+	local schema = McpOutputSchemas.get("testChannel", false)
+	local probe = {id = 1, channel = "openai", model = "openai/model", upstream_model = "model",
+		protocol = "responses", ok = false, status = 502, duration_ms = 100, error_code = "timeout"}
+	t:assert(JsonSchema.validate(schema, {probe = probe}))
+	probe.error_code = "PRIVATE-ERROR"
+	t:eq(JsonSchema.validate(schema, {probe = probe}), nil)
+	probe.error_code, probe.ok, probe.status = nil, true, 200
+	probe.output_tokens = 2
+	t:assert(JsonSchema.validate(schema, {probe = probe}))
+	probe.response = "PRIVATE-OUTPUT"
+	t:eq(JsonSchema.validate(schema, {probe = probe}), nil)
+	t:assert(JsonSchema.validate(schema, {error = "Channel not found."}))
+end
+
 return test

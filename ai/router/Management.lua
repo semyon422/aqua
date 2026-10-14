@@ -2,6 +2,8 @@ local class = require("class")
 local json = require("web.json")
 local random = require("web.random")
 local Catalog = require("ai.router.Catalog")
+local Provider = require("ai.router.Provider")
+local RequestMetrics = require("ai.router.RequestMetrics")
 
 ---@class ai.router.ManagementOptions
 ---@field users_repo ai.router.UsersRepo
@@ -16,6 +18,7 @@ local Catalog = require("ai.router.Catalog")
 ---@class ai.router.Management: ai.router.ManagementOptions
 ---@operator call: ai.router.Management
 ---@field catalog_reload_pending boolean
+---@field active_probes {[integer]: boolean}
 local Management = class()
 
 ---@alias ai.router.ManagementPersistence "committed"|"not_committed"|"not_attempted"|"unknown"
@@ -97,6 +100,21 @@ local Management = class()
 ---@field model ai.router.ModelRow?
 ---@field login ai.router.OpenAILoginState?
 ---@field scheduled_id integer?
+---@field probe ai.router.ChannelProbe?
+
+---@class ai.router.ChannelProbe
+---@field id integer
+---@field channel string
+---@field model string qualified public model
+---@field upstream_model string
+---@field protocol "responses"|"chat_completions"
+---@field ok boolean inference succeeded, not an exact output-content assertion
+---@field status integer logical outcome, not necessarily upstream HTTP status
+---@field duration_ms integer
+---@field error_code ai.router.RequestErrorCode?
+---@field input_tokens integer?
+---@field output_tokens integer?
+---@field cached_input_tokens integer?
 
 ---@type {[string]: boolean}
 local catalog_mutations = {saveChannel = true, deleteChannel = true, saveModel = true, deleteModel = true}
@@ -107,6 +125,7 @@ function Management:new(options)
 	for key, value in pairs(options) do self[key] = value end
 	self.get_time = options.get_time or os.time
 	self.catalog_reload_pending = false
+	self.active_probes = {}
 end
 
 ---@param condition any
@@ -403,6 +422,59 @@ function Management:refreshUsage(args)
 	check(self.channels_repo:get(args.id), "Channel not found.")
 	self.monitor:refresh(args.id)
 	return {scheduled_id = args.id}
+end
+
+---@param args {id: integer, model: string} unqualified configured model, not an alias
+---@return {probe: ai.router.ChannelProbe}
+function Management:testChannel(args)
+	check(not self.catalog_reload_pending, "Reload the saved catalog before testing a channel.")
+	local row = self.channels_repo:get(args.id)
+	check(row, "Channel not found.")
+	check(row.enabled, "Enable the channel before testing it.")
+	if row.kind == "openai" and self.openai_login then
+		check(not self.openai_login:isLoggingIn(row.config.auth_path), "Wait for the OpenAI login to finish before testing this channel.")
+	end
+	check(not self.active_probes[row.id], "A test is already running for this channel.")
+	local public_model = row.name .. "/" .. args.model
+	local candidate = self.server.router:resolve(public_model)
+	check(candidate and candidate.channel.id == row.id, "Select a configured model on this channel.")
+	local provider = self.server.providers[row.id]
+	local native = row.kind == "openai"
+	check(provider and (native and provider.createResponse or not native and provider.complete), "Channel provider is unavailable.")
+	local metrics = RequestMetrics(self.server.get_time)
+	self.active_probes[row.id] = true
+	local invoked, value, err, provider_error = pcall(function()
+		if native then
+			return provider:createResponse({model = candidate.model, input = "Reply with exactly OK.",
+				store = false, stream = false}, candidate.upstream_model)
+		end
+		return provider:complete({model = candidate.model, stream = false, max_tokens = 16,
+			messages = {{role = "user", content = "Reply with exactly OK."}},
+			thinking = row.kind == "zai" and {type = "disabled"} or nil}, candidate.upstream_model)
+	end)
+	self.active_probes[row.id] = nil
+	if not invoked then value, err, provider_error = nil, nil, nil end
+	local status = 200
+	if type(value) ~= "table" then
+		status = 502
+		if provider_error and type(provider_error.status) == "number" then status = provider_error.status end
+		metrics:providerError(err, provider_error)
+	elseif native and value.status == "failed" then
+		status = 502
+		metrics:providerError(nil, type(value.error) == "table" and value.error or nil)
+	end
+	---@type ai.router.CanonicalUsage?
+	local usage
+	if type(value) == "table" then
+		if native then usage = Provider.canonicalUsage(value.usage)
+		else usage = value.usage end
+	end
+	return {probe = {id = row.id, channel = row.name, model = public_model,
+		upstream_model = candidate.upstream_model, protocol = native and "responses" or "chat_completions",
+		ok = status < 400, status = status,
+		duration_ms = math.max(0, math.floor((self.server.get_time() - metrics.started_at) * 1000)),
+		error_code = metrics:outcomeCode(status), input_tokens = usage and usage.input_tokens,
+		output_tokens = usage and usage.output_tokens, cached_input_tokens = usage and usage.cached_input_tokens}}
 end
 
 -- Retry runtime application without replaying a persisted mutation.

@@ -58,7 +58,7 @@ function test.users_mutations_and_key_revocation(t)
 	end
 	run(t, stack, function(client)
 		local listed = assert(client:listTools())
-		t:eq(#listed.tools, 17)
+		t:eq(#listed.tools, 18)
 		---@type {[string]: boolean}
 		local names = {}
 		for _, tool in ipairs(listed.tools) do
@@ -313,6 +313,152 @@ function test.transport_authentication_and_origin(t)
 				{method = "POST", headers = case.headers, scheduler = stack.scheduler, timeout = 1}))
 			t:eq(response.status, case.status)
 		end
+	end)
+	stack:close()
+end
+
+---@param t testing.T
+function test.channel_probe_uses_one_native_call_and_only_returns_metadata(t)
+	local stack = Stack()
+	local calls = 0
+	stack.server.provider_factory = function(row)
+		if row.kind == "openai" then
+			return {createResponse = function(_, body, upstream_model, session_id, callback)
+				calls = calls + 1
+				t:eq(body.model, "public")
+				t:eq(upstream_model, "redirected")
+				t:eq(body.store, false)
+				t:eq(body.stream, false)
+				t:eq(body.max_output_tokens, nil)
+				t:eq(session_id, nil)
+				t:eq(callback, nil)
+				return {status = "completed", output = {{type = "message", content = "PRIVATE-RESPONSE"}},
+					usage = {input_tokens = 5, output_tokens = 2, input_tokens_details = {cached_tokens = 1}}}
+			end}
+		end
+		return {complete = function(_, body, upstream_model)
+			calls = calls + 1
+			t:eq(body.model, "public")
+			t:eq(upstream_model, "redirected")
+			t:eq(body.max_tokens, 16)
+			t:eq(body.stream, false)
+			t:eq(body.thinking and body.thinking.type, row.kind == "zai" and "disabled" or nil)
+			return {content = "PRIVATE-RESPONSE", usage = {input_tokens = 5, output_tokens = 2, cached_input_tokens = 1}}
+		end}
+	end
+	run(t, stack, function(client)
+		local tools = assert(client:listTools())
+		for _, tool in ipairs(tools.tools) do
+			if tool.name == "router_test_channel" then
+				t:eq(tool.annotations.readOnlyHint, false)
+				t:eq(tool.annotations.openWorldHint, true)
+				t:eq(tool.annotations.destructiveHint, false)
+			end
+		end
+		for _, kind in ipairs({"openai", "zai", "openai_compat"}) do
+			local created = call(client, "save_channel", {name = kind, kind = kind, config = {
+				models = {"public"}, model_redirects = {public = "redirected"},
+				base_url = kind ~= "openai" and "http://localhost:1/v1" or nil,
+				api_key = kind ~= "openai" and "PRIVATE-KEY" or nil}})
+			local before = calls
+			local result = call(client, "test_channel", {id = created.channel.id, model = "public"})
+			t:eq(calls, before + 1)
+			t:eq(result.probe.ok, true)
+			t:eq(result.probe.status, 200)
+			t:eq(result.probe.model, kind .. "/public")
+			t:eq(result.probe.upstream_model, "redirected")
+			t:eq(result.probe.protocol, kind == "openai" and "responses" or "chat_completions")
+			t:eq(result.probe.output_tokens, 2)
+			t:eq(result.probe.cached_input_tokens, 1)
+			t:eq(result.operation, nil)
+			t:eq(json.encode(result):find("PRIVATE", 1, true), nil)
+		end
+	end)
+	t:eq(calls, 3)
+	t:eq(#stack.usage_repo:history(os.time()).rows, 0)
+	t:eq(#stack.server.request_logs_repo:list({}, os.time()), 0)
+	t:eq(next(stack.management.active_probes), nil)
+	stack:close()
+end
+
+---@param t testing.T
+function test.channel_probe_validates_selection_and_sanitizes_failures_without_retry(t)
+	local stack = Stack()
+	local calls = 0
+	local mode = "timeout"
+	stack.server.provider_factory = function()
+		return {complete = function()
+			calls = calls + 1
+			if mode == "exception" then error("PRIVATE-EXCEPTION") end
+			if mode == "auth" then return nil, "PRIVATE", {status = 401, code = "PRIVATE-CODE", message = "PRIVATE"} end
+			if mode == "busy" then
+				local result, err = stack.management:execute("testChannel", {id = 1, model = "public"}, false)
+				t:assert(err)
+				t:assert(result.error:find("already running", 1, true))
+			end
+			return nil, "PRIVATE timeout"
+		end}
+	end
+	run(t, stack, function(client)
+		local created = call(client, "save_channel", {name = "proxy", kind = "openai_compat",
+			config = {base_url = "http://localhost:1/v1", models = {"public"}}})
+		local id = created.channel.id
+		for _, args in ipairs({{id = id}, {id = id, model = "public", prompt = "PRIVATE"}}) do
+			local result, err = client:callTool("router_test_channel", args)
+			t:eq(result, nil)
+			t:eq(err.code, -32602)
+		end
+		for _, args in ipairs({{id = 999, model = "public"}, {id = id, model = "missing"}, {id = id, model = "proxy/public"}}) do
+			local result = assert(client:callTool("router_test_channel", args))
+			t:eq(result.isError, true)
+		end
+		t:eq(calls, 0)
+		stack.management.catalog_reload_pending = true
+		t:eq(assert(client:callTool("router_test_channel", {id = id, model = "public"})).isError, true)
+		stack.management.catalog_reload_pending = false
+		call(client, "save_channel", {id = id, enabled = false})
+		t:eq(assert(client:callTool("router_test_channel", {id = id, model = "public"})).isError, true)
+		t:eq(calls, 0)
+		call(client, "save_channel", {id = id, enabled = true})
+		for _, case in ipairs({{"timeout", "timeout"}, {"auth", "auth"}, {"exception", "upstream_error"}, {"busy", "timeout"}}) do
+			mode = case[1]
+			local before = calls
+			local result = call(client, "test_channel", {id = id, model = "public"})
+			t:eq(result.probe.ok, false)
+			t:eq(result.probe.error_code, case[2])
+			t:eq(result.probe.status, mode == "auth" and 401 or 502)
+			t:eq(calls, before + 1)
+			t:eq(next(stack.management.active_probes), nil)
+			t:eq(json.encode(result):find("PRIVATE", 1, true), nil)
+		end
+	end)
+	stack:close()
+end
+
+---@param t testing.T
+function test.channel_probe_handles_native_failure_and_blocks_pending_login(t)
+	local stack = Stack()
+	local calls = 0
+	stack.server.provider_factory = function()
+		return {createResponse = function()
+			calls = calls + 1
+			return {status = "failed", error = {code = "rate_limit_exceeded", message = "PRIVATE-ERROR"}}
+		end}
+	end
+	run(t, stack, function(client)
+		local id = call(client, "save_channel", {name = "native", kind = "openai", config = {models = {"model"}}}).channel.id
+		local result = call(client, "test_channel", {id = id, model = "model"})
+		t:eq(result.probe.ok, false)
+		t:eq(result.probe.status, 502)
+		t:eq(result.probe.error_code, "rate_limit")
+		t:eq(result.probe.output_tokens, nil)
+		t:eq(json.encode(result):find("PRIVATE", 1, true), nil)
+		stack.management.openai_login = {isLoggingIn = function() return true end}
+		t:eq(assert(client:callTool("router_test_channel", {id = id, model = "model"})).isError, true)
+		stack.management.openai_login = nil
+		stack.server.providers[id] = nil
+		t:eq(assert(client:callTool("router_test_channel", {id = id, model = "model"})).isError, true)
+		t:eq(calls, 1)
 	end)
 	stack:close()
 end

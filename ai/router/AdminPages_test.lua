@@ -229,6 +229,7 @@ function test.request_log_page_is_authenticated_filtered_paginated_and_escaped(t
 		repo:record({created_at = os.time(), user = "alice", model = "<script>private</script>",
 			channel = "zai", upstream_model = "glm", protocol = "chat_completions", stream = index == 1,
 			status = index == 4 and 200 or 502, duration_ms = 1250,
+			ttft_ms = 123, error_code = index < 4 and "timeout" or nil,
 			input_tokens = 10, cached_input_tokens = 2, output_tokens = 5, estimated = index == 3})
 	end
 	local response = request(t, stack, "GET", "/admin/requests")
@@ -239,6 +240,14 @@ function test.request_log_page_is_authenticated_filtered_paginated_and_escaped(t
 	t:assert(response.body:find("<h1>Requests</h1>", 1, true))
 	t:assert(response.body:find("~10", 1, true))
 	t:assert(response.body:find("1.250s", 1, true))
+	t:assert(response.body:find("<th>TTFT</th>", 1, true))
+	t:assert(response.body:find("<th>Tokens/s</th>", 1, true))
+	t:assert(response.body:find("0.123s", 1, true))
+	t:assert(response.body:find('<div class="muted">timeout</div>', 1, true))
+	t:assert(response.body:find('<div class="muted">→ glm</div>', 1, true))
+	t:assert(response.body:find("Chat Completions · JSON", 1, true))
+	t:eq(response.body:find("<th>Upstream model</th>", 1, true), nil)
+	t:eq(response.body:find("<th>Stream</th>", 1, true), nil)
 	t:assert(response.body:find("&lt;script&gt;private&lt;/script&gt;", 1, true))
 	t:eq(response.body:find("<script>", 1, true), nil)
 	t:eq(response.body:find(">200</td>", 1, true), nil)
@@ -254,6 +263,25 @@ function test.request_log_page_is_authenticated_filtered_paginated_and_escaped(t
 	response = request(t, stack, "POST", "/admin/requests", {name = "forbidden"}, cookie)
 	t:eq(response.status, 405)
 	t:eq(#stack.storage.db:query("SELECT * FROM router_request_logs"), 4)
+	stack:close()
+end
+
+---@param t testing.T
+function test.requests_hide_redundant_upstream_names_and_combine_protocol_transport(t)
+	local stack = Stack()
+	for _, model in ipairs({"openai/model", "alias"}) do
+		stack.server.request_logs_repo:record({created_at = os.time(), user = "alice", model = model,
+			channel = "openai", upstream_model = "model", protocol = "responses", stream = true,
+			status = 200, duration_ms = 1000, input_tokens = 1, output_tokens = 1,
+			cached_input_tokens = 0, estimated = false})
+	end
+	local cookie = login(t, stack)
+	local response = request(t, stack, "GET", "/admin/requests", nil, cookie)
+	t:eq(response.status, 200)
+	local _, count = response.body:gsub('<div class="muted">→ model</div>', "")
+	t:eq(count, 1)
+	t:assert(response.body:find("Responses · SSE", 1, true))
+	t:eq(response.body:find("<th>Stream</th>", 1, true), nil)
 	stack:close()
 end
 

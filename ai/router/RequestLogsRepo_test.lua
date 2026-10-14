@@ -88,4 +88,38 @@ function test.retention_is_bounded_by_age_and_count_without_reusing_ids(t)
 	storage:close()
 end
 
+---@param t testing.T
+function test.speed_requires_reported_usage_success_and_positive_stream_interval(t)
+	local repo, storage = open()
+	local measured = row(1000)
+	measured.ttft_ms, measured.generation_ms = 250, 2000
+	repo:record(measured)
+	local rows = repo:list({}, 1000)
+	t:eq(rows[1].ttft_ms, 250)
+	t:eq(rows[1].generation_ms, 2000)
+	t:eq(rows[1].output_tps, 2.5)
+	measured.status, measured.error_code = 502, "timeout"
+	repo:record(measured)
+	rows = repo:list({}, 1000)
+	t:eq(rows[1].error_code, "timeout")
+	t:eq(rows[1].ttft_ms, 250)
+	t:eq(rows[1].output_tps, nil)
+	measured.status, measured.error_code, measured.estimated = 200, nil, true
+	repo:record(measured)
+	t:eq(repo:list({}, 1000)[1].output_tps, nil)
+	measured.estimated, measured.generation_ms = false, 0
+	repo:record(measured)
+	t:eq(repo:list({}, 1000)[1].output_tps, nil)
+	measured.stream, measured.generation_ms = false, 2000
+	repo:record(measured)
+	t:eq(repo:list({}, 1000)[1].output_tps, nil)
+	repo:record(row(1000))
+	rows = repo:list({}, 1000)
+	t:eq(rows[1].ttft_ms, nil)
+	t:eq(rows[1].generation_ms, nil)
+	t:eq(rows[1].output_tps, nil)
+	t:eq(rows[1].error_code, nil)
+	storage:close()
+end
+
 return test

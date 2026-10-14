@@ -705,6 +705,8 @@ function test.real_downstream_disconnect_closes_upstream_and_releases_slot(t)
 	local rows = stack.server.request_logs_repo:list({}, os.time())
 	t:eq(rows[1].status, 499)
 	t:eq(rows[1].channel, "zai-1")
+	t:eq(rows[1].error_code, "client_disconnected")
+	t:eq(rows[1].output_tps, nil)
 	upstream:stop()
 	stack.server:stop()
 	stack.storage:close()
@@ -1003,6 +1005,8 @@ function test.request_logs_capture_both_protocols_and_local_rejections(t)
 	t:eq(rows[1].estimated, false)
 	t:eq(rows[2].stream, true)
 	t:eq(rows[3].stream, false)
+	t:eq(rows[3].ttft_ms, nil)
+	t:eq(rows[3].output_tps, nil)
 	t:eq(rows[3].model, "lite")
 	t:eq(rows[3].user, "alice")
 	t:assert(rows[3].duration_ms >= 0)
@@ -1014,8 +1018,10 @@ function test.request_logs_capture_both_protocols_and_local_rejections(t)
 	rows = stack.server.request_logs_repo:list({}, os.time())
 	t:eq(#rows, 5)
 	t:eq(rows[1].status, 429)
+	t:eq(rows[1].error_code, "rate_limit")
 	t:eq(rows[1].model, "")
 	t:eq(rows[2].status, 400)
+	t:eq(rows[2].error_code, "invalid_request")
 	t:eq(rows[2].estimated, true)
 	request(t, stack, "/v1/models", nil, TOKEN)
 	request(t, stack, "/v1/responses", {model = "lite", input = "hi"}, "wrong-key")
@@ -1039,6 +1045,7 @@ function test.request_logs_preserve_upstream_and_streaming_outcomes(t)
 	t:eq(rows[1].channel, "zai-1")
 	t:eq(rows[2].status, 429)
 	t:eq(rows[2].channel, "zai-1")
+	t:eq(rows[2].error_code, "rate_limit")
 	t:eq(json.encode(rows):find("PRIVATE-ERROR", 1, true), nil)
 	local log_message
 	stack.server.logger = function(line) log_message = line end
@@ -1048,6 +1055,78 @@ function test.request_logs_preserve_upstream_and_streaming_outcomes(t)
 	t:eq(request(t, stack, "/v1/chat/completions", {model = "lite", messages = {}}, TOKEN).status, 200)
 	t:eq(log_message:find("PRIVATE", 1, true), nil)
 	t:eq(next(stack.server.active_requests), nil)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.stream_metrics_measure_output_not_role_or_lifecycle_events(t)
+	local now = 100
+	local provider = fakeProvider()
+	function provider:completeStream(_, _, on_delta)
+		now = 101
+		on_delta({role = "assistant", content = ""})
+		now = 102
+		on_delta({reasoning_content = "thinking"})
+		now = 104
+		on_delta({content = "hello"})
+		now = 106
+		return ok_message
+	end
+	local stack = startStack({providers = {["zai-1"] = provider}})
+	stack.server.get_time = function() return now end
+	t:eq(request(t, stack, "/v1/chat/completions", {model = "lite", messages = {}, stream = true}, TOKEN).status, 200)
+	local rows = stack.server.request_logs_repo:list({}, os.time())
+	t:eq(rows[1].ttft_ms, 2000)
+	t:eq(rows[1].generation_ms, 4000)
+	t:eq(rows[1].output_tps, 1.25)
+	t:eq(rows[1].error_code, nil)
+	local native = fakeProvider()
+	function native:createResponse(_, _, _, on_event)
+		now = 111
+		on_event({type = "response.created", response = {id = "resp_1"}})
+		now = 112
+		on_event({type = "response.output_text.delta", delta = ""})
+		now = 113
+		on_event({type = "response.function_call_arguments.delta", delta = "{}"})
+		now = 115
+		on_event({type = "response.completed", response = native_result})
+		return native_result
+	end
+	addNative(stack, "timed-native", native)
+	now = 110
+	t:eq(request(t, stack, "/v1/responses", {model = "lite", input = "hi", stream = true}, TOKEN).status, 200)
+	rows = stack.server.request_logs_repo:list({}, os.time())
+	t:eq(rows[1].ttft_ms, 3000)
+	t:eq(rows[1].generation_ms, 2000)
+	t:eq(rows[1].output_tps, 2.5)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.request_error_codes_cover_timeout_auth_local_and_failed_responses(t)
+	local stack = startStack({providers = {["zai-1"] = fakeProvider({err = "PRIVATE timeout"})}})
+	t:eq(request(t, stack, "/v1/chat/completions", {model = "lite", messages = {}}, TOKEN).status, 502)
+	t:eq(stack.server.request_logs_repo:list({}, os.time())[1].error_code, "timeout")
+	stack.providers_by_name["zai-1"] = fakeProvider({provider_error = {status = 401, message = "PRIVATE", code = "PRIVATE"}})
+	stack.server:reload(stack.channels:list(), stack.models:list())
+	t:eq(request(t, stack, "/v1/chat/completions", {model = "lite", messages = {}}, TOKEN).status, 401)
+	t:eq(stack.server.request_logs_repo:list({}, os.time())[1].error_code, "auth")
+	t:eq(request(t, stack, "/v1/chat/completions", {model = "missing", messages = {}}, TOKEN).status, 404)
+	t:eq(stack.server.request_logs_repo:list({}, os.time())[1].error_code, "model_not_found")
+	t:eq(request(t, stack, "/v1/responses", {model = "lite", input = "hi"}, TOKEN).status, 400)
+	t:eq(stack.server.request_logs_repo:list({}, os.time())[1].error_code, "unsupported_protocol")
+	local failed = {id = "resp_failed", status = "failed", error = {code = "rate_limit_exceeded", message = "PRIVATE"}}
+	addNative(stack, "failed-native", fakeProvider({response = failed}))
+	stack.monitor.refresh = function() end
+	t:eq(request(t, stack, "/v1/responses", {model = "lite", input = "hi"}, TOKEN).status, 200)
+	local rows = stack.server.request_logs_repo:list({}, os.time())
+	t:eq(rows[1].status, 502)
+	t:eq(rows[1].error_code, "rate_limit")
+	t:eq(rows[1].ttft_ms, nil)
+	t:eq(rows[1].output_tps, nil)
+	t:eq(json.encode(rows):find("PRIVATE", 1, true), nil)
 	stack.server:stop()
 	stack.storage:close()
 end

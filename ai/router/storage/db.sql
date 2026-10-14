@@ -79,7 +79,10 @@ CREATE TABLE router_request_logs (
 	input_tokens INTEGER NOT NULL,
 	output_tokens INTEGER NOT NULL,
 	cached_input_tokens INTEGER NOT NULL,
-	estimated INTEGER NOT NULL
+	estimated INTEGER NOT NULL,
+	ttft_ms INTEGER,
+	generation_ms INTEGER,
+	error_code TEXT
 );
 
 CREATE INDEX router_request_logs_created_at ON router_request_logs (created_at);

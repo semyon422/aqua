@@ -18,7 +18,7 @@ local io_util = require("io_util")
 local RouterDatabase = class()
 
 RouterDatabase.path = "userdata/ai_router.db"
-local user_version = 5
+local user_version = 6
 
 ---@param db rdb.SqliteDatabase
 function RouterDatabase:new(db)

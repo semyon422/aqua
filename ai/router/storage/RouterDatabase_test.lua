@@ -8,7 +8,7 @@ function test.creates_empty_database(t)
 	local storage = RouterDatabase(LjsqliteDatabase())
 	storage.path = ":memory:"
 	storage:open()
-	t:eq(storage.db:user_version(), 5)
+	t:eq(storage.db:user_version(), 6)
 	local names = {}
 	for _, row in ipairs(storage.db:query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")) do
 		table.insert(names, row.name)
@@ -32,7 +32,7 @@ function test.migrate_is_idempotent(t)
 	storage.path = ":memory:"
 	storage:open()
 	storage:migrate()
-	t:eq(storage.db:user_version(), 5)
+	t:eq(storage.db:user_version(), 6)
 	t:eq(#storage.models.router_users:select(), 0)
 	storage:close()
 end
@@ -42,9 +42,9 @@ function test.rejects_future_version(t)
 	local storage = RouterDatabase(LjsqliteDatabase())
 	storage.path = ":memory:"
 	storage:open()
-	storage.db:user_version(6)
+	storage.db:user_version(7)
 	t:has_error(function() storage:migrate() end)
-	t:eq(storage.db:user_version(), 6)
+	t:eq(storage.db:user_version(), 7)
 	storage:close()
 end
 
@@ -123,6 +123,21 @@ function test.rejects_version_four_without_adding_request_logs(t)
 	t:eq(db:user_version(), 4)
 	t:eq(db:query("SELECT name FROM router_channels")[1].name, "zai")
 	t:eq(#db:query("SELECT name FROM sqlite_master WHERE name = 'router_request_logs'"), 0)
+	db:close()
+end
+
+---@param t testing.T
+function test.rejects_version_five_without_rewriting_request_history(t)
+	local db = LjsqliteDatabase()
+	db:open(":memory:")
+	db:exec("CREATE TABLE router_request_logs (id INTEGER PRIMARY KEY, model TEXT)")
+	db:exec("INSERT INTO router_request_logs VALUES (7, 'zai/glm')")
+	db:user_version(5)
+	local storage = RouterDatabase(db)
+	t:has_error(function() storage:migrate() end)
+	t:eq(db:user_version(), 5)
+	t:tdeq(db:columns("router_request_logs"), {"id", "model"})
+	t:eq(db:query("SELECT model FROM router_request_logs")[1].model, "zai/glm")
 	db:close()
 end
 

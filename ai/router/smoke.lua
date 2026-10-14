@@ -157,7 +157,7 @@ local mcp_thread = coext.detach(coroutine.create(function()
 	local _, mcp_port = mcp:getAddress()
 	local client = McpClient({url = ("http://127.0.0.1:%d/mcp"):format(mcp_port), token = "smoke-management-token", scheduler = scheduler})
 	assert(client:initialize())
-	assert(#assert(client:listTools()).tools == 17)
+	assert(#assert(client:listTools()).tools == 18)
 	local saved = assert(client:callTool("router_save_channel", {
 		name = "local-llama", kind = "openai_compat",
 		config = {base_url = ("http://127.0.0.1:%d/v1"):format(upstream_port), models = {"llama-70b"}},
@@ -167,6 +167,16 @@ local mcp_thread = coext.detach(coroutine.create(function()
 		name = "native-openai", kind = "openai", config = {models = {"gpt-native"}},
 	}))
 	assert(not native.isError, native.content[1].text)
+	for _, selection in ipairs({{id = saved.structuredContent.channel.id, model = "llama-70b"},
+		{id = native.structuredContent.channel.id, model = "gpt-native"}}) do
+		local diagnostic = assert(client:callTool("router_test_channel", selection))
+		assert(not diagnostic.isError)
+		assert(diagnostic.structuredContent.probe.ok)
+		assert(diagnostic.structuredContent.probe.output_tokens == 4)
+		assert(diagnostic.structuredContent.probe.response == nil)
+	end
+	assert(#usage_repo:history(os.time()).rows == 0)
+	assert(#server.request_logs_repo:list({}, os.time()) == 0)
 	local created = assert(client:callTool("router_create_user", {name = "smoke-user", models = {"local-llama/llama-70b", "native-openai/gpt-native"}}))
 	assert(not created.isError, created.content[1].text)
 	user_key = created.structuredContent.api_key
@@ -198,7 +208,7 @@ assert(r.status == 200, "inference failed: " .. r.status .. " " .. r.body:sub(1,
 local completion = json.decode(r.body)
 assert(completion.choices[1].message.content == "mock reply", "wrong content")
 assert(completion.usage.prompt_tokens == 9, "wrong usage")
-assert(upstream_requests == 1, "upstream not called")
+assert(upstream_requests == 3, "inference and two explicit probes must each call upstream once")
 
 -- models endpoint shows the granted model
 local models_response, models_err
@@ -250,9 +260,9 @@ for _, row in ipairs(usage_repo:history(os.time()).rows) do
 		found_native = true
 	end
 end
-assert(found_native and upstream_requests == 3, "native usage missing")
+assert(found_native and upstream_requests == 5, "native usage missing")
 
-print("SMOKE OK: MCP -> user -> channels -> native Responses/Chat Completions -> usage; dashboard read-only")
+print("SMOKE OK: MCP -> channel probes -> user -> native Responses/Chat Completions -> usage; dashboard read-only")
 print("upstream requests:", upstream_requests)
 upstream_server:stop()
 mcp:stop()

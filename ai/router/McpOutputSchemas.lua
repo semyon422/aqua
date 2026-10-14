@@ -82,6 +82,13 @@ local results = {
 	startLogin = object({id = integer, login = login}, {"id", "login"}),
 	loginStatus = object({id = integer, login = login}, {"id", "login"}),
 	refreshUsage = object({scheduled_id = integer}, {"scheduled_id"}),
+	testChannel = object({probe = object({id = integer, channel = text, model = text, upstream_model = text,
+		protocol = enum({"responses", "chat_completions"}), ok = flag, status = integer,
+		duration_ms = {type = "integer", minimum = 0},
+		error_code = enum({"rate_limit", "concurrency_limit", "timeout", "auth", "client_disconnected", "model_not_found",
+			"unsupported_protocol", "invalid_request", "upstream_unavailable", "upstream_error", "internal_error"}),
+		input_tokens = integer, output_tokens = integer, cached_input_tokens = integer},
+		{"id", "channel", "model", "upstream_model", "protocol", "ok", "status", "duration_ms"})}, {"probe"}),
 	reloadCatalog = object({operation = operation, error = text}, {"operation"}),
 }
 

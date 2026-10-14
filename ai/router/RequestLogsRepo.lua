@@ -15,6 +15,10 @@ local class = require("class")
 ---@field output_tokens integer
 ---@field cached_input_tokens integer
 ---@field estimated boolean
+---@field ttft_ms integer? first nonempty streamed output, including reasoning/tool arguments
+---@field generation_ms integer? first output to provider completion
+---@field output_tps number? derived only for successful streams with reported usage
+---@field error_code ai.router.RequestErrorCode?
 
 ---@class ai.router.RequestLogFilters
 ---@field before integer?
@@ -77,6 +81,12 @@ function RequestLogsRepo:list(filters, now)
 		end
 		row.stream = row.stream == 1
 		row.estimated = row.estimated == 1
+		row.ttft_ms = tonumber(row.ttft_ms)
+		row.generation_ms = tonumber(row.generation_ms)
+		if row.stream and row.status < 400 and not row.estimated and row.output_tokens > 0
+			and row.ttft_ms and row.generation_ms and row.generation_ms > 0 then
+			row.output_tps = row.output_tokens * 1000 / row.generation_ms
+		end
 	end
 	local next_before
 	if #rows > self.page_size then

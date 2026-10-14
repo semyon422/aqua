@@ -10,6 +10,7 @@ local Router = require("ai.router.Router")
 local Provider = require("ai.router.Provider")
 local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
 local RequestLogsRepo = require("ai.router.RequestLogsRepo")
+local RequestMetrics = require("ai.router.RequestMetrics")
 
 -- The authenticated OpenAI-compatible router endpoint. Resolves public
 -- models through ai.router.Router to one explicit channel,
@@ -133,7 +134,9 @@ end
 ---@param message string
 ---@param error_type string
 ---@param code string
-local function sendError(res, status, message, error_type, code)
+---@param metrics ai.router.RequestMetrics?
+local function sendError(res, status, message, error_type, code, metrics)
+	if metrics then metrics:setError(status, code) end
 	local body = json.encode({
 		error = {
 			message = message,
@@ -312,8 +315,9 @@ end
 ---@param completion_id string
 ---@param created integer
 ---@param include_usage boolean
+---@param metrics ai.router.RequestMetrics
 ---@return ai.router.AttemptResult
-local function attempt(self, res, request, public_model, candidate, completion_id, created, include_usage)
+local function attempt(self, res, request, public_model, candidate, completion_id, created, include_usage, metrics)
 	local provider = self.providers[candidate.channel.id]
 	if not provider then
 		return {status_code = 503}
@@ -336,6 +340,7 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 		local ok, message, err, provider_error = pcall(provider.complete, provider, body, upstream_model)
 		if not ok then message, err = nil, "upstream request failed" end
 		if not message then
+			metrics:providerError(err, provider_error)
 			local status = provider_error and provider_error.status
 			return {
 				status_code = status or 502,
@@ -376,6 +381,7 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 	end
 	local ok, message, err, provider_error = pcall(provider.completeStream, provider, body, upstream_model, function(delta)
 		if downstream_closed then return false end
+		if RequestMetrics.chatOutput(delta) then metrics:markOutput() end
 		-- Role announcements and empty deltas are not assistant output.
 		if not committed then
 			local has_output = false
@@ -396,8 +402,10 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 		end
 		return true
 	end)
+	metrics:finishGeneration()
 	if not ok then message, err = nil, "upstream request failed" end
 	if not message then
+		metrics:providerError(err, provider_error)
 		if downstream_closed then
 			return {status_code = 499, downstream_closed = true}
 		end
@@ -468,8 +476,9 @@ end
 ---@param public_model string
 ---@param candidate ai.router.Candidate
 ---@param session_id string?
+---@param metrics ai.router.RequestMetrics
 ---@return ai.router.AttemptResult
-local function attemptResponse(self, res, request, public_model, candidate, session_id)
+local function attemptResponse(self, res, request, public_model, candidate, session_id, metrics)
 	local provider = self.providers[candidate.channel.id]
 	if not provider then return {status_code = 503} end
 	local committed, downstream_closed = false, false
@@ -481,6 +490,7 @@ local function attemptResponse(self, res, request, public_model, candidate, sess
 		---@return boolean
 		function callback(event)
 			if downstream_closed then return false end
+			if RequestMetrics.responseOutput(event) then metrics:markOutput() end
 			sequence_number = type(event.sequence_number) == "number" and event.sequence_number or sequence_number + 1
 			committed = true
 			if not startEventStream(res) then downstream_closed = true return false end
@@ -495,11 +505,13 @@ local function attemptResponse(self, res, request, public_model, candidate, sess
 			return true
 		end
 	end
-	local ok, response, _, provider_error = pcall(provider.createResponse, provider,
+	local ok, response, err, provider_error = pcall(provider.createResponse, provider,
 		request, candidate.upstream_model, session_id, callback)
-	if not ok then response = nil end
+	metrics:finishGeneration()
+	if not ok then response, err = nil, "upstream request failed" end
 	if downstream_closed then return {status_code = 499, downstream_closed = true} end
 	if not response then
+		metrics:providerError(err, provider_error)
 		local error_body = provider_error or {message = "upstream request failed", type = "upstream_error", code = "upstream_error"}
 		local status = error_body.status
 		---@type ai.router.AttemptResult
@@ -523,6 +535,9 @@ local function attemptResponse(self, res, request, public_model, candidate, sess
 		sent = sendJson(res, publicResponse(response, public_model))
 	end
 	local response_error = response.error
+	if response.status == "failed" then
+		metrics:providerError(nil, type(response_error) == "table" and response_error or nil)
+	end
 	return {response = response, downstream_closed = not sent,
 		refresh_usage = type(response_error) == "table"
 			and (response_error.code == "rate_limit_exceeded" or response_error.type == "rate_limit_error"),
@@ -535,9 +550,11 @@ end
 ---@param user ai.router.UserRow
 ---@param protocol "responses"|"chat_completions"?
 ---@param session_id string?
+---@param metrics ai.router.RequestMetrics?
 ---@return integer status
 ---@return ai.router.AttemptResult? result
-function Server:complete(res, request, user, protocol, session_id)
+function Server:complete(res, request, user, protocol, session_id, metrics)
+	metrics = metrics or RequestMetrics(self.get_time)
 	local public_model = request.model
 	---@type {[string]: boolean}
 	local grants = {}
@@ -546,24 +563,24 @@ function Server:complete(res, request, user, protocol, session_id)
 	end
 	if type(public_model) ~= "string" or not grants[public_model]
 		or not self.router.state.public_models[public_model] then
-		sendError(res, 404, "model is not available", "invalid_request_error", "model_not_found")
+		sendError(res, 404, "model is not available", "invalid_request_error", "model_not_found", metrics)
 		return 404
 	end
 	local candidate = self.router:resolve(public_model)
 	if not candidate then
-		sendError(res, 503, "no upstream is available for this model", "upstream_error", "upstream_unavailable")
+		sendError(res, 503, "no upstream is available for this model", "upstream_error", "upstream_unavailable", metrics)
 		return 503
 	end
 	local native = protocol == "responses"
 	if (candidate.channel.kind == "openai") ~= native then
 		sendError(res, 400, "model is not available on this endpoint; use its native protocol",
-			"invalid_request_error", "unsupported_protocol")
+			"invalid_request_error", "unsupported_protocol", metrics)
 		return 400
 	end
 	if native then
 		local message, code = ResponsesProtocol.validateRequest(request)
 		if message then
-			sendError(res, 400, message, "invalid_request_error", assert(code))
+			sendError(res, 400, message, "invalid_request_error", assert(code), metrics)
 			return 400
 		end
 		session_id = session_id or ResponsesProtocol.cacheSessionId(request.prompt_cache_key)
@@ -575,16 +592,16 @@ function Server:complete(res, request, user, protocol, session_id)
 	local include_usage = type(stream_options) == "table" and stream_options.include_usage == true or false
 	local result
 	if native then
-		result = attemptResponse(self, res, request, public_model, candidate, session_id)
+		result = attemptResponse(self, res, request, public_model, candidate, session_id, metrics)
 	else
-		result = attempt(self, res, request, public_model, candidate, completion_id, created, include_usage)
+		result = attempt(self, res, request, public_model, candidate, completion_id, created, include_usage, metrics)
 	end
 	result.channel, result.upstream_model = candidate.channel.name, candidate.upstream_model
 	if result.refresh_usage then self.monitor:refresh(candidate.channel.id) end
 	local status = result.status_code
 	if status >= 400 and not res.headers_sent and not result.downstream_closed then
 		local err = result.provider_error or {message = "upstream is unavailable", type = "upstream_error", code = "upstream_unavailable"}
-		sendError(res, status, err.message, err.type, err.code)
+		sendError(res, status, err.message, err.type, err.code, metrics)
 	end
 	return status, result
 end
@@ -636,7 +653,8 @@ function Server:handle(req, res, ip)
 	if self.admin_handler and self.admin_handler(req, res) then
 		return
 	end
-	local started_at = self.get_time()
+	local metrics = RequestMetrics(self.get_time)
+	local started_at = metrics.started_at
 	local created_at = os.time()
 	local token = self:authenticate(req)
 	local user = token and self.users_repo:findByKeyHash(digest.hash("sha256", token, true)) or nil
@@ -665,11 +683,11 @@ function Server:handle(req, res, ip)
 		status = 404
 	elseif not self:consumeRateLimit(tostring(user.id), user.max_rpm) then
 		res.headers:set("Retry-After", 60)
-		sendError(res, 429, "rate limit exceeded", "rate_limit_error", "rate_limit_exceeded")
+		sendError(res, 429, "rate limit exceeded", "rate_limit_error", "rate_limit_exceeded", metrics)
 		status = 429
 	elseif not self:acquireRequest(tostring(user.id), user.max_concurrency) then
 		res.headers:set("Retry-After", 1)
-		sendError(res, 429, "too many concurrent requests", "rate_limit_error", "concurrency_limit_exceeded")
+		sendError(res, 429, "too many concurrent requests", "rate_limit_error", "concurrency_limit_exceeded", metrics)
 		status = 429
 	else
 		should_record = true
@@ -677,28 +695,28 @@ function Server:handle(req, res, ip)
 			local transfer_encodings = req.headers:getTable("Transfer-Encoding")
 			local content_lengths = req.headers:getTable("Content-Length")
 			if #transfer_encodings > 0 then
-				sendError(res, 400, "Transfer-Encoding is not supported", "invalid_request_error", "unsupported_transfer_encoding")
+				sendError(res, 400, "Transfer-Encoding is not supported", "invalid_request_error", "unsupported_transfer_encoding", metrics)
 				status = 400
 			elseif #content_lengths == 0 then
-				sendError(res, 411, "Content-Length is required", "invalid_request_error", "length_required")
+				sendError(res, 411, "Content-Length is required", "invalid_request_error", "length_required", metrics)
 				status = 411
 			elseif #content_lengths ~= 1 then
-				sendError(res, 400, "multiple Content-Length headers are not allowed", "invalid_request_error", "invalid_content_length")
+				sendError(res, 400, "multiple Content-Length headers are not allowed", "invalid_request_error", "invalid_content_length", metrics)
 				status = 400
 			else
 				local content_length = tonumber(content_lengths[1])
 				if not content_length then
-					sendError(res, 400, "Content-Length is invalid", "invalid_request_error", "invalid_content_length")
+					sendError(res, 400, "Content-Length is invalid", "invalid_request_error", "invalid_content_length", metrics)
 					status = 400
 				elseif content_length > self.max_body_size then
-					sendError(res, 413, "request body is too large", "invalid_request_error", "request_too_large")
+					sendError(res, 413, "request body is too large", "invalid_request_error", "request_too_large", metrics)
 					status = 413
 				else
 					local body, receive_err = req:receive("*a")
 					if body then
 						local decoded, decode_err = json.decode_safe(body)
 						if type(decoded) ~= "table" then
-							sendError(res, 400, "invalid JSON body: " .. tostring(decode_err), "invalid_request_error", "invalid_json")
+							sendError(res, 400, "invalid JSON body: " .. tostring(decode_err), "invalid_request_error", "invalid_json", metrics)
 							status = 400
 						else
 							request = decoded
@@ -706,15 +724,15 @@ function Server:handle(req, res, ip)
 							local session_id, session_err
 							if native then session_id, session_err = ResponsesProtocol.getSessionAffinity(req) end
 							if session_err then
-								sendError(res, 400, session_err, "invalid_request_error", "invalid_session_affinity")
+									sendError(res, 400, session_err, "invalid_request_error", "invalid_session_affinity", metrics)
 								status = 400
 							else
 								status, attempt_result = self:complete(res, request, user,
-									native and "responses" or "chat_completions", session_id)
+										native and "responses" or "chat_completions", session_id, metrics)
 							end
 						end
 					else
-						sendError(res, 400, "invalid JSON body: " .. tostring(receive_err), "invalid_request_error", "invalid_json")
+						sendError(res, 400, "invalid JSON body: " .. tostring(receive_err), "invalid_request_error", "invalid_json", metrics)
 						status = 400
 					end
 				end
@@ -723,6 +741,7 @@ function Server:handle(req, res, ip)
 		self:releaseRequest(tostring(user.id))
 		if not ok then
 			status = 500
+			metrics.error_code = "internal_error"
 			-- Never expose exception text or replace a committed SSE response with JSON.
 			pcall(function()
 				if res.headers_sent then
@@ -756,6 +775,8 @@ function Server:handle(req, res, ip)
 				output_tokens = counters and counters.output_tokens or 0,
 				cached_input_tokens = counters and counters.cached_input_tokens or 0,
 				estimated = not counters or counters.estimated,
+				ttft_ms = metrics:ttftMs(), generation_ms = metrics:generationMs(),
+				error_code = metrics:outcomeCode(status),
 			})
 		end)
 		if not logged then self.logger("request log write failed") end
