@@ -18,6 +18,7 @@ Provide a standalone multi-channel router: one server that authenticates named u
 - The admin panel shows informational 5-hour and weekly window fill, data source, freshness and reset times. Quotas never affect routing.
 - A single Channels page combines configuration and live status: bare model names with inline redirects, separate 5h/weekly quotas, token counts, update age, reset time and OpenAI login status. Channel prefixes are omitted only in this per-channel table; client model IDs and the Models page remain qualified. Upstream quotas have no `(upstream)` suffix; local quota estimates are labelled explicitly.
 - The kind cell shows OpenAI login status or Z.ai API-key presence as muted secondary text, matching quota details. No separate login column or key value is displayed.
+- The read-only Requests page lists completed authenticated inference attempts: ID, start time, user, requested model, selected channel, upstream model, protocol, streaming, logical status, total duration, input/cache/output tokens. Exact-match user/model/channel and success/error filters combine with stable 50-row cursor pagination. Estimated counts have a `~` prefix. No prompts, responses, credentials or error text are stored.
 
 ## Architecture Decisions
 
@@ -29,7 +30,8 @@ Provide a standalone multi-channel router: one server that authenticates named u
   - `ai.router.Router` — pure resolution of a qualified name or alias to exactly one enabled channel and its unqualified upstream model. No clock or quota state is needed.
   - `ai.router.UsageMonitor` — polls upstream usage endpoints and maintains per-channel window fill state; runs as a scheduler task.
    - `ai.router.Provider` declares Chat Completions canonical message/delta shapes and shared usage normalization. Native Responses bypass the canonical assistant-message shape so provider-owned output items and typed events are not lost.
-   - `ai.router.storage.RouterDatabase` plus repos follow the SQLite/rdb pattern. Schema version 4 uses channel tables/columns and qualified alias targets; earlier databases are rejected without modification. No runtime migration is provided.
+   - `ai.router.storage.RouterDatabase` plus repos follow the SQLite/rdb pattern. Schema version 5 adds bounded request metadata to the channel tables/columns and qualified alias targets; earlier databases are rejected without modification. No runtime migration is provided.
+   - `ai.router.RequestLogsRepo` persists individual completion records independently of hourly usage, retaining at most 10,000 entries for seven days. Inserts prune expired/excess rows; reads hide expired rows even when idle. Log write failures are sanitized and never change the inference outcome.
   - `ai.router.AdminPages` — server-rendered etlua (`web.etlua`) HTML with a small self-contained stylesheet and no external assets; charts reuse the existing usage dashboard approach.
   - `ai.router.Management` — management domain operations, public/redacted views, full hypothetical-catalog validation, pending-login guards, synchronous SQLite transactions and selective catalog reloads with explicit persistence/application outcomes. No dependency on HTML or HTTP forms.
   - `ai.router.McpTools` — MCP-native tools with closed input schemas and read-only/destructive annotations; returns JSON text plus structured content. Domain validation errors are bounded, and unexpected errors never reflect SQL, credentials, OAuth responses, or stack traces.
@@ -89,8 +91,9 @@ Provide a standalone multi-channel router: one server that authenticates named u
 - MCP config patches preserve omitted credentials for same-kind edits; changing kind does not inherit the previous kind's config. Limits are complete replacements when supplied. Creation with `enabled=false` persists disabled, rather than silently enabling. General config reads omit API keys; URLs with userinfo, query strings or fragments are entirely redacted.
 - Every upstream request carries a unique `x-client-request-id`; bounded provider error details are returned with the matching request id.
 - Statistics and local quota estimates are derived without storing message content; aggregates use one upsert per completed request.
+- Request-log IDs are monotonically increasing completion-order cursors, not upstream request IDs. Rows retain start time and user/model/channel snapshots across renames/deletes. Duration includes streaming. Cache tokens are part of input, not additional consumption. Logical stream failures may be 502 after HTTP 200; downstream failures are 499. Malformed-body and pre-body rate/concurrency rejections have unknown model/channel and estimated zero tokens; invalid/disabled credentials and non-inference routes are excluded. Request logs do not change aggregate accounting or local quota estimates.
 
-## Data Model (schema version 4)
+## Data Model (schema version 5)
 
 ```sql
 CREATE TABLE router_users (
@@ -157,6 +160,24 @@ CREATE TABLE router_usage_models (
 	estimated_requests INTEGER NOT NULL DEFAULT 0,
 	PRIMARY KEY (bucket, user, model, upstream_model, channel)
 );
+
+CREATE TABLE router_request_logs (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	created_at INTEGER NOT NULL,
+	user TEXT NOT NULL,
+	model TEXT NOT NULL,
+	channel TEXT NOT NULL,
+	upstream_model TEXT NOT NULL,
+	protocol TEXT NOT NULL,
+	stream INTEGER NOT NULL,
+	status INTEGER NOT NULL,
+	duration_ms INTEGER NOT NULL,
+	input_tokens INTEGER NOT NULL,
+	output_tokens INTEGER NOT NULL,
+	cached_input_tokens INTEGER NOT NULL,
+	estimated INTEGER NOT NULL
+);
+CREATE INDEX router_request_logs_created_at ON router_request_logs (created_at);
 ```
 
 - `router_channels.config` JSON shape per kind:
@@ -181,6 +202,7 @@ CREATE TABLE router_usage_models (
 - `GET /admin/channels` — channels, unqualified models/redirects, quotas, token counts, freshness, reset times and OAuth status. No authorization code, credential or mutation controls. Replaces both old configuration/status pages; authenticated GETs to `/admin/subscriptions` and `/admin/status` redirect here. There is no separate Status navigation entry or template.
 - `GET /admin/models` — public catalog and simple aliases with their targets.
 - Usage: totals, per-user, per-model, and per-channel views over 24/168 hourly buckets with charts, cost estimates, errors, and estimated counts.
+- `GET /admin/requests` — bounded request history with optional `user`, `model`, `channel`, `outcome=success|error` and `before` ID cursor. No mutation controls; refresh to see newer completions. Times use the server timezone. Historical aggregates cannot reconstruct individual requests from before this feature.
 
 ## MCP Management
 
@@ -228,7 +250,8 @@ Configuration migration: every deployed router config (normally ignored `userdat
 
 ### Database Compatibility
 
-- Runtime initialization accepts only fresh or version-4 databases and never migrates existing data. Alias targets and grants keep the same qualified IDs; channel names are unchanged by this terminology update.
+- Runtime initialization accepts only fresh or version-5 databases and never migrates existing data. Alias targets, grants, credentials and aggregate history remain unchanged.
+- Before upgrading schema 4, stop the router and make a consistent SQLite backup (including WAL). In a manual transaction, create only `router_request_logs` and its index using the definitions above, then set `PRAGMA user_version=5` and commit. Verify that all pre-existing tables/rows are unchanged. Request history starts empty; do not fabricate rows from aggregates. Deployed router databases require this out-of-band conversion before restart; no new `userdata/ai_router.lua` configuration fields are required.
 - Before upgrading schema 3, stop the router and back up SQLite consistently (including WAL). Convert out of band: rename `router_subscriptions` to `router_channels`, `router_subscription_windows` to `router_channel_windows`, its `subscription_id` column to `channel_id`, and `router_usage_models.subscription` to `channel`. Replace `router_usage_subscription_bucket` with `router_usage_channel_bucket(channel, bucket)` and set `user_version=4`. Preserve all row values, hashes, credentials, grants, aliases and historical usage.
 - Older schemas first need removal of priority/threshold fields and qualification of targets/grants. Resolve ambiguous old names explicitly rather than choosing a channel silently; never relabel usage history as if requests originally used qualified names.
 - Production router configs (`userdata/ai_router.lua` or the configured path) should remove obsolete `cooldown_seconds`/`unhealthy_cooldown` and `staleness`. Management clients must stop sending priority/thresholds; inference clients must use qualified names or explicit aliases. These environment-specific changes are not performed automatically by deployment.
@@ -245,6 +268,7 @@ Configuration migration: every deployed router config (normally ignored `userdat
 - Adapters are tested with fake HTTP streams and schedulers for validation, usage accounting and SSE fidelity.
 - `UsageMonitor` tests cover fake upstream responses, aggregate-driven local estimates and in-memory snapshot lifetime.
 - Repos and database initialization are tested like `ai.openai.storage` (`RouterDatabase_test.lua`), including rejection of the old schema without modifying its rows or columns.
+- Request-log tests cover individual metadata persistence, safe combined filters, stable pagination with new inserts, age/count retention, booleans/numeric SQLite normalization, both protocols, JSON/SSE, local/upstream/post-commit errors, 499 cancellation, secret non-disclosure, write-failure isolation and authenticated read-only escaped HTML.
 - Admin pages are tested for login/logout CSRF, read-only boundaries, secret/code non-disclosure, merged channel quotas/freshness/reset details, local estimates, unprefixed model/redirect rows, absent upstream suffixes and legacy page redirects. Management and device-login behavior are covered by MCP tests.
 - `McpTools_test` uses the native `mcp.Client` over real loopback sockets: initialization/discovery, dedicated-token and Origin enforcement, schema rejection, user key revocation without provider reload, transaction rollback, config patch credential preservation, disabled creation, catalog/alias validation, OAuth status/pending guards, usage and status, and committed reload failures with saved payloads and non-replaying recovery.
 - Run with `./test aqua/ai/router`.

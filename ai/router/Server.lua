@@ -9,6 +9,7 @@ local Catalog = require("ai.router.Catalog")
 local Router = require("ai.router.Router")
 local Provider = require("ai.router.Provider")
 local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
+local RequestLogsRepo = require("ai.router.RequestLogsRepo")
 
 -- The authenticated OpenAI-compatible router endpoint. Resolves public
 -- models through ai.router.Router to one explicit channel,
@@ -19,6 +20,7 @@ local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
 ---@operator call: ai.router.Server
 ---@field users_repo ai.router.UsersRepo
 ---@field usage_repo ai.router.UsageRepo
+---@field request_logs_repo ai.router.RequestLogsRepo
 ---@field monitor ai.router.UsageMonitor
 ---@field router ai.router.Router
 ---@field providers {[integer]: ai.router.ProviderMethods}
@@ -66,6 +68,7 @@ Server.max_requests_per_minute = 120
 function Server:new(options)
 	assert(options.provider_factory, "provider_factory is required")
 	self.users_repo = options.users_repo
+	self.request_logs_repo = RequestLogsRepo(options.users_repo.models)
 	self.usage_repo = options.usage_repo
 	self.monitor = options.monitor
 	self.provider_factory = options.provider_factory
@@ -586,16 +589,10 @@ function Server:complete(res, request, user, protocol, session_id)
 	return status, result
 end
 
--- Records one completed request. Called for every authenticated inference
--- attempt, including local rejections and upstream errors.
----@param now number
----@param user ai.router.UserRow
----@param status integer
----@param request {[string]: any}?
+---@param request {[string]: any}
 ---@param result ai.router.AttemptResult?
-function Server:record(now, user, status, request, result)
-	if not request then return end
-	local public_model = type(request.model) == "string" and request.model or ""
+---@return ai.router.UsageCounters
+local function requestCounters(request, result)
 	local message = result and result.message
 	local response = result and result.response
 	local usage = response and Provider.canonicalUsage(response.usage) or message and message.usage
@@ -608,6 +605,19 @@ function Server:record(now, user, status, request, result)
 		output_tokens = response and estimate(response.output)
 			or message and estimate({content = message.content, tool_calls = message.tool_calls}) or 0
 	end
+	return {input_tokens = input_tokens, output_tokens = output_tokens,
+		cached_input_tokens = cached, estimated = usage == nil}
+end
+
+-- Aggregate accounting remains separate from the bounded per-request log.
+---@param now number
+---@param user ai.router.UserRow
+---@param status integer
+---@param request {[string]: any}?
+---@param result ai.router.AttemptResult?
+function Server:record(now, user, status, request, result)
+	if not request then return end
+	local public_model = type(request.model) == "string" and request.model or ""
 	local channel = ""
 	local upstream_model = ""
 	if result then
@@ -615,12 +625,7 @@ function Server:record(now, user, status, request, result)
 		if result.upstream_model then upstream_model = result.upstream_model end
 	end
 	pcall(function()
-		self.usage_repo:record(now, user.name, status, public_model, upstream_model, channel, {
-			input_tokens = input_tokens,
-			output_tokens = output_tokens,
-			cached_input_tokens = cached,
-			estimated = usage == nil,
-		})
+		self.usage_repo:record(now, user.name, status, public_model, upstream_model, channel, requestCounters(request, result))
 	end)
 end
 
@@ -632,6 +637,7 @@ function Server:handle(req, res, ip)
 		return
 	end
 	local started_at = self.get_time()
+	local created_at = os.time()
 	local token = self:authenticate(req)
 	local user = token and self.users_repo:findByKeyHash(digest.hash("sha256", token, true)) or nil
 	---@type integer
@@ -734,6 +740,25 @@ function Server:handle(req, res, ip)
 	end
 	if should_record and user then
 		self:record(os.time(), user, status, request, attempt_result)
+	end
+	if user and not user.disabled and req.method == "POST"
+		and (path == "/v1/responses" or path == "/v1/chat/completions") then
+		local logged = pcall(function()
+			local counters = request and requestCounters(request, attempt_result)
+			self.request_logs_repo:record({created_at = created_at, user = user.name,
+				model = request and type(request.model) == "string" and request.model:sub(1, 193) or "",
+				channel = attempt_result and attempt_result.channel or "",
+				upstream_model = attempt_result and attempt_result.upstream_model or "",
+				protocol = path == "/v1/responses" and "responses" or "chat_completions",
+				stream = request ~= nil and request.stream == true,
+				status = status, duration_ms = math.max(0, math.floor((self.get_time() - started_at) * 1000)),
+				input_tokens = counters and counters.input_tokens or 0,
+				output_tokens = counters and counters.output_tokens or 0,
+				cached_input_tokens = counters and counters.cached_input_tokens or 0,
+				estimated = not counters or counters.estimated,
+			})
+		end)
+		if not logged then self.logger("request log write failed") end
 	end
 	self.logger(("user=%s ip=%s method=%s path=%s status=%d duration=%.3fs")
 		:format(

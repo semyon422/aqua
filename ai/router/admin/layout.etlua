@@ -15,6 +15,11 @@ nav a { margin-right: 1rem; }
 code { background: #f4f4f4; padding: 0.1rem 0.3rem; }
 .inline { display: inline; }
 .muted { color: #777; }
+.scroll { overflow-x: auto; }
+.filters { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: end; }
+.filters label { display: grid; gap: 0.2rem; }
+.filters input { width: 11rem; }
+.error { color: #b42318; }
 h2 { margin-top: 1.6rem; }
 </style>
 </head>
@@ -24,6 +29,7 @@ h2 { margin-top: 1.6rem; }
 <a href="/admin/channels">Channels</a>
 <a href="/admin/models">Models</a>
 <a href="/admin/usage">Usage</a>
+<a href="/admin/requests">Requests</a>
 <form class="inline" method="post" action="/admin/logout">
 <input type="hidden" name="csrf_token" value="<%= csrf_token %>">
 <button type="submit">Logout</button>

@@ -8,7 +8,7 @@ function test.creates_empty_database(t)
 	local storage = RouterDatabase(LjsqliteDatabase())
 	storage.path = ":memory:"
 	storage:open()
-	t:eq(storage.db:user_version(), 4)
+	t:eq(storage.db:user_version(), 5)
 	local names = {}
 	for _, row in ipairs(storage.db:query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")) do
 		table.insert(names, row.name)
@@ -17,9 +17,11 @@ function test.creates_empty_database(t)
 		"router_channel_windows",
 		"router_channels",
 		"router_models",
+		"router_request_logs",
 		"router_usage_models",
 		"router_user_models",
 		"router_users",
+		"sqlite_sequence",
 	})
 	storage:close()
 end
@@ -30,7 +32,7 @@ function test.migrate_is_idempotent(t)
 	storage.path = ":memory:"
 	storage:open()
 	storage:migrate()
-	t:eq(storage.db:user_version(), 4)
+	t:eq(storage.db:user_version(), 5)
 	t:eq(#storage.models.router_users:select(), 0)
 	storage:close()
 end
@@ -40,9 +42,9 @@ function test.rejects_future_version(t)
 	local storage = RouterDatabase(LjsqliteDatabase())
 	storage.path = ":memory:"
 	storage:open()
-	storage.db:user_version(5)
+	storage.db:user_version(6)
 	t:has_error(function() storage:migrate() end)
-	t:eq(storage.db:user_version(), 5)
+	t:eq(storage.db:user_version(), 6)
 	storage:close()
 end
 
@@ -106,6 +108,21 @@ function test.rejects_subscription_schema_without_renaming_data(t)
 	t:eq(db:user_version(), 3)
 	t:eq(db:query("SELECT name FROM router_subscriptions")[1].name, "openai")
 	t:eq(db:query("SELECT subscription FROM router_usage_models")[1].subscription, "openai")
+	db:close()
+end
+
+---@param t testing.T
+function test.rejects_version_four_without_adding_request_logs(t)
+	local db = LjsqliteDatabase()
+	db:open(":memory:")
+	db:exec("CREATE TABLE router_channels (id INTEGER PRIMARY KEY, name TEXT)")
+	db:exec("INSERT INTO router_channels VALUES (3, 'zai')")
+	db:user_version(4)
+	local storage = RouterDatabase(db)
+	t:has_error(function() storage:migrate() end)
+	t:eq(db:user_version(), 4)
+	t:eq(db:query("SELECT name FROM router_channels")[1].name, "zai")
+	t:eq(#db:query("SELECT name FROM sqlite_master WHERE name = 'router_request_logs'"), 0)
 	db:close()
 end
 

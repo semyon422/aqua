@@ -38,7 +38,7 @@ function AdminPages:new(options)
 	self.get_time = options.get_time or os.time
 	self.sessions = Sessions("router_admin", options.password, false)
 	self.templates = {}
-	for _, name in ipairs({"layout", "login", "users", "channels", "models", "usage"}) do
+	for _, name in ipairs({"layout", "login", "users", "channels", "models", "usage", "requests"}) do
 		self.templates[name] = etlua.compile(io_util.read_file("aqua/ai/router/admin/" .. name .. ".etlua"), "@" .. name)
 	end
 end
@@ -121,7 +121,8 @@ function AdminPages:handle(req, res)
 		return true
 	end
 	local pages = { ["/admin/users"] = self.pageUsers, ["/admin/channels"] = self.pageChannels,
-		["/admin/models"] = self.pageModels, ["/admin/usage"] = self.pageUsage }
+		["/admin/models"] = self.pageModels, ["/admin/usage"] = self.pageUsage,
+		["/admin/requests"] = self.pageRequests }
 	if pages[path] then pages[path](self, res, session, query)
 	else send(res, 404, "Unknown admin page.") end
 	return true
@@ -199,6 +200,32 @@ function AdminPages:pageUsage(res, session, query)
 		table.insert(sections, {title = group.title, rows = rows})
 	end
 	self:render(res, session, "Usage", self.templates.usage({hours = hours, totals = totals, sections = sections}))
+end
+
+---@param res web.Response
+---@param session {csrf_token: string}
+---@param query {[string]: string}
+function AdminPages:pageRequests(res, session, query)
+	---@type ai.router.RequestLogFilters
+	local filters = {}
+	for _, key in ipairs({"user", "model", "channel"}) do
+		local value = query[key]
+		if value and #value <= 193 and value ~= "" then filters[key] = value end
+	end
+	if query.outcome == "success" or query.outcome == "error" then filters.outcome = query.outcome end
+	local before = tonumber(query.before)
+	if before and before >= 1 and before < 2 ^ 53 and before % 1 == 0 then filters.before = before end
+	local repo = self.server.request_logs_repo
+	local rows, next_before = repo:list(filters, self.get_time())
+	local older_url
+	if next_before then
+		---@type {[string]: string}
+		local params = {before = tostring(next_before)}
+		for _, key in ipairs({"user", "model", "channel", "outcome"}) do params[key] = filters[key] end
+		older_url = "/admin/requests?" .. http_util.encode_query_string(params)
+	end
+	self:render(res, session, "Requests", self.templates.requests({rows = rows, filters = filters,
+		older_url = older_url, max_rows = repo.max_rows, retention_days = repo.retention_seconds / 86400}))
 end
 
 ---@class ai.router.UsageTotals

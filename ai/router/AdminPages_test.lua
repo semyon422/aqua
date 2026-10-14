@@ -220,4 +220,41 @@ function test.zai_key_status_is_muted_in_kind_column_and_hides_key(t)
 	stack:close()
 end
 
+---@param t testing.T
+function test.request_log_page_is_authenticated_filtered_paginated_and_escaped(t)
+	local stack = Stack()
+	local repo = stack.server.request_logs_repo
+	repo.page_size = 2
+	for index = 1, 4 do
+		repo:record({created_at = os.time(), user = "alice", model = "<script>private</script>",
+			channel = "zai", upstream_model = "glm", protocol = "chat_completions", stream = index == 1,
+			status = index == 4 and 200 or 502, duration_ms = 1250,
+			input_tokens = 10, cached_input_tokens = 2, output_tokens = 5, estimated = index == 3})
+	end
+	local response = request(t, stack, "GET", "/admin/requests")
+	t:eq(response.status, 303)
+	local cookie = login(t, stack)
+	response = request(t, stack, "GET", "/admin/requests?user=alice&channel=zai&outcome=error", nil, cookie)
+	t:eq(response.status, 200)
+	t:assert(response.body:find("<h1>Requests</h1>", 1, true))
+	t:assert(response.body:find("~10", 1, true))
+	t:assert(response.body:find("1.250s", 1, true))
+	t:assert(response.body:find("&lt;script&gt;private&lt;/script&gt;", 1, true))
+	t:eq(response.body:find("<script>", 1, true), nil)
+	t:eq(response.body:find(">200</td>", 1, true), nil)
+	local older = assert(response.body:match('href="([^"]+)">Older')):gsub("&amp;", "&")
+	t:assert(older:find("channel=zai", 1, true))
+	t:assert(older:find("outcome=error", 1, true))
+	response = request(t, stack, "GET", older, nil, cookie)
+	t:eq(response.status, 200)
+	t:assert(response.body:find(">1</td>", 1, true))
+	t:eq(response.body:find("Older →", 1, true), nil)
+	response = request(t, stack, "GET", "/admin/requests?user=missing&before=invalid", nil, cookie)
+	t:assert(response.body:find("No requests found.", 1, true))
+	response = request(t, stack, "POST", "/admin/requests", {name = "forbidden"}, cookie)
+	t:eq(response.status, 405)
+	t:eq(#stack.storage.db:query("SELECT * FROM router_request_logs"), 4)
+	stack:close()
+end
+
 return test

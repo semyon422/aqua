@@ -64,3 +64,22 @@ CREATE TABLE router_usage_models (
 );
 
 CREATE INDEX router_usage_channel_bucket ON router_usage_models (channel, bucket);
+
+CREATE TABLE router_request_logs (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	created_at INTEGER NOT NULL,
+	user TEXT NOT NULL,
+	model TEXT NOT NULL,
+	channel TEXT NOT NULL,
+	upstream_model TEXT NOT NULL,
+	protocol TEXT NOT NULL,
+	stream INTEGER NOT NULL,
+	status INTEGER NOT NULL,
+	duration_ms INTEGER NOT NULL,
+	input_tokens INTEGER NOT NULL,
+	output_tokens INTEGER NOT NULL,
+	cached_input_tokens INTEGER NOT NULL,
+	estimated INTEGER NOT NULL
+);
+
+CREATE INDEX router_request_logs_created_at ON router_request_logs (created_at);
