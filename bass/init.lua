@@ -74,6 +74,7 @@ ffi.cdef [[
 
 	BOOL BASS_Init(int device, DWORD freq, DWORD flags, void *win, void *dsguid);
 	BOOL BASS_Free();
+	BOOL BASS_Start();
 	HSAMPLE BASS_SampleCreate(DWORD length, DWORD freq, DWORD chans, DWORD max, DWORD flags);
 	BOOL BASS_SampleGetInfo(HSAMPLE handle, BASS_SAMPLE *info);
 	BOOL BASS_SampleGetData(HSAMPLE handle, void *buffer);
@@ -130,6 +131,7 @@ ffi.cdef [[
 ---@field BASS_SampleGetInfo fun(handle: integer, info: ffi.cdata*): integer
 ---@field BASS_SampleGetData fun(handle: integer, buffer: ffi.cdata*): integer
 ---@field BASS_SampleSetData fun(handle: integer, buffer: ffi.cdata*): integer
+---@field BASS_Start fun(): integer
 ---@field BASS_ChannelSeconds2Bytes fun(handle: integer, pos: number): integer
 ---@field BASS_ChannelGetPosition fun(handle: integer, mode: integer): integer
 ---@field BASS_ChannelGetInfo fun(handle: integer, info: ffi.cdata*): integer
