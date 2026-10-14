@@ -3,19 +3,16 @@
 ---@field id integer
 ---@field name string
 ---@field kind "openai"|"zai"|"openai_compat"
----@field priority integer
 ---@field enabled boolean
 ---@field models {[string]: boolean} public model names this subscription serves
 ---@field model_redirects {[string]: string} permanent upstream renames
----@field five_hour_threshold number? percent steering threshold
----@field weekly_threshold number? percent steering threshold
 ---@field five_hour_quota_tokens integer? local counting quota
 ---@field weekly_quota_tokens integer? local counting quota
 ---@field usage_source {five_hour: "upstream"|"local"?, weekly: "upstream"|"local"?}
 ---@field poll_interval integer? seconds
 
 ---@class ai.router.CatalogState
----@field subscriptions ai.router.SubscriptionState[] ordered by (priority, id)
+---@field subscriptions ai.router.SubscriptionState[] ordered by id
 ---@field alias_models {[string]: string} aliases to concrete model names
 ---@field concrete_models {[string]: boolean} union of every subscription's models, including disabled
 ---@field public_models {[string]: boolean} aliases plus enabled subscriptions' models
@@ -115,16 +112,17 @@ end
 ---@return ai.router.SubscriptionState?
 local function buildSubscription(row, errors)
 	local label = "subscription " .. row.name
+	if #row.name > 64 or not row.name:match("^[%w._%-]+$") then
+		fail(label, errors, "name must contain only letters, digits, ._- and no slash")
+		return nil
+	end
 	local state = {
 		id = row.id,
 		name = row.name,
 		kind = row.kind,
-		priority = row.priority,
 		enabled = row.enabled,
 		models = {},
 		model_redirects = {},
-		five_hour_threshold = nil,
-		weekly_threshold = nil,
 		five_hour_quota_tokens = nil,
 		weekly_quota_tokens = nil,
 		usage_source = {},
@@ -240,25 +238,11 @@ local function buildSubscription(row, errors)
 	end
 	---@cast limits {[string]: any}
 	assertKnownKeys(limits, {
-		five_hour_threshold = true,
-		weekly_threshold = true,
 		five_hour_quota_tokens = true,
 		weekly_quota_tokens = true,
 		usage_source = true,
 		poll_interval = true,
 	}, label, errors)
-
-	---@param key string
-	---@return number? value nil when unset or invalid
-	local function checkPercent(key)
-		local value = limits[key]
-		if value == nil then return nil end
-		if type(value) ~= "number" or value < 0 or value > 100 then
-			fail(label, errors, key .. " must be a number between 0 and 100")
-			return nil
-		end
-		return value
-	end
 
 	---@param key string
 	---@param minimum integer
@@ -274,8 +258,6 @@ local function buildSubscription(row, errors)
 	end
 
 	local errors_before = #errors
-	state.five_hour_threshold = checkPercent("five_hour_threshold")
-	state.weekly_threshold = checkPercent("weekly_threshold")
 	state.five_hour_quota_tokens = checkPositiveInteger("five_hour_quota_tokens", 1)
 	state.weekly_quota_tokens = checkPositiveInteger("weekly_quota_tokens", 1)
 	if #errors > errors_before then return nil end
@@ -335,9 +317,10 @@ function Catalog.fromRows(subscription_rows, model_rows)
 		if sub_state then
 			table.insert(subscription_states, sub_state)
 			for model in pairs(sub_state.models) do
-				state.concrete_models[model] = true
+				local qualified = sub_state.name .. "/" .. model
+				state.concrete_models[qualified] = true
 				if sub_state.enabled then
-					state.public_models[model] = true
+					state.public_models[qualified] = true
 				end
 			end
 		end
@@ -353,11 +336,13 @@ function Catalog.fromRows(subscription_rows, model_rows)
 
 	for _, row in ipairs(model_rows) do
 		local label = "model " .. row.name
-		if state.concrete_models[row.name] then
+		if row.name:find("/", 1, true) then
+			fail(label, errors, "alias name must not contain a slash")
+		elseif state.concrete_models[row.name] then
 			fail(label, errors, "alias must not shadow a concrete model name")
 		else
-			if type(row.target) ~= "string" or #row.target < 1 or #row.target > 128 then
-				fail(label, errors, "alias target must be a 1-128 character model name")
+			if type(row.target) ~= "string" or #row.target < 1 or #row.target > 193 then
+				fail(label, errors, "alias target must be a 1-193 character subscription/model name")
 			elseif alias_names[row.target] then
 				fail(label, errors, "alias target must not reference a custom model: " .. row.target)
 			elseif not state.concrete_models[row.target] then
@@ -370,9 +355,6 @@ function Catalog.fromRows(subscription_rows, model_rows)
 	end
 
 	table.sort(subscription_states, function(a, b)
-		if a.priority ~= b.priority then
-			return a.priority < b.priority
-		end
 		return a.id < b.id
 	end)
 	state.subscriptions = subscription_states

@@ -18,12 +18,14 @@ local ModelsRepo = class()
 ---@param name string
 local function assertName(name)
 	assert(type(name) == "string" and #name >= 1 and #name <= 128, "model name must be 1-128 characters")
+	assert(not name:find("/", 1, true), "alias name must not contain a slash")
 end
 
 ---@param name string
 ---@param target string
 local function assertTarget(name, target)
-	assertName(target)
+	assert(type(target) == "string" and #target <= 193 and target:match("^[^/]+/.+$"),
+		"alias target must be a subscription/model name")
 	assert(target ~= name, "alias must not reference itself")
 end
 

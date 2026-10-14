@@ -34,7 +34,7 @@ end
 
 ---@param model string
 local function assertModelName(model)
-	assert(type(model) == "string" and #model >= 1 and #model <= 128, "granted model must be a 1-128 character name")
+	assert(type(model) == "string" and #model >= 1 and #model <= 193, "granted model must be a 1-193 character name")
 end
 
 -- Generates a fresh bearer key. The plain key is shown once at creation;

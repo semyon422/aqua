@@ -109,8 +109,8 @@ end
 function test.catalog_validation_redaction_and_patching(t)
 	local stack = Stack()
 	run(t, stack, function(client)
-		local created = call(client, "save_subscription", {name = "zai-main", kind = "zai", priority = 1, enabled = false,
-			config = {base_url = "https://api.z.ai/api/coding/paas/v4", api_key = "SECRET-UPSTREAM", models = {"glm-5.3"}}, limits = {five_hour_threshold = 80}})
+		local created = call(client, "save_subscription", {name = "zai-main", kind = "zai", enabled = false,
+			config = {base_url = "https://api.z.ai/api/coding/paas/v4", api_key = "SECRET-UPSTREAM", models = {"glm-5.3"}}, limits = {poll_interval = 80}})
 		local id = created.subscription.id
 		t:tdeq(created.operation, {persistence = "committed", reload = "applied"})
 		t:eq(created.subscription.enabled, false)
@@ -118,14 +118,20 @@ function test.catalog_validation_redaction_and_patching(t)
 		t:eq(created.subscription.has_api_key, true)
 		call(client, "save_subscription", {id = id, enabled = true, config = {model_redirects = { ["glm-5.3"] = "glm-real" }}})
 		t:eq(stack.subscriptions:get(id).config.api_key, "SECRET-UPSTREAM")
-		t:eq(stack.server.router.state.public_models["glm-5.3"], true)
-		t:eq(stack.server.router.state.subscriptions[1].five_hour_threshold, 80)
+		t:eq(stack.server.router.state.public_models["zai-main/glm-5.3"], true)
+		t:eq(stack.server.router.state.subscriptions[1].poll_interval, 80)
+		local removed, removed_error = client:callTool("router_save_subscription", {id = id, priority = 1})
+		t:eq(removed, nil)
+		t:eq(removed_error.code, -32602)
+		removed, removed_error = client:callTool("router_save_subscription", {id = id, limits = {five_hour_threshold = 80}})
+		t:eq(removed, nil)
+		t:eq(removed_error.code, -32602)
 		local invalid = assert(client:callTool("router_save_model", {name = "bad", target = "missing-model"}))
 		t:eq(invalid.isError, true)
 		t:eq(stack.models:findByName("bad"), nil)
-		local alias = call(client, "save_model", {name = "lite", target = "glm-5.3"}).model
-		t:eq(alias.target, "glm-5.3")
-		t:eq(stack.server.router.state.alias_models.lite, "glm-5.3")
+		local alias = call(client, "save_model", {name = "lite", target = "zai-main/glm-5.3"}).model
+		t:eq(alias.target, "zai-main/glm-5.3")
+		t:eq(stack.server.router.state.alias_models.lite, "zai-main/glm-5.3")
 		local rejected, schema_error = client:callTool("router_save_model", {name = "removed-chain", chain = {"glm-5.3"}})
 		t:eq(rejected, nil)
 		t:eq(schema_error.code, -32602)
@@ -158,7 +164,7 @@ end
 function test.committed_catalog_reload_failure_and_retry(t)
 	local stack = Stack()
 	run(t, stack, function(client)
-		call(client, "save_subscription", {name = "original", kind = "openai_compat", priority = 1,
+		call(client, "save_subscription", {name = "original", kind = "openai_compat",
 			config = {base_url = "http://localhost/v1", models = {"old"}}})
 		local router, providers, fetchers, subscriptions = stack.server.router, stack.server.providers,
 			stack.monitor.fetchers, stack.monitor.subscriptions
@@ -167,7 +173,7 @@ function test.committed_catalog_reload_failure_and_retry(t)
 			if row.name == "saved" then error("SECRET-PROVIDER-EXCEPTION") end
 			return factory(row)
 		end
-		local result = assert(client:callTool("router_save_subscription", {name = "saved", kind = "openai_compat", priority = 2,
+		local result = assert(client:callTool("router_save_subscription", {name = "saved", kind = "openai_compat",
 			config = {base_url = "http://localhost/v1", models = {"new"}}}))
 		t:eq(result.isError, true)
 		t:tdeq(result.structuredContent.operation, {persistence = "committed", reload = "failed"})
@@ -192,7 +198,7 @@ function test.committed_catalog_reload_failure_and_retry(t)
 		local applied = call(client, "reload_catalog")
 		t:tdeq(applied.operation, {persistence = "not_attempted", reload = "applied"})
 		t:eq(call(client, "status").catalog_reload_pending, false)
-		t:eq(stack.server.router.state.public_models.new, true)
+		t:eq(stack.server.router.state.public_models["saved/new"], true)
 		t:eq(#stack.subscriptions:list(), 2)
 	end)
 	stack:close()
@@ -258,7 +264,7 @@ function test.openai_device_login_and_pending_guards(t)
 		end})
 	stack.management.openai_login = manager
 	run(t, stack, function(client)
-		local row = call(client, "save_subscription", {name = "ChatGPT direct", kind = "openai", priority = 5, config = {models = {"gpt"}}}).subscription
+		local row = call(client, "save_subscription", {name = "ChatGPT-direct", kind = "openai", config = {models = {"gpt"}}}).subscription
 		t:assert(row.config.auth_path:match("^userdata/ai_router_auth_%x+%.lua$"))
 		t:eq(call(client, "start_openai_login", {id = row.id}).login.status, "logging_in")
 		t:assert(pending)
@@ -271,7 +277,7 @@ function test.openai_device_login_and_pending_guards(t)
 			local result = assert(client:callTool("router_" .. tool, {id = row.id}))
 			t:eq(result.isError, true)
 		end
-		local duplicate = assert(client:callTool("router_save_subscription", {name = "duplicate", kind = "openai", priority = 2,
+		local duplicate = assert(client:callTool("router_save_subscription", {name = "duplicate", kind = "openai",
 			config = {auth_path = row.config.auth_path, models = {"gpt"}}}))
 		t:eq(duplicate.isError, true)
 		call(client, "refresh_usage", {id = row.id})

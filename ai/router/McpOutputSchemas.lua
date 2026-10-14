@@ -41,19 +41,19 @@ local config = object({models = strings, model_redirects = {type = "object", add
 	auth_path = text, base_url = text, usage_url = text,
 	reasoning_effort = enum({"none", "low", "medium", "high"}), verbosity = enum({"low", "medium", "high"}),
 	max_response_size = integer, thinking = enum({"enabled", "disabled"}), tool_stream = flag})
-local limits = object({five_hour_threshold = number, weekly_threshold = number,
+local limits = object({
 	five_hour_quota_tokens = integer, weekly_quota_tokens = integer, poll_interval = integer,
 	usage_source = object({five_hour = source, weekly = source})})
 local subscription = object({id = integer, name = text, kind = enum({"openai", "zai", "openai_compat"}),
-	priority = integer, enabled = flag, config = config, limits = limits, has_api_key = flag,
+	enabled = flag, config = config, limits = limits, has_api_key = flag,
 	created_at = integer, updated_at = integer, login_status = login_status},
-	{"id", "name", "kind", "priority", "enabled", "config", "limits", "has_api_key", "created_at", "updated_at"})
+	{"id", "name", "kind", "enabled", "config", "limits", "has_api_key", "created_at", "updated_at"})
 local model = object({id = integer, name = text, target = text, description = text,
 	created_at = integer, updated_at = integer}, {"id", "name", "target", "created_at", "updated_at"})
 local window = object({used_percent = number, used_tokens = integer, quota_tokens = integer,
 	reset_at = integer, source = source, updated_at = number}, {"source", "updated_at"})
 local status = object({id = integer, name = text, enabled = flag,
-	windows = object({five_hour = window, weekly = window}), cooldown_until = number, login_status = login_status},
+	windows = object({five_hour = window, weekly = window}), login_status = login_status},
 	{"id", "name", "enabled", "windows"})
 local usage = object({bucket = integer, user = text, model = text, upstream_model = text, subscription = text,
 	requests = integer, errors = integer, input_tokens = integer, output_tokens = integer,

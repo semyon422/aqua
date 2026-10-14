@@ -8,7 +8,7 @@ function test.creates_empty_database(t)
 	local storage = RouterDatabase(LjsqliteDatabase())
 	storage.path = ":memory:"
 	storage:open()
-	t:eq(storage.db:user_version(), 2)
+	t:eq(storage.db:user_version(), 3)
 	local names = {}
 	for _, row in ipairs(storage.db:query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")) do
 		table.insert(names, row.name)
@@ -30,7 +30,7 @@ function test.migrate_is_idempotent(t)
 	storage.path = ":memory:"
 	storage:open()
 	storage:migrate()
-	t:eq(storage.db:user_version(), 2)
+	t:eq(storage.db:user_version(), 3)
 	t:eq(#storage.models.router_users:select(), 0)
 	storage:close()
 end
@@ -40,9 +40,9 @@ function test.rejects_future_version(t)
 	local storage = RouterDatabase(LjsqliteDatabase())
 	storage.path = ":memory:"
 	storage:open()
-	storage.db:user_version(3)
+	storage.db:user_version(4)
 	t:has_error(function() storage:migrate() end)
-	t:eq(storage.db:user_version(), 3)
+	t:eq(storage.db:user_version(), 4)
 	storage:close()
 end
 
@@ -72,6 +72,23 @@ function test.rejects_legacy_schema_without_migrating(t)
 	t:eq(db:user_version(), 1)
 	t:eq(db:query("SELECT chain FROM router_models")[1].chain, '["a","b"]')
 	t:tdeq(db:columns("router_models"), {"id", "name", "chain"})
+	db:close()
+end
+
+---@param t testing.T
+function test.rejects_version_two_without_modifying_priority_or_targets(t)
+	local db = LjsqliteDatabase()
+	db:open(":memory:")
+	db:exec("CREATE TABLE router_subscriptions (id INTEGER PRIMARY KEY, priority INTEGER)")
+	db:exec("CREATE TABLE router_models (id INTEGER PRIMARY KEY, target TEXT)")
+	db:exec("INSERT INTO router_subscriptions VALUES (1, 10)")
+	db:exec("INSERT INTO router_models VALUES (1, 'gpt')")
+	db:user_version(2)
+	local storage = RouterDatabase(db)
+	t:has_error(function() storage:migrate() end)
+	t:eq(db:user_version(), 2)
+	t:eq(db:query("SELECT priority FROM router_subscriptions")[1].priority, 10)
+	t:eq(db:query("SELECT target FROM router_models")[1].target, "gpt")
 	db:close()
 end
 

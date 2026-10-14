@@ -52,8 +52,6 @@ local Management = class()
 ---@field tool_stream boolean?
 
 ---@class ai.router.PublicSubscriptionLimits
----@field five_hour_threshold number?
----@field weekly_threshold number?
 ---@field five_hour_quota_tokens integer?
 ---@field weekly_quota_tokens integer?
 ---@field poll_interval integer?
@@ -63,7 +61,6 @@ local Management = class()
 ---@field id integer
 ---@field name string
 ---@field kind "openai"|"zai"|"openai_compat"
----@field priority integer
 ---@field enabled boolean
 ---@field config ai.router.PublicSubscriptionConfig
 ---@field limits ai.router.PublicSubscriptionLimits
@@ -77,7 +74,6 @@ local Management = class()
 ---@field name string
 ---@field enabled boolean
 ---@field windows {five_hour: ai.router.WindowSnapshot?, weekly: ai.router.WindowSnapshot?}
----@field cooldown_until number?
 ---@field login_status openai.SubscriptionAuthStatus?
 
 ---@class ai.router.ManagementResultMetadata
@@ -130,7 +126,7 @@ local function checkGrants(models)
 	---@type {[string]: boolean}
 	local seen = {}
 	for _, model in ipairs(models) do
-		check(#model >= 1 and #model <= 128, "Granted model names must be 1-128 characters.")
+		check(#model >= 1 and #model <= 193, "Granted model names must be 1-193 characters.")
 		check(not seen[model], "Duplicate granted model.")
 		seen[model] = true
 	end
@@ -201,7 +197,7 @@ function Management:publicSubscription(row)
 		end
 		limits[key] = value
 	end
-	return {id = row.id, name = row.name, kind = row.kind, priority = row.priority,
+	return {id = row.id, name = row.name, kind = row.kind,
 		enabled = row.enabled, config = config, limits = limits,
 		has_api_key = row.config.api_key ~= nil, created_at = row.created_at, updated_at = row.updated_at,
 		login_status = row.kind == "openai" and self.openai_login
@@ -240,7 +236,6 @@ function Management:status()
 	for _, row in ipairs(self.subscriptions_repo:list()) do
 		table.insert(rows, {id = row.id, name = row.name, enabled = row.enabled,
 			windows = self.monitor.windows[row.id] or json.object({}),
-			cooldown_until = self.server.cooldowns[row.id],
 			login_status = row.kind == "openai" and self.openai_login
 				and self.openai_login:getState(row.config.auth_path).status or nil})
 	end
@@ -332,11 +327,11 @@ function Management:saveSubscription(args)
 	end
 	local row = {id = args.id or -1, name = args.name or (existing and existing.name),
 		kind = kind, config = config, limits = args.limits or (existing and existing.limits) or {},
-		priority = args.priority or (existing and existing.priority), enabled = args.enabled,
+		enabled = args.enabled,
 		created_at = existing and existing.created_at or self.get_time(), updated_at = self.get_time()}
 	if row.enabled == nil then row.enabled = not existing or existing.enabled end
 	check(type(row.name) == "string" and #row.name >= 1 and #row.name <= 64, "Subscription name must be 1-64 characters.")
-	check(row.kind and row.config and row.priority, "Creating a subscription requires name, kind, priority, and config.")
+	check(row.kind and row.config, "Creating a subscription requires name, kind, and config.")
 	local duplicate = self.subscriptions_repo:findByName(row.name)
 	check(not duplicate or duplicate.id == args.id, "Subscription name already exists.")
 	validateCatalog(replace(self.subscriptions_repo:list(), args.id, row), self.models_repo:list())
@@ -344,7 +339,7 @@ function Management:saveSubscription(args)
 	if existing then
 		saved = self.subscriptions_repo:update(args.id, row, self.get_time())
 	else
-		saved = self.subscriptions_repo:create(row.name, row.kind, row.priority, row.config, row.limits, self.get_time())
+		saved = self.subscriptions_repo:create(row.name, row.kind, row.config, row.limits, self.get_time())
 		if not row.enabled then saved = self.subscriptions_repo:update(saved.id, {enabled = false}, self.get_time()) end
 	end
 	return {subscription = self:publicSubscription(saved)}

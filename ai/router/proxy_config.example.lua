@@ -19,7 +19,5 @@ return {
 	max_clients = 64,
 	max_concurrent_requests_per_user = 4,
 	max_requests_per_minute = 120,
-	cooldown_seconds = 600,
-	staleness = 120,
 	usage_poll_interval = 60,
 }

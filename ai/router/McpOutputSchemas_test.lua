@@ -17,7 +17,7 @@ function test.required_payloads_and_redaction(t)
 	user.key_hash = "SECRET"
 	t:eq(JsonSchema.validate(schema, {users = {user}}), nil)
 	local subscriptions = McpOutputSchemas.get("listSubscriptions", false)
-	local row = {id = 1, name = "provider", kind = "openai_compat", priority = 1, enabled = true,
+	local row = {id = 1, name = "provider", kind = "openai_compat", enabled = true,
 		config = {models = {"model"}}, limits = {}, has_api_key = true, created_at = 1, updated_at = 1}
 	t:assert(JsonSchema.validate(subscriptions, {subscriptions = {row}}))
 	row.config.api_key = "SECRET"
@@ -41,7 +41,7 @@ end
 ---@param t testing.T
 function test.populated_windows_and_usage(t)
 	local status = {now = 100, catalog_reload_pending = false, subscriptions = {
-		{id = 1, name = "provider", enabled = true, cooldown_until = 200, login_status = "authenticated",
+		{id = 1, name = "provider", enabled = true, login_status = "authenticated",
 			windows = {five_hour = {source = "upstream", updated_at = 100.5, used_percent = 20, reset_at = 300},
 				weekly = {source = "local", updated_at = 100, used_tokens = 10, quota_tokens = 100}}},
 	}}

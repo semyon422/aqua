@@ -20,7 +20,6 @@ CREATE TABLE router_subscriptions (
 	id INTEGER PRIMARY KEY,
 	name TEXT NOT NULL UNIQUE,
 	kind TEXT NOT NULL,
-	priority INTEGER NOT NULL,
 	enabled INTEGER NOT NULL DEFAULT 1,
 	config TEXT NOT NULL,
 	limits TEXT NOT NULL,

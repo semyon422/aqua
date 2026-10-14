@@ -4,7 +4,6 @@ local class = require("class")
 ---@field id integer
 ---@field name string
 ---@field kind "openai"|"zai"|"openai_compat"
----@field priority integer
 ---@field enabled boolean
 ---@field config table
 ---@field limits table
@@ -28,6 +27,7 @@ SubscriptionsRepo.kinds = {
 ---@param name string
 local function assertName(name)
 	assert(type(name) == "string" and #name >= 1 and #name <= 64, "subscription name must be 1-64 characters")
+	assert(name:match("^[%w._%-]+$"), "subscription name must contain only letters, digits, ._-")
 end
 
 ---@param kind any
@@ -41,11 +41,6 @@ local function assertObject(value, label)
 	assert(type(value) == "table" and #value == 0, label .. " must be an object")
 end
 
----@param priority any
-local function assertPriority(priority)
-	assert(type(priority) == "number" and priority % 1 == 0, "priority must be an integer")
-end
-
 ---@param models rdb.Models
 function SubscriptionsRepo:new(models)
 	self.models = models
@@ -53,21 +48,18 @@ end
 
 ---@param name string
 ---@param kind "openai"|"zai"|"openai_compat"
----@param priority integer
 ---@param config table
 ---@param limits table
 ---@param now integer
 ---@return ai.router.SubscriptionRow
-function SubscriptionsRepo:create(name, kind, priority, config, limits, now)
+function SubscriptionsRepo:create(name, kind, config, limits, now)
 	assertName(name)
 	assertKind(kind)
-	assertPriority(priority)
 	assertObject(config, "config")
 	assertObject(limits, "limits")
 	return self.models.router_subscriptions:create({
 		name = name,
 		kind = kind,
-		priority = priority,
 		enabled = true,
 		config = config,
 		limits = limits,
@@ -90,13 +82,12 @@ end
 
 ---@return ai.router.SubscriptionRow[]
 function SubscriptionsRepo:list()
-	return self.models.router_subscriptions:select(nil, {order = {"priority", "id"}})
+	return self.models.router_subscriptions:select(nil, {order = {"id"}})
 end
 
 ---@class ai.router.SubscriptionChanges
 ---@field name string?
 ---@field kind "openai"|"zai"|"openai_compat"?
----@field priority integer?
 ---@field enabled boolean?
 ---@field config table?
 ---@field limits table?
@@ -108,12 +99,11 @@ end
 function SubscriptionsRepo:update(id, changes, now)
 	if changes.name ~= nil then assertName(changes.name) end
 	if changes.kind ~= nil then assertKind(changes.kind) end
-	if changes.priority ~= nil then assertPriority(changes.priority) end
 	if changes.config ~= nil then assertObject(changes.config, "config") end
 	if changes.limits ~= nil then assertObject(changes.limits, "limits") end
 	assert(changes.enabled == nil or type(changes.enabled) == "boolean", "enabled must be a boolean")
 	local row = {updated_at = now}
-	for _, key in ipairs({"name", "kind", "priority", "enabled", "config", "limits"}) do
+	for _, key in ipairs({"name", "kind", "enabled", "config", "limits"}) do
 		if changes[key] ~= nil then row[key] = changes[key] end
 	end
 	local rows = self.models.router_subscriptions:update(row, {id = id})

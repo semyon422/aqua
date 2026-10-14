@@ -201,7 +201,7 @@ end
 ---@param session {csrf_token: string}
 function AdminPages:pageStatus(res, session)
 	self:render(res, session, "Status", self.templates.status({subscriptions = self.server.router.state.subscriptions,
-		windows = self.monitor.windows, cooldowns = self.server.cooldowns, now = self.get_time()}))
+		windows = self.monitor.windows, now = self.get_time()}))
 end
 
 ---@class ai.router.UsageTotals

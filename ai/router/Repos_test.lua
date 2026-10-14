@@ -62,24 +62,24 @@ end
 ---@param t testing.T
 function test.subscriptions_lifecycle(t)
 	local _, subs, _, _, storage = open()
-	local sub = subs:create("zai-1", "zai", 10,
+	local sub = subs:create("zai-1", "zai",
 		{base_url = "https://api.z.ai/api/coding/paas/v4", models = {"glm-5.3"}},
-		{five_hour_threshold = 80}, 1000)
+		{poll_interval = 80}, 1000)
 	t:eq(sub.enabled, true)
 	t:eq(sub.config.models[1], "glm-5.3")
-	t:eq(sub.limits.five_hour_threshold, 80)
+	t:eq(sub.limits.poll_interval, 80)
 
 	t:eq(subs:findByName("zai-1").id, sub.id)
 	t:eq(#subs:list(), 1)
 
-	local updated = subs:update(sub.id, {enabled = false, priority = 5}, 1001)
+	local updated = subs:update(sub.id, {enabled = false, name = "zai-main"}, 1001)
 	t:eq(updated.enabled, false)
-	t:eq(updated.priority, 5)
-	t:eq(subs:get(sub.id).limits.five_hour_threshold, 80)
+	t:eq(updated.name, "zai-main")
+	t:eq(subs:get(sub.id).limits.poll_interval, 80)
 
-	t:has_error(function() subs:create("bad", "anthropic", 1, {}, {}, 1002) end)
-	t:has_error(function() subs:create("bad", "zai", 1.5, {}, {}, 1002) end)
-	t:has_error(function() subs:create("bad", "zai", 1, {1, 2}, {}, 1002) end)
+	t:has_error(function() subs:create("bad", "anthropic", {}, {}, 1002) end)
+	t:has_error(function() subs:create("bad/name", "zai", {}, {}, 1002) end)
+	t:has_error(function() subs:create("bad", "zai", {1, 2}, {}, 1002) end)
 
 	subs:delete(sub.id)
 	t:eq(subs:get(sub.id), nil)
@@ -89,22 +89,22 @@ end
 ---@param t testing.T
 function test.models_lifecycle(t)
 	local _, _, models, _, storage = open()
-	local model = models:create("lite", "glm-5.3-flash", "cheap alias", 1000)
+	local model = models:create("lite", "zai/glm-5.3-flash", "cheap alias", 1000)
 	t:eq(model.name, "lite")
-	t:eq(model.target, "glm-5.3-flash")
+	t:eq(model.target, "zai/glm-5.3-flash")
 	t:eq(model.description, "cheap alias")
 
 	t:eq(models:findByName("lite").id, model.id)
 
-	local updated = models:update(model.id, {target = "glm-5.3"}, 1001)
-	t:eq(updated.target, "glm-5.3")
+	local updated = models:update(model.id, {target = "zai/glm-5.3"}, 1001)
+	t:eq(updated.target, "zai/glm-5.3")
 	t:eq(updated.description, "cheap alias")
 
 	t:has_error(function() models:create("loop", "loop", nil, 1002) end)
 	t:has_error(function() models:create("bad", {"a", "b"}, nil, 1002) end)
 	t:has_error(function() models:create("empty", "", nil, 1002) end)
 	t:has_error(function() models:update(model.id, {target = ""}, 1002) end)
-	t:has_error(function() models:update(model.id, {name = "glm-5.3"}, 1002) end)
+	t:has_error(function() models:update(model.id, {name = "zai/glm-5.3"}, 1002) end)
 
 	models:delete(model.id)
 	t:eq(models:findByName("lite"), nil)
@@ -114,7 +114,7 @@ end
 ---@param t testing.T
 function test.windows_snapshots(t)
 	local _, subs, _, windows, storage = open()
-	local sub = subs:create("zai-1", "zai", 1, {models = {}}, {}, 1000)
+	local sub = subs:create("zai-1", "zai", {models = {}}, {}, 1000)
 
 	windows:save(sub.id, "five_hour",
 		{used_percent = 42.5, used_tokens = 850, quota_tokens = 2000, reset_at = 2000, source = "upstream"}, 1500)

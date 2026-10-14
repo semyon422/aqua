@@ -83,10 +83,10 @@ end
 ---@param t testing.T
 function test.catalog_pages_display_models_and_hide_credentials(t)
 	local stack = Stack()
-	stack.subscriptions:create("local", "openai_compat", 1, {
+	stack.subscriptions:create("local", "openai_compat", {
 		base_url = "http://127.0.0.1:18020/v1", api_key = "PRIVATE-UPSTREAM-KEY", models = {"qwen"},
 	}, {}, os.time())
-	stack.models:create("lite", "qwen", "Simple alias", os.time())
+	stack.models:create("lite", "local/qwen", "Simple alias", os.time())
 	stack.server:reload(stack.subscriptions:list(), stack.models:list())
 	local cookie = login(t, stack)
 	local response = request(t, stack, "GET", "/admin/subscriptions", nil, cookie)
@@ -148,7 +148,7 @@ function test.openai_status_display_hides_verification_code(t)
 		return {status = "logging_in", user_code = "PRIVATE-CODE", verification_url = "https://auth.openai.com/codex/device"}
 	end
 	stack.admin.openai_login = manager
-	stack.subscriptions:create("direct", "openai", 1, {auth_path = "unused", models = {"gpt"}}, {}, os.time())
+	stack.subscriptions:create("direct", "openai", {auth_path = "unused", models = {"gpt"}}, {}, os.time())
 	stack.server:reload(stack.subscriptions:list(), {})
 	local cookie = login(t, stack)
 	local response = request(t, stack, "GET", "/admin/subscriptions", nil, cookie)

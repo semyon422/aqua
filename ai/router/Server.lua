@@ -11,10 +11,10 @@ local Provider = require("ai.router.Provider")
 local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
 
 -- The authenticated OpenAI-compatible router endpoint. Resolves public
--- models through ai.router.Router, walks candidates with pre-output
--- failover, relays native Responses or Chat Completions results, and
+-- models through ai.router.Router to one explicit subscription,
+-- relays native Responses or Chat Completions results, and
 -- records hourly usage aggregates. Nothing downstream is committed before
--- the first upstream output byte, so failed walks return real HTTP errors.
+-- the first upstream output byte, so early failures return real HTTP errors.
 ---@class ai.router.Server
 ---@operator call: ai.router.Server
 ---@field users_repo ai.router.UsersRepo
@@ -23,7 +23,6 @@ local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
 ---@field router ai.router.Router
 ---@field providers {[integer]: ai.router.ProviderMethods}
 ---@field catalog_errors string[]
----@field cooldowns {[integer]: number}
 ---@field logger fun(line: string)
 ---@field get_time fun(): number
 ---@field max_body_size integer
@@ -31,7 +30,6 @@ local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
 ---@field max_requests_per_minute integer
 ---@field active_requests {[string]: integer}
 ---@field request_windows {[string]: {started_at: number, count: integer}}
----@field cooldown_seconds number
 ---@field admin_handler (fun(req: web.Request, res: web.Response): boolean?)?
 ---@field http_server web.HttpServer
 local Server = class()
@@ -40,7 +38,6 @@ Server.max_body_size = 16 * 1024 * 1024
 Server.max_clients = 64
 Server.max_concurrent_requests_per_user = 4
 Server.max_requests_per_minute = 120
-Server.cooldown_seconds = 600
 
 -- The provider methods the server calls; implemented by OpenAIProvider,
 -- ZaiProvider, and CompatProvider.
@@ -56,7 +53,6 @@ Server.cooldown_seconds = 600
 ---@field usage_repo ai.router.UsageRepo
 ---@field monitor ai.router.UsageMonitor
 ---@field provider_factory fun(subscription: ai.router.SubscriptionRow): ai.router.ProviderMethods?
----@field staleness number?
 ---@field logger (fun(line: string))?
 ---@field get_time (fun(): number)?
 ---@field client_timeout number?
@@ -64,7 +60,6 @@ Server.cooldown_seconds = 600
 ---@field max_clients integer?
 ---@field max_concurrent_requests_per_user integer?
 ---@field max_requests_per_minute integer?
----@field cooldown_seconds number?
 ---@field admin_handler (fun(req: web.Request, res: web.Response): boolean?)?
 
 ---@param options ai.router.ServerOptions
@@ -80,9 +75,7 @@ function Server:new(options)
 	self.max_concurrent_requests_per_user = options.max_concurrent_requests_per_user
 		or self.max_concurrent_requests_per_user
 	self.max_requests_per_minute = options.max_requests_per_minute or self.max_requests_per_minute
-	self.cooldown_seconds = options.cooldown_seconds or self.cooldown_seconds
 	self.admin_handler = options.admin_handler
-	self.cooldowns = {}
 	self.active_requests = {}
 	self.request_windows = {}
 	self.providers = {}
@@ -297,21 +290,16 @@ function Server:releaseRequest(user_key)
 	self.active_requests[user_key] = active > 0 and active or nil
 end
 
--- One upstream attempt. Returns "done" when the response is fully written,
--- or "failover" when the walk should continue with the next candidate.
--- `attempt` mutates only local state; cooldowns and refreshes are returned
--- through the result table.
+-- One request to the explicitly selected subscription. Never retries.
 ---@class ai.router.AttemptResult
----@field status "done"|"failover"
 ---@field message ai.router.CanonicalMessage?
 ---@field response table? Native Responses result; never converted to a canonical assistant message.
 ---@field provider_error table?
----@field cooldown boolean?
 ---@field refresh_usage boolean?
 ---@field downstream_closed boolean?
 ---@field subscription string?
 ---@field upstream_model string?
----@field status_code integer? Logical request outcome, including failures after HTTP 200 commit.
+---@field status_code integer Logical request outcome, including failures after HTTP 200 commit.
 
 ---@param self ai.router.Server
 ---@param res web.Response
@@ -325,7 +313,7 @@ end
 local function attempt(self, res, request, public_model, candidate, completion_id, created, include_usage)
 	local provider = self.providers[candidate.subscription.id]
 	if not provider then
-		return {status = "failover"}
+		return {status_code = 503}
 	end
 	local stream = request.stream == true
 	local body = request
@@ -346,18 +334,10 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 		if not ok then message, err = nil, "upstream request failed" end
 		if not message then
 			local status = provider_error and provider_error.status
-			if status == 400 then
-				sendError(res, 400, provider_error.message, provider_error.type, provider_error.code)
-				return {status = "done", status_code = 400, provider_error = provider_error,
-					subscription = candidate.subscription.name, upstream_model = candidate.upstream_model}
-			end
 			return {
-				status = "failover",
+				status_code = status or 502,
 				provider_error = provider_error or {message = err, type = "upstream_error", code = "upstream_error"},
-				cooldown = status == 401 or status == 403,
 				refresh_usage = status == 429 or provider_error and provider_error.type == "rate_limit_error",
-				subscription = candidate.subscription.name,
-				upstream_model = candidate.upstream_model,
 			}
 		end
 		local completion = {
@@ -374,8 +354,7 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 		local usage = ccUsage(message.usage)
 		if usage then completion.usage = usage end
 		local sent = sendJson(res, completion)
-		return {status = "done", message = message, downstream_closed = not sent, status_code = sent and 200 or 499,
-			subscription = candidate.subscription.name, upstream_model = candidate.upstream_model}
+		return {message = message, downstream_closed = not sent, status_code = sent and 200 or 499}
 	end
 
 	-- Streaming: commit downstream only when the first output delta arrives.
@@ -417,7 +396,7 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 	if not ok then message, err = nil, "upstream request failed" end
 	if not message then
 		if downstream_closed then
-			return {status = "done", status_code = 499, downstream_closed = true}
+			return {status_code = 499, downstream_closed = true}
 		end
 		if committed or res.headers_sent then
 			local error_body = provider_error or {
@@ -434,25 +413,18 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 			}})
 			if sent then sent = sendEvent(res, "[DONE]") end
 			if sent then sent = res:send("") ~= nil end
-			return {status = "done", status_code = sent and 502 or 499, downstream_closed = not sent, provider_error = error_body,
-				cooldown = error_body.status == 401 or error_body.status == 403,
-				refresh_usage = error_body.status == 429 or error_body.type == "rate_limit_error",
-				subscription = candidate.subscription.name, upstream_model = candidate.upstream_model}
+			return {status_code = sent and 502 or 499, downstream_closed = not sent, provider_error = error_body,
+				refresh_usage = error_body.status == 429 or error_body.type == "rate_limit_error"}
 		end
 		local status = provider_error and provider_error.status
-		if status == 400 then
-			sendError(res, 400, provider_error.message, provider_error.type, provider_error.code)
-			return {status = "done", status_code = 400, provider_error = provider_error}
-		end
 		return {
-			status = "failover",
+			status_code = status or 502,
 			provider_error = provider_error or {message = err, type = "upstream_error", code = "upstream_error"},
-			cooldown = status == 401 or status == 403,
 			refresh_usage = status == 429 or provider_error and provider_error.type == "rate_limit_error",
 		}
 	end
 	if downstream_closed or not commit() then
-		return {status = "done", status_code = 499, message = message, downstream_closed = true}
+		return {status_code = 499, message = message, downstream_closed = true}
 	end
 	local sent = sendEvent(res, chunkEvent(completion_id, created, public_model, json.object(), finishReason(message), include_usage))
 	if sent and include_usage then
@@ -463,7 +435,7 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 	end
 	if sent then sent = sendEvent(res, "[DONE]") end
 	if sent then sent = res:send("") ~= nil end
-	return {status = "done", message = message, downstream_closed = not sent, status_code = sent and 200 or 499}
+	return {message = message, downstream_closed = not sent, status_code = sent and 200 or 499}
 end
 
 ---@param res web.Response
@@ -486,8 +458,7 @@ local function publicResponse(response, model)
 	return copy
 end
 
--- Native SSE commits on the first typed event, including response.created.
--- After that point neither the response identity nor the serving subscription can change.
+-- Native SSE preserves every typed event, including response.created.
 ---@param self ai.router.Server
 ---@param res web.Response
 ---@param request {[string]: any}
@@ -497,7 +468,7 @@ end
 ---@return ai.router.AttemptResult
 local function attemptResponse(self, res, request, public_model, candidate, session_id)
 	local provider = self.providers[candidate.subscription.id]
-	if not provider then return {status = "failover"} end
+	if not provider then return {status_code = 503} end
 	local committed, downstream_closed = false, false
 	local sequence_number = -1
 	---@type (fun(event: table): boolean?)?
@@ -524,25 +495,21 @@ local function attemptResponse(self, res, request, public_model, candidate, sess
 	local ok, response, _, provider_error = pcall(provider.createResponse, provider,
 		request, candidate.upstream_model, session_id, callback)
 	if not ok then response = nil end
-	if downstream_closed then return {status = "done", status_code = 499, downstream_closed = true} end
+	if downstream_closed then return {status_code = 499, downstream_closed = true} end
 	if not response then
 		local error_body = provider_error or {message = "upstream request failed", type = "upstream_error", code = "upstream_error"}
 		local status = error_body.status
 		---@type ai.router.AttemptResult
 		local result = {
-			status = "failover", provider_error = error_body,
-			cooldown = status == 401 or status == 403,
+			status_code = status or 502, provider_error = error_body,
 			refresh_usage = status == 429 or error_body.type == "rate_limit_error",
 		}
 		if committed or res.headers_sent then
 			local sent = sendResponseEvent(res, {type = "error", code = error_body.code,
 				message = error_body.message, param = json.null, sequence_number = sequence_number + 1})
 			if sent then sent = res:send("") ~= nil end
-			result.status, result.status_code = "done", sent and 502 or 499
+			result.status_code = sent and 502 or 499
 			result.downstream_closed = not sent
-		elseif status == 400 then
-			sendError(res, 400, error_body.message, error_body.type, error_body.code)
-			result.status, result.status_code = "done", 400
 		end
 		return result
 	end
@@ -553,13 +520,13 @@ local function attemptResponse(self, res, request, public_model, candidate, sess
 		sent = sendJson(res, publicResponse(response, public_model))
 	end
 	local response_error = response.error
-	return {status = "done", response = response, downstream_closed = not sent,
+	return {response = response, downstream_closed = not sent,
 		refresh_usage = type(response_error) == "table"
 			and (response_error.code == "rate_limit_exceeded" or response_error.type == "rate_limit_error"),
 		status_code = not sent and 499 or response.status == "failed" and 502 or 200}
 end
 
--- Resolves and walks candidates within the requested native protocol only.
+-- Resolves one subscription and checks its native protocol, without retrying.
 ---@param res web.Response
 ---@param request {[string]: any}
 ---@param user ai.router.UserRow
@@ -579,25 +546,17 @@ function Server:complete(res, request, user, protocol, session_id)
 		sendError(res, 404, "model is not available", "invalid_request_error", "model_not_found")
 		return 404
 	end
-	local candidates = self.router:candidates(public_model)
-	if not candidates or #candidates == 0 then
+	local candidate = self.router:resolve(public_model)
+	if not candidate then
 		sendError(res, 503, "no upstream is available for this model", "upstream_error", "upstream_unavailable")
 		return 503
 	end
 	local native = protocol == "responses"
-	---@type ai.router.Candidate[]
-	local compatible = {}
-	for _, candidate in ipairs(candidates) do
-		if (candidate.subscription.kind == "openai") == native then
-			table.insert(compatible, candidate)
-		end
-	end
-	if #compatible == 0 then
+	if (candidate.subscription.kind == "openai") ~= native then
 		sendError(res, 400, "model is not available on this endpoint; use its native protocol",
 			"invalid_request_error", "unsupported_protocol")
 		return 400
 	end
-	candidates = compatible
 	if native then
 		local message, code = ResponsesProtocol.validateRequest(request)
 		if message then
@@ -611,30 +570,20 @@ function Server:complete(res, request, user, protocol, session_id)
 	local created = os.time()
 	local stream_options = request.stream_options
 	local include_usage = type(stream_options) == "table" and stream_options.include_usage == true or false
-	local start_index = 1
-	while true do
-		local index, candidate = self.router:select(candidates, start_index,
-			self.monitor.windows, self.cooldowns, self.get_time())
-		if not index then
-			sendError(res, 503, "no upstream is available for this model", "upstream_error", "upstream_unavailable")
-			return 503
-		end
-		local result
-		if native then
-			result = attemptResponse(self, res, request, public_model, candidate, session_id)
-		else
-			result = attempt(self, res, request, public_model, candidate, completion_id, created, include_usage)
-		end
-		result.subscription, result.upstream_model = candidate.subscription.name, candidate.upstream_model
-		if result.cooldown then
-			self.cooldowns[candidate.subscription.id] = self.get_time() + self.cooldown_seconds
-		end
-		if result.refresh_usage then
-			self.monitor:refresh(candidate.subscription.id)
-		end
-		if result.status == "done" then return result.status_code or 200, result end
-		start_index = index + 1
+	local result
+	if native then
+		result = attemptResponse(self, res, request, public_model, candidate, session_id)
+	else
+		result = attempt(self, res, request, public_model, candidate, completion_id, created, include_usage)
 	end
+	result.subscription, result.upstream_model = candidate.subscription.name, candidate.upstream_model
+	if result.refresh_usage then self.monitor:refresh(candidate.subscription.id) end
+	local status = result.status_code
+	if status >= 400 and not res.headers_sent and not result.downstream_closed then
+		local err = result.provider_error or {message = "upstream is unavailable", type = "upstream_error", code = "upstream_unavailable"}
+		sendError(res, status, err.message, err.type, err.code)
+	end
+	return status, result
 end
 
 -- Records one completed request. Called for every authenticated inference

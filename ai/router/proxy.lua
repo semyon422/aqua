@@ -39,8 +39,6 @@ local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
 ---@field max_clients integer?
 ---@field max_concurrent_requests_per_user integer?
 ---@field max_requests_per_minute integer?
----@field cooldown_seconds number?
----@field staleness number?
 ---@field usage_poll_interval integer?
 
 if arg[1] == "help" or arg[1] == "--help" or arg[1] == "-h" then
@@ -172,14 +170,12 @@ local server = Server({
 	usage_repo = usage_repo,
 	monitor = monitor,
 	provider_factory = providerFactory,
-	staleness = config.staleness,
 	logger = print,
 	client_timeout = config.client_timeout,
 	max_body_size = config.max_body_size,
 	max_clients = config.max_clients,
 	max_concurrent_requests_per_user = config.max_concurrent_requests_per_user,
 	max_requests_per_minute = config.max_requests_per_minute,
-	cooldown_seconds = config.cooldown_seconds,
 })
 
 local admin = AdminPages({
@@ -193,7 +189,6 @@ local admin = AdminPages({
 	password = assert(config.admin_password),
 })
 openai_login.on_authenticated = function(subscription_id)
-	server.cooldowns[subscription_id] = nil
 	monitor:refresh(subscription_id)
 end
 local management = Management({users_repo = users_repo, subscriptions_repo = subscriptions_repo,

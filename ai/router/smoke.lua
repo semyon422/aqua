@@ -159,15 +159,15 @@ local mcp_thread = coext.detach(coroutine.create(function()
 	assert(client:initialize())
 	assert(#assert(client:listTools()).tools == 17)
 	local saved = assert(client:callTool("router_save_subscription", {
-		name = "local-llama", kind = "openai_compat", priority = 1,
+		name = "local-llama", kind = "openai_compat",
 		config = {base_url = ("http://127.0.0.1:%d/v1"):format(upstream_port), models = {"llama-70b"}},
 	}))
 	assert(not saved.isError, saved.content[1].text)
 	local native = assert(client:callTool("router_save_subscription", {
-		name = "native-openai", kind = "openai", priority = 1, config = {models = {"gpt-native"}},
+		name = "native-openai", kind = "openai", config = {models = {"gpt-native"}},
 	}))
 	assert(not native.isError, native.content[1].text)
-	local created = assert(client:callTool("router_create_user", {name = "smoke-user", models = {"llama-70b", "gpt-native"}}))
+	local created = assert(client:callTool("router_create_user", {name = "smoke-user", models = {"local-llama/llama-70b", "native-openai/gpt-native"}}))
 	assert(not created.isError, created.content[1].text)
 	user_key = created.structuredContent.api_key
 	client:close()
@@ -182,7 +182,7 @@ assert(r.status == 405, "dashboard must be read-only")
 local inference_response, inference_err
 local inference_thread = coext.detach(coroutine.create(function()
 	local result, err = http_util.request(("http://127.0.0.1:%d/v1/chat/completions"):format(router_port),
-		json.encode({model = "llama-70b", messages = {{role = "user", content = "hi"}}}),
+		json.encode({model = "local-llama/llama-70b", messages = {{role = "user", content = "hi"}}}),
 		{method = "POST", headers = {Authorization = "Bearer " .. user_key, ["Content-Type"] = "application/json"}, scheduler = scheduler, timeout = 3})
 	inference_response = result
 	inference_err = err
@@ -224,7 +224,7 @@ assert(history.rows[1] and history.rows[1].input_tokens == 9, "usage not recorde
 local native_thread = coext.detach(coroutine.create(function()
 	for _, streaming in ipairs({false, true}) do
 		local response = assert(http_util.request(("http://127.0.0.1:%d/v1/responses"):format(router_port),
-			json.encode({model = "gpt-native", input = "hi", stream = streaming, prompt_cache_key = "thread"}),
+			json.encode({model = "native-openai/gpt-native", input = "hi", stream = streaming, prompt_cache_key = "thread"}),
 			{method = "POST", headers = {Authorization = "Bearer " .. user_key}, scheduler = scheduler, timeout = 3}))
 		assert(response.status == 200, "native inference failed")
 		if streaming then
