@@ -224,7 +224,8 @@ print(("AI router listening on http://%s:%d"):format(assert(bound_host), assert(
 print(("Admin panel: http://%s:%d/admin"):format(bound_host, bound_port))
 local mcp_host, mcp_port = mcp:getAddress()
 print(("Management MCP: http://%s:%d/mcp (bearer token required)"):format(assert(mcp_host), assert(mcp_port)))
-print(("Inference endpoint: http://%s:%d/v1/chat/completions"):format(bound_host, bound_port))
+print(("Chat Completions endpoint (GLM/compat): http://%s:%d/v1/chat/completions"):format(bound_host, bound_port))
+print(("Responses endpoint (OpenAI): http://%s:%d/v1/responses"):format(bound_host, bound_port))
 if network.socks5 then
 	print(("SOCKS5 upstream routing enabled via %s:%d"):format(network.socks5.host, network.socks5.port))
 end

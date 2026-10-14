@@ -213,7 +213,7 @@ function test.compat_provider_forwards_body_verbatim(t)
 end
 
 ---@param t testing.T
-function test.openai_provider_validates_and_streams(t)
+function test.openai_provider_preserves_native_responses_and_affinity(t)
 	---@type string[]
 	local upstream_bodies
 	local open_stream = fakeOpenStream({
@@ -229,6 +229,8 @@ function test.openai_provider_validates_and_streams(t)
 		auth = {getAccess = function() return "access", "account" end},
 		request = function() error("usage only") end,
 		open_stream = function(url, options)
+			t:eq(options.headers.session_id, "stable-thread")
+			t:ne(options.headers["x-client-request-id"], "stable-thread")
 			local stream = open_stream(url, options)
 			local sendBody = stream.sendBody
 			stream.sendBody = function(self, body)
@@ -243,27 +245,27 @@ function test.openai_provider_validates_and_streams(t)
 	upstream_bodies = {}
 	---@type table[]
 	local relayed = {}
-	local message = provider:complete(requestBody([[
-		{"model": "gpt-6-luna", "messages": [{"role": "user", "content": "hi"}], "stream": true}
-	]]), "gpt-6-luna", function(delta)
-		table.insert(relayed, delta)
+	local message = provider:createResponse(requestBody([[
+		{"model": "public-alias", "input": [{"type":"reasoning","encrypted_content":"opaque"},
+		{"role": "user", "content": "hi"}], "prompt_cache_key":"thread", "stream": true}
+	]]), "gpt-6-luna", "stable-thread", function(event)
+		table.insert(relayed, event)
 	end)
-	t:tdeq(relayed, {{content = "he"}, {content = "llo"}})
-	t:eq(message.content, "hello")
+	t:eq(relayed[1].type, "response.output_text.delta")
+	t:eq(relayed[1].delta, "he")
+	t:eq(relayed[2].delta, "llo")
+	t:eq(relayed[3].type, "response.completed")
+	t:eq(message.id, "r1")
 	t:eq(message.usage.input_tokens, 7)
 	t:eq(message.usage.output_tokens, 3)
-	t:eq(message.usage.cached_input_tokens, 4)
+	t:eq(message.usage.input_tokens_details.cached_tokens, 4)
 	t:eq(#upstream_bodies, 1)
-
-	-- provider-local validation errors surface as 400 without upstream work
-	local result, err, provider_error = provider:complete(requestBody([[
-		{"model": "gpt-6-luna", "messages": [{"role": "user", "content": "hi"}], "temperature": 0.3}
-	]]), "gpt-6-luna")
-	t:eq(result, nil)
-	t:eq(err, nil)
-	t:eq(provider_error.status, 400)
-	t:eq(provider_error.code, "unsupported_parameter")
-	t:eq(#upstream_bodies, 1)
+	local body = json.decode(upstream_bodies[1])
+	t:eq(body.model, "gpt-6-luna")
+	t:eq(body.input[1].encrypted_content, "opaque")
+	t:eq(body.input[2].content, "hi")
+	t:eq(body.prompt_cache_key, "thread")
+	t:eq(body.store, false)
 end
 
 ---@param t testing.T

@@ -5,8 +5,6 @@ local random = require("web.random")
 local SubscriptionAuth = require("ai.openai.SubscriptionAuth")
 local SubscriptionAuthGuard = require("ai.openai.SubscriptionAuthGuard")
 local SubscriptionClient = require("ai.openai.SubscriptionClient")
-local ChatCompat = require("ai.openai.ChatCompat")
-local Provider = require("ai.router.Provider")
 
 ---@class ai.router.OpenAIProviderConfig
 ---@field auth_path string
@@ -25,7 +23,7 @@ local Provider = require("ai.router.Provider")
 ---@field usage_url string?
 
 -- Upstream adapter for one ChatGPT subscription: per-subscription OAuth
--- credentials, request translation through ai.openai.ChatCompat, and the
+-- credentials, native Responses transport, and the
 -- Codex usage monitor fetch.
 ---@class ai.router.OpenAIProvider
 ---@operator call: ai.router.OpenAIProvider
@@ -116,19 +114,15 @@ end
 -- Creates a per-request client so concurrent requests never share response
 -- assembly or cancellation state; authentication stays shared and guarded.
 ---@param upstream_model string
----@param compat openai.ChatCompatRequest
+---@param session_id string?
 ---@return openai.SubscriptionClient
-function OpenAIProvider:createClient(upstream_model, compat)
+function OpenAIProvider:createClient(upstream_model, session_id)
 	return SubscriptionClient({
 		auth = self.auth,
 		model = upstream_model,
-		reasoning_effort = compat.reasoning_effort or self.config.reasoning_effort or "medium",
-		prompt_cache_key = compat.client_options.prompt_cache_key,
-		prompt_cache_options = compat.client_options.prompt_cache_options,
-		tool_choice = compat.client_options.tool_choice,
-		parallel_tool_calls = compat.client_options.parallel_tool_calls,
-		verbosity = compat.client_options.verbosity or self.config.verbosity,
-		text_format = compat.client_options.text_format,
+		reasoning_effort = self.config.reasoning_effort or "medium",
+		session_id = session_id,
+		verbosity = self.config.verbosity,
 		max_response_size = self.config.max_response_size,
 		timeout = self.timeout,
 		get_time = self.get_time,
@@ -136,44 +130,16 @@ function OpenAIProvider:createClient(upstream_model, compat)
 	})
 end
 
--- Runs a validated completion. `on_delta` presence selects streaming; deltas
--- are translated to Chat Completions shapes before relaying.
----@param body table
+-- The server validates native input and affinity before any upstream work.
+---@param body {[string]: any}
 ---@param upstream_model string
----@param on_delta (fun(delta: table): boolean?)?
----@return ai.router.CanonicalMessage? message
+---@param session_id string?
+---@param on_event (fun(event: table): boolean?)?
+---@return table? response
 ---@return string? err
 ---@return zai.ProviderError? provider_error
-function OpenAIProvider:complete(body, upstream_model, on_delta)
-	local compat, message, code = ChatCompat.normalizeRequest(body)
-	if not compat then
-		return nil, nil, {status = 400, message = message, type = "invalid_request_error", code = code}
-	end
-	local client = self:createClient(upstream_model, compat)
-	---@type openai.Message?
-	local result
-	---@type string?
-	local err
-	---@type openai.ProviderError?
-	local provider_error
-	if on_delta then
-		result, err, provider_error = client:completeStream(compat.messages, compat.tools,
-			function(content)
-				return on_delta({content = content})
-			end,
-			function(content)
-				return on_delta({reasoning_content = content})
-			end,
-			function(delta)
-				return on_delta(ChatCompat.toolCallDelta(delta, false))
-			end)
-	else
-		result, err, provider_error = client:completeStream(compat.messages, compat.tools)
-	end
-	if not result then
-		return nil, err, provider_error
-	end
-	return Provider.canonicalMessage(result)
+function OpenAIProvider:createResponse(body, upstream_model, session_id, on_event)
+	return self:createClient(upstream_model, session_id):createResponse(body, on_event)
 end
 
 -- Fetches the upstream Codex usage object (rate limit windows). Returns the

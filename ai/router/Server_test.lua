@@ -30,9 +30,11 @@ local TOKEN = "router-secret-router-secret-router"
 ---@field stream_count integer
 ---@field bodies table[]
 ---@field models string[]
+---@field session_id string?
+---@field createResponse fun(self: test.FakeProvider, body: table, upstream_model: string, session_id: string?, on_event: (fun(event: table): boolean?)?): table?, string?, table?
 
 -- A fake provider returning a canned canonical message or failures.
----@param opts {message: table?, err: string?, provider_error: table?, deltas: table[]?, fetch_usage: fun(): table?, string?, table?}?
+---@param opts {message: table?, response: table?, events: table[]?, err: string?, provider_error: table?, deltas: table[]?, fetch_usage: fun(): table?, string?, table?}?
 ---@return test.FakeProvider
 local function fakeProvider(opts)
 	opts = opts or {}
@@ -63,6 +65,18 @@ local function fakeProvider(opts)
 		end
 		if opts.message then return opts.message end
 		return nil, opts.err, opts.provider_error
+	end
+	function provider:createResponse(body, upstream_model, session_id, on_event)
+		self.complete_count = self.complete_count + 1
+		table.insert(self.bodies, body)
+		table.insert(self.models, upstream_model)
+		self.session_id = session_id
+		if on_event then
+			for _, event in ipairs(opts.events or {}) do
+				if on_event(event) == false then return nil, "downstream response stream closed" end
+			end
+		end
+		return opts.response, opts.err, opts.provider_error
 	end
 	if opts.fetch_usage then
 		function provider:fetchUsage()
@@ -127,8 +141,9 @@ local function startStack(opts)
 		api_key = "key",
 		models = {"glm-5.3"},
 	}, {}, 1000)
-	subscriptions:create("openai-1", "openai", 2, {
-		auth_path = "userdata/unused.lua",
+	-- Keep the old fixture name, but use a native Chat Completions fallback.
+	subscriptions:create("openai-1", "openai_compat", 2, {
+		base_url = "http://localhost:28080/v1",
 		models = {"gpt-6-luna", "glm-5.3"},
 	}, {}, 1000)
 	models:create("lite", "glm-5.3", nil, 1000)
@@ -166,8 +181,9 @@ end
 ---@param path string
 ---@param body table?
 ---@param token string?
+---@param extra_headers {[string]: string}?
 ---@return {status: integer, body: string}
-local function request(t, stack, path, body, token)
+local function request(t, stack, path, body, token, extra_headers)
 	---@type {status: integer, body: string}?
 	local response
 	---@type string?
@@ -175,6 +191,7 @@ local function request(t, stack, path, body, token)
 	local thread = coext.detach(coroutine.create(function()
 		local headers = {}
 		if token then headers.Authorization = "Bearer " .. token end
+		for name, value in pairs(extra_headers or {}) do headers[name] = value end
 		local _, port = stack.server:getAddress()
 		local result, err = http_util.request(
 			("http://127.0.0.1:%d%s"):format(assert(port), path),
@@ -708,7 +725,7 @@ function test.alias_never_falls_back_to_another_model(t)
 	local failing = fakeProvider({err = "unavailable"})
 	local other = fakeProvider({message = ok_message})
 	local stack = startStack({providers = {["zai-1"] = failing, ["openai-1"] = other}})
-	stack.subscriptions:update(2, {config = {auth_path = "userdata/unused.lua", models = {"gpt-6-luna"}}}, 1001)
+	stack.subscriptions:update(2, {kind = "openai", config = {auth_path = "userdata/unused.lua", models = {"gpt-6-luna"}}}, 1001)
 	stack.server:reload(stack.subscriptions:list(), stack.models:list())
 	stack.users:setGrants(stack.user.id, {"lite"})
 	stack.providers_by_name["zai-1"] = fakeProvider({message = ok_message})
@@ -724,6 +741,217 @@ function test.alias_never_falls_back_to_another_model(t)
 	end
 	t:eq(other.complete_count, 0)
 	t:eq(other.stream_count, 0)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param stack test.Stack
+---@param name string
+---@param priority integer
+---@param provider test.FakeProvider
+---@return ai.router.SubscriptionRow
+local function addNative(stack, name, priority, provider)
+	stack.providers_by_name[name] = provider
+	local row = stack.subscriptions:create(name, "openai", priority, {
+		auth_path = "userdata/test-" .. name .. ".lua", models = {"gpt-6-luna", "glm-5.3"},
+		model_redirects = {["glm-5.3"] = "native-model"},
+	}, {}, 1000)
+	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	return row
+end
+
+local native_result = {
+	id = "resp_1", object = "response", status = "completed", model = "native-model",
+	output = {{type = "reasoning", encrypted_content = "opaque"},
+		{type = "function_call", id = "fc_1", call_id = "call_1", name = "inspect", arguments = "{}"}},
+	usage = {input_tokens = 10, output_tokens = 5, input_tokens_details = {cached_tokens = 4}},
+}
+
+---@param t testing.T
+function test.native_responses_preserve_items_aliases_affinity_and_usage(t)
+	local wrong = fakeProvider({message = ok_message})
+	local stack = startStack({providers = {["zai-1"] = wrong, ["openai-1"] = wrong}})
+	local native = fakeProvider({response = native_result})
+	addNative(stack, "native-1", 3, native)
+	local body = {model = "lite", input = {{type = "reasoning", encrypted_content = "previous"},
+		{type = "function_call_output", call_id = "previous-call", output = "result"}},
+		tools = {{type = "function", name = "inspect", parameters = {type = "object"}}},
+		prompt_cache_key = "thread"}
+	local response = request(t, stack, "/v1/responses", body, TOKEN)
+	t:eq(response.status, 200)
+	local decoded = json.decode(response.body)
+	t:eq(decoded.id, "resp_1")
+	t:eq(decoded.model, "lite")
+	t:eq(decoded.output[1].encrypted_content, "opaque")
+	t:eq(decoded.output[2].call_id, "call_1")
+	t:eq(decoded.usage.input_tokens_details.cached_tokens, 4)
+	t:eq(wrong.complete_count, 0)
+	t:eq(native.models[1], "native-model")
+	t:eq(native.bodies[1].input[1].encrypted_content, "previous")
+	t:eq(native.session_id, digest.hash("sha256", "thread", true))
+	t:eq(request(t, stack, "/v1/responses", body, TOKEN,
+		{['x-session-affinity'] = "explicit-thread", ['x-client-request-id'] = "request-1"}).status, 200)
+	t:eq(native.session_id, "explicit-thread")
+	local row = stack.usage_repo:history(os.time()).rows[1]
+	t:eq(row.requests, 2)
+	t:eq(row.subscription, "native-1")
+	t:eq(row.model, "lite")
+	t:eq(row.upstream_model, "native-model")
+	t:eq(row.input_tokens, 20)
+	t:eq(row.cached_input_tokens, 8)
+	t:eq(row.estimated_requests, 0)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.native_endpoint_validation_grants_and_protocol_isolation(t)
+	local stack = startStack()
+	t:eq(request(t, stack, "/v1/responses", {model = "lite", input = "hi"}, TOKEN).status, 400)
+	local native = fakeProvider({response = native_result})
+	addNative(stack, "native-1", 3, native)
+	stack.subscriptions:update(2, {config = {base_url = "http://localhost/v1", models = {"glm-5.3"}}}, 1001)
+	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	local response = request(t, stack, "/v1/chat/completions", {model = "gpt-6-luna", messages = {}}, TOKEN)
+	t:eq(response.status, 400)
+	t:eq(json.decode(response.body).error.code, "unsupported_protocol")
+	for _, fields in ipairs({{store = true}, {previous_response_id = "resp_old"},
+		{background = true}, {input = json.object()}, {parallel_tool_calls = "yes"}}) do
+		fields.model = "lite"
+		if fields.input == nil then fields.input = "hi" end
+		t:eq(request(t, stack, "/v1/responses", fields, TOKEN).status, 400)
+	end
+	t:eq(request(t, stack, "/v1/responses", {model = "lite", input = "hi"}, TOKEN,
+		{['x-session-affinity'] = "bad header"}).status, 400)
+	stack.users:setGrants(stack.user.id, {"gpt-6-luna"})
+	t:eq(request(t, stack, "/v1/responses", {model = "lite", input = "hi"}, TOKEN).status, 404)
+	t:eq(request(t, stack, "/v1/responses", {model = "gpt-6-luna", input = "hi"}, "wrong-key").status, 401)
+	t:eq(native.complete_count, 0)
+	t:eq(next(stack.server.active_requests), nil)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.native_stream_failover_stops_on_first_typed_event(t)
+	local stack = startStack()
+	local first = fakeProvider({provider_error = {status = 429, type = "rate_limit_error", code = "rate_limit_exceeded"}})
+	local second = fakeProvider({response = native_result, events = {
+		{type = "response.created", response = {id = "resp_1", model = "native-model", status = "in_progress"}},
+		{type = "response.completed", response = native_result},
+	}})
+	addNative(stack, "native-1", 1, first)
+	addNative(stack, "native-2", 2, second)
+	local refreshed
+	stack.monitor.refresh = function(_, id) refreshed = id end
+	local body = {model = "lite", input = "hi", stream = true}
+	local response = request(t, stack, "/v1/responses", body, TOKEN)
+	t:eq(response.status, 200)
+	t:eq(refreshed, 3)
+	t:eq(first.complete_count, 1)
+	t:eq(second.complete_count, 1)
+	t:assert(response.body:find("event: response.created", 1, true))
+	t:assert(response.body:find("event: response.completed", 1, true))
+	t:eq(response.body:find("[DONE]", 1, true), nil)
+	t:eq(parseSse(response.body)[1].response.model, "lite")
+	t:eq(native_result.model, "native-model")
+	stack.providers_by_name["native-1"] = fakeProvider({err = "timeout", events = {
+		{type = "response.created", response = {id = "resp_failed", model = "native-model"}},
+	}})
+	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	response = request(t, stack, "/v1/responses", body, TOKEN)
+	t:eq(response.status, 200)
+	t:eq(second.complete_count, 1)
+	t:eq(parseSse(response.body)[2].type, "error")
+	t:eq(response.body:find("[DONE]", 1, true), nil)
+	local errors = 0
+	for _, row in ipairs(stack.usage_repo:history(os.time()).rows) do errors = errors + row.errors end
+	t:eq(errors, 1)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.native_cooldowns_depletion_and_downstream_failures(t)
+	local stack = startStack()
+	local first = fakeProvider({provider_error = {status = 401, type = "authentication_error", code = "unauthorized"}})
+	local second = fakeProvider({response = native_result, events = {{type = "response.completed", response = native_result}}})
+	addNative(stack, "native-1", 1, first)
+	addNative(stack, "native-2", 2, second)
+	local body = {model = "lite", input = "hi"}
+	t:eq(request(t, stack, "/v1/responses", body, TOKEN).status, 200)
+	t:assert(stack.server.cooldowns[3] > os.time())
+	t:eq(request(t, stack, "/v1/responses", body, TOKEN).status, 200)
+	t:eq(first.complete_count, 1)
+	stack.server.cooldowns[3] = nil
+	stack.subscriptions:update(3, {limits = {five_hour_threshold = 80}}, 1001)
+	stack.server:reload(stack.subscriptions:list(), stack.models:list())
+	for _, subscription in ipairs(stack.server.router.state.subscriptions) do
+		if subscription.id == 3 then
+			stack.monitor:saveWindow(subscription, "five_hour", {used_percent = 95}, "upstream", os.time())
+		end
+	end
+	t:eq(request(t, stack, "/v1/responses", body, TOKEN).status, 200)
+	t:eq(first.complete_count, 1)
+	for _, fail_after in ipairs({0, 1}) do
+		local res = setmetatable({headers = Headers(), writes = 0, fail_after = fail_after}, {__index = RouterResponse})
+		body.stream = true
+		local status, result = stack.server:complete(res, body, stack.user, "responses")
+		t:eq(status, 499)
+		t:eq(result.downstream_closed, true)
+	end
+	t:eq(first.complete_count, 1)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.native_failed_and_incomplete_results_remain_native(t)
+	local stack = startStack()
+	local native = fakeProvider()
+	addNative(stack, "native-1", 1, native)
+	local refreshed = 0
+	stack.monitor.refresh = function() refreshed = refreshed + 1 end
+	for _, status in ipairs({"failed", "incomplete"}) do
+		local result = {id = "resp_" .. status, object = "response", status = status,
+			output = {}, usage = {input_tokens = 2, output_tokens = 1},
+			error = status == "failed" and {code = "rate_limit_exceeded", message = "quota"} or nil,
+			incomplete_details = status == "incomplete" and {reason = "max_output_tokens"} or nil}
+		native = fakeProvider({response = result, events = {{type = "response." .. status, response = result}}})
+		stack.providers_by_name["native-1"] = native
+		stack.server:reload(stack.subscriptions:list(), stack.models:list())
+		for _, streaming in ipairs({false, true}) do
+			local response = request(t, stack, "/v1/responses", {model = "lite", input = "hi", stream = streaming}, TOKEN)
+			t:eq(response.status, 200)
+			local decoded = streaming and parseSse(response.body)[1].response or json.decode(response.body)
+			t:eq(decoded.status, status)
+			t:eq(decoded.model, "lite")
+		end
+	end
+	t:eq(refreshed, 2)
+	local row = stack.usage_repo:history(os.time()).rows[1]
+	t:eq(row.requests, 4)
+	t:eq(row.errors, 2)
+	t:eq(row.input_tokens, 8)
+	stack.server:stop()
+	stack.storage:close()
+end
+
+---@param t testing.T
+function test.protocols_share_user_limits_and_native_exceptions_are_sanitized(t)
+	local stack = startStack({providers = {["zai-1"] = fakeProvider({message = ok_message})}})
+	local native = fakeProvider({response = native_result})
+	addNative(stack, "native-1", 1, native)
+	stack.users:update(stack.user.id, {max_rpm = 1}, os.time())
+	t:eq(request(t, stack, "/v1/chat/completions", {model = "lite", messages = {}}, TOKEN).status, 200)
+	t:eq(request(t, stack, "/v1/responses", {model = "lite", input = "hi"}, TOKEN).status, 429)
+	t:eq(native.complete_count, 0)
+	stack.users:update(stack.user.id, {max_rpm = 100}, os.time())
+	native.createResponse = function() error("SECRET-NATIVE") end
+	local response = request(t, stack, "/v1/responses", {model = "lite", input = "hi"}, TOKEN)
+	t:eq(response.status, 503)
+	t:eq(response.body:find("SECRET", 1, true), nil)
+	t:eq(next(stack.server.active_requests), nil)
 	stack.server:stop()
 	stack.storage:close()
 end

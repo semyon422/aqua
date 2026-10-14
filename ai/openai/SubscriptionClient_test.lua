@@ -461,4 +461,27 @@ function test.chat_stream_ignores_coalesced_events_after_terminal_or_cancel(t)
 	end
 end
 
+---@param t testing.T
+function test.native_response_exceptions_and_terminal_events_close_resources(t)
+	for _, stage in ipairs({"sendBody", "receiveHeaders", "receiveAvailableChunk", "callback"}) do
+		local stream = makeStream({[[data: {"type":"response.created","response":{"id":"r1"}}]] .. "\n\n"})
+		if stage ~= "callback" then stream[stage] = function() error("SECRET") end end
+		local client = makeClient(function() return stream end)
+		local response, err = client:createResponse({input = "hi"}, function() error("SECRET") end)
+		t:eq(response, nil)
+		t:eq(err, "OpenAI subscription request failed")
+		t:eq(stream.closed, true)
+		t:eq(client.active_stream, nil)
+	end
+	local stream = makeStream({[[data: {"type":"response.completed","response":{"id":"r1","output":[]}}]]
+		.. "\n\n" .. [[data: {"type":"error","message":"must be ignored"}]] .. "\n\n"})
+	local client = makeClient(function() return stream end)
+	local events = 0
+	local response, err = client:createResponse({input = "hi"}, function() events = events + 1 end)
+	t:eq(response.id, "r1")
+	t:eq(err, nil)
+	t:eq(events, 1)
+	t:eq(stream.closed, true)
+end
+
 return test

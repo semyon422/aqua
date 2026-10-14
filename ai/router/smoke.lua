@@ -23,6 +23,8 @@ local UsersRepo = require("ai.router.UsersRepo")
 local SubscriptionsRepo = require("ai.router.SubscriptionsRepo")
 local ModelsRepo = require("ai.router.ModelsRepo")
 local CompatProvider = require("ai.router.CompatProvider")
+local OpenAIProvider = require("ai.router.OpenAIProvider")
+local HttpStream = require("web.http.HttpStream")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
 local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
 
@@ -47,12 +49,22 @@ local upstream_server = CosocketServer(scheduler, function(client)
 		if buffer:find("\r\n\r\n", 1, true) then break end
 	end
 	upstream_requests = upstream_requests + 1
-		local body = json.encode({
+	local body = json.encode({
 		id = "up-1", object = "chat.completion", created = 1, model = "llama-70b",
 		choices = {{index = 0, message = {role = "assistant", content = "mock reply"}, finish_reason = "stop"}},
 		usage = {prompt_tokens = 9, completion_tokens = 4, total_tokens = 13},
 	})
-	client:send("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " .. #body .. "\r\nConnection: close\r\n\r\n" .. body)
+	local content_type = "application/json"
+	if buffer:find("POST /v1/responses ", 1, true) then
+		content_type = "text/event-stream"
+		local result = {id = "resp_mock", object = "response", status = "completed", model = "gpt-native",
+			output = {{type = "reasoning", encrypted_content = "opaque"},
+				{type = "function_call", id = "fc_1", call_id = "call_1", name = "inspect", arguments = "{}"}},
+			usage = {input_tokens = 12, output_tokens = 4, input_tokens_details = {cached_tokens = 8}}}
+		body = "data: " .. json.encode({type = "response.created", response = {id = "resp_mock", model = "gpt-native"}})
+			.. "\n\ndata: " .. json.encode({type = "response.completed", response = result}) .. "\n\n"
+	end
+	client:send("HTTP/1.1 200 OK\r\nContent-Type: " .. content_type .. "\r\nContent-Length: " .. #body .. "\r\nConnection: close\r\n\r\n" .. body)
 	client:close()
 end, {})
 assert(upstream_server:start("127.0.0.1", 0))
@@ -65,6 +77,18 @@ local server = Server({
 	monitor = monitor,
 	logger = function() end,
 	provider_factory = function(subscription)
+		if subscription.kind == "openai" then
+			return OpenAIProvider({config = subscription.config,
+				auth = {getAccess = function() return "mock-access", "mock-account" end},
+				request = function() return nil, "usage not used" end,
+				open_stream = function(_, options)
+					options.scheduler = scheduler
+					local stream = HttpStream(options)
+					local ok, err = stream:connect(("http://127.0.0.1:%d/v1/responses"):format(upstream_port))
+					if not ok then stream:close() return nil, err end
+					return stream
+				end, timeout = 5})
+		end
 		if subscription.kind ~= "openai_compat" then return nil end
 		local config = subscription.config
 		---@cast config {[string]: any}
@@ -139,7 +163,11 @@ local mcp_thread = coext.detach(coroutine.create(function()
 		config = {base_url = ("http://127.0.0.1:%d/v1"):format(upstream_port), models = {"llama-70b"}},
 	}))
 	assert(not saved.isError, saved.content[1].text)
-	local created = assert(client:callTool("router_create_user", {name = "smoke-user", models = {"llama-70b"}}))
+	local native = assert(client:callTool("router_save_subscription", {
+		name = "native-openai", kind = "openai", priority = 1, config = {models = {"gpt-native"}},
+	}))
+	assert(not native.isError, native.content[1].text)
+	local created = assert(client:callTool("router_create_user", {name = "smoke-user", models = {"llama-70b", "gpt-native"}}))
 	assert(not created.isError, created.content[1].text)
 	user_key = created.structuredContent.api_key
 	client:close()
@@ -193,7 +221,38 @@ assert(r.status == 200 and r.body:find("llama-70b", 1, true), "models missing")
 local history = usage_repo:history(os.time())
 assert(history.rows[1] and history.rows[1].input_tokens == 9, "usage not recorded")
 
-print("SMOKE OK: MCP -> user -> subscription -> inference -> usage; dashboard read-only")
+local native_thread = coext.detach(coroutine.create(function()
+	for _, streaming in ipairs({false, true}) do
+		local response = assert(http_util.request(("http://127.0.0.1:%d/v1/responses"):format(router_port),
+			json.encode({model = "gpt-native", input = "hi", stream = streaming, prompt_cache_key = "thread"}),
+			{method = "POST", headers = {Authorization = "Bearer " .. user_key}, scheduler = scheduler, timeout = 3}))
+		assert(response.status == 200, "native inference failed")
+		if streaming then
+			assert(response.body:find("event: response.completed", 1, true))
+			assert(not response.body:find("[DONE]", 1, true))
+		else
+			local result = json.decode(response.body)
+			assert(result.output[1].encrypted_content == "opaque")
+			assert(result.output[2].call_id == "call_1")
+			assert(result.usage.input_tokens_details.cached_tokens == 8)
+		end
+	end
+end))
+assert(coroutine.resume(native_thread))
+while coroutine.status(native_thread) ~= "dead" do
+	local ok, err = scheduler:update(0.01)
+	assert(ok ~= nil, err)
+end
+local found_native = false
+for _, row in ipairs(usage_repo:history(os.time()).rows) do
+	if row.subscription == "native-openai" then
+		assert(row.requests == 2 and row.input_tokens == 24 and row.cached_input_tokens == 16)
+		found_native = true
+	end
+end
+assert(found_native and upstream_requests == 3, "native usage missing")
+
+print("SMOKE OK: MCP -> user -> subscriptions -> native Responses/Chat Completions -> usage; dashboard read-only")
 print("upstream requests:", upstream_requests)
 upstream_server:stop()
 mcp:stop()

@@ -4,8 +4,8 @@ local random = require("web.random")
 -- Pure Chat Completions compatibility translation for the ChatGPT Codex
 -- subscription backend: request validation and normalization into Responses
 -- client options, assistant result shaping, and streaming delta construction.
--- Used by the ai.router OpenAI subscription provider, not the Responses-only
--- standalone proxy; nothing here touches sockets, responses, or server state.
+-- Retained as a reusable legacy helper, not used by either Responses-only
+-- subscription HTTP path; nothing here touches sockets or server state.
 ---@class openai.ChatCompat
 local ChatCompat = {}
 

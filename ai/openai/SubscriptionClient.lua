@@ -451,6 +451,20 @@ end
 ---@return string?
 ---@return openai.ProviderError?
 function SubscriptionClient:createResponse(request, on_event)
+	local ok, response, err, provider_error = pcall(self.runResponse, self, request, on_event)
+	if ok then return response, err, provider_error end
+	local stream = self.active_stream
+	self.active_stream = nil
+	if stream then pcall(stream.close, stream) end
+	return nil, "OpenAI subscription request failed"
+end
+
+---@param request table
+---@param on_event (fun(event: table): boolean?)?
+---@return table? response
+---@return string?
+---@return openai.ProviderError?
+function SubscriptionClient:runResponse(request, on_event)
 	local deadline = self:createDeadline()
 	local access_token, account_id, auth_err = self.auth:getAccess()
 	if not access_token then return nil, auth_err or "OpenAI login is required" end
@@ -523,6 +537,7 @@ function SubscriptionClient:createResponse(request, on_event)
 	---@type openai.ResponseItem[]
 	local items = json.array()
 	local parser = SseParser(function(data)
+		if done or parse_err then return end
 		if data == "[DONE]" then return end
 		local event, decode_err = json.decode_safe(data)
 		---@cast event openai.ResponseEvent?

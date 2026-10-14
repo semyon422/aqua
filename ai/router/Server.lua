@@ -7,10 +7,12 @@ local socket = require("socket")
 local HttpServer = require("web.http.Server")
 local Catalog = require("ai.router.Catalog")
 local Router = require("ai.router.Router")
+local Provider = require("ai.router.Provider")
+local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
 
 -- The authenticated OpenAI-compatible router endpoint. Resolves public
 -- models through ai.router.Router, walks candidates with pre-output
--- failover, relays provider canonical results as Chat Completions, and
+-- failover, relays native Responses or Chat Completions results, and
 -- records hourly usage aggregates. Nothing downstream is committed before
 -- the first upstream output byte, so failed walks return real HTTP errors.
 ---@class ai.router.Server
@@ -43,8 +45,9 @@ Server.cooldown_seconds = 600
 -- The provider methods the server calls; implemented by OpenAIProvider,
 -- ZaiProvider, and CompatProvider.
 ---@class ai.router.ProviderMethods
----@field complete fun(self: ai.router.ProviderMethods, body: table, upstream_model: string): ai.router.CanonicalMessage?, string?, table?
----@field completeStream fun(self: ai.router.ProviderMethods, body: table, upstream_model: string, on_delta: fun(delta: table): boolean?): ai.router.CanonicalMessage?, string?, table?
+---@field complete (fun(self: ai.router.ProviderMethods, body: table, upstream_model: string): ai.router.CanonicalMessage?, string?, table?)?
+---@field completeStream (fun(self: ai.router.ProviderMethods, body: table, upstream_model: string, on_delta: fun(delta: table): boolean?): ai.router.CanonicalMessage?, string?, table?)?
+---@field createResponse (fun(self: ai.router.ProviderMethods, body: table, upstream_model: string, session_id: string?, on_event: (fun(event: table): boolean?)?): table?, string?, table?)?
 ---@field fetchUsage (fun(self: ai.router.ProviderMethods): table?, string?, table?)?
 
 ---@class ai.router.ServerOptions
@@ -301,6 +304,7 @@ end
 ---@class ai.router.AttemptResult
 ---@field status "done"|"failover"
 ---@field message ai.router.CanonicalMessage?
+---@field response table? Native Responses result; never converted to a canonical assistant message.
 ---@field provider_error table?
 ---@field cooldown boolean?
 ---@field refresh_usage boolean?
@@ -462,13 +466,108 @@ local function attempt(self, res, request, public_model, candidate, completion_i
 	return {status = "done", message = message, downstream_closed = not sent, status_code = sent and 200 or 499}
 end
 
--- Resolves, walks, and serves one Chat Completions request.
+---@param res web.Response
+---@param event {[string]: any}
+---@return boolean
+local function sendResponseEvent(res, event)
+	local event_type = type(event.type) == "string" and event.type:match("^[%w._-]+$") or nil
+	local prefix = event_type and "event: " .. event_type .. "\n" or ""
+	return res:send(prefix .. "data: " .. json.encode(event) .. "\n\n") ~= nil
+end
+
+---@param response {[string]: any}
+---@param model string
+---@return table
+local function publicResponse(response, model)
+	---@type {[string]: any}
+	local copy = {}
+	for key, value in pairs(response) do copy[key] = value end
+	copy.model = model
+	return copy
+end
+
+-- Native SSE commits on the first typed event, including response.created.
+-- After that point neither the response identity nor the serving subscription can change.
+---@param self ai.router.Server
+---@param res web.Response
+---@param request {[string]: any}
+---@param public_model string
+---@param candidate ai.router.Candidate
+---@param session_id string?
+---@return ai.router.AttemptResult
+local function attemptResponse(self, res, request, public_model, candidate, session_id)
+	local provider = self.providers[candidate.subscription.id]
+	if not provider then return {status = "failover"} end
+	local committed, downstream_closed = false, false
+	local sequence_number = -1
+	---@type (fun(event: table): boolean?)?
+	local callback
+	if request.stream == true then
+		---@param event {[string]: any}
+		---@return boolean
+		function callback(event)
+			if downstream_closed then return false end
+			sequence_number = type(event.sequence_number) == "number" and event.sequence_number or sequence_number + 1
+			committed = true
+			if not startEventStream(res) then downstream_closed = true return false end
+			if type(event.response) == "table" then
+				---@type {[string]: any}
+				local copy = {}
+				for key, value in pairs(event) do copy[key] = value end
+				copy.response = publicResponse(event.response, public_model)
+				event = copy
+			end
+			if not sendResponseEvent(res, event) then downstream_closed = true return false end
+			return true
+		end
+	end
+	local ok, response, _, provider_error = pcall(provider.createResponse, provider,
+		request, candidate.upstream_model, session_id, callback)
+	if not ok then response = nil end
+	if downstream_closed then return {status = "done", status_code = 499, downstream_closed = true} end
+	if not response then
+		local error_body = provider_error or {message = "upstream request failed", type = "upstream_error", code = "upstream_error"}
+		local status = error_body.status
+		---@type ai.router.AttemptResult
+		local result = {
+			status = "failover", provider_error = error_body,
+			cooldown = status == 401 or status == 403,
+			refresh_usage = status == 429 or error_body.type == "rate_limit_error",
+		}
+		if committed or res.headers_sent then
+			local sent = sendResponseEvent(res, {type = "error", code = error_body.code,
+				message = error_body.message, param = json.null, sequence_number = sequence_number + 1})
+			if sent then sent = res:send("") ~= nil end
+			result.status, result.status_code = "done", sent and 502 or 499
+			result.downstream_closed = not sent
+		elseif status == 400 then
+			sendError(res, 400, error_body.message, error_body.type, error_body.code)
+			result.status, result.status_code = "done", 400
+		end
+		return result
+	end
+	local sent
+	if request.stream == true then
+		sent = startEventStream(res) and res:send("") ~= nil
+	else
+		sent = sendJson(res, publicResponse(response, public_model))
+	end
+	local response_error = response.error
+	return {status = "done", response = response, downstream_closed = not sent,
+		refresh_usage = type(response_error) == "table"
+			and (response_error.code == "rate_limit_exceeded" or response_error.type == "rate_limit_error"),
+		status_code = not sent and 499 or response.status == "failed" and 502 or 200}
+end
+
+-- Resolves and walks candidates within the requested native protocol only.
 ---@param res web.Response
 ---@param request {[string]: any}
 ---@param user ai.router.UserRow
+---@param protocol "responses"|"chat_completions"?
+---@param session_id string?
 ---@return integer status
 ---@return ai.router.AttemptResult? result
-function Server:complete(res, request, user)
+function Server:complete(res, request, user, protocol, session_id)
 	local public_model = request.model
 	---@type {[string]: boolean}
 	local grants = {}
@@ -485,6 +584,28 @@ function Server:complete(res, request, user)
 		sendError(res, 503, "no upstream is available for this model", "upstream_error", "upstream_unavailable")
 		return 503
 	end
+	local native = protocol == "responses"
+	---@type ai.router.Candidate[]
+	local compatible = {}
+	for _, candidate in ipairs(candidates) do
+		if (candidate.subscription.kind == "openai") == native then
+			table.insert(compatible, candidate)
+		end
+	end
+	if #compatible == 0 then
+		sendError(res, 400, "model is not available on this endpoint; use its native protocol",
+			"invalid_request_error", "unsupported_protocol")
+		return 400
+	end
+	candidates = compatible
+	if native then
+		local message, code = ResponsesProtocol.validateRequest(request)
+		if message then
+			sendError(res, 400, message, "invalid_request_error", assert(code))
+			return 400
+		end
+		session_id = session_id or ResponsesProtocol.cacheSessionId(request.prompt_cache_key)
+	end
 
 	local completion_id = "chatcmpl-" .. random.hex(16)
 	local created = os.time()
@@ -498,7 +619,12 @@ function Server:complete(res, request, user)
 			sendError(res, 503, "no upstream is available for this model", "upstream_error", "upstream_unavailable")
 			return 503
 		end
-		local result = attempt(self, res, request, public_model, candidate, completion_id, created, include_usage)
+		local result
+		if native then
+			result = attemptResponse(self, res, request, public_model, candidate, session_id)
+		else
+			result = attempt(self, res, request, public_model, candidate, completion_id, created, include_usage)
+		end
 		result.subscription, result.upstream_model = candidate.subscription.name, candidate.upstream_model
 		if result.cooldown then
 			self.cooldowns[candidate.subscription.id] = self.get_time() + self.cooldown_seconds
@@ -522,13 +648,16 @@ function Server:record(now, user, status, request, result)
 	if not request then return end
 	local public_model = type(request.model) == "string" and request.model or ""
 	local message = result and result.message
-	local usage = message and message.usage
+	local response = result and result.response
+	local usage = response and Provider.canonicalUsage(response.usage) or message and message.usage
 	local input_tokens = usage and usage.input_tokens or 0
 	local output_tokens = usage and usage.output_tokens or 0
 	local cached = usage and usage.cached_input_tokens or 0
 	if not usage then
-		input_tokens = estimate({messages = request.messages, tools = request.tools})
-		output_tokens = message and estimate({content = message.content, tool_calls = message.tool_calls}) or 0
+		input_tokens = estimate({messages = request.messages, tools = request.tools,
+			input = request.input, instructions = request.instructions})
+		output_tokens = response and estimate(response.output)
+			or message and estimate({content = message.content, tool_calls = message.tool_calls}) or 0
 	end
 	local subscription = ""
 	local upstream_model = ""
@@ -576,7 +705,7 @@ function Server:handle(req, res, ip)
 		end
 		sendJson(res, {object = "list", data = json.array(grants)})
 		status = 200
-	elseif req.method ~= "POST" or path ~= "/v1/chat/completions" then
+	elseif req.method ~= "POST" or (path ~= "/v1/chat/completions" and path ~= "/v1/responses") then
 		sendError(res, 404, "route not found", "invalid_request_error", "not_found")
 		status = 404
 	elseif not self:consumeRateLimit(tostring(user.id), user.max_rpm) then
@@ -618,10 +747,16 @@ function Server:handle(req, res, ip)
 							status = 400
 						else
 							request = decoded
-							---@type integer
-							local completion_status, completion_result = self:complete(res, request, user)
-							status = completion_status
-							attempt_result = completion_result
+							local native = path == "/v1/responses"
+							local session_id, session_err
+							if native then session_id, session_err = ResponsesProtocol.getSessionAffinity(req) end
+							if session_err then
+								sendError(res, 400, session_err, "invalid_request_error", "invalid_session_affinity")
+								status = 400
+							else
+								status, attempt_result = self:complete(res, request, user,
+									native and "responses" or "chat_completions", session_id)
+							end
 						end
 					else
 						sendError(res, 400, "invalid JSON body: " .. tostring(receive_err), "invalid_request_error", "invalid_json")
@@ -636,8 +771,11 @@ function Server:handle(req, res, ip)
 			-- Never expose exception text or replace a committed SSE response with JSON.
 			pcall(function()
 				if res.headers_sent then
-					sendEvent(res, {error = {message = "request failed", type = "internal_error", code = "internal_error"}})
-					sendEvent(res, "[DONE]")
+					-- Native Responses closes here: this handler has no attempt sequence state.
+					if path ~= "/v1/responses" then
+						sendEvent(res, {error = {message = "request failed", type = "internal_error", code = "internal_error"}})
+						sendEvent(res, "[DONE]")
+					end
 					res:send("")
 				else
 					sendError(res, 500, "request failed", "internal_error", "internal_error")
