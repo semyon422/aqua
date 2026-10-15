@@ -39,9 +39,9 @@ Provide a standalone multi-channel router: one server that authenticates named u
   - `ai.router.AdminPages` — server-rendered etlua (`web.etlua`) HTML with a small self-contained stylesheet and no external assets; charts reuse the existing usage dashboard approach.
   - `ai.router.Management` — management domain operations, public/redacted views, full hypothetical-catalog validation, pending-login guards, synchronous SQLite transactions and selective catalog reloads with explicit persistence/application outcomes. No dependency on HTML or HTTP forms.
   - `ai.router.McpTools` — MCP-native tools with closed input schemas and read-only/destructive annotations; returns JSON text plus structured content. Domain validation errors are bounded, and unexpected errors never reflect SQL, credentials, OAuth responses, or stack traces.
-  - `mcp.Server` — reused stateless Streamable HTTP transport on a separate privileged listener, sharing the router's scheduler and database, not the public inference listener. Its bearer token is always required, including on loopback. Browser Origin requests are rejected. Web cookies and client inference keys cannot authorize MCP.
+  - `mcp.Server` — reused stateless Streamable HTTP transport at `/mcp` on the same listener as inference/dashboard, sharing the router's scheduler, connection limits and database. Its bearer token is always required, including on loopback. Browser Origin requests are rejected. Web cookies and client inference keys cannot authorize MCP.
    - `ai.router.OpenAILoginManager` — owns per-channel OAuth instances and refresh guards, starts detached device-login coroutines through the same `SubscriptionAuth:loginWithDeviceCode` flow as `aqua/ai/openai`, and exposes bounded MCP login state; the dashboard reads only its status. `OAuthRepo` loads and atomically saves access/refresh tokens, expiry and account ID. Provider reconstruction reuses its guard, so catalog reloads cannot lose a pending login or authenticated credentials. The standalone OpenAI proxy's file storage remains unchanged.
-- `aqua/ai/router/proxy.lua` — standalone entrypoint: loads the ignored config, wires the database, network, monitor loop (5-second scheduler tick), read-only admin pages, MCP and inference listeners. `aqua/ai/router/smoke.lua` boots the full stack with a local mock upstream and exercises MCP → channel/user → inference → usage, and rejects web mutations.
+- `aqua/ai/router/proxy.lua` — standalone entrypoint: loads the ignored config, wires the database, network, monitor loop (5-second scheduler tick), read-only admin pages, MCP and inference routes on one listener. `aqua/ai/router/smoke.lua` boots the full stack with a local mock upstream and exercises MCP → channel/user → inference → usage, and rejects web mutations.
 - Upstream adapters reuse existing clients instead of new protocol code. Chat Completions providers return `ai.router.CanonicalMessage` (content, optional reasoning/tool calls, finish reason, and normalized usage) through `complete` / `completeStream`; local validation failures return a 400-shaped provider error without failover. Native OpenAI providers expose `createResponse(body, upstream_model, session_id, on_event?)` and return native response objects/events.
    - `OpenAIProvider` wraps `ai.openai.SubscriptionAuth` (one instance and auth file per channel), `ai.openai.SubscriptionClient` (per request), and the Codex usage fetch (`fetchUsage`). It no longer imports `ChatCompat` or supports Chat Completions. `ai.openai.ResponsesProtocol` supplies the same stateless request and affinity validation used by the standalone OpenAI proxy. Existing Codex transport constraints/defaults still apply; this is not the complete public Responses API.
   - `ZaiProvider` wraps `ai.zai.Client` with its GLM field allowlist and SSE semantics.
@@ -213,7 +213,7 @@ CREATE INDEX router_request_logs_created_at ON router_request_logs (created_at);
 
 ## MCP Management
 
-- Streamable HTTP endpoint: `http://127.0.0.1:28084/mcp` by default, with `Authorization: Bearer <mcp_token>`. Configure the local agent's HTTP MCP connection with this URL and header. MCP initialize, tools/list, and tools/call use the shared `mcp.Server` protocol/version negotiation. No stdio or SSE transport is implemented.
+- Streamable HTTP endpoint: `http://127.0.0.1:28083/mcp` by default, with `Authorization: Bearer <mcp_token>`. Configure the local agent's HTTP MCP connection with this URL and header. MCP initialize, tools/list, and tools/call use the shared `mcp.Server` protocol/version negotiation. No stdio or SSE transport is implemented.
 - Read tools: `router_list_users`, `router_list_channels`, `router_list_models`, `router_status`, `router_usage` (24 or 168 hours).
 - Channel management replaces `router_list_subscriptions` / `router_save_subscription` / `router_delete_subscription` without aliases. List/status payloads expose `channels`, save results expose `channel`, and usage rows expose `channel` instead of `subscription`. `router_status` remains the MCP health/monitoring tool, independent of the merged dashboard page. Reconnect MCP clients to refresh tool schemas.
 - Users: `router_create_user` (name, models), `router_update_user` (id plus optional name, disabled, models, max_concurrency, max_rpm), `router_regenerate_key`, `router_delete_user`.
@@ -223,7 +223,7 @@ CREATE INDEX router_request_logs_created_at ON router_request_logs (created_at);
 - Aliases: `router_save_model` (omit id to create; supply id to patch name/target/description), `router_delete_model`. `target` is a string, not a list; list/save results expose `target` instead of `chain`.
 - Authorization: `router_start_openai_login`, `router_openai_login_status`. Pass channel id. Start returns immediately; poll status for code availability and completion. Approval must be performed by the user, not autonomously by the agent.
 - Tool discovery includes schemas, descriptions and safety annotations. Confirm destructive operations in the local agent. The MCP token grants full operator privileges, including upstream requests and device authorization; do not give it to inference clients or untrusted agents.
-- Keep the listener loopback-only unless intentionally publishing it through authenticated HTTPS or an SSH tunnel. Do not forward its token over plaintext networks; it is independent of `admin_password` and client keys.
+- The shared listener is loopback-only by default. Publishing it through HTTPS also publishes `/mcp`; MCP always requires its independent bearer token and rejects browser Origin headers. Do not forward its token over plaintext networks; it is independent of `admin_password` and client keys.
 
 ## Configuration
 
@@ -235,8 +235,6 @@ return {
 	port = 28083,
 	admin_password = "replace-with-a-long-random-password",
 	mcp_token = "replace-with-a-separate-random-management-token",
-	mcp_host = "127.0.0.1",
-	mcp_port = 28084,
 	db_path = "userdata/ai_router.db",
 	network_path = "userdata/network.lua",
 	tls_cafile = "resources/certs/cacert.pem",
@@ -254,7 +252,7 @@ return {
 
 OpenAI channel OAuth credentials are stored privately in `router_oauth_credentials`, keyed by channel ID. Device authorization is started through MCP. The operator must approve the returned code at `https://auth.openai.com/codex/device`; merely creating a channel does not authenticate it.
 
-Configuration migration: every deployed router config (normally ignored `userdata/ai_router.lua`, or the path passed to `proxy.lua`) must add a separate random `mcp_token` of at least 32 characters before restarting; startup fails without it. Optional `mcp_host` and `mcp_port` default to loopback and 28084 and do not inherit the public inference bind address. OAuth stores remain usable. Local development may load the token from a mode-0600 ignored `userdata/ai_router_mcp_token.lua`; never commit it. Publishing a remote MCP listener requires an explicit proxy/tunnel configuration change; it is not enabled by upgrading code.
+Configuration migration: remove obsolete `mcp_host` and `mcp_port` from all ignored router configs (including `server-state/ai-router/config.lua`). API, dashboard and `/mcp` now share `host`/`port` (default loopback:28083); port 28084 is no longer opened. Preserve the separate random `mcp_token` of at least 32 characters, passwords and database paths. Existing HTTPS proxies forwarding all paths now expose authenticated MCP too; browser Origin requests and inference/admin credentials remain rejected.
 
 ### Database Compatibility
 

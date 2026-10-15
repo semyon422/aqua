@@ -5,6 +5,7 @@ local json = require("web.json")
 local digest = require("digest")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local http_util = require("web.http.util")
+local McpServer = require("mcp.Server")
 local Server = require("ai.router.Server")
 local UsageMonitor = require("ai.router.UsageMonitor")
 local UsageRepo = require("ai.router.UsageRepo")
@@ -231,6 +232,38 @@ local ok_message = {
 	finish_reason = "stop",
 	usage = {input_tokens = 10, output_tokens = 5, cached_input_tokens = 2},
 }
+
+---@param t testing.T
+function test.mcp_shares_listener_without_sharing_credentials(t)
+	local stack = startStack()
+	local mcp_token = "management-secret-management-secret"
+	local mcp = McpServer(stack.scheduler, {}, {token = mcp_token, rate_limit = 20})
+	assert(mcp:prepare("127.0.0.1"))
+	stack.server.mcp_server = mcp
+	local headers = {Accept = "application/json, text/event-stream", ["Content-Type"] = "application/json"}
+	local body = {jsonrpc = "2.0", id = 1, method = "initialize", params = {
+		protocolVersion = mcp.protocol_version, capabilities = {}, clientInfo = {name = "test", version = "1"},
+	}}
+	t:eq(request(t, stack, "/mcp", body, nil, headers).status, 401)
+	t:eq(request(t, stack, "/mcp", body, TOKEN, headers).status, 401)
+	t:eq(request(t, stack, "/mcp", body, nil, {Cookie = "router_admin=fake"}).status, 401)
+	headers.Origin = "https://ai.dfjk.ru"
+	t:eq(request(t, stack, "/mcp", body, mcp_token, headers).status, 403)
+	headers.Origin = nil
+	local initialized = request(t, stack, "/mcp?client=test", body, mcp_token, headers)
+	t:eq(initialized.status, 200)
+	t:eq(json.decode(initialized.body).result.protocolVersion, mcp.protocol_version)
+	t:eq(request(t, stack, "/mcp", {jsonrpc = "2.0", id = 2, method = "tools/list"}, mcp_token, headers).status, 200)
+	t:eq(request(t, stack, "/v1/models", nil, mcp_token).status, 401)
+	t:eq(request(t, stack, "/v1/models", nil, TOKEN).status, 200)
+	mcp.rate_limit = 1
+	mcp.rate_limits = {}
+	t:eq(request(t, stack, "/mcp", nil, mcp_token).status, 405)
+	t:eq(request(t, stack, "/mcp", nil, mcp_token).status, 429)
+	mcp:stop()
+	stack.server:stop()
+	stack.storage:close()
+end
 
 ---@param t testing.T
 function test.routes_non_streaming_and_records_usage(t)

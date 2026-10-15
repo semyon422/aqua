@@ -25,6 +25,7 @@ The `aqua/mcp/` module owns reusable Model Context Protocol client and server in
 - Client failures use `mcp.ClientError`, distinguishing transport, HTTP, protocol, and JSON-RPC errors while preserving HTTP status, headers, body, and structured error data when available.
 - Streamable HTTP remains stateless unless the application supplies `session_id_generator`. Stateful servers issue `Mcp-Session-Id`, scope active requests by session, accept session termination through `DELETE`, and route `notifications/cancelled` to `mcp.RequestContext`.
 - Applications may supply `mcp.SessionStore` to restore valid session IDs after process restart. Only the registry is restored; active requests and cancellation contexts remain process-local.
+- Applications may embed MCP in an existing HTTP listener: call `prepare(host)` once before serving, route the configured path to `handleHttp(req, res, ip, port)`, and call `stop()` on shutdown. `prepare` initializes sessions and rate limits and enforces the same bind/token policy as `start`; the embedding listener owns connection limits, timeouts and lifecycle. Do not call `start()` for an embedded server.
 - The transport does not open SSE streams. `GET` returns HTTP 405 until server-initiated communication has a concrete consumer.
 
 ## Invariants

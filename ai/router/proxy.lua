@@ -28,8 +28,6 @@ local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")
 ---@field port integer?
 ---@field admin_password string
 ---@field mcp_token string
----@field mcp_host string?
----@field mcp_port integer?
 ---@field db_path string?
 ---@field network_path string?
 ---@field tls_cafile string?
@@ -195,10 +193,11 @@ end
 local management = Management({users_repo = users_repo, channels_repo = channels_repo,
 	models_repo = models_repo, usage_repo = usage_repo, monitor = monitor, server = server, openai_login = openai_login})
 local mcp = McpServer(scheduler, McpTools.create(management), {
-	host = config.mcp_host or "127.0.0.1", port = config.mcp_port or 28084, token = config.mcp_token,
+	token = config.mcp_token,
 	server_info = {name = "ai-router", version = "1.0.0"}, rate_limit = 120,
 	on_error = function() print("Router MCP transport error") end,
 })
+server.mcp_server = mcp
 server.admin_handler = function(req, res)
 	return admin:handle(req, res)
 end
@@ -210,16 +209,14 @@ monitor:startPolling(scheduler)
 
 local host = config.host or "127.0.0.1"
 local port = config.port or 28083
-local mcp_ok, mcp_err = mcp:start()
-assert(mcp_ok, "failed to start router MCP: " .. tostring(mcp_err))
+local mcp_ok, mcp_err = mcp:prepare(host)
+assert(mcp_ok, "failed to prepare router MCP: " .. tostring(mcp_err))
 local ok, start_err = server:start(host, port)
-if not ok then mcp:stop() end
 assert(ok, "failed to start AI router: " .. tostring(start_err))
 local bound_host, bound_port = server:getAddress()
 print(("AI router listening on http://%s:%d"):format(assert(bound_host), assert(bound_port)))
 print(("Admin panel: http://%s:%d/admin"):format(bound_host, bound_port))
-local mcp_host, mcp_port = mcp:getAddress()
-print(("Management MCP: http://%s:%d/mcp (bearer token required)"):format(assert(mcp_host), assert(mcp_port)))
+print(("Management MCP: http://%s:%d/mcp (bearer token required)"):format(bound_host, bound_port))
 print(("Chat Completions endpoint (GLM/compat): http://%s:%d/v1/chat/completions"):format(bound_host, bound_port))
 print(("Responses endpoint (OpenAI): http://%s:%d/v1/responses"):format(bound_host, bound_port))
 if network.socks5 then

@@ -117,7 +117,8 @@ local admin = AdminPages({
 local management = Management({users_repo = users, channels_repo = channels, models_repo = models,
 	usage_repo = usage_repo, monitor = monitor, server = server})
 local mcp = McpServer(scheduler, McpTools.create(management), {port = 0, token = "smoke-management-token"})
-assert(mcp:start())
+assert(mcp:prepare("127.0.0.1"))
+server.mcp_server = mcp
 server:reload(channels:list(), models:list())
 server.admin_handler = function(req, res) return admin:handle(req, res) end
 assert(server:start("127.0.0.1", 0))
@@ -154,8 +155,7 @@ local cookie = r.headers:get("Set-Cookie"):match("(router_admin=[^;]+)")
 r = request("GET", "/admin/users", nil, cookie)
 local user_key
 local mcp_thread = coext.detach(coroutine.create(function()
-	local _, mcp_port = mcp:getAddress()
-	local client = McpClient({url = ("http://127.0.0.1:%d/mcp"):format(mcp_port), token = "smoke-management-token", scheduler = scheduler})
+	local client = McpClient({url = ("http://127.0.0.1:%d/mcp"):format(router_port), token = "smoke-management-token", scheduler = scheduler})
 	assert(client:initialize())
 	assert(#assert(client:listTools()).tools == 18)
 	local saved = assert(client:callTool("router_save_channel", {

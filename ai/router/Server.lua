@@ -33,6 +33,7 @@ local RequestMetrics = require("ai.router.RequestMetrics")
 ---@field max_requests_per_minute integer
 ---@field active_requests {[string]: integer}
 ---@field request_windows {[string]: {started_at: number, count: integer}}
+---@field mcp_server mcp.Server?
 ---@field admin_handler (fun(req: web.Request, res: web.Response): boolean?)?
 ---@field http_server web.HttpServer
 local Server = class()
@@ -650,6 +651,11 @@ end
 ---@param res web.Response
 ---@param ip string
 function Server:handle(req, res, ip)
+	local path = req.uri:match("^[^?]+") or req.uri
+	if path == "/mcp" and self.mcp_server then
+		self.mcp_server:handleHttp(req, res, ip, 0)
+		return
+	end
 	if self.admin_handler and self.admin_handler(req, res) then
 		return
 	end
@@ -665,7 +671,6 @@ function Server:handle(req, res, ip)
 	local should_record = false
 	---@type table?
 	local request
-	local path = req.uri:match("^[^?]+") or req.uri
 	if not user or user.disabled then
 		sendError(res, 401, "invalid access token", "authentication_error", "invalid_api_key")
 		status = 401

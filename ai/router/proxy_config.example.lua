@@ -5,8 +5,6 @@ return {
 	admin_password = "replace-with-a-long-random-password",
 	-- Privileged management API: separate token, at least 32 random characters.
 	mcp_token = "replace-with-a-separate-random-management-token",
-	mcp_host = "127.0.0.1",
-	mcp_port = 28084,
 	db_path = "userdata/ai_router.db",
 	network_path = "userdata/network.lua",
 	tls_cafile = "resources/certs/cacert.pem",

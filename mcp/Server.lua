@@ -650,10 +650,10 @@ function Server:handleHttp(req, res, ip, port)
 	end
 end
 
+---@param host string
 ---@return true?
 ---@return string?
-function Server:start()
-	local host = self.options.host or self.host
+function Server:prepare(host)
 	local token = self.options.token
 	if not is_loopback(host) and (not token or token == "") then
 		return nil, "MCP authentication token is required for a non-loopback listener"
@@ -683,6 +683,15 @@ function Server:start()
 	else
 		self.rate_limit = nil
 	end
+	return true
+end
+
+---@return true?
+---@return string?
+function Server:start()
+	local host = self.options.host or self.host
+	local ok, err = self:prepare(host)
+	if not ok then return nil, err end
 	return self.http_server:start(host, self.options.port or self.port)
 end
 
