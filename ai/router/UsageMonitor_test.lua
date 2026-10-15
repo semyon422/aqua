@@ -232,4 +232,70 @@ function test.background_polling_starts_and_repeats_after_failures(t)
 	storage:close()
 end
 
+---@param t testing.T
+function test.poll_errors_are_safe_and_recovery_keeps_snapshot_history(t)
+	local usage_repo, storage = open()
+	---@type string[]
+	local logs = {}
+	local monitor = UsageMonitor({usage_repo = usage_repo, logger = function(line) logs[#logs + 1] = line end})
+	local channel = subState({kind = "openai"})
+	local mode = "success"
+	monitor:setChannels({channel}, {[1] = function()
+		if mode == "challenge" then
+			return nil, "SECRET upstream body", {code = "cloudflare_challenge", status = 403}
+		elseif mode == "exception" then
+			error("SECRET transport exception")
+		elseif mode == "invalid" then
+			return {}
+		end
+		return {rate_limit = {primary_window = {used_percent = 10}, secondary_window = {used_percent = 20}}}
+	end})
+	monitor:refresh(1, 1000)
+	t:eq(monitor.poll_status[1].succeeded_at, 1000)
+	mode = "challenge"
+	monitor:refresh(1, 1060)
+	t:eq(monitor.poll_status[1].attempted_at, 1060)
+	t:eq(monitor.poll_status[1].succeeded_at, 1000)
+	t:eq(monitor.poll_status[1].error.code, "cloudflare_challenge")
+	t:eq(monitor.poll_status[1].error.http_status, 403)
+	t:eq(monitor.windows[1].five_hour.updated_at, 1000)
+	mode = "exception"
+	monitor:refresh(1, 1120)
+	t:eq(monitor.poll_status[1].error.code, "internal_error")
+	t:eq(monitor.poll_status[1].error.http_status, nil)
+	mode = "invalid"
+	monitor:refresh(1, 1180)
+	t:eq(monitor.poll_status[1].error.code, "invalid_response")
+	t:eq(monitor.windows[1].five_hour.updated_at, 1000)
+	mode = "success"
+	monitor:refresh(1, 1240)
+	t:eq(monitor.poll_status[1].error, nil)
+	t:eq(monitor.poll_status[1].succeeded_at, 1240)
+	t:eq(monitor.windows[1].five_hour.updated_at, 1240)
+	t:eq(table.concat(logs):find("SECRET", 1, true), nil)
+	monitor:setChannels({}, {})
+	t:eq(monitor.poll_status[1], nil)
+	t:eq(monitor.last_poll[1], nil)
+	storage:close()
+end
+
+---@param t testing.T
+function test.failed_first_poll_is_removed_without_a_window_and_local_windows_do_not_fetch(t)
+	local usage_repo, storage = open()
+	local monitor = UsageMonitor({usage_repo = usage_repo})
+	monitor:setChannels({subState()}, {[1] = function() return nil, "SECRET" end})
+	monitor:refresh(1, 1000)
+	t:eq(monitor.poll_status[1].error.code, "transport")
+	t:eq(monitor.poll_status[1].succeeded_at, nil)
+	monitor:setChannels({}, {})
+	t:eq(monitor.poll_status[1], nil)
+	t:eq(monitor.last_poll[1], nil)
+	monitor:setChannels({subState({usage_source = {five_hour = "local", weekly = "local"}, five_hour_quota_tokens = 100})},
+		{[1] = function() error("must not poll") end})
+	monitor:refresh(1, 1060)
+	t:eq(monitor.poll_status[1], nil)
+	t:eq(monitor.windows[1].five_hour.used_percent, 0)
+	storage:close()
+end
+
 return test

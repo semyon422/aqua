@@ -1,5 +1,5 @@
 <table>
-<tr><th>id</th><th>name</th><th>kind</th><th>enabled</th><th>models / redirects</th><th>5h</th><th>weekly</th></tr>
+<tr><th>id</th><th>name</th><th>kind</th><th>enabled</th><th>models / redirects</th><th>5h</th><th>weekly</th><th>Usage polling</th></tr>
 <% for _, row in ipairs(rows) do %>
 <tr><td><%= row.id %></td><td><%= row.name %></td><td><%= row.kind %>
 <% if row.kind == "openai" then %>
@@ -21,6 +21,15 @@
 <% if w.reset_at then %><div class="muted">resets <%= os.date("%Y-%m-%d %H:%M", w.reset_at) %></div><% end %>
 <% else %>—<% end %></td>
 <% end %>
+<td><% local poll = poll_states[row.id] %><% if poll then %>
+<% if poll.error then %>
+<div class="error"><%= poll.error.message %><% if poll.error.http_status then %> (HTTP <%= poll.error.http_status %>)<% end %></div>
+<div class="muted">Existing quota values may be stale.</div>
+<% else %><div>OK</div><% end %>
+<div class="muted">attempted <%= math.max(0, math.floor(now - poll.attempted_at)) %>s ago</div>
+<% if poll.succeeded_at then %><div class="muted">last success <%= math.max(0, math.floor(now - poll.succeeded_at)) %>s ago</div>
+<% else %><div class="muted">No successful quota update yet.</div><% end %>
+<% else %><span class="muted"><%= row.enabled and "Not polled / not applicable" or "Disabled" %></span><% end %></td>
 </tr>
 <% end %>
 </table>

@@ -3,6 +3,7 @@ local ZaiProvider = require("ai.router.ZaiProvider")
 local CompatProvider = require("ai.router.CompatProvider")
 local OpenAIProvider = require("ai.router.OpenAIProvider")
 local Provider = require("ai.router.Provider")
+local Headers = require("web.http.Headers")
 local UsageMonitor = require("ai.router.UsageMonitor")
 local OAuthRepo = require("ai.router.OAuthRepo")
 local RouterDatabase = require("ai.router.storage.RouterDatabase")
@@ -312,6 +313,52 @@ function test.openai_auth_persists_login_and_refresh(t)
 	t:eq(refreshed.credentials.refresh_token, "second-refresh")
 	t:eq(oauth_repo:get(1).refresh_token, "second-refresh")
 	storage:close()
+end
+
+---@param t testing.T
+function test.openai_usage_reports_http_challenge_and_invalid_response_safely(t)
+	local headers = Headers()
+	headers:set("cf-mitigated", "challenge")
+	local status, body = 403, "<html>SECRET</html>"
+	local provider = OpenAIProvider({config = {},
+		auth = {getAccess = function() return "secret-access", "account" end},
+		request = function() return {status = status, headers = headers, body = body} end})
+	local usage, err, poll_error = provider:fetchUsage()
+	t:eq(usage, nil)
+	t:eq(poll_error.code, "cloudflare_challenge")
+	t:eq(poll_error.status, 403)
+	t:eq(err:find("SECRET", 1, true), nil)
+	headers = Headers()
+	status = 429
+	local _, _, http_error = provider:fetchUsage()
+	t:eq(http_error.code, "upstream_http")
+	t:eq(http_error.status, 429)
+	status = 200
+	local _, _, invalid_error = provider:fetchUsage()
+	t:eq(invalid_error.code, "invalid_response")
+	body = json.encode({rate_limit = {primary_window = {used_percent = 5}}})
+	local valid, valid_err = provider:fetchUsage()
+	t:eq(valid_err, nil)
+	t:eq(valid.rate_limit.primary_window.used_percent, 5)
+	provider.auth.getAccess = function() return nil, nil, "PRIVATE auth exception" end
+	local _, _, auth_error = provider:fetchUsage()
+	t:eq(auth_error.code, "auth")
+end
+
+---@param t testing.T
+function test.zai_usage_reports_http_and_invalid_responses(t)
+	local status, body = 503, "SECRET"
+	local provider = ZaiProvider({config = zai_config,
+		request = function() return {status = status, body = body} end})
+	local _, _, http_error = provider:fetchUsage()
+	t:eq(http_error.code, "upstream_http")
+	t:eq(http_error.status, 503)
+	status = 200
+	local _, _, invalid_error = provider:fetchUsage()
+	t:eq(invalid_error.code, "invalid_response")
+	body = "{}"
+	local _, _, missing_error = provider:fetchUsage()
+	t:eq(missing_error.code, "invalid_response")
 end
 
 return test

@@ -130,7 +130,7 @@ end
 -- the rolling weekly window. Returns the monitor `data` object raw.
 ---@return table? usage
 ---@return string? request_error
----@return zai.ProviderError? provider_error
+---@return ai.router.UsageFetchError? provider_error
 function ZaiProvider:fetchUsage()
 	local response, request_err = self.request(self.usage_url, nil, {
 		method = "GET",
@@ -142,17 +142,21 @@ function ZaiProvider:fetchUsage()
 	if not response then return nil, request_err or "Z.ai usage request failed" end
 	if response.status < 200 or response.status >= 300 then
 		return nil, "Z.ai usage request failed", {
-			status = 502,
+			status = response.status,
 			message = "Z.ai usage request failed",
 			type = "upstream_error",
-			code = "upstream_error",
+			code = "upstream_http",
 		}
 	end
-	local usage, decode_err = json.decode_safe(response.body)
-	if type(usage) ~= "table" then return nil, "invalid Z.ai usage response: " .. tostring(decode_err) end
+	local usage = json.decode_safe(response.body)
+	if type(usage) ~= "table" then
+		return nil, "invalid Z.ai usage response", {code = "invalid_response"}
+	end
 	---@cast usage {[string]: any}
 	local data = usage.data
-	if type(data) ~= "table" then return nil, "invalid Z.ai usage response: data object is missing" end
+	if type(data) ~= "table" then
+		return nil, "invalid Z.ai usage response: data object is missing", {code = "invalid_response"}
+	end
 	return data
 end
 

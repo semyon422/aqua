@@ -489,4 +489,24 @@ function test.oauth_storage_follows_channel_lifetime_and_never_appears_in_public
 	stack:close()
 end
 
+---@param t testing.T
+function test.status_exposes_safe_usage_poll_errors_with_schema_validation(t)
+	local stack = Stack()
+	run(t, stack, function(client)
+		local saved = call(client, "save_channel", {name = "openai", kind = "openai", config = {models = {"gpt"}}})
+		local id = saved.channel.id
+		stack.monitor:setChannels(stack.server.router.state.channels, {[id] = function()
+			return nil, "SECRET body and credentials", {code = "cloudflare_challenge", status = 403}
+		end})
+		stack.monitor:refresh(id, 1234)
+		local status = call(client, "status")
+		local poll = status.channels[1].usage_poll
+		t:eq(poll.attempted_at, 1234)
+		t:eq(poll.error.code, "cloudflare_challenge")
+		t:eq(poll.error.http_status, 403)
+		t:eq(json.encode(status):find("SECRET", 1, true), nil)
+	end)
+	stack:close()
+end
+
 return test

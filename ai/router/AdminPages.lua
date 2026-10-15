@@ -157,7 +157,7 @@ function AdminPages:pageChannels(res, session)
 		end
 	end
 	self:render(res, session, "Channels", self.templates.channels({rows = rows,
-		login_states = states, window_states = self.monitor.windows, now = self.get_time()}))
+		login_states = states, window_states = self.monitor.windows, poll_states = self.monitor.poll_status, now = self.get_time()}))
 end
 
 ---@param res web.Response

@@ -52,8 +52,11 @@ local model = object({id = integer, name = text, target = text, description = te
 	created_at = integer, updated_at = integer}, {"id", "name", "target", "created_at", "updated_at"})
 local window = object({used_percent = number, used_tokens = integer, quota_tokens = integer,
 	reset_at = integer, source = source, updated_at = number}, {"source", "updated_at"})
+local usage_poll = object({attempted_at = number, succeeded_at = number,
+	error = object({code = enum({"auth", "transport", "upstream_http", "cloudflare_challenge", "invalid_response", "internal_error"}),
+		message = text, http_status = integer}, {"code", "message"})}, {"attempted_at"})
 local status = object({id = integer, name = text, enabled = flag,
-	windows = object({five_hour = window, weekly = window}), login_status = login_status},
+	windows = object({five_hour = window, weekly = window}), login_status = login_status, usage_poll = usage_poll},
 	{"id", "name", "enabled", "windows"})
 local usage = object({bucket = integer, user = text, model = text, upstream_model = text, channel = text,
 	requests = integer, errors = integer, input_tokens = integer, output_tokens = integer,

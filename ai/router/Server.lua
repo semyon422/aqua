@@ -49,7 +49,7 @@ Server.max_requests_per_minute = 120
 ---@field complete (fun(self: ai.router.ProviderMethods, body: table, upstream_model: string): ai.router.CanonicalMessage?, string?, table?)?
 ---@field completeStream (fun(self: ai.router.ProviderMethods, body: table, upstream_model: string, on_delta: fun(delta: table): boolean?): ai.router.CanonicalMessage?, string?, table?)?
 ---@field createResponse (fun(self: ai.router.ProviderMethods, body: table, upstream_model: string, session_id: string?, on_event: (fun(event: table): boolean?)?): table?, string?, table?)?
----@field fetchUsage (fun(self: ai.router.ProviderMethods): table?, string?, table?)?
+---@field fetchUsage (fun(self: ai.router.ProviderMethods): table?, string?, ai.router.UsageFetchError?)?
 
 ---@class ai.router.ServerOptions
 ---@field scheduler web.CosocketScheduler

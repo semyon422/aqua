@@ -106,11 +106,15 @@ end
 -- raw upstream object; window parsing lives with the usage monitor.
 ---@return table? usage
 ---@return string? request_error
----@return zai.ProviderError? provider_error
+---@return ai.router.UsageFetchError? provider_error
 function OpenAIProvider:fetchUsage()
 	local access_token, account_id, access_err = self.auth:getAccess()
-	if not access_token then return nil, access_err or "OpenAI login is required" end
-	if not account_id or account_id == "" then return nil, "OpenAI login has no account ID" end
+	if not access_token then
+		return nil, access_err or "OpenAI login is required", {code = "auth"}
+	end
+	if not account_id or account_id == "" then
+		return nil, "OpenAI login has no account ID", {code = "auth"}
+	end
 	local client_request_id = random.hex(16)
 	local response, request_err = self.request(self.usage_url, nil, {
 		method = "GET",
@@ -126,16 +130,19 @@ function OpenAIProvider:fetchUsage()
 	if not response then return nil, request_err or "OpenAI usage request failed" end
 	if response.status < 200 or response.status >= 300 then
 		local request_id = response.headers and response.headers:get("x-request-id") or client_request_id
+		local challenged = response.headers and response.headers:get("cf-mitigated") == "challenge"
 		return nil, "OpenAI usage request failed", {
-			status = 502,
+			status = response.status,
 			message = "OpenAI usage request failed",
 			type = "upstream_error",
-			code = "upstream_error",
+			code = challenged and "cloudflare_challenge" or "upstream_http",
 			request_id = request_id,
 		}
 	end
-	local usage, decode_err = json.decode_safe(response.body)
-	if type(usage) ~= "table" then return nil, "invalid OpenAI usage response: " .. tostring(decode_err) end
+	local usage = json.decode_safe(response.body)
+	if type(usage) ~= "table" then
+		return nil, "invalid OpenAI usage response", {code = "invalid_response"}
+	end
 	return usage
 end
 

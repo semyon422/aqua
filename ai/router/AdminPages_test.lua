@@ -306,4 +306,26 @@ function test.requests_strip_only_channel_prefix_and_keep_qualified_model_filter
 	stack:close()
 end
 
+---@param t testing.T
+function test.channels_show_poll_failure_staleness_and_recovery(t)
+	local stack = Stack()
+	stack.channels:create("openai", "openai", {models = {"gpt"}}, {}, 1000)
+	stack.server:reload(stack.channels:list(), {})
+	stack.admin.get_time = function() return 2000 end
+	local channel = stack.server.router.state.channels[1]
+	stack.monitor:pollFailed(channel, 1990, "cloudflare_challenge", 403)
+	local cookie = login(t, stack)
+	local response = request(t, stack, "GET", "/admin/channels", nil, cookie)
+	for _, text in ipairs({"Usage polling", "Cloudflare blocked", "HTTP 403", "attempted 10s ago",
+		"No successful quota update yet.", "Existing quota values may be stale."}) do
+		t:assert(response.body:find(text, 1, true))
+	end
+	stack.monitor.poll_status[1] = {attempted_at = 1995, succeeded_at = 1995}
+	response = request(t, stack, "GET", "/admin/channels", nil, cookie)
+	t:assert(response.body:find("<div>OK</div>", 1, true))
+	t:assert(response.body:find("last success 5s ago", 1, true))
+	t:eq(response.body:find("Cloudflare blocked", 1, true), nil)
+	stack:close()
+end
+
 return test

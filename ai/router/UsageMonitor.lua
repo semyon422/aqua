@@ -9,21 +9,48 @@ local coext = require("coext")
 ---@field source "upstream"|"local"
 ---@field updated_at number unix seconds of the poll
 
+---@alias ai.router.UsagePollErrorCode "auth"|"transport"|"upstream_http"|"cloudflare_challenge"|"invalid_response"|"internal_error"
+
+---@class ai.router.UsageFetchError
+---@field code ai.router.UsagePollErrorCode
+---@field status integer? upstream HTTP status, never a fabricated transport status
+
+---@class ai.router.UsagePollError
+---@field code ai.router.UsagePollErrorCode
+---@field message string
+---@field http_status integer?
+
+---@class ai.router.UsagePollStatus
+---@field attempted_at number
+---@field succeeded_at number?
+---@field error ai.router.UsagePollError?
+
 -- Maintains informational channel quotas in memory. Polls upstream monitors
 -- and estimates local windows from usage aggregates. Failed polls retain the
 -- previous snapshot and its timestamp; none of this state affects routing.
 ---@class ai.router.UsageMonitor
 ---@operator call: ai.router.UsageMonitor
+---@field poll_status {[integer]: ai.router.UsagePollStatus}
 ---@field windows {[integer]: {[string]: ai.router.WindowSnapshot}}
 ---@field channels ai.router.ChannelState[]
 ---@field channels_by_id {[integer]: ai.router.ChannelState}
----@field fetchers {[integer]: fun(): table?, string?, table?}
+---@field fetchers {[integer]: fun(): table?, string?, ai.router.UsageFetchError?}
 ---@field last_poll {[integer]: number}
 ---@field usage_repo ai.router.UsageRepo
 ---@field logger fun(line: string)
 ---@field get_time fun(): number
 ---@field default_interval integer
 local UsageMonitor = class()
+
+---@type {[ai.router.UsagePollErrorCode]: string}
+local poll_errors = {
+	auth = "Upstream authentication failed; check channel credentials.",
+	transport = "Could not reach the upstream usage endpoint.",
+	upstream_http = "Upstream usage endpoint returned an HTTP error.",
+	cloudflare_challenge = "Cloudflare blocked the usage request with a browser challenge.",
+	invalid_response = "Upstream usage response is missing expected quota data.",
+	internal_error = "Usage polling failed internally.",
+}
 
 UsageMonitor.default_interval = 60
 UsageMonitor.window_seconds = {
@@ -48,6 +75,7 @@ function UsageMonitor:new(options)
 	self.channels_by_id = {}
 	self.fetchers = {}
 	self.last_poll = {}
+	self.poll_status = {}
 end
 
 -- Starts the process-lifetime background loop, including the first poll.
@@ -67,7 +95,7 @@ end
 -- Installs the current catalog states and their usage fetchers. Window state
 -- for channels that no longer exist is dropped.
 ---@param channels ai.router.ChannelState[]
----@param fetchers {[integer]: fun(): table?, string?, table?}
+---@param fetchers {[integer]: fun(): table?, string?, ai.router.UsageFetchError?}
 function UsageMonitor:setChannels(channels, fetchers)
 	self.channels = channels
 	---@type {[integer]: ai.router.ChannelState}
@@ -85,7 +113,12 @@ function UsageMonitor:setChannels(channels, fetchers)
 	for id in pairs(self.windows) do
 		if not live[id] then
 			self.windows[id] = nil
+		end
+	end
+	for id in pairs(self.last_poll) do
+		if not live[id] then
 			self.last_poll[id] = nil
+			self.poll_status[id] = nil
 		end
 	end
 end
@@ -199,6 +232,19 @@ function UsageMonitor:countLocally(channel, window, now)
 	}, "local", now)
 end
 
+---@param channel ai.router.ChannelState
+---@param now number
+---@param code ai.router.UsagePollErrorCode
+---@param http_status integer?
+function UsageMonitor:pollFailed(channel, now, code, http_status)
+	local previous = self.poll_status[channel.id]
+	local poll_error = {code = code, message = assert(poll_errors[code]), http_status = http_status}
+	self.poll_status[channel.id] = {attempted_at = now,
+		succeeded_at = previous and previous.succeeded_at, error = poll_error}
+	self.logger(("channel=%s usage poll failed: %s%s"):format(channel.name, code,
+		http_status and (" (HTTP " .. http_status .. ")") or ""))
+end
+
 -- Polls one channel now: upstream windows through its fetcher, local
 -- windows from aggregates. Failed fetches keep previous state.
 ---@param channel ai.router.ChannelState
@@ -210,14 +256,27 @@ function UsageMonitor:pollChannel(channel, now)
 		end
 	end
 	local fetcher = self.fetchers[channel.id]
-	if not fetcher then return end
-	local ok, usage, request_err = pcall(fetcher)
-	if not ok then
-		usage, request_err = nil, usage
+	if not fetcher or (channel.usage_source.five_hour ~= "upstream" and channel.usage_source.weekly ~= "upstream") then
+		self.poll_status[channel.id] = nil
+		return
 	end
-	if not usage then
-		self.logger(("channel=%s usage poll failed: %s")
-			:format(channel.name, tostring(request_err)))
+	local ok, usage, _, provider_error = pcall(fetcher)
+	if not usage or not ok then
+		local code = ok and "transport" or "internal_error"
+		---@type integer?
+		local http_status
+		if ok and type(provider_error) == "table" then
+			local reported_code = provider_error.code
+			if type(reported_code) == "string" and poll_errors[reported_code] then
+				code = reported_code
+			end
+			local status = provider_error.status
+			if type(status) == "number" and status % 1 == 0 and status >= 100 and status <= 599 then
+				http_status = status
+			end
+		end
+		---@cast code ai.router.UsagePollErrorCode
+		self:pollFailed(channel, now, code, http_status)
 		return
 	end
 	---@cast usage {[string]: any}
@@ -230,14 +289,22 @@ function UsageMonitor:pollChannel(channel, now)
 	else
 		return
 	end
+	local complete = true
 	for _, window in ipairs({"five_hour", "weekly"}) do
 		if channel.usage_source[window] == "upstream" then
 			local fields = windows[window]
 			if fields and fields.used_percent ~= nil then
 				self:saveWindow(channel, window, fields, "upstream", now)
+			else
+				complete = false
 			end
 		end
 	end
+	if not complete then
+		self:pollFailed(channel, now, "invalid_response")
+		return
+	end
+	self.poll_status[channel.id] = {attempted_at = now, succeeded_at = now}
 end
 
 -- Polls every channel whose interval has elapsed.
@@ -247,6 +314,7 @@ function UsageMonitor:update(now)
 	for _, channel in ipairs(self.channels) do
 		if not channel.enabled then
 			self.windows[channel.id] = nil
+			self.poll_status[channel.id] = nil
 		else
 			local interval = channel.poll_interval or self.default_interval
 			local last = self.last_poll[channel.id]

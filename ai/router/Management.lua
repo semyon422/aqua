@@ -77,6 +77,7 @@ local Management = class()
 ---@field name string
 ---@field enabled boolean
 ---@field windows {five_hour: ai.router.WindowSnapshot?, weekly: ai.router.WindowSnapshot?}
+---@field usage_poll ai.router.UsagePollStatus?
 ---@field login_status openai.SubscriptionAuthStatus?
 
 ---@class ai.router.ManagementResultMetadata
@@ -248,6 +249,7 @@ function Management:status()
 	for _, row in ipairs(self.channels_repo:list()) do
 		table.insert(rows, {id = row.id, name = row.name, enabled = row.enabled,
 			windows = self.monitor.windows[row.id] or json.object({}),
+			usage_poll = self.monitor.poll_status[row.id],
 			login_status = row.kind == "openai" and self.openai_login
 				and self.openai_login:getState(row.id).status or nil})
 	end
