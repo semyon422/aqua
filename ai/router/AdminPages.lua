@@ -2,12 +2,18 @@ local class = require("class")
 local etlua = require("web.etlua")
 local io_util = require("io_util")
 local http_util = require("web.http.util")
+local json = require("web.json")
 local Sessions = require("web.framework.Sessions")
+local UsageDashboardGenerator = require("ai.router.UsageDashboardGenerator")
 
 ---@class ai.router.AdminPages: ai.router.AdminPagesOptions
 ---@operator call: ai.router.AdminPages
 ---@field sessions web.Sessions
 ---@field password string
+---@field stylesheet string
+---@field overview_script string
+---@field usage_script string
+---@field theme_script string
 ---@field templates {[string]: fun(env: table?): string}
 local AdminPages = class()
 
@@ -37,8 +43,12 @@ function AdminPages:new(options)
 	self.password = options.password
 	self.get_time = options.get_time or os.time
 	self.sessions = Sessions("router_admin", options.password, false)
+	self.stylesheet = io_util.read_file("aqua/ai/router/admin/dashboard.css")
+	self.overview_script = io_util.read_file("aqua/ai/router/admin/overview.js")
+	self.usage_script = io_util.read_file("aqua/ai/router/admin/usage.js")
+	self.theme_script = io_util.read_file("aqua/ai/router/admin/theme.js")
 	self.templates = {}
-	for _, name in ipairs({"layout", "login", "users", "channels", "models", "usage", "requests"}) do
+	for _, name in ipairs({"layout", "login", "overview", "users", "channels", "models", "usage", "requests"}) do
 		self.templates[name] = etlua.compile(io_util.read_file("aqua/ai/router/admin/" .. name .. ".etlua"), "@" .. name)
 	end
 end
@@ -52,6 +62,18 @@ local function send(res, status, html)
 	res.headers:set("Cache-Control", "no-store")
 	res:set_length(#html)
 	res:send(html)
+end
+
+---@param res web.Response
+---@param status integer
+---@param value {html: string?, now: integer?, error: string?}
+local function sendJson(res, status, value)
+	local body = json.encode(value)
+	res.status = status
+	res.headers:set("Content-Type", "application/json; charset=utf-8")
+	res.headers:set("Cache-Control", "no-store")
+	res:set_length(#body)
+	res:send(body)
 end
 
 ---@param res web.Response
@@ -82,12 +104,16 @@ function AdminPages:handle(req, res)
 			local form = http_util.get_form(req) or {}
 			if form.password == self.password then
 				self.sessions:set(res.headers, {expires = self.get_time() + self.session_seconds})
-				redirect(res, "/admin/users")
+				redirect(res, "/admin/overview")
 			else
-				send(res, 401, self.templates.login({error_message = "Invalid password."}))
+				send(res, 401, self.templates.login({error_message = "Invalid password.", stylesheet = self.stylesheet, theme_script = self.theme_script}))
 			end
 		elseif req.method == "GET" then
-			send(res, 200, self.templates.login({}))
+			if path == "/admin" and self:session(req) then
+				redirect(res, "/admin/overview")
+			else
+				send(res, 200, self.templates.login({stylesheet = self.stylesheet, theme_script = self.theme_script}))
+			end
 		else
 			res.headers:set("Allow", "GET")
 			send(res, 405, "Read-only dashboard. Manage the router through MCP.")
@@ -95,6 +121,18 @@ function AdminPages:handle(req, res)
 		return true
 	end
 	local session = self:session(req)
+	if path == "/admin/overview/data" then
+		if not session then
+			sendJson(res, 401, {error = "Sign in to view the dashboard."})
+		elseif req.method ~= "GET" then
+			res.headers:set("Allow", "GET")
+			sendJson(res, 405, {error = "Read-only dashboard."})
+		else
+			local view = self:overviewData()
+			sendJson(res, 200, {html = self.templates.overview(view), now = view.now})
+		end
+		return true
+	end
 	if not session then
 		if req.method == "GET" then redirect(res, "/admin")
 		else send(res, 403, "Sign in to view the dashboard.") end
@@ -120,7 +158,8 @@ function AdminPages:handle(req, res)
 		redirect(res, "/admin/channels")
 		return true
 	end
-	local pages = { ["/admin/users"] = self.pageUsers, ["/admin/channels"] = self.pageChannels,
+	local pages = { ["/admin/overview"] = self.pageOverview,
+		["/admin/users"] = self.pageUsers, ["/admin/channels"] = self.pageChannels,
 		["/admin/models"] = self.pageModels, ["/admin/usage"] = self.pageUsage,
 		["/admin/requests"] = self.pageRequests }
 	if pages[path] then pages[path](self, res, session, query)
@@ -133,7 +172,54 @@ end
 ---@param title string
 ---@param content string
 function AdminPages:render(res, session, title, content)
-	send(res, 200, self.templates.layout({title = title, content = content, csrf_token = session.csrf_token}))
+	send(res, 200, self.templates.layout({title = title, content = content, csrf_token = session.csrf_token,
+		stylesheet = self.stylesheet, theme_script = self.theme_script,
+		page_script = title == "Overview" and self.overview_script or title == "Usage" and self.usage_script or ""}))
+end
+
+---@class ai.router.OverviewChannel
+---@field name string
+---@field kind string
+---@field enabled boolean
+---@field model_count integer
+---@field login_status openai.SubscriptionAuthStatus?
+---@field windows {[string]: ai.router.WindowSnapshot}
+---@field poll ai.router.UsagePollStatus?
+
+---@class ai.router.OverviewData
+---@field channels ai.router.OverviewChannel[]
+---@field enabled_count integer
+---@field model_count integer
+---@field user_count integer
+---@field now integer
+
+---@return ai.router.OverviewData
+function AdminPages:overviewData()
+	---@type ai.router.OverviewChannel[]
+	local channels = {}
+	local enabled = 0
+	for _, row in ipairs(self.channels_repo:list()) do
+		if row.enabled then enabled = enabled + 1 end
+		---@type string[]
+		local models = row.config.models
+		table.insert(channels, {name = row.name, kind = row.kind, enabled = row.enabled,
+			model_count = #models,
+			login_status = row.kind == "openai" and self.openai_login
+				and self.openai_login:getState(row.id).status or nil,
+			windows = self.monitor.windows[row.id] or {}, poll = self.monitor.poll_status[row.id]})
+	end
+	---@type {[string]: boolean}
+	local public_models = self.server.router.state.public_models
+	local model_count = 0
+	for _ in pairs(public_models) do model_count = model_count + 1 end
+	return {channels = channels, enabled_count = enabled, model_count = model_count,
+		user_count = #self.users_repo:list(), now = self.get_time()}
+end
+
+---@param res web.Response
+---@param session {csrf_token: string}
+function AdminPages:pageOverview(res, session)
+	self:render(res, session, "Overview", self.templates.overview(self:overviewData()))
 end
 
 ---@param res web.Response
@@ -174,32 +260,8 @@ end
 ---@param query {[string]: string}
 function AdminPages:pageUsage(res, session, query)
 	local hours = query.hours == "168" and 168 or 24
-	local function bucket()
-		return {requests = 0, errors = 0, input_tokens = 0, output_tokens = 0,
-			cached_input_tokens = 0, estimated_requests = 0, cost_usd = 0}
-	end
-	local totals = bucket()
-	local groups = {{title = "By user", field = "user", entries = {}},
-		{title = "By model", field = "model", entries = {}}, {title = "By channel", field = "channel", entries = {}}}
-	for _, row in ipairs(self.usage_repo:history(self.get_time()).rows) do
-		if row.bucket >= self.get_time() - hours * 3600 then
-			for key in pairs(totals) do totals[key] = totals[key] + row[key] end
-			for _, group in ipairs(groups) do
-				local name = row[group.field]
-				local item = group.entries[name] or bucket()
-				group.entries[name] = item
-				for key in pairs(item) do item[key] = item[key] + row[key] end
-			end
-		end
-	end
-	local sections = {}
-	for _, group in ipairs(groups) do
-		local rows = {}
-		for key, item in pairs(group.entries) do table.insert(rows, {key = key, item = item}) end
-		table.sort(rows, function(a, b) return a.item.requests > b.item.requests end)
-		table.insert(sections, {title = group.title, rows = rows})
-	end
-	self:render(res, session, "Usage", self.templates.usage({hours = hours, totals = totals, sections = sections}))
+	local history = self.usage_repo:history(self.get_time())
+	self:render(res, session, "Usage", self.templates.usage(UsageDashboardGenerator.generate(history, hours)))
 end
 
 ---@param res web.Response
@@ -216,25 +278,41 @@ function AdminPages:pageRequests(res, session, query)
 	local before = tonumber(query.before)
 	if before and before >= 1 and before < 2 ^ 53 and before % 1 == 0 then filters.before = before end
 	local repo = self.server.request_logs_repo
-	local rows, next_before = repo:list(filters, self.get_time())
+	local now = self.get_time()
+	local rows, next_before = repo:list(filters, now)
+	---@type {[string]: string}
+	local params = {}
+	for _, key in ipairs({"user", "model", "channel", "outcome"}) do
+		---@type string?
+		local value = filters[key]
+		if value then params[key] = value end
+	end
+	---@param values {[string]: string}
+	---@return string
+	local function url(values)
+		local encoded = http_util.encode_query_string(values)
+		return "/admin/requests" .. (encoded ~= "" and "?" .. encoded or "")
+	end
+	local latest_url = url(params)
+	---@type {label: string, value: string, remove_url: string}[]
+	local active_filters = {}
+	for _, key in ipairs({"user", "channel", "model", "outcome"}) do
+		local value = params[key]
+		if value then
+			params[key] = nil
+			table.insert(active_filters, {label = key, value = value, remove_url = url(params)})
+			params[key] = value
+		end
+	end
+	---@type string?
 	local older_url
 	if next_before then
-		---@type {[string]: string}
-		local params = {before = tostring(next_before)}
-		for _, key in ipairs({"user", "model", "channel", "outcome"}) do params[key] = filters[key] end
-		older_url = "/admin/requests?" .. http_util.encode_query_string(params)
+		params.before = tostring(next_before)
+		older_url = url(params)
 	end
 	self:render(res, session, "Requests", self.templates.requests({rows = rows, filters = filters,
-		older_url = older_url, max_rows = repo.max_rows, retention_days = repo.retention_seconds / 86400}))
+		options = repo:filterOptions(now), active_filters = active_filters, latest_url = latest_url,
+		older_url = older_url, max_rows = repo.max_rows, page_size = repo.page_size, retention_days = repo.retention_seconds / 86400}))
 end
-
----@class ai.router.UsageTotals
----@field requests integer
----@field errors integer
----@field input_tokens integer
----@field output_tokens integer
----@field cached_input_tokens integer
----@field estimated_requests integer
----@field cost_usd number
 
 return AdminPages

@@ -122,4 +122,31 @@ function test.speed_requires_reported_usage_success_and_positive_stream_interval
 	storage:close()
 end
 
+---@param t testing.T
+function test.filter_options_are_retained_distinct_sorted_and_bounded(t)
+	local repo, storage = open()
+	repo.retention_seconds = 10
+	for i = 101, 1, -1 do
+		local record = row(1000)
+		record.user = ("user-%03d"):format(i)
+		repo:record(record)
+	end
+	local duplicate = row(1000)
+	duplicate.user = "user-001"
+	repo:record(duplicate)
+	local blank = row(1000)
+	blank.user, blank.model, blank.channel = "", "", ""
+	repo:record(blank)
+	local options = repo:filterOptions(1010)
+	t:eq(#options.user, 100)
+	t:eq(options.user[1], "user-001")
+	t:eq(options.user[100], "user-100")
+	t:tdeq(options.model, {"fast"})
+	t:tdeq(options.channel, {"zai"})
+	options = repo:filterOptions(1011)
+	t:tdeq(options, {user = {}, model = {}, channel = {}})
+	t:eq(#storage.db:query("SELECT * FROM router_request_logs"), 103)
+	storage:close()
+end
+
 return test

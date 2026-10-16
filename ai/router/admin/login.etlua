@@ -1,20 +1,24 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Router — Sign in</title>
-<style>
-body { font-family: system-ui, sans-serif; max-width: 24rem; margin: 6rem auto; }
-input, button { font: inherit; width: 100%; padding: 0.4rem; margin: 0.3rem 0; }
-.error_message { background: #fde5e5; border: 1px solid #e08585; padding: 0.5rem; }
-</style>
+<style><%- stylesheet %></style>
+<script><%- theme_script %></script>
 </head>
-<body>
-<h1>AI Router admin</h1>
-<% if error_message then %><div class="error_message"><%= error_message %></div><% end %>
+<body class="login-page">
+<main class="login-card">
+<div class="brand"><span class="brand-mark" aria-hidden="true">R</span>AI Router <span class="badge">Console</span></div>
+<h1>Your router, at a glance.</h1>
+<p class="muted">Sign in to view channels, usage and request activity.</p>
+<% if error_message then %><div class="notice" role="alert"><%= error_message %></div><% end %>
 <form method="post" action="/admin/login">
-<input type="password" name="password" placeholder="Admin password" autofocus>
+<label for="password">Admin password</label>
+<input id="password" type="password" name="password" autocomplete="current-password" required autofocus>
 <button type="submit">Sign in</button>
 </form>
+<footer>Read-only console. Management is available through MCP.</footer>
+</main>
 </body>
 </html>

@@ -1,36 +1,47 @@
-<h2>Usage — last <%= hours %> hours</h2>
-<p>
-<a href="/admin/usage?hours=24">24h</a> |
-<a href="/admin/usage?hours=168">7d</a>
-</p>
-<h3>Totals</h3>
-<table>
-<tr><th>requests</th><th>errors</th><th>input</th><th>output</th><th>cached input</th><th>estimated</th><th>cost (USD)</th></tr>
-<tr>
-<td><%= totals.requests %></td>
-<td><%= totals.errors %></td>
-<td><%= totals.input_tokens %></td>
-<td><%= totals.output_tokens %></td>
-<td><%= totals.cached_input_tokens %></td>
-<td><%= totals.estimated_requests %></td>
-<td><%= string.format("%.4f", totals.cost_usd) %></td>
-</tr>
-</table>
+<div class="section-heading usage-heading">
+<div><h2>Usage — last <%= hours %> hours</h2><p class="muted">Hourly buckets · UTC · current hour is partial. Snapshot <%= generated_label %>.</p></div>
+<nav class="period-control" aria-label="Usage period">
+<a href="/admin/usage?hours=24"<% if hours == 24 then %> aria-current="page"<% end %>>24h</a>
+<a href="/admin/usage?hours=168"<% if hours == 168 then %> aria-current="page"<% end %>>7d</a>
+</nav>
+</div>
+<dl class="metrics usage-metrics" aria-label="Usage totals">
+<div class="metric"><dt>Requests</dt><dd><%= totals.requests %></dd><p class="muted"><%= totals.errors %> errors · <%= totals.estimated_requests %> with estimated tokens</p></div>
+<div class="metric"><dt>Total tokens</dt><dd><%= totals.input_tokens + totals.output_tokens %></dd><p class="muted"><%= totals.input_tokens %> input · <%= totals.output_tokens %> output<br><%= totals.cached_input_tokens %> cached (included in input)</p></div>
+<div class="metric"><dt>Estimated cost · USD</dt><dd>$<%= string.format("%.4f", totals.cost_usd) %></dd><p class="muted">Configured prices only; unpriced models contribute $0. Not a provider invoice.</p></div>
+</dl>
+<% if totals.requests == 0 then %><div class="empty-state usage-empty"><h3>No requests in this period</h3><p class="muted">Completed inference requests will appear here. Channel probes are excluded.</p></div><% end %>
+<div class="usage-charts">
+<% for _, chart in ipairs(charts) do %>
+<section class="usage-chart" data-usage-chart aria-labelledby="<%= chart.id %>-title">
+<h2 id="<%= chart.id %>-title"><%= chart.title %></h2>
+<ul class="chart-legend" aria-label="Series"><% for _, series in ipairs(chart.series) do %><li class="<%= series.style %>"><span aria-hidden="true"></span><%= series.label %></li><% end %></ul>
+<div class="chart-grid">
+<div class="chart-y" aria-hidden="true"><% for _, tick in ipairs(chart.ticks) do %><span style="top:<%= tick.y %>%"><%= tick.label %></span><% end %></div>
+<svg class="chart-plot" viewBox="0 0 720 180" preserveAspectRatio="none" role="img" aria-labelledby="<%= chart.id %>-title" aria-describedby="<%= chart.id %>-note">
+<% for _, tick in ipairs(chart.ticks) do %><line class="chart-gridline" x1="0" x2="720" y1="<%= tick.y * 1.8 %>" y2="<%= tick.y * 1.8 %>"/><% end %>
+<% for _, series in ipairs(chart.series) do %><polyline class="chart-line <%= series.style %>" points="<%= series.points %>"/><% end %>
+<% for _, hour in ipairs(chart.hours) do %><g data-chart-point data-label="<%= hour.label %>"><title><%= hour.label %></title><rect class="chart-hit" x="<%= hour.x %>" y="0" width="<%= hour.width %>" height="180"/></g><% end %>
+</svg>
+<div class="chart-x" aria-hidden="true"><span><%= first_label %></span><span><%= middle_label %></span><span><%= last_label %></span></div>
+</div>
+<p class="chart-tooltip" data-chart-tooltip hidden></p>
+<p id="<%= chart.id %>-note" class="muted chart-note"><%= chart.note %> Exact hourly values are also available in the table below.</p>
+</section>
+<% end %>
+</div>
 <% for _, section in ipairs(sections) do %>
-<h3><%= section.title %></h3>
-<table>
-<tr><th>name</th><th>requests</th><th>errors</th><th>input</th><th>output</th><th>cached</th><th>estimated</th><th>cost (USD)</th></tr>
-<% for _, row in ipairs(section.rows) do %>
-<tr>
-<td><%= row.key %></td>
-<td><%= row.item.requests %></td>
-<td><%= row.item.errors %></td>
-<td><%= row.item.input_tokens %></td>
-<td><%= row.item.output_tokens %></td>
-<td><%= row.item.cached_input_tokens %></td>
-<td><%= row.item.estimated_requests %></td>
-<td><%= string.format("%.4f", row.item.cost_usd) %></td>
-</tr>
+<section class="usage-section"><h2><%= section.title %></h2>
+<% if #section.rows == 0 then %><p class="muted">No usage in this period.</p><% else %>
+<div class="scroll" role="region" aria-label="<%= section.title %> usage" tabindex="0"><table>
+<thead><tr><th scope="col">Name</th><th scope="col">Requests</th><th scope="col">Errors</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">Cached input</th><th scope="col">Estimated requests</th><th scope="col">Cost (USD)</th></tr></thead>
+<tbody><% for _, row in ipairs(section.rows) do %><tr>
+<th scope="row"><%= row.key %></th><td><%= row.item.requests %></td><td><%= row.item.errors %></td><td><%= row.item.input_tokens %></td><td><%= row.item.output_tokens %></td><td><%= row.item.cached_input_tokens %></td><td><%= row.item.estimated_requests %></td><td><%= string.format("%.4f", row.item.cost_usd) %></td>
+</tr><% end %></tbody></table></div><% end %>
+</section>
 <% end %>
-</table>
-<% end %>
+<details class="usage-section hourly-details"><summary>Hourly data (UTC)</summary>
+<div class="scroll" role="region" aria-label="Hourly usage" tabindex="0"><table>
+<thead><tr><th scope="col">Hour starting (UTC)</th><th scope="col">Requests</th><th scope="col">Errors</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">Cached input</th><th scope="col">Estimated requests</th><th scope="col">Cost (USD)</th></tr></thead>
+<tbody><% for _, hour in ipairs(timeline) do %><tr data-hour="<%= hour.bucket %>"><th scope="row"><%= hour.label %></th><td><%= hour.requests %></td><td><%= hour.errors %></td><td><%= hour.input_tokens %></td><td><%= hour.output_tokens %></td><td><%= hour.cached_input_tokens %></td><td><%= hour.estimated_requests %></td><td><%= string.format("%.4f", hour.cost_usd) %></td></tr><% end %></tbody>
+</table></div></details>

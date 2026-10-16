@@ -1,42 +1,44 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Router — <%= title %></title>
-<style>
-body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
-table { border-collapse: collapse; width: 100%; margin: 0.6rem 0; }
-td, th { border: 1px solid #ccc; padding: 0.3rem 0.5rem; text-align: left; vertical-align: top; font-size: 0.92rem; }
-th { background: #f0f0f0; }
-form { margin: 0.2rem 0; }
-button { font: inherit; padding: 0.15rem 0.35rem; }
-nav { margin-bottom: 1rem; }
-nav a { margin-right: 1rem; }
-code { background: #f4f4f4; padding: 0.1rem 0.3rem; }
-.inline { display: inline; }
-.muted { color: #777; }
-.scroll { overflow-x: auto; }
-.filters { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: end; }
-.filters label { display: grid; gap: 0.2rem; }
-.filters input { width: 11rem; }
-.error { color: #b42318; }
-h2 { margin-top: 1.6rem; }
-</style>
+<style><%- stylesheet %></style>
+<script><%- theme_script %></script>
 </head>
 <body>
-<nav>
-<a href="/admin/users">Users</a>
-<a href="/admin/channels">Channels</a>
-<a href="/admin/models">Models</a>
-<a href="/admin/usage">Usage</a>
-<a href="/admin/requests">Requests</a>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+<a class="brand" href="/admin/overview"><span class="brand-mark" aria-hidden="true">R</span>AI Router <span class="badge">Console</span></a>
+<div class="toolbar">
+<label class="theme-control">Theme <select id="theme" aria-label="Color theme"><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
 <form class="inline" method="post" action="/admin/logout">
 <input type="hidden" name="csrf_token" value="<%= csrf_token %>">
-<button type="submit">Logout</button>
+<button class="quiet" type="submit">Sign out</button>
 </form>
+</div>
+</header>
+<div class="shell">
+<nav class="sidebar" aria-label="Main navigation">
+<p class="eyebrow">Workspace</p>
+<% for _, item in ipairs({{"Overview", "overview"}, {"Channels", "channels"}, {"Usage", "usage"}, {"Requests", "requests"}, {"Models", "models"}, {"Users", "users"}}) do %>
+<a href="/admin/<%= item[2] %>"<% if title == item[1] then %> aria-current="page"<% end %>><%= item[1] %></a>
+<% end %>
+<div class="sidebar-note"><span class="badge">Read-only</span><p>Manage your router through MCP. Credentials stay off this dashboard.</p></div>
 </nav>
-<h1><%= title %></h1>
-<p class="muted">Read-only dashboard. Manage users, channels, models, and authorization through the router MCP server and your local agent.</p>
-<%- content %>
+<main id="main" tabindex="-1">
+<header class="page-heading"><div><p class="eyebrow">Router workspace</p><h1><%= title %></h1><p class="muted">Read-only dashboard. Manage users, channels, models, and authorization through MCP.</p></div></header>
+<% if title == "Overview" then %>
+<div class="live-toolbar" aria-label="Overview updates">
+<div><span id="overview-status" class="muted">Snapshot from page load. Enable JavaScript for automatic updates.</span><p id="overview-error" class="error" role="status"></p><a id="overview-sign-in" href="/admin/login" hidden>Sign in again →</a></div>
+<button id="overview-refresh" type="button" hidden>Refresh now</button>
+</div>
+<% end %>
+<div id="page-content" class="page-content<% if title ~= "Overview" and title ~= "Usage" and title ~= "Requests" then %> scroll<% end %>"><%- content %></div>
+<footer><%= title == "Overview" and "Overview updates every 30 seconds while this tab is visible. Without JavaScript, reload for new data." or "Snapshot from this page load. Reload to see the latest data." %> Quotas never change routing.</footer>
+</main>
+</div>
+<% if page_script and page_script ~= "" then %><script><%- page_script %></script><% end %>
 </body>
 </html>

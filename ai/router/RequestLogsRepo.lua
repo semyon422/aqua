@@ -60,6 +60,7 @@ function RequestLogsRepo:list(filters, now)
 	---@type (string|number)[]
 	local values = {now - self.retention_seconds}
 	for _, key in ipairs({"user", "model", "channel"}) do
+		---@type string?
 		local value = filters[key]
 		if value and value ~= "" then
 			table.insert(clauses, key .. " = ?")
@@ -88,12 +89,34 @@ function RequestLogsRepo:list(filters, now)
 			row.output_tps = row.output_tokens * 1000 / row.generation_ms
 		end
 	end
+	---@type integer?
 	local next_before
 	if #rows > self.page_size then
 		table.remove(rows)
 		next_before = rows[#rows].id
 	end
 	return rows, next_before
+end
+
+---@class ai.router.RequestLogFilterOptions
+---@field user string[]
+---@field model string[]
+---@field channel string[]
+
+---@param now integer
+---@return ai.router.RequestLogFilterOptions
+function RequestLogsRepo:filterOptions(now)
+	---@type ai.router.RequestLogFilterOptions
+	local options = {user = {}, model = {}, channel = {}}
+	for _, key in ipairs({"user", "model", "channel"}) do
+		local rows = self.models.router_request_logs.orm:query("SELECT DISTINCT " .. key
+			.. " AS value FROM router_request_logs WHERE created_at >= ? AND " .. key .. " <> '' ORDER BY " .. key .. " LIMIT 100",
+			{now - self.retention_seconds})
+		---@type string[]
+		local values = options[key]
+		for _, row in ipairs(rows) do table.insert(values, row.value) end
+	end
+	return options
 end
 
 return RequestLogsRepo

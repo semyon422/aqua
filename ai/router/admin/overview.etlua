@@ -1,0 +1,49 @@
+<div data-overview-now="<%= now %>">
+<dl class="metrics" aria-label="Router summary">
+<div class="metric"><dt>Enabled channels</dt><dd><%= enabled_count %> <small>of <%= #channels %> configured</small></dd></div>
+<div class="metric"><dt>Public models</dt><dd><%= model_count %></dd></div>
+<div class="metric"><dt>Users</dt><dd><%= user_count %></dd></div>
+</dl>
+<section aria-labelledby="channel-heading">
+<div class="section-heading"><div><h2 id="channel-heading">Channel overview</h2><p class="muted">Usage windows and the latest monitoring status.</p></div><a href="/admin/channels">View channel details →</a></div>
+<% if #channels == 0 then %>
+<div class="empty-state"><h3>No channels yet</h3><p class="muted">Connect a subscription or compatible endpoint through MCP to get started.</p><code>router_save_channel</code></div>
+<% else %>
+<div class="channel-grid">
+<% for _, channel in ipairs(channels) do %>
+<article class="channel-card">
+<div class="card-heading"><div><h3><%= channel.name %></h3><p><%= channel.kind == "openai" and "OpenAI subscription" or channel.kind == "zai" and "Z.ai Coding Plan" or "OpenAI-compatible" %> · <%= channel.model_count %> models</p></div>
+<% if not channel.enabled then %><span class="badge">Disabled</span>
+<% elseif channel.poll and channel.poll.error then %><span class="badge error">Usage error</span>
+<% elseif channel.login_status and channel.login_status ~= "authenticated" then %><span class="badge warning"><%= channel.login_status %></span>
+<% else %><span class="badge ok">Enabled</span><% end %>
+</div>
+<% if channel.enabled and channel.poll and channel.poll.error then %>
+<div class="notice"><%= channel.poll.error.message %><% if channel.poll.error.http_status then %> (HTTP <%= channel.poll.error.http_status %>)<% end %><p>Quota data may be stale.</p></div>
+<% end %>
+<% for _, window in ipairs({{"five_hour", "5-hour window"}, {"weekly", "Weekly window"}}) do %>
+<% local snapshot = channel.enabled and channel.windows[window[1]] or nil %>
+<div class="quota">
+<div class="quota-heading"><span><%= window[2] %></span><strong><%= snapshot and snapshot.used_percent ~= nil and string.format("%.1f%%", snapshot.used_percent) or "—" %></strong></div>
+<% if snapshot and snapshot.used_percent ~= nil then %>
+<progress max="100" value="<%= math.max(0, math.min(100, snapshot.used_percent)) %>" aria-label="<%= channel.name %>: <%= window[2] %> used"<% if snapshot.used_percent >= 80 then %> class="warning"<% end %>><%= string.format("%.1f%%", snapshot.used_percent) %> used</progress>
+<p><%= snapshot.source == "local" and "Local estimate" or "Used quota" %> · updated <span data-age="<%= snapshot.updated_at %>"><%= math.max(0, math.floor(now - snapshot.updated_at)) %>s ago</span></p>
+<% if snapshot.reset_at then %><p>Resets <%= os.date("%Y-%m-%d %H:%M", snapshot.reset_at) %> (server time)<br><span data-reset-at="<%= snapshot.reset_at %>"><%= snapshot.reset_at > now and ("In " .. math.ceil((snapshot.reset_at - now) / 60) .. " min") or "Awaiting quota update" %></span></p><% end %>
+<% else %><p><%= not channel.enabled and "Channel disabled" or "No quota data available" %></p><% end %>
+</div>
+<% end %>
+<div class="channel-footer">
+<% if channel.login_status then %><p>OAuth: <%= channel.login_status %></p><% end %>
+<% if not channel.enabled then %><p>Monitoring disabled</p>
+<% elseif channel.poll then %>
+<p>Last poll <span data-age="<%= channel.poll.attempted_at %>"><%= math.max(0, math.floor(now - channel.poll.attempted_at)) %>s ago</span></p>
+<% if channel.poll.succeeded_at then %><p>Last successful update <span data-age="<%= channel.poll.succeeded_at %>"><%= math.max(0, math.floor(now - channel.poll.succeeded_at)) %>s ago</span></p>
+<% else %><p>No successful quota update yet</p><% end %>
+<% else %><p>Not polled / no upstream quota monitor</p><% end %>
+</div>
+</article>
+<% end %>
+</div>
+<% end %>
+</section>
+</div>

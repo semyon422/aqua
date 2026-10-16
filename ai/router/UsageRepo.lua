@@ -87,8 +87,16 @@ function UsageRepo:record(now, user, status, public_model, upstream_model, chann
 			counters.estimated and 1 or 0})
 end
 
+---@class ai.router.UsageHistory
+---@field bucket_seconds integer
+---@field first_bucket integer
+---@field last_bucket integer
+---@field generated_at number
+---@field currency string
+---@field rows ai.router.UsageRow[]
+
 ---@param now number
----@return table
+---@return ai.router.UsageHistory
 function UsageRepo:history(now)
 	local last = math.floor(now / 3600) * 3600
 	local first = last - 167 * 3600
