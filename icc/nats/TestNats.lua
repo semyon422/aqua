@@ -125,6 +125,11 @@ function TestNats:flush()
 	self.pending = {}
 end
 
+function TestNats:close()
+	self.subscribers = {}
+	self.pending = {}
+end
+
 --- Check if the connection is alive.
 --- TestNats is always healthy.
 ---@return boolean

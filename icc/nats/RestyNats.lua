@@ -12,6 +12,7 @@ local class = require("class")
 
 ---@class nats.Client
 ---@field sock nats.Socket
+---@field socket_config {keepalive: boolean}
 ---@field closing boolean
 ---@field subscribers {[integer]: fun(message: nats.Message)}
 ---@field subscriber_id_map {[string]: integer}
@@ -41,7 +42,7 @@ local unsubscribe_protocol = require("resty.nats.protocols.unsub")
 ---@field cli nats.Client? underlying NATS client
 ---@field connected boolean connection state (true=connected, false=failed, nil=not tried)
 ---@field connect_failed boolean true if initial connect() failed (cached to avoid retry storms)
----@field receive_thread any? receive loop thread handle
+---@field receive_thread thread? receive loop thread handle
 ---@operator call: nats.RestyNats
 local RestyNats = class()
 
@@ -85,6 +86,8 @@ function RestyNats:start()
 		print("[nats] failed to connect: " .. tostring(err))
 		return nil, tostring(err)
 	end
+	-- Upstream turns keepalive=false into true; request-owned sockets must not be pooled.
+	cli.socket_config.keepalive = false
 	self.cli = cli
 	self.connected = true
 
@@ -129,9 +132,11 @@ function RestyNats:start()
 
 		-- Connection died — reset state so subsequent calls can reconnect.
 		-- Do NOT set connect_failed; that only blocks initial connect attempts.
-		self.cli = nil
-		self.connected = false
-		self.receive_thread = nil
+		if self.cli == cli then
+			self.cli = nil
+			self.connected = false
+			self.receive_thread = nil
+		end
 		print("[nats] receive loop exited — will reconnect on next call")
 	end)
 
@@ -194,14 +199,21 @@ function RestyNats:unsubscribe(sid)
 	return true
 end
 
+--- Call from the receive thread or its owner, before the request/timer returns.
 function RestyNats:close()
-	if self.cli then
-		self.cli:close()
-		self.cli = nil
-	end
+	local cli = self.cli
+	local receiver = self.receive_thread
+	self.cli = nil
 	self.connected = nil
 	self.connect_failed = false
 	self.receive_thread = nil
+
+	if receiver and receiver ~= coroutine.running() and coroutine.status(receiver) ~= "dead" then
+		assert(ngx.thread.kill(receiver))
+	end
+	if cli then
+		cli:close()
+	end
 end
 
 --- Check if the connection is alive.
