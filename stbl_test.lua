@@ -16,7 +16,7 @@ function test.all(t)
 		["\n"] = "\a \b \f \n \r \t \v \\ \" \' \0 \1",
 	}
 	tbl.ref = tbl
-	local s = [[{1,2,nil,1e+30,[1.5]=2.5,["\n"]="\a \b \f \n \r \t \v \\ \" \' \0 \001",a="qwe",ref=nil,t={nil,{}},["true"]=false}]]
+	local s = [[{1,2,nil,1e+30,[1.5]=2.5,["\n"]="\a \b \f \n \r \t \v \\ \" \' \000 \001",a="qwe",ref=nil,t={nil,{}},["true"]=false}]]
 
 	t:eq(stbl.encode(tbl), s)
 
@@ -60,6 +60,13 @@ function test.pretty_encoding(t)
 
 	t:eq(stbl.encode_pretty(tbl), expected)
 	t:tdeq(stbl.decode(stbl.encode_pretty(tbl)), tbl)
+end
+
+function test.binary_roundtrip(t)
+	local all = {}
+	for i = 0, 255 do all[#all + 1] = string.char(i) end
+	local s = table.concat(all) .. "\0" .. "123" .. "\0\0" .. "9"
+	t:eq(stbl.decode(stbl.encode({s = s})).s, s)
 end
 
 return test
