@@ -445,9 +445,10 @@ function Management:testChannel(args)
 			return provider:createResponse({model = candidate.model, input = "Reply with exactly OK.",
 				store = false, stream = false}, candidate.upstream_model)
 		end
+		-- shortcut: zai validation only accepts JSON-tagged tables, so the probe body must use json.object/json.array
 		return provider:complete({model = candidate.model, stream = false, max_tokens = 16,
-			messages = {{role = "user", content = "Reply with exactly OK."}},
-			thinking = row.kind == "zai" and {type = "disabled"} or nil}, candidate.upstream_model)
+			messages = json.array({json.object({role = "user", content = "Reply with exactly OK."})}),
+			thinking = row.kind == "zai" and json.object({type = "disabled"}) or nil}, candidate.upstream_model)
 	end)
 	self.active_probes[row.id] = nil
 	if not invoked then value, err, provider_error = nil, nil, nil end

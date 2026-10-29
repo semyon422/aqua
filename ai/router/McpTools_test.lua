@@ -7,6 +7,7 @@ local http_util = require("web.http.util")
 local Stack = require("ai.router.testing.Stack")
 local OpenAILoginManager = require("ai.router.OpenAILoginManager")
 local SubscriptionAuth = require("ai.openai.SubscriptionAuth")
+local ZaiProxyServer = require("ai.zai.ProxyServer")
 
 local test = {}
 
@@ -323,6 +324,7 @@ end
 function test.channel_probe_uses_one_native_call_and_only_returns_metadata(t)
 	local stack = Stack()
 	local calls = 0
+	local last_probe_body
 	stack.server.provider_factory = function(row)
 		if row.kind == "openai" then
 			return {createResponse = function(_, body, upstream_model, session_id, callback)
@@ -340,6 +342,7 @@ function test.channel_probe_uses_one_native_call_and_only_returns_metadata(t)
 		end
 		return {complete = function(_, body, upstream_model)
 			calls = calls + 1
+			last_probe_body = body
 			t:eq(body.model, "public")
 			t:eq(upstream_model, "redirected")
 			t:eq(body.max_tokens, 16)
@@ -372,6 +375,12 @@ function test.channel_probe_uses_one_native_call_and_only_returns_metadata(t)
 			t:eq(result.probe.protocol, kind == "openai" and "responses" or "chat_completions")
 			t:eq(result.probe.output_tokens, 2)
 			t:eq(result.probe.cached_input_tokens, 1)
+			if kind == "zai" then
+				-- the probe body must pass the real zai validation, which only accepts JSON-tagged tables
+				local upstream_body = ZaiProxyServer.normalizeRequest(last_probe_body,
+					{public = true, redirected = true}, {public = "redirected"}, nil, true)
+				t:assert(upstream_body, "probe body must pass zai request validation")
+			end
 			t:eq(result.operation, nil)
 			t:eq(json.encode(result):find("PRIVATE", 1, true), nil)
 		end
