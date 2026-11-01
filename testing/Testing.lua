@@ -27,6 +27,8 @@ local Testing = class()
 
 Testing.total = 0
 Testing.fail = 0
+--- `*_lovetest.lua` files need a real LÖVE window and run only under `./test-love`.
+Testing.file_pattern = "_test%.lua$"
 
 ---@param tio testing.ITestingIO
 function Testing:new(tio)
@@ -94,7 +96,7 @@ function Testing:_run(file_pattern, method_pattern, on_file_start, on_file_end)
 	local files = {}
 
 	for path in self.tio:iterFiles("") do
-		if path:match("_test%.lua$") and (not file_pattern or path:match(file_pattern)) then
+		if path:match(self.file_pattern) and (not file_pattern or path:match(file_pattern)) then
 			if on_file_start then on_file_start(path) end
 
 			local start_time = self.tio:getTime()
