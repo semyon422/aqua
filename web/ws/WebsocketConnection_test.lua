@@ -339,6 +339,7 @@ function test.cosocket_connect_clears_reader_timeout_after_handshake(t)
 			self.headers:set("Upgrade", "websocket")
 			self.headers:set("Connection", "Upgrade")
 			self.headers:set("Sec-WebSocket-Accept", gen_accept(req.headers:get("Sec-WebSocket-Key")))
+			return true
 		end,
 	}
 
