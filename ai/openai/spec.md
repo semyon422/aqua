@@ -14,6 +14,9 @@ Provide reusable OpenAI-compatible Chat Completions and Responses clients backed
 ## Architecture Decisions
 
 - `Client` owns only the `/chat/completions` protocol: request encoding, authentication headers, response decoding, and response-shape validation.
+- `BaseResponsesClient` owns the shared Responses transport: agent message and tool translation, native Responses request assembly, SSE event assembly into assistant messages, deadlines, sanitized provider errors, and stream lifecycle. Subclasses provide `responses_url`, `error_label`, `authorize()`, `createHeaders()`, and optional `adaptNativeBody()` provider constraints.
+- `SubscriptionClient` extends `BaseResponsesClient` for the ChatGPT Codex Responses backend: OAuth authorization per request, workspace headers, `store = false`, encrypted reasoning inclusion, and `max_output_tokens` omission.
+- `ResponsesClient` extends `BaseResponsesClient` for any OpenAI-compatible Responses endpoint (including the standalone proxy): a base URL, an optional bearer API key, and a caller-controlled native request body without subscription constraints. It also serves as the agent client for `Agent` through the shared `complete`/`completeStream`/`cancel` interface.
 - `ResponsesProtocol` owns shared stateless input/affinity validation; model allowlisting and grants stay with each HTTP server.
 - `SubscriptionAuth` owns the reusable PKCE authorization, callback-state validation, token refresh, and credential mutation. HTTP requests, scheduling, browser opening, credential persistence, and time are injected.
 - `SubscriptionClient` translates common agent messages and function tools to the Responses input protocol. It also transports native Responses requests without translating their tools, input items, or typed events. It assembles output from typed SSE events and retains provider-owned output items, including encrypted reasoning, across stateless tool rounds.
@@ -132,6 +135,8 @@ For public access, keep the Lua server bound to `127.0.0.1` and terminate HTTPS 
 - Audit native request adaptation (`store=false`, upstream SSE, string-input normalization, encrypted-reasoning inclusion, and reasoning/text defaults), distinguishing required subscription-backend constraints from avoidable changes to caller intent.
 - Verify built-in tools, structured output, multimodal input, reasoning round trips, and cache options against the actual subscription backend and selected models; do not infer support from the public API or the local model allowlist.
 - Add live Responses agent checks covering parallel function calls/results, encrypted-reasoning continuation, incomplete/failed responses, and downstream cancellation. Current live verification covers simple text JSON/SSE only; broader behavior is covered by unit tests, not a full live agent workflow.
+- Make the agent loop atomic: stage assistant/tool messages in a temporary list and merge into caller history only on success, rolling back the partial tail on failure. This would remove the protocol-repair compensation in the game chat model (`removeIncompleteActiveProtocolMessages`).
+- Forward reasoning and tool-call streaming deltas through `AgentOptions` (`on_reasoning_delta`, `on_tool_call_delta`); completion clients simply have none. Also document the abort semantics where a delta callback returning `false` closes the stream, and cover it with a test.
 
 - Consider a shared provider capability description for optional compatibility flags.
 - Track compatibility changes to the ChatGPT Codex OAuth and Responses backend independently from the public API-key client.

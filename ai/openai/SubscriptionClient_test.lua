@@ -119,9 +119,11 @@ function test.encodes_responses_request_and_preserves_output_items(t)
 	t:eq(called.options.headers["ChatGPT-Account-Id"], "account")
 	t:eq(called.options.headers.session_id, "session-1")
 	t:ne(called.options.headers["x-client-request-id"], "session-1")
-	t:eq(client:createHeaders("access", "account", "request-2").session_id, "session-1")
+	t:eq(client:createHeaders("request-2").session_id, "session-1")
 	local fallback_client = makeClient(function() error("not used") end)
-	t:eq(fallback_client:createHeaders("access", "account", "request-3").session_id, "request-3")
+	fallback_client.access_token = "access"
+	fallback_client.account_id = "account"
+	t:eq(fallback_client:createHeaders("request-3").session_id, "request-3")
 	t:assert(called.options.timeout <= 45)
 	t:assert(called.options.timeout > 44)
 	t:eq(body.instructions, "instructions")

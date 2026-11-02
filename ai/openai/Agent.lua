@@ -60,9 +60,13 @@ local json = require("web.json")
 ---@field on_text_delta fun(content: string)?
 ---@field streaming boolean?
 
+--- Alias for any completion backend accepted by Agent: Chat Completions,
+--- subscription Responses, or API-key Responses clients.
+---@alias openai.CompletionClient openai.Client|openai.BaseResponsesClient
+
 ---@class openai.Agent
 ---@operator call: openai.Agent
----@field client openai.Client|openai.SubscriptionClient
+---@field client openai.CompletionClient
 ---@field tools {[string]: openai.Tool}
 ---@field tool_schemas openai.ToolSchema[]
 ---@field max_tool_rounds integer
@@ -73,7 +77,7 @@ local json = require("web.json")
 ---@field streaming boolean
 local Agent = class()
 
----@param client openai.Client|openai.SubscriptionClient
+---@param client openai.CompletionClient
 ---@param tools openai.Tool[]
 ---@param options openai.AgentOptions?
 function Agent:new(client, tools, options)
@@ -94,7 +98,7 @@ function Agent:new(client, tools, options)
 	end
 end
 
----@param client openai.Client|openai.SubscriptionClient
+---@param client openai.CompletionClient
 function Agent:setClient(client)
 	self.client = client
 end
