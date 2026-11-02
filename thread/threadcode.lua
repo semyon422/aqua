@@ -3,6 +3,7 @@ pkg.import_love()
 pkg.export_lua()
 
 require("pprint").export()
+require("log_print").inherit()
 
 local synctable = require("synctable")
 local table_util = require("table_util")

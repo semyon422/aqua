@@ -3,6 +3,7 @@ pkg.import_love()
 pkg.export_lua()
 
 require("pprint").export()
+require("log_print").inherit()
 
 local stbl = require("stbl")
 local Remote = require("icc.Remote")
