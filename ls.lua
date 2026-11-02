@@ -11,9 +11,10 @@ local ls = {}
 function ls.iter(path)
 	local cmd = "ls -pAL"
 	if path and #path > 0 then
-		cmd = cmd .. " %q"
+		-- Single quotes: %q's double quotes let the shell expand `$name` folders, looping forever.
+		cmd = cmd .. " '" .. path:gsub("'", "'\\''") .. "'"
 	end
-	local pipe = assert(io.popen(cmd:format(path)))
+	local pipe = assert(io.popen(cmd))
 	local lines = pipe:lines()
 	return function()
 		---@type string
