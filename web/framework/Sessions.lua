@@ -105,7 +105,8 @@ end
 
 ---@param headers web.Headers
 ---@param session table
-function Sessions:set(headers, session)
+---@param max_age integer?
+function Sessions:set(headers, session, max_age)
 	local set_cookie = SetCookieString()
 
 	set_cookie.name = self.cookie_name
@@ -113,6 +114,9 @@ function Sessions:set(headers, session)
 	set_cookie:add("Path", "/")
 	set_cookie:add("SameSite", "Lax")
 	set_cookie:add("HttpOnly")
+	if max_age then
+		set_cookie:add("Max-Age", max_age)
+	end
 	if self.secure then
 		set_cookie:add("Secure")
 	end
