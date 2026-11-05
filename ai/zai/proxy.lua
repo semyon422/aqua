@@ -130,6 +130,7 @@ local function fetchUsage()
 end
 
 local server = ProxyServer({
+	get_time = scheduler.get_time,
 	scheduler = scheduler,
 	users = users,
 	models = assert(config.models, "proxy models are required"),
@@ -139,6 +140,7 @@ local server = ProxyServer({
 	fetch_usage = fetchUsage,
 	create_client = function()
 		return Client({
+			get_time = scheduler.get_time,
 			base_url = base_url,
 			api_key = config.api_key,
 			timeout = upstream_timeout,

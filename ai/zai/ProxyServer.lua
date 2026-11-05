@@ -1,8 +1,6 @@
 local class = require("class")
 local json = require("web.json")
 local random = require("web.random")
----@type {gettime: fun(): number}
-local socket = require("socket")
 local HttpServer = require("web.http.Server")
 local Protocol = require("ai.zai.Protocol")
 local ChatProtocol = require("ai.openai.ChatCompletionsProtocol")
@@ -26,7 +24,7 @@ local ChatProtocol = require("ai.openai.ChatCompletionsProtocol")
 ---@field max_clients integer?
 ---@field max_concurrent_requests_per_user integer?
 ---@field max_requests_per_minute integer?
----@field get_time (fun(): number)?
+---@field get_time fun(): number
 
 --- An authenticated Chat Completions proxy for a GLM coding plan. It serves
 --- `POST /v1/chat/completions` plus the read-only `GET /v1/models` and
@@ -106,7 +104,8 @@ function ProxyServer:new(options)
 	self.max_requests_per_minute = options.max_requests_per_minute or self.max_requests_per_minute
 	self.active_requests = {}
 	self.request_windows = {}
-	self.get_time = options.get_time or socket.gettime
+	assert(type(options.get_time) == "function", "get_time is required")
+	self.get_time = options.get_time
 	local max_clients = options.max_clients or self.max_clients
 	assert(self.max_body_size >= 1, "max_body_size must be positive")
 	assert(max_clients >= 1, "max_clients must be positive")

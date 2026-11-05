@@ -1,8 +1,6 @@
 local class = require("class")
 local digest = require("digest")
 local json = require("web.json")
----@type {gettime: fun(): number}
-local socket = require("socket")
 local HttpServer = require("web.http.Server")
 local UsagePage = require("ai.openai.UsagePage")
 local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
@@ -33,7 +31,7 @@ local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
 ---@field max_clients integer?
 ---@field max_concurrent_requests_per_user integer?
 ---@field max_requests_per_minute integer?
----@field get_time (fun(): number)?
+---@field get_time fun(): number
 
 ---@class openai.ProxyServer
 ---@operator call: openai.ProxyServer
@@ -94,7 +92,8 @@ function ProxyServer:new(options)
 	self.max_requests_per_minute = options.max_requests_per_minute or self.max_requests_per_minute
 	self.active_requests = {}
 	self.request_windows = {}
-	self.get_time = options.get_time or socket.gettime
+	assert(type(options.get_time) == "function", "get_time is required")
+	self.get_time = options.get_time
 	local max_clients = options.max_clients or self.max_clients
 	assert(self.max_body_size >= 1, "max_body_size must be positive")
 	assert(max_clients >= 1, "max_clients must be positive")

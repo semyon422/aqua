@@ -6,7 +6,12 @@ local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local digest = require("digest")
 local http_util = require("web.http.util")
 local json = require("web.json")
-local ProxyServer = require("ai.openai.ProxyServer")
+local ProxyServerClass = require("ai.openai.ProxyServer")
+
+local function ProxyServer(options)
+	options.get_time = options.get_time or options.scheduler.get_time
+	return ProxyServerClass(options)
+end
 local UsageRepo = require("ai.openai.UsageRepo")
 local UsageDatabase = require("ai.openai.storage.UsageDatabase")
 local LjsqliteDatabase = require("rdb.db.LjsqliteDatabase")

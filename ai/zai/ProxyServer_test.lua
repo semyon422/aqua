@@ -103,6 +103,7 @@ end
 local function startServer(t, options)
 	local scheduler = CosocketScheduler()
 	options.scheduler = scheduler
+	options.get_time = options.get_time or scheduler.get_time
 	options.users = options.users or {{name = "alice", access_token = "proxy-secret-proxy-secret-proxy"}}
 	options.models = options.models or {"glm-4.7", "glm-5.3-flash"}
 	options.logger = options.logger or function() end

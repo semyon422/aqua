@@ -1,5 +1,11 @@
 local json = require("web.json")
-local Client = require("ai.openai.ChatCompletionsClient")
+local ClientClass = require("ai.openai.ChatCompletionsClient")
+
+-- Transport fixtures explicitly supply a deterministic clock.
+local function Client(options)
+	options.get_time = options.get_time or function() return 0 end
+	return ClientClass(options)
+end
 
 local test = {}
 
@@ -291,7 +297,7 @@ function test.streaming_error_body_is_bounded_by_size_and_deadline(t)
 		stream.setTimeout = function() end
 		stream.receiveAvailableChunk = function()
 			reads = reads + 1
-			if limit == "size" then return string.rep("x", Client.max_error_body_size + 1) end
+			if limit == "size" then return string.rep("x", ClientClass.max_error_body_size + 1) end
 			now = now + 0.5
 			return "x"
 		end

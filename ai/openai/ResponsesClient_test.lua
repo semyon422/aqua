@@ -49,6 +49,7 @@ end
 local function makeClient(open_stream, options)
 	---@type openai.ResponsesClientOptions
 	local client_options = {
+		get_time = function() return 0 end,
 		base_url = "http://127.0.0.1:28081/v1/",
 		api_key = "proxy-token",
 		model = "gpt-test",

@@ -1,8 +1,6 @@
 local class = require("class")
 local json = require("web.json")
 local random = require("web.random")
----@type {gettime: fun(): number}
-local socket = require("socket")
 local SseParser = require("ai.openai.SseParser")
 
 ---@alias openai.ReasoningEffort "none"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max"
@@ -107,7 +105,7 @@ local SseParser = require("ai.openai.SseParser")
 ---@field text_format openai.ResponsesTextFormat?
 ---@field max_response_size integer?
 ---@field timeout number?
----@field get_time (fun(): number)?
+---@field get_time fun(): number
 ---@field open_stream openai.OpenStreamFunc
 
 -- Shared Responses transport: agent message translation, native request
@@ -154,7 +152,8 @@ function BaseResponsesClient:new(options)
 	assert(self.max_response_size >= 1, "max_response_size must be positive")
 	self.timeout = options.timeout
 	assert(not self.timeout or self.timeout > 0, "timeout must be positive")
-	self.get_time = options.get_time or socket.gettime
+	assert(type(options.get_time) == "function", "get_time is required")
+	self.get_time = options.get_time
 	self.open_stream = assert(options.open_stream, "open_stream is required")
 	self.cancel_requested = false
 	self.deadline_error = self.error_label .. " request deadline exceeded"

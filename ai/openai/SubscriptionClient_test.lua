@@ -56,6 +56,7 @@ end
 local function makeClient(open_stream, max_response_size, request_options)
 	---@type openai.SubscriptionClientOptions
 	local options = {
+		get_time = function() return 0 end,
 		auth = {getAccess = function() return "access", "account" end},
 		model = "gpt-test",
 		reasoning_effort = "medium",
@@ -364,6 +365,7 @@ end
 ---@param t testing.T
 function test.reports_auth_and_stream_errors(t)
 	local client = OpenAiSubscriptionClient({
+		get_time = function() return 0 end,
 		auth = {getAccess = function() return nil, nil, "login required" end},
 		model = "gpt-test",
 		reasoning_effort = "medium",

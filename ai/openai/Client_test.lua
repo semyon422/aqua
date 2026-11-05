@@ -1,5 +1,10 @@
 local json = require("web.json")
-local Client = require("ai.openai.Client")
+local ClientClass = require("ai.openai.Client")
+
+local function Client(options)
+	options.get_time = options.get_time or function() return 0 end
+	return ClientClass(options)
+end
 
 local test = {}
 

@@ -1,4 +1,9 @@
-local Client = require("ai.zai.Client")
+local ClientClass = require("ai.zai.Client")
+
+local function Client(options)
+	options.get_time = options.get_time or function() return 0 end
+	return ClientClass(options)
+end
 local ChatCompletionsClient = require("ai.openai.ChatCompletionsClient")
 
 local test = {}

@@ -251,6 +251,7 @@ local usage_db = UsageDatabase(LjsqliteDatabase())
 if config.usage_db_path then usage_db.path = config.usage_db_path end
 usage_db:open()
 local server = ProxyServer({
+	get_time = scheduler.get_time,
 	usage_repo = UsageRepo(usage_db.models, config.model_prices),
 	scheduler = scheduler,
 	users = users,

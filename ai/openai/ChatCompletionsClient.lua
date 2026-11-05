@@ -2,8 +2,6 @@ local class = require("class")
 local json = require("web.json")
 local table_util = require("table_util")
 local SseParser = require("ai.openai.SseParser")
----@type {gettime: fun(): number}
-local socket = require("socket")
 
 ---@alias openai.RequestFunc fun(url: string, body: table|string?, options: web.HttpRequestOptions?): {status: integer, headers: web.Headers?, body: string}?, string?
 ---@alias openai.OpenStreamFunc fun(url: string, options: web.HttpStreamOptions?): web.HttpStream?, string?
@@ -68,7 +66,7 @@ local socket = require("socket")
 ---@field timeout number?
 ---@field request openai.RequestFunc
 ---@field open_stream openai.OpenStreamFunc?
----@field get_time (fun(): number)?
+---@field get_time fun(): number
 
 -- Raw-body transport for OpenAI-compatible Chat Completions endpoints.
 -- Returns the full JSON completion or an assembled streamed assistant message;
@@ -98,7 +96,8 @@ function Client:new(options)
 	self.request = assert(options.request, "request is required")
 	self.open_stream = options.open_stream
 	self.cancel_requested = false
-	self.get_time = options.get_time or socket.gettime
+	assert(type(options.get_time) == "function", "get_time is required")
+	self.get_time = options.get_time
 end
 
 ---@return {[string]: string}
