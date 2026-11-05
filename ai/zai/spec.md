@@ -16,6 +16,8 @@ Provide a GLM Coding Plan Chat Completions client and a small authenticated prox
 - `Client` owns only the upstream `/chat/completions` protocol against a GLM Coding Plan endpoint (default `https://api.z.ai/api/coding/paas/v4`): request encoding, bearer authentication, response decoding, response-shape validation, SSE assembly, and one-active-stream cancellation. Unlike the OpenAI package there is no OAuth or Responses translation because the subscription is a plain API key speaking Chat Completions natively.
 - The HTTP request and stream functions are injected. The client does not create a scheduler or depend on `rizu.net.NetworkService`.
 - `Client:completeStream()` relays each raw upstream delta to a callback and assembles one assistant message with `content`, `reasoning_content`, fragmented `tool_calls`, the terminal `finish_reason`, and the last reported `usage`. Returning `false` from the callback aborts and cancels the upstream stream, which is how the proxy reacts to a closed downstream connection.
+- `Protocol` owns pure GLM request validation/normalization: message/tool schemas, supported parameter checks, thinking/structured-output controls, model redirects and defaults. Both the standalone `ProxyServer` and the external router's Z.ai adapter call `ai.zai.Protocol` directly; adapters no longer load an HTTP server to normalize a request. The old `ProxyServer.normalizeMessages`/`normalizeTools`/`normalizeRequest` helpers moved to `Protocol` with the same signatures and return values.
+- Chat Completions SSE payloads are built by the shared pure `ai.openai.ChatCompletionsProtocol` (`chunk`/`usageChunk`); HTTP writes, GLM's strict finish-reason allowlist and the standalone proxy's commit/error policy remain local. Native Responses is not translated.
 - `ProxyServer` serves `POST /v1/chat/completions`, `GET /v1/models`, and `GET /v1/usage`. The usage route calls an injected `fetch_usage` function so the server stays free of HTTP-client wiring. Usage dashboards, usage history, and a web frontend are intentionally out of scope for this package.
 - The standalone entrypoint implements `fetch_usage` against the z.ai monitor endpoint `https://api.z.ai/api/monitor/usage/quota/limit` (configurable through `usage_url`), using the same SOCKS5 routing and TLS options as inference requests. The endpoint authenticates with the same Coding Plan API key as inference; no web-session JWT, cookies, or `bigmodel-*` headers are required.
 - The upstream monitor response is a z.ai RPC envelope; `fetchUsage` returns its `data` object (`limits` and `level`) without reshaping. Observed `limits` entries are `CREDIT_LIMIT` rows where `unit = 3, number = 5` is the 5-hour window and `unit = 6, number = 1` is the rolling weekly window; `usage` is the quota, `currentValue` the consumption, `percentage` the integer used-percent, and `nextResetTime` an epoch timestamp in milliseconds.
@@ -59,6 +61,11 @@ An alternate config path can be passed as the first argument, for example `proxy
 - `model_redirects` — map a public model name to a different upstream model, for example `["glm-5.3-flash"] = "glm-5.3"`.
 
 For public access, keep the Lua server bound to `127.0.0.1` and terminate HTTPS at Nginx using `aqua/ai/openai/nginx_proxy.example.conf` as a starting point with the port and zone names adjusted.
+
+## Tests
+
+- `Protocol_test.lua` exercises normalization without a listener: redirects/defaults, text parts and developer role conversion, tools/opaque arguments, thinking/structured output, stream usage preferences, unsupported parameters, malformed and multimodal history, and absence of input mutation.
+- Existing `Client_test.lua` and `ProxyServer_test.lua` retain streaming, cancellation, deadline, HTTP authentication/validation, usage-frame and error-contract coverage. Shared payload/usage tests live in `ai/openai/ChatCompletionsProtocol_test.lua`.
 
 ## Future Work and Open Questions
 
