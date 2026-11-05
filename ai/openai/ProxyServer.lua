@@ -24,7 +24,7 @@ local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
 ---@field model_redirects {[string]: string}?
 ---@field create_client fun(model: string, reasoning_effort: openai.ReasoningEffort?, request_options: openai.ProxyResponseOptions): openai.ProxyClient
 ---@field usage_repo openai.UsageRepo?
----@field fetch_usage (fun(): table?, string?, openai.ProviderError?)?
+---@field fetch_usage (fun(): table?, string?, openai.UsageFetchError?)?
 ---@field logger (fun(line: string))?
 ---@field max_body_size integer?
 ---@field client_timeout number?
@@ -41,7 +41,7 @@ local ResponsesProtocol = require("ai.openai.ResponsesProtocol")
 ---@field model_redirects {[string]: string}
 ---@field create_client fun(model: string, reasoning_effort: openai.ReasoningEffort?, request_options: openai.ProxyResponseOptions): openai.ProxyClient
 ---@field usage_repo openai.UsageRepo?
----@field fetch_usage fun(): table?, string?, openai.ProviderError?
+---@field fetch_usage fun(): table?, string?, openai.UsageFetchError?
 ---@field logger fun(line: string)
 ---@field max_body_size integer
 ---@field max_concurrent_requests_per_user integer
@@ -147,11 +147,11 @@ local function sendError(res, status, message, error_type, code, request_id)
 end
 
 ---@param res web.Response
----@param provider_error openai.ProviderError
+---@param provider_error openai.ProviderError|openai.UsageFetchError
 ---@return integer status
 local function sendProviderError(res, provider_error)
 	local status = provider_error.status
-	if status < 400 or status > 599 then status = 502 end
+	if type(status) ~= "number" or status % 1 ~= 0 or status < 400 or status > 599 then status = 502 end
 	sendError(res, status, provider_error.message, provider_error.type, provider_error.code, provider_error.request_id)
 	return status
 end
@@ -344,7 +344,8 @@ end
 function ProxyServer:usage(res)
 	local usage, _, provider_error = self.fetch_usage()
 	if not usage then
-		if provider_error then return sendProviderError(res, provider_error) end
+		-- Local/auth/transport failures have no upstream HTTP status.
+		if provider_error and provider_error.status then return sendProviderError(res, provider_error) end
 		sendError(res, 502, "upstream usage request failed", "upstream_error", "upstream_error")
 		return 502
 	end

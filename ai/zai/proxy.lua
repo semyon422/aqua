@@ -1,6 +1,6 @@
 local HttpStream = require("web.http.HttpStream")
 local http_util = require("web.http.util")
-local json = require("web.json")
+local UsageClient = require("ai.zai.UsageClient")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local ProxyNetwork = require("ai.openai.ProxyNetwork")
 local Client = require("ai.zai.Client")
@@ -100,33 +100,11 @@ local function openStream(url, options)
 end
 
 local base_url = config.base_url or "https://api.z.ai/api/coding/paas/v4"
-local usage_url = config.usage_url or "https://api.z.ai/api/monitor/usage/quota/limit"
-
 ---@return table? usage
 ---@return string? request_error
----@return zai.ProviderError? provider_error
+---@return openai.UsageFetchError? provider_error
 local function fetchUsage()
-	local response, request_err = request(usage_url, nil, {
-		method = "GET",
-		headers = {
-			Accept = "application/json",
-			Authorization = "Bearer " .. config.api_key,
-		},
-	})
-	if not response then return nil, request_err or "Z.ai usage request failed" end
-	if response.status < 200 or response.status >= 300 then
-		return nil, "Z.ai usage request failed", {
-			status = 502,
-			message = "Z.ai usage request failed",
-			type = "upstream_error",
-			code = "upstream_error",
-		}
-	end
-	local usage, decode_err = json.decode_safe(response.body)
-	if type(usage) ~= "table" then return nil, "invalid Z.ai usage response: " .. tostring(decode_err) end
-	local data = usage.data
-	if type(data) ~= "table" then return nil, "invalid Z.ai usage response: data object is missing" end
-	return data
+	return UsageClient.fetch({request = request, api_key = config.api_key, url = config.usage_url})
 end
 
 local server = ProxyServer({

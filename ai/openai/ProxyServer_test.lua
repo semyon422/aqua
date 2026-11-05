@@ -6,6 +6,8 @@ local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local digest = require("digest")
 local http_util = require("web.http.util")
 local json = require("web.json")
+local UsageClient = require("ai.openai.UsageClient")
+local Headers = require("web.http.Headers")
 local ProxyServerClass = require("ai.openai.ProxyServer")
 
 local function ProxyServer(options)
@@ -871,6 +873,36 @@ function test.preserves_native_cache_affinity_across_requests(t)
 	}, "proxy-secret", {['x-session-affinity'] = "explicit-thread",
 		session_id = "other-thread", ['x-client-request-id'] = "unique-request"}).status, 200)
 	t:eq(sessions[3], "explicit-thread")
+	server:stop()
+end
+
+---@param t testing.T
+function test.shared_usage_client_preserves_http_failures_and_bounds_local_failures(t)
+	local scheduler = CosocketScheduler()
+	local mode = 401
+	local server = ProxyServer({scheduler = scheduler,
+		users = {{name = "alice", access_token = "proxy-secret"}}, models = {"model-a"},
+		logger = function() end, create_client = function() error("not used") end,
+		fetch_usage = function()
+			return UsageClient.fetch({auth = {getAccess = function()
+				if mode == "auth" then return nil, nil, "SECRET auth failure" end
+				return "access", "account"
+			end}, request = function()
+				if mode == "transport" then return nil, "SECRET network failure" end
+				return {status = type(mode) == "number" and mode or 200, body = "SECRET body",
+					headers = Headers():set("cf-mitigated", mode == 403 and "challenge" or "none")}
+			end})
+		end})
+	t:assert(server:start("127.0.0.1", 0))
+	local _, port = server:getAddress()
+	for _, value in ipairs({401, 403, 429, 503, "transport", "invalid", "auth"}) do
+		mode = value
+		local response = request(t, scheduler, assert(port), "/v1/usage", nil, "proxy-secret")
+		t:eq(response.status, type(mode) == "number" and mode or 502)
+		local failure = json.decode(response.body).error
+		t:eq(failure.code, type(mode) == "number" and (mode == 403 and "cloudflare_challenge" or "upstream_http") or "upstream_error")
+		t:eq(response.body:find("SECRET", 1, true), nil)
+	end
 	server:stop()
 end
 

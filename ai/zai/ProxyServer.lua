@@ -17,7 +17,7 @@ local ChatProtocol = require("ai.openai.ChatCompletionsProtocol")
 ---@field create_client fun(): zai.Client
 ---@field thinking "enabled"|"disabled"?
 ---@field tool_stream boolean?
----@field fetch_usage (fun(): table?, string?, zai.ProviderError?)?
+---@field fetch_usage (fun(): table?, string?, openai.UsageFetchError?)?
 ---@field logger (fun(line: string))?
 ---@field max_body_size integer?
 ---@field client_timeout number?
@@ -39,7 +39,7 @@ local ChatProtocol = require("ai.openai.ChatCompletionsProtocol")
 ---@field create_client fun(): zai.Client
 ---@field thinking "enabled"|"disabled"?
 ---@field tool_stream boolean
----@field fetch_usage fun(): table?, string?, zai.ProviderError?
+---@field fetch_usage fun(): table?, string?, openai.UsageFetchError?
 ---@field logger fun(line: string)
 ---@field max_body_size integer
 ---@field max_concurrent_requests_per_user integer
@@ -152,11 +152,11 @@ local function sendError(res, status, message, error_type, code)
 end
 
 ---@param res web.Response
----@param provider_error zai.ProviderError
+---@param provider_error zai.ProviderError|openai.UsageFetchError
 ---@return integer status
 local function sendProviderError(res, provider_error)
 	local status = provider_error.status
-	if status < 400 or status > 599 then status = 502 end
+	if type(status) ~= "number" or status % 1 ~= 0 or status < 400 or status > 599 then status = 502 end
 	sendError(res, status, provider_error.message, provider_error.type, provider_error.code)
 	return status
 end
@@ -364,7 +364,8 @@ end
 function ProxyServer:usage(res)
 	local usage, _, provider_error = self.fetch_usage()
 	if not usage then
-		if provider_error then return sendProviderError(res, provider_error) end
+		-- Local/transport failures have no upstream HTTP status.
+		if provider_error and provider_error.status then return sendProviderError(res, provider_error) end
 		sendError(res, 502, "upstream usage request failed", "upstream_error", "upstream_error")
 		return 502
 	end

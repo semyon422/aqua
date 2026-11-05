@@ -3,8 +3,7 @@ local HttpStream = require("web.http.HttpStream")
 local http_util = require("web.http.util")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local stbl = require("stbl")
-local json = require("web.json")
-local random = require("web.random")
+local UsageClient = require("ai.openai.UsageClient")
 local SubscriptionAuth = require("ai.openai.SubscriptionAuth")
 local SubscriptionAuthGuard = require("ai.openai.SubscriptionAuthGuard")
 local SubscriptionClient = require("ai.openai.SubscriptionClient")
@@ -210,41 +209,11 @@ end
 
 local shared_auth = SubscriptionAuthGuard(auth, scheduler)
 
-local usage_url = "https://chatgpt.com/backend-api/codex/usage"
-
 ---@return table?
 ---@return string?
----@return openai.ProviderError?
+---@return openai.UsageFetchError?
 local function fetchUsage()
-	local access_token, account_id, access_err = shared_auth:getAccess()
-	if not access_token then return nil, access_err or "OpenAI login is required" end
-	if not account_id or account_id == "" then return nil, "OpenAI login has no account ID" end
-	local client_request_id = random.hex(16)
-	local response, request_err = request(usage_url, nil, {
-		method = "GET",
-		headers = {
-			Authorization = "Bearer " .. access_token,
-			["ChatGPT-Account-Id"] = account_id,
-			Accept = "application/json",
-			Originator = "openai-proxy",
-			["User-Agent"] = "openai-proxy",
-			["x-client-request-id"] = client_request_id,
-		},
-	})
-	if not response then return nil, request_err or "OpenAI usage request failed" end
-	if response.status < 200 or response.status >= 300 then
-		local request_id = response.headers and response.headers:get("x-request-id") or client_request_id
-		return nil, "OpenAI usage request failed", {
-			status = response.status,
-			message = "OpenAI usage request failed",
-			type = "upstream_error",
-			code = "upstream_error",
-			request_id = request_id,
-		}
-	end
-	local usage, decode_err = json.decode_safe(response.body)
-	if type(usage) ~= "table" then return nil, "invalid OpenAI usage response: " .. tostring(decode_err) end
-	return usage
+	return UsageClient.fetch({request = request, auth = shared_auth})
 end
 
 local usage_db = UsageDatabase(LjsqliteDatabase())

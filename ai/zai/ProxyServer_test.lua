@@ -5,6 +5,7 @@ local socket = require("socket")
 local CosocketScheduler = require("web.luasocket.CosocketScheduler")
 local http_util = require("web.http.util")
 local json = require("web.json")
+local UsageClient = require("ai.zai.UsageClient")
 local ProxyServer = require("ai.zai.ProxyServer")
 
 local test = {}
@@ -509,6 +510,27 @@ function test.rate_limits_requests(t)
 	}, token)
 	t:eq(response.status, 429)
 	t:eq(json.decode(response.body).error.code, "rate_limit_exceeded")
+	server:stop()
+end
+
+---@param t testing.T
+function test.shared_usage_client_preserves_actual_http_status_and_bounds_local_errors(t)
+	local mode = 401
+	local server, scheduler = startServer(t, {create_client = function() error("not used") end,
+		fetch_usage = function()
+			return UsageClient.fetch({api_key = "key", request = function()
+				if mode == "transport" then return nil, "SECRET network failure" end
+				return {status = type(mode) == "number" and mode or 200, body = "SECRET body"}
+			end})
+		end})
+	local _, port = server:getAddress()
+	for _, value in ipairs({401, 403, 429, 503, "transport", "invalid"}) do
+		mode = value
+		local response = request(t, scheduler, assert(port), "/v1/usage", nil, "proxy-secret-proxy-secret-proxy")
+		t:eq(response.status, type(mode) == "number" and mode or 502)
+		t:eq(json.decode(response.body).error.code, type(mode) == "number" and "upstream_http" or "upstream_error")
+		t:eq(response.body:find("SECRET", 1, true), nil)
+	end
 	server:stop()
 end
 
