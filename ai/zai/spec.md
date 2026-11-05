@@ -13,7 +13,7 @@ Provide a GLM Coding Plan Chat Completions client and a small authenticated prox
 
 ## Architecture Decisions
 
-- `Client` owns only the upstream `/chat/completions` protocol against a GLM Coding Plan endpoint (default `https://api.z.ai/api/coding/paas/v4`): request encoding, bearer authentication, response decoding, response-shape validation, SSE assembly, and one-active-stream cancellation. Unlike the OpenAI package there is no OAuth or Responses translation because the subscription is a plain API key speaking Chat Completions natively.
+- `Client` is a thin GLM coding-plan facade over `ai.openai.ChatCompletionsClient`, retaining `complete(body)` (full completion), `completeStream(body, on_delta?)` (assembled assistant message), the required non-empty API key, the Z.ai error label, and existing `zai.*` type aliases. The shared raw-body transport owns encoding, bearer headers, response decoding/shape validation, SSE assembly, deadlines, bounded error reads and one-active-stream cancellation. The GLM endpoint defaults to `https://api.z.ai/api/coding/paas/v4` in the standalone wiring, not the client. Unlike the OpenAI subscription client there is no OAuth or Responses translation because GLM speaks Chat Completions natively.
 - The HTTP request and stream functions are injected. The client does not create a scheduler or depend on `rizu.net.NetworkService`.
 - `Client:completeStream()` relays each raw upstream delta to a callback and assembles one assistant message with `content`, `reasoning_content`, fragmented `tool_calls`, the terminal `finish_reason`, and the last reported `usage`. Returning `false` from the callback aborts and cancels the upstream stream, which is how the proxy reacts to a closed downstream connection.
 - `Protocol` owns pure GLM request validation/normalization: message/tool schemas, supported parameter checks, thinking/structured-output controls, model redirects and defaults. Both the standalone `ProxyServer` and the external router's Z.ai adapter call `ai.zai.Protocol` directly; adapters no longer load an HTTP server to normalize a request. The old `ProxyServer.normalizeMessages`/`normalizeTools`/`normalizeRequest` helpers moved to `Protocol` with the same signatures and return values.
@@ -26,7 +26,7 @@ Provide a GLM Coding Plan Chat Completions client and a small authenticated prox
 - `max_completion_tokens` and legacy `max_tokens` are both accepted, validated as mutually exclusive positive integers, and sent upstream as `max_tokens`.
 - Streaming responses send SSE headers and the assistant-role chunk immediately after local request validation, before the upstream request starts. Upstream failures after that point are delivered as SSE `error` events followed by `[DONE]` under the already-committed HTTP 200.
 - The proxy re-emits its own chunk IDs and echoes the public model name. Upstream `function_call` finish reasons are mapped to `tool_calls`; unknown upstream finish reasons become mid-stream errors instead of being silently rewritten.
-- Reused shared infrastructure from the OpenAI package: `ai.openai.SseParser` for incremental SSE records and `ai.openai.ProxyNetwork` for SOCKS5 routing and TLS options. Both are protocol-agnostic.
+- Reused shared infrastructure from the OpenAI package: `ai.openai.ChatCompletionsClient` for transport/lifecycle, its incremental `SseParser`, and `ai.openai.ProxyNetwork` for SOCKS5 routing and TLS options. Generic compatible endpoints use the raw client directly and do not depend on this GLM facade or need a placeholder API key.
 - The standalone entrypoint loads ignored `userdata/zai_proxy.lua` and ignored `userdata/network.lua`, mirroring the OpenAI proxy layout, so upstream inference follows the user's existing route without copying proxy credentials.
 
 ## Invariants
@@ -65,7 +65,7 @@ For public access, keep the Lua server bound to `127.0.0.1` and terminate HTTPS 
 ## Tests
 
 - `Protocol_test.lua` exercises normalization without a listener: redirects/defaults, text parts and developer role conversion, tools/opaque arguments, thinking/structured output, stream usage preferences, unsupported parameters, malformed and multimodal history, and absence of input mutation.
-- Existing `Client_test.lua` and `ProxyServer_test.lua` retain streaming, cancellation, deadline, HTTP authentication/validation, usage-frame and error-contract coverage. Shared payload/usage tests live in `ai/openai/ChatCompletionsProtocol_test.lua`.
+- `Client_test.lua` checks the GLM facade's required key, Z.ai HTTP error label, full completion return value and full-delta callback contract. Shared streaming/cancellation/deadline/error-read regressions moved to `ai/openai/ChatCompletionsClient_test.lua`, where they exercise the same inherited implementation, including cancellation inside a callback or during a read/open and subsequent client reuse. `ProxyServer_test.lua` retains HTTP authentication/validation, usage-frame and error-contract coverage; shared payload/usage tests live in `ai/openai/ChatCompletionsProtocol_test.lua`.
 
 ## Future Work and Open Questions
 

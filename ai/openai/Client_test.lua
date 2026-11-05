@@ -139,4 +139,58 @@ function test.cancels_active_stream(t)
 	t:eq(json.decode(stream.sent_body).stream, true)
 end
 
+---@param t testing.T
+function test.shared_transport_preserves_empty_messages_and_stream_metadata(t)
+	local streams = {
+		makeStream({"data: [DONE]\n\n"}),
+		makeStream({
+			[[data: {"choices":[{"delta":{"reasoning_content":"think"}}]}]] .. "\n\n",
+			[[data: {"choices":[{"delta":{"content":"hi"},"finish_reason":"length"}]}]] .. "\n\n",
+			[[data: {"choices":[],"usage":{"total_tokens":7}}]] .. "\n\n",
+			"data: [DONE]\n\n",
+		}),
+	}
+	local client = Client({base_url = "http://localhost/v1", model = "model",
+		request = function() error("not used") end,
+		open_stream = function() return table.remove(streams, 1) end})
+	t:eq(assert(client:completeStream({})).content, "")
+	local deltas = {}
+	local message = assert(client:completeStream({}, nil, function(text) table.insert(deltas, text) end))
+	t:tdeq(deltas, {"hi"})
+	t:eq(message.reasoning_content, "think")
+	t:eq(message.finish_reason, "length")
+	t:eq(message.usage.total_tokens, 7)
+end
+
+---@param t testing.T
+function test.shared_transport_terminal_guards_and_exception_cleanup(t)
+	local delta = [[data: {"choices":[{"delta":{"content":"text"}}]}]] .. "\n\n"
+	for _, terminal in ipairs({"done", "false", "cancel", "exception", "provider_error"}) do
+		local payload = delta .. delta .. "data: [DONE]\n\n"
+		if terminal == "done" then payload = delta .. "data: [DONE]\n\ndata: not JSON\n\n" end
+		if terminal == "provider_error" then payload = [[data: {"error":{"message":"failed"}}]] .. "\n\n" .. delta end
+		local stream = makeStream({payload})
+		local client = Client({base_url = "http://localhost/v1", model = "model",
+			request = function() error("not used") end, open_stream = function() return stream end})
+		local callbacks = 0
+		local message, err = client:completeStream({}, nil, function()
+			callbacks = callbacks + 1
+			if terminal == "false" then return false end
+			if terminal == "cancel" then client:cancel() end
+			if terminal == "exception" then error("SECRET-CALLBACK") end
+		end)
+		t:eq(callbacks, terminal == "provider_error" and 0 or 1)
+		if terminal == "done" then
+			t:eq(message.content, "text")
+		else
+			t:eq(message, nil)
+			local errors = { ["false"] = "downstream response stream closed", cancel = "canceled",
+				exception = "upstream stream failed", provider_error = "failed" }
+			t:eq(err, errors[terminal])
+		end
+		t:eq(client.active_stream, nil)
+		t:assert(stream.closed or stream.cancel_error)
+	end
+end
+
 return test
