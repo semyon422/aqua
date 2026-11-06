@@ -373,4 +373,52 @@ function test.explicit_cancel_stops_coalesced_events_and_client_is_reusable(t)
 	end
 end
 
+---@param t testing.T
+function test.stream_preserves_both_reasoning_names_and_usage_without_aliasing(t)
+	local raw_usage = {prompt_tokens = 10, completion_tokens = 7, total_tokens = 17,
+		prompt_tokens_details = {cached_tokens = 0, audio_tokens = 1},
+		completion_tokens_details = {reasoning_tokens = 3}}
+	local frames = {
+		{choices = {{delta = {reasoning = "raw ", reasoning_content = "legacy "}}}},
+		{choices = {{delta = {reasoning = "thought", reasoning_content = "thought"}}}},
+		{choices = {{delta = {refusal = "no"}, finish_reason = "length"}}},
+		{choices = json.array(), usage = raw_usage},
+	}
+	local chunks = {}
+	for _, frame in ipairs(frames) do chunks[#chunks + 1] = "data: " .. json.encode(frame) .. "\n\n" end
+	chunks[#chunks + 1] = "data: [DONE]\n\n"
+	local client = Client({base_url = "http://localhost/v1", request = function() error("unused") end,
+		open_stream = function() return makeStream(chunks) end})
+	local relayed = {}
+	local message = assert(client:completeStream({}, function(delta) relayed[#relayed + 1] = delta end))
+	t:eq(message.reasoning, "raw thought")
+	t:eq(message.reasoning_content, "legacy thought")
+	t:eq(message.refusal, "no")
+	t:eq(message.finish_reason, "length")
+	t:eq(message.content, "")
+	t:tdeq(message.usage, raw_usage)
+	t:tdeq(relayed[1], frames[1].choices[1].delta)
+	for _, field in ipairs({"reasoning", "reasoning_content"}) do
+		local chunks = {"data: " .. json.encode({choices = {{delta = {[field] = "only"}, finish_reason = "stop"}}}) .. "\n\n", "data: [DONE]\n\n"}
+		local single = Client({base_url = "http://localhost/v1", request = function() error("unused") end,
+			open_stream = function() return makeStream(chunks) end})
+		local result = assert(single:completeStream({}))
+		t:eq(result[field], "only")
+		t:eq(result[field == "reasoning" and "reasoning_content" or "reasoning"], nil)
+	end
+end
+
+---@param t testing.T
+function test.json_accepts_reasoning_only_without_requiring_visible_content(t)
+	for _, field in ipairs({"reasoning", "reasoning_content"}) do
+		for _, value in ipairs({"thought", "", json.null, json.array({{type = "opaque"}})}) do
+			local client = Client({base_url = "http://localhost/v1", request = function()
+				return {status = 200, body = json.encode({choices = {{message = {role = "assistant", [field] = value}, finish_reason = "length"}}})}
+			end})
+			local result = assert(client:complete({}))
+			t:eq(json.encode(result.choices[1].message[field]), json.encode(value))
+		end
+	end
+end
+
 return test

@@ -44,7 +44,9 @@ local SseParser = require("ai.openai.SseParser")
 
 ---@class openai.ChatCompletionDelta
 ---@field content any?
+---@field reasoning any?
 ---@field reasoning_content any?
+---@field refusal any?
 ---@field tool_calls openai.ChatToolDelta[]?
 
 ---@class openai.ChatCompletionToolCall
@@ -55,7 +57,9 @@ local SseParser = require("ai.openai.SseParser")
 ---@class openai.ChatCompletionMessage
 ---@field role string
 ---@field content string?
----@field reasoning_content string?
+---@field reasoning any?
+---@field reasoning_content any?
+---@field refusal any?
 ---@field tool_calls openai.ChatCompletionToolCall[]?
 ---@field finish_reason string?
 ---@field usage table?
@@ -143,7 +147,8 @@ function Client:validateMessage(message)
 	if message.content ~= nil and message.content ~= json.null and type(message.content) ~= "string" then
 		return nil, "assistant message content is not a string"
 	end
-	if message.content == nil and type(message.tool_calls) ~= "table" then
+	local has_auxiliary = message.reasoning ~= nil or message.reasoning_content ~= nil or message.refusal ~= nil
+	if message.content == nil and type(message.tool_calls) ~= "table" and not has_auxiliary then
 		return nil, "assistant message has neither text nor tool calls"
 	end
 	return message
@@ -191,8 +196,15 @@ function Client:applyDelta(message, delta)
 	if type(delta.content) == "string" and delta.content ~= "" then
 		message.content = (message.content or "") .. delta.content
 	end
-	if type(delta.reasoning_content) == "string" and delta.reasoning_content ~= "" then
-		message.reasoning_content = (message.reasoning_content or "") .. delta.reasoning_content
+	for _, field in ipairs({"reasoning", "reasoning_content", "refusal"}) do
+		local value = delta[field]
+		if type(value) == "string" then
+			message[field] = (type(message[field]) == "string" and message[field] or "") .. value
+		elseif value ~= nil then
+			-- Forward structured/null extensions without coercing them into text.
+			-- Their streaming deltas remain verbatim; no merge semantics are assumed.
+			message[field] = value
+		end
 	end
 	if type(delta.tool_calls) ~= "table" then
 		return
@@ -228,7 +240,7 @@ end
 --- Sends a streaming completion and assembles one assistant message. Each
 --- upstream delta is relayed to `on_delta`; returning false aborts the upstream
 --- stream. The returned message carries the assembled `content`,
---- `reasoning_content`, `tool_calls`, the terminal `finish_reason`, and the
+--- `reasoning`, `reasoning_content`, `refusal`, `tool_calls`, the terminal `finish_reason`, and the
 --- last reported `usage`.
 ---@param body table
 ---@param on_delta (fun(delta: openai.ChatCompletionDelta): boolean?)?
@@ -388,8 +400,8 @@ end
 ---@return openai.ChatCompletionMessage?
 ---@return string?
 function Client:validateStreamMessage(message)
-	if message.content == "" and message.reasoning_content == nil
-		and message.tool_calls == nil and message.usage == nil
+	if message.content == "" and message.reasoning == nil and message.reasoning_content == nil
+		and message.refusal == nil and message.tool_calls == nil and message.usage == nil
 	then
 		return nil, "assistant message has neither text nor tool calls"
 	end

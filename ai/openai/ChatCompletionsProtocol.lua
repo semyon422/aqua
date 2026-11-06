@@ -11,10 +11,13 @@ local Protocol = {}
 
 ---@class openai.CanonicalMessage
 ---@field content string
----@field reasoning_content string?
+---@field reasoning any? Provider extension, retained under its original name.
+---@field reasoning_content any? Provider extension, retained under its original name.
+---@field refusal any?
 ---@field tool_calls table?
 ---@field finish_reason string?
 ---@field usage openai.CanonicalUsage?
+---@field wire_usage table? Reported Chat Completions counters/details, separate from accounting.
 
 -- Accepts both native Responses and Chat Completions usage for accounting.
 -- This never rewrites native Responses objects or events on the wire.
@@ -41,20 +44,41 @@ end
 
 -- Keep supported assistant output fields without leaking provider metadata.
 ---@param message table
+---@param reported_usage table? Completion-level usage takes precedence over legacy message-level usage.
 ---@return openai.CanonicalMessage
-function Protocol.canonicalMessage(message)
+function Protocol.canonicalMessage(message, reported_usage)
 	---@type openai.CanonicalMessage
 	local canonical = {content = message.content or ""}
-	if type(message.reasoning_content) == "string" then canonical.reasoning_content = message.reasoning_content end
+	for _, key in ipairs({"reasoning", "reasoning_content", "refusal"}) do
+		if message[key] ~= nil then canonical[key] = message[key] end
+	end
 	if type(message.tool_calls) == "table" then canonical.tool_calls = message.tool_calls end
 	if type(message.finish_reason) == "string" then canonical.finish_reason = message.finish_reason end
-	canonical.usage = Protocol.canonicalUsage(message.usage)
+	local raw_usage = type(reported_usage) == "table" and reported_usage ~= json.null
+		and not json.isArray(reported_usage) and reported_usage or message.usage
+	canonical.usage = Protocol.canonicalUsage(raw_usage)
+	canonical.wire_usage = Protocol.completionUsage(canonical.usage, raw_usage)
 	return canonical
 end
 
+-- Preserve the known Chat Completions wire fields independently of normalized
+-- accounting. Detail objects (including zero, null and provider-specific nested
+-- entries) are not flattened or guessed. Unknown top-level metadata is not exposed.
 ---@param usage openai.CanonicalUsage?
+---@param reported_usage table?
 ---@return table?
-function Protocol.completionUsage(usage)
+function Protocol.completionUsage(usage, reported_usage)
+	local native = type(reported_usage) == "table" and type(reported_usage.input_tokens) == "number"
+		and type(reported_usage.output_tokens) == "number" and reported_usage.prompt_tokens == nil
+		and reported_usage.completion_tokens == nil
+	if type(reported_usage) == "table" and reported_usage ~= json.null and not json.isArray(reported_usage) and not native then
+		local reported = json.object()
+		for _, key in ipairs({"prompt_tokens", "completion_tokens", "total_tokens",
+			"prompt_tokens_details", "completion_tokens_details"}) do
+			if reported_usage[key] ~= nil then reported[key] = reported_usage[key] end
+		end
+		if next(reported) then return reported end
+	end
 	if not usage then return nil end
 	local result = {prompt_tokens = usage.input_tokens, completion_tokens = usage.output_tokens,
 		total_tokens = usage.input_tokens + usage.output_tokens}
@@ -80,9 +104,13 @@ end
 ---@param message openai.CanonicalMessage
 ---@return table
 function Protocol.completion(completion_id, created, model, message)
+	local wire_message = {role = "assistant", content = message.content}
+	for _, key in ipairs({"reasoning", "reasoning_content", "refusal", "tool_calls"}) do
+		if message[key] ~= nil then wire_message[key] = message[key] end
+	end
 	return {id = completion_id, object = "chat.completion", created = created, model = model,
-		choices = {{index = 0, message = message, finish_reason = Protocol.finishReason(message)}},
-		usage = Protocol.completionUsage(message.usage)}
+		choices = {{index = 0, message = wire_message, finish_reason = Protocol.finishReason(message)}},
+		usage = message.wire_usage or Protocol.completionUsage(message.usage)}
 end
 
 ---@param completion_id string
